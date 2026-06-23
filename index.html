@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KanbanFlow Board</title>
+<title>Kanba</title>
 <script>
   /* Applied before CSS paints so there's no flash of the wrong theme. */
   (function(){
@@ -856,7 +856,7 @@
     </button>
     <div class="kf-logo">
       <span class="kf-icon" id="kfLogoIcon"></span>
-      <span>KanbanFlow</span>
+      <span>Kanba</span>
     </div>
     <div class="kf-header-controls" id="headerControls">
       <div class="kf-drawer-header">
@@ -878,7 +878,7 @@
       <div class="kf-header-spacer"></div>
       <div class="kf-drawer-action-group">
         <button class="kf-header-btn" id="newProjectBtn" title="New Project"><span class="kf-icon" data-icon="plus" data-size="14"></span>New Project</button>
-        <button class="kf-header-btn" id="importProjectBtn" title="Import a project from a KanbanFlow export file"><span class="kf-icon" data-icon="upload" data-size="14"></span>Import Project</button>
+        <button class="kf-header-btn" id="importProjectBtn" title="Import a project from a Kanba export file"><span class="kf-icon" data-icon="upload" data-size="14"></span>Import Project</button>
         <button class="kf-header-btn" id="exportBtn" title="Export the current project"><span class="kf-icon" data-icon="download" data-size="14"></span>Export Project</button>
       </div>
       <input type="file" id="importFileInput" accept="application/json,.json" style="display:none;">
@@ -1380,6 +1380,16 @@
 "use strict";
 
 /* =========================================================
+   APP VERSION
+   Format: major.minor.yyyymmdd.hhmm — e.g. "1.00.20260623.0705".
+   Starts at 1.00. Every subsequent build increments the minor
+   version by 1 and recalculates the date/time to that build's
+   timestamp. This value is informational only: it's included in a
+   project's export file but is never read back in on import.
+   ========================================================= */
+var APP_VERSION = '1.00.20260623.0705';
+
+/* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
    ========================================================= */
 var ICON_PATHS = {
@@ -1673,7 +1683,7 @@ function saveDB(){
   try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   }catch(e){
-    console.error('KanbanFlow: failed to save to localStorage', e);
+    console.error('Kanba: failed to save to localStorage', e);
     toast('Could not save — local storage may be full or unavailable.');
   }
 }
@@ -1683,7 +1693,7 @@ function loadDB(){
   try{
     raw = localStorage.getItem(STORAGE_KEY);
   }catch(e){
-    console.error('KanbanFlow: failed to read localStorage', e);
+    console.error('Kanba: failed to read localStorage', e);
   }
   if(raw){
     try{
@@ -1693,7 +1703,7 @@ function loadDB(){
         return;
       }
     }catch(e){
-      console.error('KanbanFlow: corrupted data, resetting', e);
+      console.error('Kanba: corrupted data, resetting', e);
     }
   }
   db = createSeedDB();
@@ -2246,6 +2256,7 @@ function exportProjectJSON(project){
       dateLastExported: exportedAt
     },
     exportedAt: exportedAt,
+    appVersion: APP_VERSION,
     totalTasks: Object.keys(project.tasks).length,
     members: (project.members || []).map(function(m){ return {id: m.id, name: m.name, color: m.color}; }),
     releases: (project.releases || []).map(function(r){
@@ -2371,7 +2382,7 @@ function buildProjectFromExportDoc(doc){
     throw new Error('That file is not valid JSON.');
   }
   if(!Array.isArray(doc.hierarchy)){
-    throw new Error('That file doesn\'t look like a KanbanFlow export — it\'s missing the "hierarchy" list.');
+    throw new Error('That file doesn\'t look like a Kanba export — it\'s missing the "hierarchy" list.');
   }
 
   var flat = {};
