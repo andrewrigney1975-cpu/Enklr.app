@@ -917,6 +917,7 @@
     <div class="kf-toolbar-view-buttons" id="toolbarRow2Buttons">
       <button class="kf-btn kf-btn-secondary" id="bulkEditBtn"><span class="kf-icon" data-icon="grid" data-size="14"></span>Bulk Edit</button>
       <button class="kf-btn kf-btn-secondary" id="archivedTasksBtn"><span class="kf-icon" data-icon="archive" data-size="14"></span>Archived<span id="archivedCountBadge" class="kf-count-badge kf-archived-count-badge kf-vis-hidden"></span></button>
+      <button class="kf-btn kf-btn-secondary" id="taskTypesBtn"><span class="kf-icon" data-icon="tag" data-size="14"></span>Task Types</button>
       <button class="kf-btn kf-btn-secondary" id="releasesBtn"><span class="kf-icon" data-icon="rocket" data-size="14"></span>Releases</button>
     </div>
     <div class="kf-toolbar-spacer"></div>
@@ -937,6 +938,10 @@
       <button class="kf-btn kf-btn-ghost" id="taskModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
     </div>
     <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="taskTypeSelect">Type</label>
+        <select id="taskTypeSelect"></select>
+      </div>
       <div class="kf-field">
         <label for="taskTitleInput">Title</label>
         <input type="text" id="taskTitleInput" maxlength="120" placeholder="e.g. Set up CI pipeline">
@@ -1255,6 +1260,29 @@
   </div>
 </div>
 
+<!-- Task Types Modal -->
+<div class="kf-overlay hidden" id="taskTypesOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="taskTypesModalTitle">Manage task types</h2>
+      <button class="kf-btn kf-btn-ghost" id="taskTypesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="newTaskTypeNameInput">Add a task type</label>
+        <div class="kf-member-add-row">
+          <input type="text" id="newTaskTypeNameInput" maxlength="40" placeholder="e.g. Chore">
+          <button class="kf-btn kf-btn-primary" id="addTaskTypeBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Add</button>
+        </div>
+      </div>
+      <div id="taskTypeList" class="kf-member-list"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="taskTypesDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Releases Modal -->
 <div class="kf-overlay hidden" id="releasesOverlay">
   <div class="kf-modal" role="dialog" aria-modal="true">
@@ -1416,6 +1444,7 @@ var ICON_PATHS = {
   grid:        '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
   timeline:    '<circle cx="4" cy="6" r="1.6"/><path d="M8 6h12"/><circle cx="9" cy="12" r="1.6"/><path d="M13 12h7"/><circle cx="6" cy="18" r="1.6"/><path d="M10 18h10"/>',
   rocket:      '<path d="M12 2c2.5 2 4 5.5 4 9 0 2-.5 4-1.5 5.5L12 19l-2.5-2.5C8.5 15 8 13 8 11c0-3.5 1.5-7 4-9Z"/><path d="M9.5 14.5 6 16l1.5-3.5"/><path d="M14.5 14.5 18 16l-1.5-3.5"/><circle cx="12" cy="9" r="1.5"/><path d="M10 19l-1 3"/><path d="M14 19l1 3"/>',
+  tag:         '<path d="M12.59 2.41 21 10.83a2 2 0 0 1 0 2.83l-7.34 7.34a2 2 0 0 1-2.83 0L2.41 12.59a2 2 0 0 1-.41-2.18L4.5 4.5a2 2 0 0 1 1.79-1.21L10.41 3a2 2 0 0 1 2.18.41Z"/><circle cx="8.5" cy="8.5" r="1.5"/>',
   archive:     '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/>',
   quadrant:    '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/><path d="M3 12h18"/><circle cx="7.5" cy="7.5" r="1.4"/><circle cx="16" cy="8.5" r="1.4"/><circle cx="8.5" cy="16" r="1.4"/><circle cx="16.5" cy="16.5" r="1.4"/>',
   menu:        '<path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/>',
@@ -1719,6 +1748,7 @@ function migrateDB(){
     var p = db.projects[pid];
     if(!Array.isArray(p.members)){ p.members = []; changed = true; }
     if(!Array.isArray(p.releases)){ p.releases = []; changed = true; }
+    if(!Array.isArray(p.taskTypes)){ p.taskTypes = defaultTaskTypes(); changed = true; }
     if(!p.dateCreated){ p.dateCreated = epoch; changed = true; }
     if(!p.dateLastModified){ p.dateLastModified = epoch; changed = true; }
     if(!p.dateLastExported){ p.dateLastExported = null; changed = true; }
@@ -1726,10 +1756,14 @@ function migrateDB(){
     if(p.endDate === undefined){ p.endDate = null; changed = true; }
     var validReleaseIds = {};
     p.releases.forEach(function(r){ validReleaseIds[r.id] = true; });
+    var validTaskTypeIds = {};
+    p.taskTypes.forEach(function(tt){ validTaskTypeIds[tt.id] = true; });
     getTasksArray(p).forEach(function(t){
       if(t.assigneeId === undefined){ t.assigneeId = null; changed = true; }
       if(t.releaseId === undefined){ t.releaseId = null; changed = true; }
       else if(t.releaseId && !validReleaseIds[t.releaseId]){ t.releaseId = null; changed = true; }
+      if(t.typeId === undefined){ t.typeId = null; changed = true; }
+      else if(t.typeId && !validTaskTypeIds[t.typeId]){ t.typeId = null; changed = true; }
       if(!t.dateCreated){ t.dateCreated = t.createdAt || epoch; changed = true; }
       /* Unlike dateCreated, dateLastModified is left genuinely null (not
          backfilled to an epoch sentinel) when truly absent, so Done
@@ -1750,6 +1784,13 @@ function makeColumn(name, done){
   return {id: uid('col'), name: name, done: !!done, order: []};
 }
 
+function defaultTaskTypes(){
+  return [
+    {id: uid('type'), name: 'Feature'},
+    {id: uid('type'), name: 'Bug'}
+  ];
+}
+
 function createDefaultProject(name, key){
   var now = new Date().toISOString();
   return {
@@ -1761,6 +1802,7 @@ function createDefaultProject(name, key){
     tasks: {},
     members: [],
     releases: [],
+    taskTypes: defaultTaskTypes(),
     startDate: null,
     endDate: null,
     dateCreated: now,
@@ -1805,6 +1847,7 @@ function createSeedDB(){
       taskCost: clampTaskScore(taskCost),
       archived: false,
       releaseId: null,
+      typeId: null,
       dateCreated: now,
       dateLastModified: now
     };
@@ -1997,6 +2040,43 @@ function removeMember(project, memberId){
 }
 
 /* =========================================================
+   TASK TYPES
+   A per-project, user-managed set of task types (e.g. Feature, Bug).
+   A Task may have at most one type; the default for a task is none.
+   ========================================================= */
+function getTaskTypeById(project, typeId){
+  if(!project || !typeId) return null;
+  return (project.taskTypes || []).filter(function(tt){ return tt.id === typeId; })[0] || null;
+}
+function addTaskType(project, name){
+  var trimmed = (name || '').trim().slice(0, 40);
+  if(!trimmed) return null;
+  var type = {id: uid('type'), name: trimmed};
+  project.taskTypes.push(type);
+  saveDB();
+  return type;
+}
+function renameTaskType(project, typeId, name){
+  var type = getTaskTypeById(project, typeId);
+  if(!type) return;
+  var trimmed = (name || '').trim().slice(0, 40);
+  if(!trimmed) return;
+  type.name = trimmed;
+  saveDB();
+}
+function removeTaskType(project, typeId){
+  var type = getTaskTypeById(project, typeId);
+  if(!type) return 0;
+  project.taskTypes = project.taskTypes.filter(function(tt){ return tt.id !== typeId; });
+  var unassignedCount = 0;
+  getTasksArray(project).forEach(function(t){
+    if(t.typeId === typeId){ t.typeId = null; unassignedCount++; }
+  });
+  saveDB();
+  return unassignedCount;
+}
+
+/* =========================================================
    RELEASES
    A Project can have many Releases; a Task can belong to at most one.
    ========================================================= */
@@ -2109,6 +2189,7 @@ function addTask(project, data){
     dependencies: data.dependencies || [],
     assigneeId: data.assigneeId || null,
     releaseId: data.releaseId || null,
+    typeId: data.typeId || null,
     /* Defensive fallback only — the task modal already prefills these
        defaults (today / +14 days) before the user ever saves, so this
        just protects any other call path from ending up with no dates. */
@@ -2135,6 +2216,7 @@ function updateTask(project, taskId, data){
   t.dependencies = data.dependencies || [];
   t.assigneeId = data.assigneeId || null;
   t.releaseId = data.releaseId || null;
+  t.typeId = data.typeId || null;
   t.startDate = data.startDate || null;
   t.endDate = data.endDate || null;
   t.businessValue = clampTaskScore(data.businessValue);
@@ -2204,6 +2286,7 @@ function buildHierarchy(project){
     var t = taskMap[taskId];
     var assignee = getMemberById(project, t.assigneeId);
     var release = getReleaseById(project, t.releaseId);
+    var taskType = getTaskTypeById(project, t.typeId);
     var node = {
       id: t.id,
       key: t.key,
@@ -2215,6 +2298,8 @@ function buildHierarchy(project){
       assignee: assignee ? assignee.name : null,
       releaseId: release ? release.id : null,
       release: release ? release.name : null,
+      typeId: taskType ? taskType.id : null,
+      type: taskType ? taskType.name : null,
       dateCreated: t.dateCreated || null,
       dateLastModified: t.dateLastModified || null,
       startDate: t.startDate || null,
@@ -2274,6 +2359,7 @@ function exportProjectJSON(project){
       };
     }),
     columns: project.columns.map(function(c, idx){ return {name: c.name, done: c.done, order: idx}; }),
+    taskTypes: (project.taskTypes || []).map(function(tt){ return {id: tt.id, name: tt.name}; }),
     hierarchy: hierarchy
   };
   var blob = new Blob([JSON.stringify(doc, null, 2)], {type:'application/json'});
@@ -2319,6 +2405,8 @@ function flattenImportedHierarchy(nodes, out){
         assigneeName: (typeof n.assignee === 'string' && n.assignee.trim()) ? n.assignee.trim() : null,
         releaseIdRaw: typeof n.releaseId === 'string' ? n.releaseId : null,
         releaseName: (typeof n.release === 'string' && n.release.trim()) ? n.release.trim() : null,
+        typeIdRaw: typeof n.typeId === 'string' ? n.typeId : null,
+        typeName: (typeof n.type === 'string' && n.type.trim()) ? n.type.trim() : null,
         dateCreated: typeof n.dateCreated === 'string' ? n.dateCreated : null,
         dateLastModified: typeof n.dateLastModified === 'string' ? n.dateLastModified : null,
         startDate: isValidISODateString(n.startDate) ? n.startDate : null,
@@ -2473,6 +2561,7 @@ function buildProjectFromExportDoc(doc){
     tasks: {},
     members: [],
     releases: [],
+    taskTypes: [],
     startDate: (doc.project && isValidISODateString(doc.project.startDate)) ? doc.project.startDate : null,
     endDate: (doc.project && isValidISODateString(doc.project.endDate)) ? doc.project.endDate : null,
     dateCreated: (doc.project && typeof doc.project.dateCreated === 'string') ? doc.project.dateCreated : importedAt,
@@ -2528,6 +2617,29 @@ function buildProjectFromExportDoc(doc){
   var now = new Date().toISOString();
   var unresolvedAssignees = 0;
   var unresolvedReleases = 0;
+  var unresolvedTaskTypes = 0;
+
+  var taskTypeOldIdToNewId = {};
+  var taskTypeNameToNewId = {};
+  if(Array.isArray(doc.taskTypes)){
+    doc.taskTypes.forEach(function(tt){
+      if(!tt || typeof tt !== 'object') return;
+      var name = (typeof tt.name === 'string' && tt.name.trim()) ? tt.name.trim().slice(0,40) : null;
+      if(!name) return;
+      var newType = {id: uid('type'), name: name};
+      project.taskTypes.push(newType);
+      if(typeof tt.id === 'string') taskTypeOldIdToNewId[tt.id] = newType.id;
+      if(!taskTypeNameToNewId.hasOwnProperty(name)) taskTypeNameToNewId[name] = newType.id;
+    });
+  } else {
+    /* The taskTypes field is entirely absent — this export predates the
+       feature, rather than having deliberately captured zero types — so
+       seed the same defaults a brand-new project would get. An export
+       that DOES include the field, even as an empty array, is respected
+       exactly as exported. */
+    project.taskTypes = defaultTaskTypes();
+  }
+
   Object.keys(flat).forEach(function(originalId){
     var t = flat[originalId];
     var n = project.taskCounter++;
@@ -2549,6 +2661,14 @@ function buildProjectFromExportDoc(doc){
     } else if(t.releaseIdRaw || t.releaseName){
       unresolvedReleases++;
     }
+    var typeId = null;
+    if(t.typeIdRaw && taskTypeOldIdToNewId.hasOwnProperty(t.typeIdRaw)){
+      typeId = taskTypeOldIdToNewId[t.typeIdRaw];
+    } else if(t.typeName && taskTypeNameToNewId.hasOwnProperty(t.typeName)){
+      typeId = taskTypeNameToNewId[t.typeName];
+    } else if(t.typeIdRaw || t.typeName){
+      unresolvedTaskTypes++;
+    }
     var task = {
       id: newId,
       key: project.key + '-' + n,
@@ -2559,6 +2679,7 @@ function buildProjectFromExportDoc(doc){
       dependencies: [],
       assigneeId: assigneeId,
       releaseId: releaseId,
+      typeId: typeId,
       startDate: t.startDate || null,
       endDate: t.endDate || null,
       businessValue: clampTaskScore(t.businessValue),
@@ -2587,6 +2708,7 @@ function buildProjectFromExportDoc(doc){
     unresolvedDeps: unresolvedDeps,
     unresolvedAssignees: unresolvedAssignees,
     unresolvedReleases: unresolvedReleases,
+    unresolvedTaskTypes: unresolvedTaskTypes,
     cyclesRemoved: cyclesRemoved
   };
 }
@@ -2688,6 +2810,7 @@ function finaliseImport(result, wasOverwrite){
   if(result.unresolvedDeps > 0) msg += ' Skipped ' + result.unresolvedDeps + ' dependency reference(s) that could not be matched.';
   if(result.unresolvedAssignees > 0) msg += ' Skipped ' + result.unresolvedAssignees + ' assignee reference(s) that could not be matched.';
   if(result.unresolvedReleases > 0) msg += ' Skipped ' + result.unresolvedReleases + ' release reference(s) that could not be matched.';
+  if(result.unresolvedTaskTypes > 0) msg += ' Skipped ' + result.unresolvedTaskTypes + ' task type reference(s) that could not be matched.';
   toast(msg);
 }
 
@@ -4710,6 +4833,20 @@ function openTaskModal(taskId, defaultColumnId){
   ui.taskModalDeps = task ? (task.dependencies || []).slice() : [];
 
   document.getElementById('taskModalTitle').textContent = task ? 'Edit ' + task.key : 'New task';
+  var typeSelect = document.getElementById('taskTypeSelect');
+  typeSelect.innerHTML = '';
+  var noTypeOpt = document.createElement('option');
+  noTypeOpt.value = '';
+  noTypeOpt.textContent = 'No type';
+  typeSelect.appendChild(noTypeOpt);
+  (project.taskTypes || []).forEach(function(tt){
+    var opt = document.createElement('option');
+    opt.value = tt.id;
+    opt.textContent = tt.name;
+    if(task && task.typeId === tt.id) opt.selected = true;
+    typeSelect.appendChild(opt);
+  });
+
   document.getElementById('taskTitleInput').value = task ? task.title : '';
   document.getElementById('taskDescInput').value = task ? task.description : '';
   document.getElementById('taskPrioritySelect').value = task ? task.priority : 'medium';
@@ -4878,6 +5015,7 @@ function saveTaskFromModal(){
     columnId: document.getElementById('taskColumnSelect').value,
     assigneeId: document.getElementById('taskAssigneeSelect').value || null,
     releaseId: document.getElementById('taskReleaseSelect').value || null,
+    typeId: document.getElementById('taskTypeSelect').value || null,
     startDate: startISO,
     endDate: endISO,
     businessValue: clampTaskScore(document.getElementById('taskBusinessValueInput').value),
@@ -5072,6 +5210,65 @@ function addMemberFromModal(){
   input.value = '';
   renderMemberList();
   renderAssigneeFilterChips();
+  input.focus();
+}
+
+function openTaskTypesModal(){
+  var project = getCurrentProject();
+  if(!project){ toast('No project selected.'); return; }
+  renderTaskTypeList();
+  document.getElementById('newTaskTypeNameInput').value = '';
+  document.getElementById('taskTypesOverlay').classList.remove('hidden');
+  document.getElementById('newTaskTypeNameInput').focus();
+}
+function closeTaskTypesModal(){
+  document.getElementById('taskTypesOverlay').classList.add('hidden');
+}
+function renderTaskTypeList(){
+  var project = getCurrentProject();
+  var listEl = document.getElementById('taskTypeList');
+  listEl.innerHTML = '';
+  if(!project || !project.taskTypes || project.taskTypes.length === 0){
+    listEl.innerHTML = '<div class="kf-member-empty">No task types yet. Add one above.</div>';
+    return;
+  }
+  project.taskTypes.forEach(function(tt){
+    var row = document.createElement('div');
+    row.className = 'kf-member-row';
+    row.setAttribute('data-tasktype-id', tt.id);
+    row.innerHTML =
+      '<input type="text" class="kf-member-name-input" value="' + escapeHTML(tt.name) + '" maxlength="40" aria-label="Task type name">' +
+      '<button class="kf-btn kf-btn-ghost" data-action="remove-tasktype" title="Remove from project">' + iconSvg('trash',14) + '</button>';
+    var nameInput = row.querySelector('.kf-member-name-input');
+    nameInput.addEventListener('change', function(){
+      renameTaskType(project, tt.id, nameInput.value);
+      renderTaskTypeList();
+      renderBoard();
+    });
+    row.querySelector('[data-action="remove-tasktype"]').addEventListener('click', function(){
+      confirmDialog(
+        'Remove ' + tt.name + '?',
+        'Any tasks currently set to this type will have their type cleared.',
+        function(){
+          var unassigned = removeTaskType(project, tt.id);
+          renderTaskTypeList();
+          renderBoard();
+          toast('Removed ' + tt.name + (unassigned > 0 ? ' \u2014 cleared from ' + unassigned + ' task(s).' : '.'));
+        }
+      );
+    });
+    listEl.appendChild(row);
+  });
+}
+function addTaskTypeFromModal(){
+  var project = getCurrentProject();
+  if(!project) return;
+  var input = document.getElementById('newTaskTypeNameInput');
+  var name = input.value.trim();
+  if(!name){ toast('Please enter a name.'); return; }
+  addTaskType(project, name);
+  input.value = '';
+  renderTaskTypeList();
   input.focus();
 }
 
@@ -5309,6 +5506,16 @@ function wireEvents(){
   });
   document.getElementById('teamOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'teamOverlay') closeTeamModal();
+  });
+  document.getElementById('taskTypesBtn').addEventListener('click', openTaskTypesModal);
+  document.getElementById('taskTypesModalClose').addEventListener('click', closeTaskTypesModal);
+  document.getElementById('taskTypesDoneBtn').addEventListener('click', closeTaskTypesModal);
+  document.getElementById('addTaskTypeBtn').addEventListener('click', addTaskTypeFromModal);
+  document.getElementById('newTaskTypeNameInput').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); addTaskTypeFromModal(); }
+  });
+  document.getElementById('taskTypesOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'taskTypesOverlay') closeTaskTypesModal();
   });
   document.getElementById('releasesBtn').addEventListener('click', openReleasesOverlay);
   document.getElementById('releasesModalClose').addEventListener('click', closeReleasesOverlay);
@@ -5568,6 +5775,7 @@ function wireEvents(){
     else if(!document.getElementById('columnOverlay').classList.contains('hidden')) closeColumnModal();
     else if(!document.getElementById('projectOverlay').classList.contains('hidden')) closeProjectModal();
     else if(!document.getElementById('teamOverlay').classList.contains('hidden')) closeTeamModal();
+    else if(!document.getElementById('taskTypesOverlay').classList.contains('hidden')) closeTaskTypesModal();
     else if(isReleasesOverlayOpen()) closeReleasesOverlay();
     else if(!document.getElementById('confirmOverlay').classList.contains('hidden')) closeConfirmDialog();
     else if(!document.getElementById('importConflictOverlay').classList.contains('hidden')) closeImportConflictModal();
