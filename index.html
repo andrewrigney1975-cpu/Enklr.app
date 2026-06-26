@@ -636,6 +636,10 @@
 
   /* Decisions */
   .kf-decision-type-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:2px 8px;border-radius:3px;white-space:nowrap;flex-shrink:0;color:var(--kf-text-secondary);background:var(--kf-column-bg);}
+  .kf-decision-status-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:2px 8px;border-radius:3px;white-space:nowrap;flex-shrink:0;}
+  .kf-decision-status-pill.open{color:var(--kf-text-secondary);background:var(--kf-column-bg);}
+  .kf-decision-status-pill.in_review{color:var(--kf-blue);background:var(--kf-release-progress-bg);}
+  .kf-decision-status-pill.completed{color:var(--kf-good-fg);background:var(--kf-good-bg);}
 
   .kf-overdue-alert-list{
     max-height:200px;overflow-y:auto;
@@ -1734,8 +1738,23 @@
             </select>
           </div>
           <div class="kf-field">
+            <label for="decisionStatusSelect">Status</label>
+            <select id="decisionStatusSelect">
+              <option value="open">Open</option>
+              <option value="in_review">In Review</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
             <label for="decisionOwnerSelect">Owner</label>
             <select id="decisionOwnerSelect"></select>
+          </div>
+          <div class="kf-field">
+            <label for="decisionApproverInput">Approver</label>
+            <input type="text" id="decisionApproverInput" maxlength="80" list="decisionApproverOptions" placeholder="Type a name or pick an existing one">
+            <datalist id="decisionApproverOptions"></datalist>
           </div>
         </div>
         <div class="kf-field">
@@ -1745,6 +1764,14 @@
         <div class="kf-field">
           <label>Linked documents</label>
           <div id="decisionDocumentPicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label>Associated risk(s)</label>
+          <div id="decisionRiskPicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label for="decisionOutcomeInput">Outcome</label>
+          <textarea id="decisionOutcomeInput" maxlength="2000" placeholder="What was the outcome of this decision..."></textarea>
         </div>
         <div class="kf-field" id="decisionMetaDates" style="color:var(--kf-text-faint);font-size:12px;"></div>
       </div>
@@ -1853,7 +1880,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-var APP_VERSION = '1.15.20260626.1731';
+var APP_VERSION = '1.16.20260626.1801';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -2253,6 +2280,7 @@ function migrateDB(){
     if(typeof p.riskCounter !== 'number'){ p.riskCounter = 1; changed = true; }
     if(!Array.isArray(p.decisions)){ p.decisions = []; changed = true; }
     if(typeof p.decCounter !== 'number'){ p.decCounter = 1; changed = true; }
+    if(!Array.isArray(p.approvers)){ p.approvers = []; changed = true; }
     if(!p.dateCreated){ p.dateCreated = epoch; changed = true; }
     if(!p.dateLastModified){ p.dateLastModified = epoch; changed = true; }
     if(!p.dateLastExported){ p.dateLastExported = null; changed = true; }
@@ -2325,6 +2353,9 @@ function migrateDB(){
       if(!r.dateLastModified){ r.dateLastModified = r.dateCreated || epoch; changed = true; }
     });
 
+    var validRiskIds = {};
+    p.risks.forEach(function(r){ validRiskIds[r.id] = true; });
+
     p.decisions.forEach(function(dec){
       if(dec.ownerId === undefined){ dec.ownerId = null; changed = true; }
       else if(dec.ownerId && !validMemberIds[dec.ownerId]){ dec.ownerId = null; changed = true; }
@@ -2335,8 +2366,16 @@ function migrateDB(){
         var filteredDecDocIds = dec.documentIds.filter(function(id){ return validDocIds[id]; });
         if(filteredDecDocIds.length !== dec.documentIds.length){ dec.documentIds = filteredDecDocIds; changed = true; }
       }
+      if(!Array.isArray(dec.riskIds)){ dec.riskIds = []; changed = true; }
+      else {
+        var filteredDecRiskIds = dec.riskIds.filter(function(id){ return validRiskIds[id]; });
+        if(filteredDecRiskIds.length !== dec.riskIds.length){ dec.riskIds = filteredDecRiskIds; changed = true; }
+      }
       if(!DECISION_TYPE_META.hasOwnProperty(dec.type)){ dec.type = 'strategy'; changed = true; }
+      if(!DECISION_STATUS_META.hasOwnProperty(dec.status)){ dec.status = 'open'; changed = true; }
       if(dec.description === undefined){ dec.description = ''; changed = true; }
+      if(dec.outcome === undefined){ dec.outcome = ''; changed = true; }
+      if(dec.approver === undefined){ dec.approver = null; changed = true; }
       if(!dec.dateCreated){ dec.dateCreated = epoch; changed = true; }
       if(!dec.dateLastModified){ dec.dateLastModified = dec.dateCreated || epoch; changed = true; }
     });
@@ -2373,6 +2412,7 @@ function createDefaultProject(name, key){
     riskCounter: 1,
     decisions: [],
     decCounter: 1,
+    approvers: [],
     startDate: null,
     endDate: null,
     dateCreated: now,
@@ -2957,6 +2997,11 @@ function deleteRisk(project, riskId){
   var risk = getRiskById(project, riskId);
   if(!risk) return false;
   project.risks = project.risks.filter(function(r){ return r.id !== riskId; });
+  (project.decisions || []).forEach(function(d){
+    if(d.riskIds && d.riskIds.indexOf(riskId) !== -1){
+      d.riskIds = d.riskIds.filter(function(id){ return id !== riskId; });
+    }
+  });
   saveDB();
   return true;
 }
@@ -2981,6 +3026,31 @@ var DECISION_TYPE_META = {
 function normalizeDecisionType(value){
   return DECISION_TYPE_META.hasOwnProperty(value) ? value : 'strategy';
 }
+var DECISION_STATUS_META = {
+  open: {label: 'Open'},
+  in_review: {label: 'In Review'},
+  completed: {label: 'Completed'}
+};
+function normalizeDecisionStatus(value){
+  return DECISION_STATUS_META.hasOwnProperty(value) ? value : 'open';
+}
+function getDecisionStatusMeta(value){
+  return DECISION_STATUS_META[normalizeDecisionStatus(value)];
+}
+/* The Approver field is a free-text combobox backed by a per-project
+   vocabulary that grows as people type new names — not a Team Member
+   reference. Matching is case-insensitive so "Jo Smith" and "jo smith"
+   reuse the same entry rather than creating a near-duplicate, but the
+   casing of whichever value was entered FIRST is what's kept/reused. */
+function registerApprover(project, name){
+  var trimmed = (name || '').trim().slice(0, 80);
+  if(!trimmed) return null;
+  if(!Array.isArray(project.approvers)) project.approvers = [];
+  var existing = project.approvers.filter(function(a){ return a.toLowerCase() === trimmed.toLowerCase(); })[0];
+  if(existing) return existing;
+  project.approvers.push(trimmed);
+  return trimmed;
+}
 function getDecisionTypeMeta(value){
   return DECISION_TYPE_META[normalizeDecisionType(value)];
 }
@@ -3000,9 +3070,13 @@ function addDecision(project, data){
     title: (data.title || '').trim().slice(0, 120) || 'Untitled decision',
     description: (data.description || '').trim().slice(0, 2000),
     type: normalizeDecisionType(data.type),
+    status: normalizeDecisionStatus(data.status),
+    outcome: (data.outcome || '').trim().slice(0, 2000),
     ownerId: data.ownerId || null,
+    approver: registerApprover(project, data.approver),
     taskId: data.taskId || null,
     documentIds: Array.isArray(data.documentIds) ? data.documentIds.slice() : [],
+    riskIds: Array.isArray(data.riskIds) ? data.riskIds.slice() : [],
     dateCreated: now,
     dateLastModified: now
   };
@@ -3017,9 +3091,13 @@ function updateDecision(project, decisionId, data){
   decision.title = title || decision.title;
   decision.description = (data.description || '').trim().slice(0, 2000);
   decision.type = normalizeDecisionType(data.type);
+  decision.status = normalizeDecisionStatus(data.status);
+  decision.outcome = (data.outcome || '').trim().slice(0, 2000);
   decision.ownerId = data.ownerId || null;
+  decision.approver = registerApprover(project, data.approver);
   decision.taskId = data.taskId || null;
   decision.documentIds = Array.isArray(data.documentIds) ? data.documentIds.slice() : [];
+  decision.riskIds = Array.isArray(data.riskIds) ? data.riskIds.slice() : [];
   decision.dateLastModified = new Date().toISOString();
   saveDB();
 }
@@ -3321,14 +3399,19 @@ function exportProjectJSON(project){
         title: dec.title,
         description: dec.description || '',
         type: dec.type,
+        status: dec.status,
+        outcome: dec.outcome || '',
         ownerId: owner ? owner.id : null,
         ownerName: owner ? owner.name : null,
+        approver: dec.approver || null,
         taskId: dec.taskId || null,
         documentIds: dec.documentIds || [],
+        riskIds: dec.riskIds || [],
         dateCreated: dec.dateCreated || null,
         dateLastModified: dec.dateLastModified || null
       };
     }),
+    approvers: (project.approvers || []).slice(),
     hierarchy: hierarchy
   };
   var blob = new Blob([JSON.stringify(doc, null, 2)], {type:'application/json'});
@@ -3538,6 +3621,7 @@ function buildProjectFromExportDoc(doc){
     riskCounter: 1,
     decisions: [],
     decCounter: 1,
+    approvers: [],
     startDate: (doc.project && isValidISODateString(doc.project.startDate)) ? doc.project.startDate : null,
     endDate: (doc.project && isValidISODateString(doc.project.endDate)) ? doc.project.endDate : null,
     dateCreated: (doc.project && typeof doc.project.dateCreated === 'string') ? doc.project.dateCreated : importedAt,
@@ -3718,6 +3802,7 @@ function buildProjectFromExportDoc(doc){
   }
 
   var unresolvedRiskOwners = 0, unresolvedRiskTasks = 0, unresolvedRiskDocs = 0;
+  var riskOldIdToNewId = {};
   if(Array.isArray(doc.risks)){
     doc.risks.forEach(function(r){
       if(!r || typeof r !== 'object') return;
@@ -3762,10 +3847,16 @@ function buildProjectFromExportDoc(doc){
         dateLastModified: typeof r.dateLastModified === 'string' ? r.dateLastModified : importedAt
       };
       project.risks.push(newRisk);
+      if(typeof r.id === 'string') riskOldIdToNewId[r.id] = newRisk.id;
     });
   }
 
-  var unresolvedDecisionOwners = 0, unresolvedDecisionTasks = 0, unresolvedDecisionDocs = 0;
+  var unresolvedDecisionOwners = 0, unresolvedDecisionTasks = 0, unresolvedDecisionDocs = 0, unresolvedDecisionRisks = 0;
+  if(Array.isArray(doc.approvers)){
+    doc.approvers.forEach(function(name){
+      if(typeof name === 'string') registerApprover(project, name);
+    });
+  }
   if(Array.isArray(doc.decisions)){
     doc.decisions.forEach(function(dec){
       if(!dec || typeof dec !== 'object') return;
@@ -3792,15 +3883,26 @@ function buildProjectFromExportDoc(doc){
           else unresolvedDecisionDocs++;
         });
       }
+      var riskIds = [];
+      if(Array.isArray(dec.riskIds)){
+        dec.riskIds.forEach(function(oldRiskId){
+          if(riskOldIdToNewId.hasOwnProperty(oldRiskId)) riskIds.push(riskOldIdToNewId[oldRiskId]);
+          else unresolvedDecisionRisks++;
+        });
+      }
       var newDecision = {
         id: uid('dec'),
         key: nextDecisionKey(project),
         title: title,
         description: (typeof dec.description === 'string') ? dec.description.trim().slice(0,2000) : '',
         type: normalizeDecisionType(dec.type),
+        status: normalizeDecisionStatus(dec.status),
+        outcome: (typeof dec.outcome === 'string') ? dec.outcome.trim().slice(0,2000) : '',
         ownerId: ownerId,
+        approver: (typeof dec.approver === 'string' && dec.approver.trim()) ? registerApprover(project, dec.approver) : null,
         taskId: taskId,
         documentIds: documentIds,
+        riskIds: riskIds,
         dateCreated: typeof dec.dateCreated === 'string' ? dec.dateCreated : importedAt,
         dateLastModified: typeof dec.dateLastModified === 'string' ? dec.dateLastModified : importedAt
       };
@@ -3825,6 +3927,7 @@ function buildProjectFromExportDoc(doc){
     unresolvedDecisionOwners: unresolvedDecisionOwners,
     unresolvedDecisionTasks: unresolvedDecisionTasks,
     unresolvedDecisionDocs: unresolvedDecisionDocs,
+    unresolvedDecisionRisks: unresolvedDecisionRisks,
     cyclesRemoved: cyclesRemoved
   };
 }
@@ -3943,7 +4046,7 @@ function finaliseImport(result, wasOverwrite){
   if(result.unresolvedReleases > 0) msg += ' Skipped ' + result.unresolvedReleases + ' release reference(s) that could not be matched.';
   if(result.unresolvedTaskTypes > 0) msg += ' Skipped ' + result.unresolvedTaskTypes + ' task type reference(s) that could not be matched.';
   var unresolvedDocLinks = (result.unresolvedDocOwners || 0) + (result.unresolvedDocTasks || 0) + (result.unresolvedRiskOwners || 0) + (result.unresolvedRiskTasks || 0) + (result.unresolvedRiskDocs || 0) +
-    (result.unresolvedDecisionOwners || 0) + (result.unresolvedDecisionTasks || 0) + (result.unresolvedDecisionDocs || 0);
+    (result.unresolvedDecisionOwners || 0) + (result.unresolvedDecisionTasks || 0) + (result.unresolvedDecisionDocs || 0) + (result.unresolvedDecisionRisks || 0);
   if(unresolvedDocLinks > 0) msg += ' Skipped ' + unresolvedDocLinks + ' document/risk/decision reference(s) that could not be matched.';
   toast(msg);
 }
@@ -7111,6 +7214,30 @@ function getCheckedDocumentIdsFrom(wrapId){
     return cb.getAttribute('data-doc-id');
   });
 }
+function renderRiskPickerInto(wrapId, project, selectedRiskIds){
+  var wrap = document.getElementById(wrapId);
+  wrap.innerHTML = '';
+  var risks = (project.risks || []).slice().sort(function(a, b){ return a.key.localeCompare(b.key, undefined, {numeric: true}); });
+  if(risks.length === 0){
+    wrap.innerHTML = '<div class="kf-risk-doc-picker-empty">No risks in this project yet.</div>';
+    return;
+  }
+  risks.forEach(function(r){
+    var row = document.createElement('label');
+    row.className = 'kf-risk-doc-picker-row';
+    var checked = selectedRiskIds.indexOf(r.id) !== -1;
+    row.innerHTML =
+      '<input type="checkbox" data-risk-id="' + r.id + '" ' + (checked ? 'checked' : '') + '>' +
+      '<span class="kf-dep-key">' + escapeHTML(r.key) + '</span>' +
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(r.title) + '</span>';
+    wrap.appendChild(row);
+  });
+}
+function getCheckedRiskIdsFrom(wrapId){
+  return Array.from(document.querySelectorAll('#' + wrapId + ' input[type=checkbox]:checked')).map(function(cb){
+    return cb.getAttribute('data-risk-id');
+  });
+}
 function renderRiskDocumentPicker(project, selectedDocIds){
   renderDocumentPickerInto('riskDocumentPicker', project, selectedDocIds);
 }
@@ -7275,6 +7402,15 @@ function showDecisionsListView(){
 function populateDecisionTypeSelect(currentType){
   document.getElementById('decisionTypeSelect').value = normalizeDecisionType(currentType);
 }
+function populateApproverOptions(project){
+  var list = document.getElementById('decisionApproverOptions');
+  list.innerHTML = '';
+  (project.approvers || []).slice().sort(function(a, b){ return a.localeCompare(b, undefined, {sensitivity:'base'}); }).forEach(function(name){
+    var opt = document.createElement('option');
+    opt.value = name;
+    list.appendChild(opt);
+  });
+}
 
 function showDecisionsFormView(decisionId){
   var project = getCurrentProject();
@@ -7292,9 +7428,14 @@ function showDecisionsFormView(decisionId){
   document.getElementById('decisionTitleInput').value = decision ? decision.title : '';
   document.getElementById('decisionDescriptionInput').value = decision ? decision.description : '';
   populateDecisionTypeSelect(decision ? decision.type : 'strategy');
+  document.getElementById('decisionStatusSelect').value = decision ? normalizeDecisionStatus(decision.status) : 'open';
   populateOwnerSelect(document.getElementById('decisionOwnerSelect'), project, decision ? decision.ownerId : null);
+  populateApproverOptions(project);
+  document.getElementById('decisionApproverInput').value = decision ? (decision.approver || '') : '';
   populateTaskSelect(document.getElementById('decisionTaskSelect'), project, decision ? decision.taskId : null);
   renderDocumentPickerInto('decisionDocumentPicker', project, decision ? decision.documentIds : []);
+  renderRiskPickerInto('decisionRiskPicker', project, decision ? decision.riskIds : []);
+  document.getElementById('decisionOutcomeInput').value = decision ? decision.outcome : '';
 
   var metaEl = document.getElementById('decisionMetaDates');
   if(decision){
@@ -7326,6 +7467,7 @@ function renderDecisionsList(){
   decisions.forEach(function(dec){
     var owner = getMemberById(project, dec.ownerId);
     var typeMeta = getDecisionTypeMeta(dec.type);
+    var statusMeta = getDecisionStatusMeta(dec.status);
     var linkedTask = dec.taskId ? project.tasks[dec.taskId] : null;
 
     var row = document.createElement('div');
@@ -7339,9 +7481,13 @@ function renderDecisionsList(){
       metaHTML += '<span>Unassigned</span>';
     }
     metaHTML += '<span>Added ' + escapeHTML(utcISOToLocalDisplayDate(dec.dateCreated)) + '</span>';
+    if(dec.approver) metaHTML += '<span>Approver: ' + escapeHTML(dec.approver) + '</span>';
     if(linkedTask) metaHTML += '<span>' + escapeHTML(linkedTask.key) + '</span>';
     if(dec.documentIds && dec.documentIds.length > 0){
       metaHTML += '<span>' + dec.documentIds.length + ' doc' + (dec.documentIds.length === 1 ? '' : 's') + '</span>';
+    }
+    if(dec.riskIds && dec.riskIds.length > 0){
+      metaHTML += '<span>' + dec.riskIds.length + ' risk' + (dec.riskIds.length === 1 ? '' : 's') + '</span>';
     }
 
     row.innerHTML =
@@ -7349,6 +7495,7 @@ function renderDecisionsList(){
         '<span class="kf-dep-key">' + escapeHTML(dec.key) + '</span>' +
         '<span class="kf-release-name">' + escapeHTML(dec.title) + '</span>' +
         '<span class="kf-decision-type-pill">' + escapeHTML(typeMeta.label) + '</span>' +
+        '<span class="kf-decision-status-pill ' + normalizeDecisionStatus(dec.status) + '">' + escapeHTML(statusMeta.label) + '</span>' +
       '</div>' +
       '<div class="kf-release-row-meta">' + metaHTML + '</div>';
 
@@ -7367,9 +7514,13 @@ function saveDecisionFromModal(){
     title: title,
     description: document.getElementById('decisionDescriptionInput').value,
     type: document.getElementById('decisionTypeSelect').value,
+    status: document.getElementById('decisionStatusSelect').value,
+    outcome: document.getElementById('decisionOutcomeInput').value,
     ownerId: document.getElementById('decisionOwnerSelect').value || null,
+    approver: document.getElementById('decisionApproverInput').value,
     taskId: document.getElementById('decisionTaskSelect').value || null,
-    documentIds: getCheckedDocumentIdsFrom('decisionDocumentPicker')
+    documentIds: getCheckedDocumentIdsFrom('decisionDocumentPicker'),
+    riskIds: getCheckedRiskIdsFrom('decisionRiskPicker')
   };
 
   if(ui.editingDecisionId){
