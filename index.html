@@ -604,6 +604,8 @@
   .kf-release-row:hover{background:var(--kf-hover-tint);border-color:var(--kf-border-strong);}
   .kf-release-row-top{display:flex;align-items:center;gap:8px;}
   .kf-release-name{font-size:13px;font-weight:500;color:var(--kf-text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .kf-doc-row-link{display:flex;align-items:center;flex-shrink:0;color:var(--kf-blue);}
+  .kf-doc-row-link:hover{color:var(--kf-text);}
   .kf-release-row-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--kf-text-faint);flex-wrap:wrap;}
   .kf-release-row-meta .kf-avatar{margin-right:2px;}
   .kf-release-status-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:2px 8px;border-radius:3px;white-space:nowrap;flex-shrink:0;}
@@ -1573,6 +1575,10 @@
         <button class="kf-btn kf-btn-secondary" id="addDocumentBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
           <span class="kf-icon" data-icon="plus" data-size="14"></span>New Document
         </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="documentsSearchInput" placeholder="Search documents...">
+        </div>
         <div id="documentsList" class="kf-releases-list"></div>
       </div>
       <div id="documentsFormView" class="hidden">
@@ -1629,6 +1635,10 @@
         <button class="kf-btn kf-btn-secondary" id="addRiskBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
           <span class="kf-icon" data-icon="plus" data-size="14"></span>New Risk
         </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="risksSearchInput" placeholder="Search risks...">
+        </div>
         <div id="risksList" class="kf-releases-list"></div>
       </div>
       <div id="risksFormView" class="hidden">
@@ -1712,6 +1722,10 @@
         <button class="kf-btn kf-btn-secondary" id="addDecisionBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
           <span class="kf-icon" data-icon="plus" data-size="14"></span>New Decision
         </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="decisionsSearchInput" placeholder="Search decisions...">
+        </div>
         <div id="decisionsList" class="kf-releases-list"></div>
       </div>
       <div id="decisionsFormView" class="hidden">
@@ -1880,7 +1894,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-var APP_VERSION = '1.16.20260626.1801';
+var APP_VERSION = '1.17.20260626.2226';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -5768,6 +5782,9 @@ var ui = {
   editingDocumentId: null,
   editingRiskId: null,
   editingDecisionId: null,
+  documentsSearchTerm: '',
+  risksSearchTerm: '',
+  decisionsSearchTerm: '',
   taskListCollapsedGroups: new Set(),
   sideNavExpanded: false
 };
@@ -6973,6 +6990,8 @@ function deleteReleaseFromModal(){
 function openDocumentsOverlay(){
   var project = getCurrentProject();
   if(!project){ toast('No project selected.'); return; }
+  ui.documentsSearchTerm = '';
+  document.getElementById('documentsSearchInput').value = '';
   showDocumentsListView();
   document.getElementById('documentsOverlay').classList.remove('hidden');
 }
@@ -7065,12 +7084,24 @@ function renderDocumentsList(){
   listEl.innerHTML = '';
   if(!project) return;
 
-  var docs = (project.documents || []).slice().sort(function(a, b){
+  var allDocs = (project.documents || []).slice().sort(function(a, b){
     return a.key.localeCompare(b.key, undefined, {numeric: true});
   });
 
-  if(docs.length === 0){
+  if(allDocs.length === 0){
     listEl.innerHTML = '<div class="kf-releases-empty">No documents yet. Add one above to start building this project\u2019s document register.</div>';
+    return;
+  }
+
+  var term = ui.documentsSearchTerm.trim().toLowerCase();
+  var docs = term ? allDocs.filter(function(d){
+    var owner = getMemberById(project, d.ownerId);
+    var hay = [d.key, d.title, d.description, owner ? owner.name : ''].join(' ').toLowerCase();
+    return hay.indexOf(term) !== -1;
+  }) : allDocs;
+
+  if(docs.length === 0){
+    listEl.innerHTML = '<div class="kf-releases-empty">No documents match \u201c' + escapeHTML(ui.documentsSearchTerm.trim()) + '\u201d.</div>';
     return;
   }
 
@@ -7091,13 +7122,22 @@ function renderDocumentsList(){
     metaHTML += '<span>Added ' + escapeHTML(utcISOToLocalDisplayDate(d.dateCreated)) + '</span>';
     if(linkedTask) metaHTML += '<span>' + escapeHTML(linkedTask.key) + '</span>';
 
+    var urlLinkHTML = d.url
+      ? '<a class="kf-doc-row-link" href="' + escapeHTML(d.url) + '" target="_blank" rel="noopener noreferrer" title="Open ' + escapeHTML(d.url) + ' in a new tab" aria-label="Open document link in a new tab">' + iconSvg('externalLink', 14) + '</a>'
+      : '';
+
     row.innerHTML =
       '<div class="kf-release-row-top">' +
         '<span class="kf-dep-key">' + escapeHTML(d.key) + '</span>' +
         '<span class="kf-release-name">' + escapeHTML(d.title) + '</span>' +
+        urlLinkHTML +
       '</div>' +
       '<div class="kf-release-row-meta">' + metaHTML + '</div>';
 
+    var urlLinkEl = row.querySelector('.kf-doc-row-link');
+    if(urlLinkEl){
+      urlLinkEl.addEventListener('click', function(e){ e.stopPropagation(); });
+    }
     row.addEventListener('click', function(){ showDocumentsFormView(d.id); });
     listEl.appendChild(row);
   });
@@ -7149,6 +7189,8 @@ function deleteDocumentFromModal(){
 function openRisksOverlay(){
   var project = getCurrentProject();
   if(!project){ toast('No project selected.'); return; }
+  ui.risksSearchTerm = '';
+  document.getElementById('risksSearchInput').value = '';
   showRisksListView();
   document.getElementById('risksOverlay').classList.remove('hidden');
 }
@@ -7280,12 +7322,24 @@ function renderRisksList(){
   listEl.innerHTML = '';
   if(!project) return;
 
-  var risks = (project.risks || []).slice().sort(function(a, b){
+  var allRisks = (project.risks || []).slice().sort(function(a, b){
     return riskScore(b) - riskScore(a) || a.key.localeCompare(b.key, undefined, {numeric: true});
   });
 
-  if(risks.length === 0){
+  if(allRisks.length === 0){
     listEl.innerHTML = '<div class="kf-releases-empty">No risks yet. Add one above to start this project\u2019s risk register.</div>';
+    return;
+  }
+
+  var term = ui.risksSearchTerm.trim().toLowerCase();
+  var risks = term ? allRisks.filter(function(r){
+    var owner = getMemberById(project, r.ownerId);
+    var hay = [r.key, r.title, r.description, r.mitigations, owner ? owner.name : ''].join(' ').toLowerCase();
+    return hay.indexOf(term) !== -1;
+  }) : allRisks;
+
+  if(risks.length === 0){
+    listEl.innerHTML = '<div class="kf-releases-empty">No risks match \u201c' + escapeHTML(ui.risksSearchTerm.trim()) + '\u201d.</div>';
     return;
   }
 
@@ -7379,6 +7433,8 @@ function deleteRiskFromModal(){
 function openDecisionsOverlay(){
   var project = getCurrentProject();
   if(!project){ toast('No project selected.'); return; }
+  ui.decisionsSearchTerm = '';
+  document.getElementById('decisionsSearchInput').value = '';
   showDecisionsListView();
   document.getElementById('decisionsOverlay').classList.remove('hidden');
 }
@@ -7455,12 +7511,24 @@ function renderDecisionsList(){
   listEl.innerHTML = '';
   if(!project) return;
 
-  var decisions = (project.decisions || []).slice().sort(function(a, b){
+  var allDecisions = (project.decisions || []).slice().sort(function(a, b){
     return a.key.localeCompare(b.key, undefined, {numeric: true});
   });
 
-  if(decisions.length === 0){
+  if(allDecisions.length === 0){
     listEl.innerHTML = '<div class="kf-releases-empty">No decisions yet. Add one above to start this project\u2019s decision log.</div>';
+    return;
+  }
+
+  var term = ui.decisionsSearchTerm.trim().toLowerCase();
+  var decisions = term ? allDecisions.filter(function(dec){
+    var owner = getMemberById(project, dec.ownerId);
+    var hay = [dec.key, dec.title, dec.description, dec.outcome, dec.approver || '', owner ? owner.name : ''].join(' ').toLowerCase();
+    return hay.indexOf(term) !== -1;
+  }) : allDecisions;
+
+  if(decisions.length === 0){
+    listEl.innerHTML = '<div class="kf-releases-empty">No decisions match \u201c' + escapeHTML(ui.decisionsSearchTerm.trim()) + '\u201d.</div>';
     return;
   }
 
@@ -7665,6 +7733,10 @@ function wireEvents(){
     if(e.target.id === 'documentsOverlay') closeDocumentsOverlay();
   });
   document.getElementById('addDocumentBtn').addEventListener('click', function(){ showDocumentsFormView(null); });
+  document.getElementById('documentsSearchInput').addEventListener('input', function(e){
+    ui.documentsSearchTerm = e.target.value;
+    renderDocumentsList();
+  });
   document.getElementById('documentFormCancelBtn').addEventListener('click', showDocumentsListView);
   document.getElementById('documentFormSaveBtn').addEventListener('click', saveDocumentFromModal);
   document.getElementById('deleteDocumentBtn').addEventListener('click', deleteDocumentFromModal);
@@ -7680,6 +7752,10 @@ function wireEvents(){
     if(e.target.id === 'risksOverlay') closeRisksOverlay();
   });
   document.getElementById('addRiskBtn').addEventListener('click', function(){ showRisksFormView(null); });
+  document.getElementById('risksSearchInput').addEventListener('input', function(e){
+    ui.risksSearchTerm = e.target.value;
+    renderRisksList();
+  });
   document.getElementById('riskFormCancelBtn').addEventListener('click', showRisksListView);
   document.getElementById('riskFormSaveBtn').addEventListener('click', saveRiskFromModal);
   document.getElementById('deleteRiskBtn').addEventListener('click', deleteRiskFromModal);
@@ -7693,6 +7769,10 @@ function wireEvents(){
     if(e.target.id === 'decisionsOverlay') closeDecisionsOverlay();
   });
   document.getElementById('addDecisionBtn').addEventListener('click', function(){ showDecisionsFormView(null); });
+  document.getElementById('decisionsSearchInput').addEventListener('input', function(e){
+    ui.decisionsSearchTerm = e.target.value;
+    renderDecisionsList();
+  });
   document.getElementById('decisionFormCancelBtn').addEventListener('click', showDecisionsListView);
   document.getElementById('decisionFormSaveBtn').addEventListener('click', saveDecisionFromModal);
   document.getElementById('deleteDecisionBtn').addEventListener('click', deleteDecisionFromModal);
