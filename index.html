@@ -598,6 +598,7 @@
   #documentsBtn.hidden{display:none;}
   #risksBtn.hidden{display:none;}
   #decisionsBtn.hidden{display:none;}
+  #healthBtn.hidden{display:none;}
   .kf-modal-footer.hidden{display:none;}
   .kf-tasktype-icon-grid{
     display:grid;grid-template-columns:repeat(6, 1fr);gap:4px;
@@ -658,6 +659,30 @@
 
   /* Decisions */
   .kf-decision-type-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:2px 8px;border-radius:3px;white-space:nowrap;flex-shrink:0;color:var(--kf-text-secondary);background:var(--kf-column-bg);}
+
+  /* Project Health Dashboard */
+  .kf-health-overall-row{display:flex;align-items:center;gap:24px;justify-content:center;padding:8px 0 4px;flex-wrap:wrap;}
+  .kf-health-overall-note{max-width:320px;font-size:13px;color:var(--kf-text-secondary);line-height:1.5;}
+  .kf-health-gauges-row{display:flex;align-items:flex-start;justify-content:center;gap:28px;flex-wrap:wrap;padding:8px 0 20px;border-bottom:1px solid var(--kf-border);margin-bottom:18px;}
+  .kf-health-gauge-block{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .kf-health-gauge-label{font-size:12px;font-weight:500;color:var(--kf-text-secondary);text-align:center;}
+  .kf-health-section{margin-bottom:24px;}
+  .kf-health-section-title{font-size:14px;font-weight:500;margin:0 0 10px;color:var(--kf-text);}
+  .kf-health-overrun-warning{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--kf-radius);background:var(--kf-blocked-bg);color:var(--kf-blocked-fg);font-size:13px;font-weight:500;margin-bottom:12px;}
+  .kf-health-overrun-warning.hidden{display:none;}
+  .kf-health-no-data{padding:24px;text-align:center;color:var(--kf-text-faint);font-size:13px;background:var(--kf-column-bg);border-radius:var(--kf-radius);}
+  .kf-health-no-data.hidden{display:none;}
+  .kf-health-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--kf-text-secondary);}
+  .kf-health-legend-item{display:flex;align-items:center;gap:6px;}
+  .kf-health-legend-swatch{width:14px;height:3px;border-radius:2px;display:inline-block;}
+  .kf-health-top-member-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--kf-border);}
+  .kf-health-top-member-row:last-child{border-bottom:none;}
+  .kf-health-top-member-rank{width:20px;text-align:center;font-size:12px;font-weight:500;color:var(--kf-text-faint);flex-shrink:0;}
+  .kf-health-top-member-name{flex:1;font-size:13px;font-weight:500;color:var(--kf-text);}
+  .kf-health-top-member-bar-track{flex:2;height:8px;border-radius:4px;background:var(--kf-column-bg);overflow:hidden;}
+  .kf-health-top-member-bar-fill{height:100%;background:#0c66e4;border-radius:4px;}
+  .kf-health-top-member-count{width:30px;text-align:right;font-size:12px;font-weight:500;color:var(--kf-text-secondary);flex-shrink:0;}
+  .kf-health-empty{padding:18px;text-align:center;color:var(--kf-text-faint);font-size:13px;}
   .kf-decision-status-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:2px 8px;border-radius:3px;white-space:nowrap;flex-shrink:0;}
   .kf-decision-status-pill.open{color:var(--kf-text-secondary);background:var(--kf-column-bg);}
   .kf-decision-status-pill.in_review{color:var(--kf-blue);background:var(--kf-release-progress-bg);}
@@ -1080,6 +1105,7 @@
         <button class="kf-header-btn" id="documentsBtn" title="Documents"><span class="kf-icon" data-icon="ty_document" data-size="14"></span>Documents</button>
         <button class="kf-header-btn" id="risksBtn" title="Risks"><span class="kf-icon" data-icon="warning" data-size="14"></span>Risks</button>
         <button class="kf-header-btn" id="decisionsBtn" title="Decisions"><span class="kf-icon" data-icon="ty_approve" data-size="14"></span>Decisions</button>
+        <button class="kf-header-btn" id="healthBtn" title="Project Health Dashboard"><span class="kf-icon" data-icon="ty_monitor" data-size="14"></span>Health</button>
       </div>
       <div class="kf-drawer-views-section" id="drawerViewsSection">
         <div class="kf-header-divider"></div>
@@ -1889,10 +1915,46 @@
           <span class="kf-icon" data-icon="ty_approve" data-size="14"></span>
           <span>Decisions</span>
         </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowHealthBtn">
+          <span class="kf-icon" data-icon="ty_monitor" data-size="14"></span>
+          <span>Health Dashboard</span>
+        </label>
       </div>
     </div>
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-secondary" id="appSettingsDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Health Dashboard Modal -->
+<div class="kf-overlay hidden" id="healthOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="healthTitle">Project Health Dashboard</h2>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="healthClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-modal-body" id="healthBody">
+      <div class="kf-health-overall-row">
+        <div id="healthOverallGauge"></div>
+        <div id="healthOverallNote" class="kf-health-overall-note"></div>
+      </div>
+      <div class="kf-health-gauges-row" id="healthGaugesRow"></div>
+
+      <div class="kf-health-section">
+        <h3 class="kf-health-section-title">Task Burndown &amp; Velocity</h3>
+        <div id="healthBurndownWarning" class="kf-health-overrun-warning hidden"></div>
+        <div id="healthBurndownChart"></div>
+        <div id="healthBurndownNoData" class="kf-health-no-data hidden"></div>
+      </div>
+
+      <div class="kf-health-section">
+        <h3 class="kf-health-section-title">Top 5 Team Members by Active Workload</h3>
+        <div id="healthTopMembers"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1990,7 +2052,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-var APP_VERSION = '1.23.20260627.0505';
+var APP_VERSION = '1.24.20260627.1746';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -2525,7 +2587,8 @@ function normalizeHeaderButtonVisibility(value){
   return {
     documents: v.documents !== false,
     risks: v.risks !== false,
-    decisions: v.decisions !== false
+    decisions: v.decisions !== false,
+    health: v.health !== false
   };
 }
 function createDefaultProject(name, key){
@@ -3255,6 +3318,373 @@ function deleteDecision(project, decisionId){
   project.decisions = project.decisions.filter(function(d){ return d.id !== decisionId; });
   saveDB();
   return true;
+}
+
+/* =========================================================
+   PROJECT HEALTH DASHBOARD — data layer
+   Every individual condition is expressed as "% in a healthy state"
+   so they all combine consistently: higher is always better, on
+   every metric, everywhere in this dashboard. A null pct means
+   "no data to measure" (e.g. zero risks exist) rather than 0% or
+   100%, so an empty category is never mistaken for either a perfect
+   or a failing score.
+   ========================================================= */
+function healthPct(numerator, denominator){
+  if(denominator <= 0) return null;
+  return Math.max(0, Math.min(100, (numerator / denominator) * 100));
+}
+
+/* 0-1 fraction of how far today sits within the project's own
+   start/end date range, or null if there's no usable range. */
+function computeTimelineProgress(project){
+  if(!project.startDate || !project.endDate) return null;
+  var start = new Date(project.startDate).getTime();
+  var end = new Date(project.endDate).getTime();
+  if(!isFinite(start) || !isFinite(end) || end <= start) return null;
+  return Math.max(0, Math.min(1, (Date.now() - start) / (end - start)));
+}
+
+/* ---- Releases ---- */
+function isReleasePastDue(release){
+  if(!release.endDate) return false;
+  if(normalizeReleaseStatus(release.status) === 'deployed') return false;
+  var end = new Date(release.endDate).getTime();
+  return isFinite(end) && end < Date.now();
+}
+function computeReleasesHealth(project){
+  var releases = project.releases || [];
+  if(releases.length === 0) return {pct: null, total: 0, onTrackCount: 0};
+  var onTrackCount = releases.filter(function(r){ return !isReleasePastDue(r); }).length;
+  return {pct: healthPct(onTrackCount, releases.length), total: releases.length, onTrackCount: onTrackCount};
+}
+
+/* ---- Tasks ----
+   Done% weight scales from 10% of the gauge at project start up to
+   90% near the end (the remaining three conditions evenly split
+   whatever weight Done% isn't using). With no usable project
+   timeline, all four conditions are weighted equally instead, rather
+   than fabricating urgency that doesn't exist. */
+function computeTasksHealth(project){
+  var tasks = getTasksArray(project).filter(function(t){ return !t.archived; });
+  var total = tasks.length;
+  if(total === 0){
+    return {pct: null, donePct: null, onSchedulePct: null, scoredPct: null, releaseAssignedPct: null, timelineProgress: null, doneWeight: null};
+  }
+
+  var doneTasks = tasks.filter(function(t){ var c = getColumn(project, t.columnId); return c && c.done; });
+  var nonDoneTasks = tasks.filter(function(t){ var c = getColumn(project, t.columnId); return !(c && c.done); });
+
+  var donePct = healthPct(doneTasks.length, total);
+
+  var datedNonDone = nonDoneTasks.filter(function(t){ return !!t.endDate; });
+  var onScheduleCount = datedNonDone.filter(function(t){ return !isTaskOverdue(project, t); }).length;
+  var onSchedulePct = healthPct(onScheduleCount, datedNonDone.length);
+
+  var scoredCount = tasks.filter(function(t){ return !isTaskUnscored(t); }).length;
+  var scoredPct = healthPct(scoredCount, total);
+
+  var releaseAssignedCount = nonDoneTasks.filter(function(t){ return !!t.releaseId; }).length;
+  var releaseAssignedPct = healthPct(releaseAssignedCount, nonDoneTasks.length);
+
+  var timelineProgress = computeTimelineProgress(project);
+  var doneWeight, otherWeight;
+  if(timelineProgress === null){
+    doneWeight = 0.25; otherWeight = 0.25;
+  } else {
+    doneWeight = 0.1 + 0.8 * timelineProgress;
+    otherWeight = (1 - doneWeight) / 3;
+  }
+
+  var parts = [], weights = [];
+  if(donePct !== null){ parts.push(donePct); weights.push(doneWeight); }
+  if(onSchedulePct !== null){ parts.push(onSchedulePct); weights.push(otherWeight); }
+  if(scoredPct !== null){ parts.push(scoredPct); weights.push(otherWeight); }
+  if(releaseAssignedPct !== null){ parts.push(releaseAssignedPct); weights.push(otherWeight); }
+  var totalWeight = weights.reduce(function(a,b){ return a + b; }, 0);
+  var weightedPct = totalWeight > 0
+    ? parts.reduce(function(sum, p, i){ return sum + p * weights[i]; }, 0) / totalWeight
+    : null;
+
+  return {
+    pct: weightedPct,
+    donePct: donePct, onSchedulePct: onSchedulePct, scoredPct: scoredPct, releaseAssignedPct: releaseAssignedPct,
+    timelineProgress: timelineProgress, doneWeight: doneWeight
+  };
+}
+
+/* ---- Risks ----
+   "Closed by target date" covers both: a risk still open whose
+   target date has already passed, AND a risk that was eventually
+   closed but only after its target date had already passed. */
+function isRiskClosedLate(risk){
+  if(!risk.dateToClose) return false;
+  var target = new Date(risk.dateToClose).getTime();
+  if(!isFinite(target)) return false;
+  if(normalizeRiskStatus(risk.status) === 'closed'){
+    if(!risk.dateClosed) return false;
+    var closed = new Date(risk.dateClosed).getTime();
+    return isFinite(closed) && closed > target;
+  }
+  return target < Date.now();
+}
+function computeRisksHealth(project){
+  var risks = project.risks || [];
+  if(risks.length === 0) return {pct: null, mitigatedPct: null, closedPct: null, closedOnTimePct: null, ownedPct: null};
+
+  var mitigatedCount = risks.filter(function(r){ return (r.mitigations || '').trim().length > 0; }).length;
+  var closedCount = risks.filter(function(r){ return normalizeRiskStatus(r.status) === 'closed'; }).length;
+  var closedOnTimeCount = risks.filter(function(r){ return !isRiskClosedLate(r); }).length;
+  var ownedCount = risks.filter(function(r){ return !!r.ownerId; }).length;
+
+  var mitigatedPct = healthPct(mitigatedCount, risks.length);
+  var closedPct = healthPct(closedCount, risks.length);
+  var closedOnTimePct = healthPct(closedOnTimeCount, risks.length);
+  var ownedPct = healthPct(ownedCount, risks.length);
+
+  var parts = [mitigatedPct, closedPct, closedOnTimePct, ownedPct].filter(function(p){ return p !== null; });
+  var pct = parts.length > 0 ? parts.reduce(function(a,b){ return a+b; }, 0) / parts.length : null;
+
+  return {pct: pct, mitigatedPct: mitigatedPct, closedPct: closedPct, closedOnTimePct: closedOnTimePct, ownedPct: ownedPct};
+}
+
+/* ---- Decisions ---- */
+function computeDecisionsHealth(project){
+  var decisions = project.decisions || [];
+  if(decisions.length === 0) return {pct: null, completedPct: null, ownedPct: null};
+
+  var completedCount = decisions.filter(function(d){ return normalizeDecisionStatus(d.status) === 'completed'; }).length;
+  var ownedCount = decisions.filter(function(d){ return !!d.ownerId; }).length;
+  var completedPct = healthPct(completedCount, decisions.length);
+  var ownedPct = healthPct(ownedCount, decisions.length);
+
+  var parts = [completedPct, ownedPct].filter(function(p){ return p !== null; });
+  var pct = parts.length > 0 ? parts.reduce(function(a,b){ return a+b; }, 0) / parts.length : null;
+
+  return {pct: pct, completedPct: completedPct, ownedPct: ownedPct};
+}
+
+/* ---- Burndown / velocity ----
+   Velocity is inferred from dateLastModified on tasks currently
+   sitting in a Done column, over a trailing 4-week window. If there's
+   no completed-task history to measure from, hasEnoughData is false
+   and the caller must show an explicit "not enough data" message
+   rather than fabricate a projection. */
+var BURNDOWN_VELOCITY_WINDOW_MS = 28 * 24 * 60 * 60 * 1000;
+var MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+function computeBurndownData(project){
+  var tasks = getTasksArray(project).filter(function(t){ return !t.archived; });
+  var total = tasks.length;
+  var doneTasks = tasks.filter(function(t){ var c = getColumn(project, t.columnId); return c && c.done; });
+  var remainingCount = total - doneTasks.length;
+
+  if(!project.startDate || !project.endDate){
+    return {hasEnoughData: false, reason: 'no-dates', remainingCount: remainingCount, total: total, doneCount: doneTasks.length};
+  }
+  var start = new Date(project.startDate).getTime();
+  var end = new Date(project.endDate).getTime();
+  if(!isFinite(start) || !isFinite(end) || end <= start){
+    return {hasEnoughData: false, reason: 'no-dates', remainingCount: remainingCount, total: total, doneCount: doneTasks.length};
+  }
+
+  var now = Date.now();
+  var windowStart = now - BURNDOWN_VELOCITY_WINDOW_MS;
+  var completedInWindow = doneTasks.filter(function(t){
+    var modified = new Date(t.dateLastModified).getTime();
+    return isFinite(modified) && modified >= windowStart && modified <= now;
+  }).length;
+
+  if(doneTasks.length === 0 || completedInWindow === 0){
+    return {hasEnoughData: false, reason: 'no-velocity', remainingCount: remainingCount, total: total, doneCount: doneTasks.length, startDate: start, endDate: end};
+  }
+
+  var elapsedSinceStart = Math.max(now - start, 1);
+  var windowWeeks = Math.min(BURNDOWN_VELOCITY_WINDOW_MS, elapsedSinceStart) / MS_PER_WEEK;
+  var velocityPerWeek = completedInWindow / Math.max(windowWeeks, 1 / 7);
+
+  var weeksToFinish = remainingCount / velocityPerWeek;
+  var projectedCompletionDate = now + weeksToFinish * MS_PER_WEEK;
+  var isOverrun = remainingCount > 0 && projectedCompletionDate > end;
+
+  return {
+    hasEnoughData: true,
+    remainingCount: remainingCount, total: total, doneCount: doneTasks.length,
+    velocityPerWeek: velocityPerWeek,
+    projectedCompletionDate: projectedCompletionDate,
+    isOverrun: isOverrun,
+    startDate: start, endDate: end
+  };
+}
+
+/* Overall Health's overrun penalty scales with how far through the
+   timeline the project already is — a small deduction if an overrun
+   is projected early (plenty of runway to recover), a much larger one
+   if it's projected late, mirroring the same urgency curve used for
+   Done% weighting in the Tasks gauge. */
+function computeOverrunPenalty(project, burndown){
+  if(!burndown.hasEnoughData || !burndown.isOverrun) return 0;
+  var timelineProgress = computeTimelineProgress(project);
+  var progress = timelineProgress === null ? 0.5 : timelineProgress;
+  return 5 + 25 * progress;
+}
+
+/* ---- Overall Health ----
+   Equal-weighted average of the 4 composite gauges (categories with
+   no data at all are excluded from the average, not counted as 0),
+   reduced by the burndown overrun penalty. */
+function computeOverallHealth(project){
+  var releases = computeReleasesHealth(project);
+  var tasksHealth = computeTasksHealth(project);
+  var risks = computeRisksHealth(project);
+  var decisions = computeDecisionsHealth(project);
+  var burndown = computeBurndownData(project);
+
+  var parts = [releases.pct, tasksHealth.pct, risks.pct, decisions.pct].filter(function(p){ return p !== null; });
+  var basePct = parts.length > 0 ? parts.reduce(function(a,b){ return a+b; }, 0) / parts.length : null;
+
+  var penalty = basePct === null ? 0 : computeOverrunPenalty(project, burndown);
+  var overallPct = basePct === null ? null : Math.max(0, basePct - penalty);
+
+  return {
+    overallPct: overallPct,
+    releases: releases, tasks: tasksHealth, risks: risks, decisions: decisions, burndown: burndown,
+    overrunPenalty: penalty
+  };
+}
+
+/* ---- Top 5 team members by active & remaining work ----
+   Counts only non-archived, non-Done tasks (current workload, not
+   lifetime total). Excludes Unassigned. Ties broken alphabetically. */
+function computeTopTeamMembers(project){
+  var counts = {};
+  getTasksArray(project).filter(function(t){ return !t.archived; }).forEach(function(t){
+    if(!t.assigneeId) return;
+    var c = getColumn(project, t.columnId);
+    if(c && c.done) return;
+    counts[t.assigneeId] = (counts[t.assigneeId] || 0) + 1;
+  });
+  var rows = Object.keys(counts).map(function(memberId){
+    var m = getMemberById(project, memberId);
+    return {memberId: memberId, name: m ? m.name : 'Unknown', color: m ? m.color : '#8993a4', count: counts[memberId]};
+  });
+  rows.sort(function(a, b){
+    if(b.count !== a.count) return b.count - a.count;
+    return a.name.localeCompare(b.name);
+  });
+  return rows.slice(0, 5);
+}
+
+/* ---- Dial gauge rendering ----
+   A semicircular gauge: a light background track from 180° (left)
+   to 0° (right) sweeping over the top, with a colored value arc on
+   top of it proportional to pct. null means "no data" — rendered as
+   a flat grey track with an "N/A" label rather than a misleading 0%. */
+function healthGaugeColor(pct){
+  if(pct === null) return '#8993a4';
+  if(pct >= 70) return '#1f845a';
+  if(pct >= 40) return '#974f0c';
+  return '#ae2e24';
+}
+function polarPoint(cx, cy, r, angleDeg){
+  var rad = angleDeg * Math.PI / 180;
+  return {x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad)};
+}
+function describeSemicircleArc(cx, cy, r, startAngle, endAngle){
+  var p1 = polarPoint(cx, cy, r, startAngle);
+  var p2 = polarPoint(cx, cy, r, endAngle);
+  return 'M ' + p1.x.toFixed(2) + ' ' + p1.y.toFixed(2) + ' A ' + r + ' ' + r + ' 0 0 1 ' + p2.x.toFixed(2) + ' ' + p2.y.toFixed(2);
+}
+function buildGaugeSvg(pct, size){
+  size = size || 160;
+  var cx = size / 2, cy = size * 0.56, r = size * 0.4, strokeW = size * 0.1;
+  var displayPct = pct === null ? 0 : pct;
+  var valueColor = healthGaugeColor(pct);
+  var trackPath = describeSemicircleArc(cx, cy, r, 180, 0);
+  var valueEndAngle = 180 - (displayPct / 100) * 180;
+  var valuePath = displayPct > 0 ? describeSemicircleArc(cx, cy, r, 180, valueEndAngle) : '';
+  var labelText = pct === null ? 'N/A' : Math.round(pct) + '%';
+  return '<svg viewBox="0 0 ' + size + ' ' + (size * 0.72) + '" width="' + size + '" height="' + (size * 0.72) + '" class="kf-gauge-svg">' +
+    '<path d="' + trackPath + '" fill="none" stroke="var(--kf-border)" stroke-width="' + strokeW + '" stroke-linecap="round"/>' +
+    (valuePath ? '<path d="' + valuePath + '" fill="none" stroke="' + valueColor + '" stroke-width="' + strokeW + '" stroke-linecap="round"/>' : '') +
+    '<text x="' + cx + '" y="' + (cy - r * 0.15) + '" text-anchor="middle" font-size="' + (size * 0.17) + '" font-weight="700" fill="var(--kf-text)">' + labelText + '</text>' +
+  '</svg>';
+}
+function buildGaugeBlock(pct, label, size){
+  return '<div class="kf-health-gauge-block">' +
+    buildGaugeSvg(pct, size) +
+    '<div class="kf-health-gauge-label">' + escapeHTML(label) + '</div>' +
+  '</div>';
+}
+
+/* ---- Burndown chart ----
+   The "actual" line is reconstructed from each Done task's own
+   dateLastModified, treated as its completion timestamp — there's no
+   separate daily snapshot history kept, so this is the closest
+   faithful reconstruction available from data the app already has. */
+function buildBurndownActualPoints(project, burndown){
+  var tasks = getTasksArray(project).filter(function(t){ return !t.archived; });
+  var doneTasks = tasks.filter(function(t){ var c = getColumn(project, t.columnId); return c && c.done; });
+  var completions = doneTasks
+    .map(function(t){ return new Date(t.dateLastModified).getTime(); })
+    .filter(function(ts){ return isFinite(ts) && ts >= burndown.startDate; })
+    .sort(function(a, b){ return a - b; });
+
+  var points = [{date: burndown.startDate, remaining: burndown.total}];
+  var remaining = burndown.total;
+  completions.forEach(function(ts){
+    remaining = Math.max(0, remaining - 1);
+    points.push({date: ts, remaining: remaining});
+  });
+  var now = Date.now();
+  if(points[points.length - 1].date < now){
+    points.push({date: now, remaining: burndown.remainingCount});
+  }
+  return points;
+}
+function buildBurndownChartSvg(project, burndown, width, height){
+  width = width || 760; height = height || 280;
+  var marginLeft = 50, marginRight = 30, marginTop = 24, marginBottom = 36;
+  var plotW = width - marginLeft - marginRight;
+  var plotH = height - marginTop - marginBottom;
+
+  var xMin = burndown.startDate;
+  var xMax = burndown.endDate;
+  if(burndown.hasEnoughData && burndown.isOverrun){
+    xMax = Math.max(xMax, burndown.projectedCompletionDate);
+  }
+  var yMax = Math.max(burndown.total, 1);
+
+  function xPos(t){ return marginLeft + (t - xMin) / Math.max(xMax - xMin, 1) * plotW; }
+  function yPos(v){ return marginTop + plotH - (v / yMax) * plotH; }
+
+  var idealPath = 'M ' + xPos(burndown.startDate).toFixed(1) + ' ' + yPos(burndown.total).toFixed(1) +
+    ' L ' + xPos(burndown.endDate).toFixed(1) + ' ' + yPos(0).toFixed(1);
+
+  var actualPoints = buildBurndownActualPoints(project, burndown);
+  var actualPath = actualPoints.map(function(p, i){
+    return (i === 0 ? 'M ' : 'L ') + xPos(p.date).toFixed(1) + ' ' + yPos(p.remaining).toFixed(1);
+  }).join(' ');
+
+  var projectedPath = '';
+  if(burndown.hasEnoughData){
+    var lastPoint = actualPoints[actualPoints.length - 1];
+    projectedPath = 'M ' + xPos(lastPoint.date).toFixed(1) + ' ' + yPos(lastPoint.remaining).toFixed(1) +
+      ' L ' + xPos(burndown.projectedCompletionDate).toFixed(1) + ' ' + yPos(0).toFixed(1);
+  }
+  var projectedColor = burndown.isOverrun ? '#ae2e24' : 'var(--kf-text-faint)';
+
+  var deadlineX = xPos(burndown.endDate);
+
+  return '<svg viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" class="kf-burndown-svg">' +
+    '<line x1="' + marginLeft + '" y1="' + marginTop + '" x2="' + marginLeft + '" y2="' + (marginTop + plotH) + '" stroke="var(--kf-border)" stroke-width="1"/>' +
+    '<line x1="' + marginLeft + '" y1="' + (marginTop + plotH) + '" x2="' + (marginLeft + plotW) + '" y2="' + (marginTop + plotH) + '" stroke="var(--kf-border)" stroke-width="1"/>' +
+    '<text x="' + marginLeft + '" y="' + (marginTop - 6) + '" font-size="11" fill="var(--kf-text-faint)">' + yMax + '</text>' +
+    '<text x="' + marginLeft + '" y="' + (marginTop + plotH + 16) + '" font-size="11" fill="var(--kf-text-faint)">' + utcISOToLocalDisplayDate(new Date(xMin).toISOString()) + '</text>' +
+    '<text x="' + (marginLeft + plotW) + '" y="' + (marginTop + plotH + 16) + '" font-size="11" fill="var(--kf-text-faint)" text-anchor="end">' + utcISOToLocalDisplayDate(new Date(xMax).toISOString()) + '</text>' +
+    '<line x1="' + deadlineX.toFixed(1) + '" y1="' + marginTop + '" x2="' + deadlineX.toFixed(1) + '" y2="' + (marginTop + plotH) + '" stroke="var(--kf-border-strong)" stroke-width="1" stroke-dasharray="3,3"/>' +
+    '<path d="' + idealPath + '" fill="none" stroke="var(--kf-border-strong)" stroke-width="1.5" stroke-dasharray="5,4"/>' +
+    '<path d="' + actualPath + '" fill="none" stroke="#0c66e4" stroke-width="2.5"/>' +
+    (projectedPath ? '<path d="' + projectedPath + '" fill="none" stroke="' + projectedColor + '" stroke-width="2" stroke-dasharray="6,4"/>' : '') +
+  '</svg>';
 }
 
 function addColumn(project, name, done){
@@ -6050,10 +6480,11 @@ function toast(message){
    ========================================================= */
 function applyHeaderButtonVisibility(){
   var project = getCurrentProject();
-  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true};
+  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true, health:true};
   document.getElementById('documentsBtn').classList.toggle('hidden', !visibility.documents);
   document.getElementById('risksBtn').classList.toggle('hidden', !visibility.risks);
   document.getElementById('decisionsBtn').classList.toggle('hidden', !visibility.decisions);
+  document.getElementById('healthBtn').classList.toggle('hidden', !visibility.health);
 }
 
 function openAppSettingsOverlay(){
@@ -6063,6 +6494,7 @@ function openAppSettingsOverlay(){
   document.getElementById('settingsShowDocumentsBtn').checked = visibility.documents;
   document.getElementById('settingsShowRisksBtn').checked = visibility.risks;
   document.getElementById('settingsShowDecisionsBtn').checked = visibility.decisions;
+  document.getElementById('settingsShowHealthBtn').checked = visibility.health;
   document.getElementById('appSettingsOverlay').classList.remove('hidden');
 }
 function closeAppSettingsOverlay(){
@@ -7705,6 +8137,96 @@ function deleteRiskFromModal(){
 /* =========================================================
    DECISIONS MODAL
    ========================================================= */
+/* =========================================================
+   PROJECT HEALTH DASHBOARD MODAL
+   ========================================================= */
+function openHealthOverlay(){
+  var project = getCurrentProject();
+  if(!project){ toast('No project selected.'); return; }
+  renderHealthDashboard();
+  document.getElementById('healthOverlay').classList.remove('hidden');
+}
+function closeHealthOverlay(){
+  document.getElementById('healthOverlay').classList.add('hidden');
+}
+function isHealthOverlayOpen(){
+  return !document.getElementById('healthOverlay').classList.contains('hidden');
+}
+
+function renderHealthDashboard(){
+  var project = getCurrentProject();
+  if(!project) return;
+  var health = computeOverallHealth(project);
+
+  document.getElementById('healthOverallGauge').innerHTML = buildGaugeBlock(health.overallPct, 'Overall Health', 200);
+
+  var noteEl = document.getElementById('healthOverallNote');
+  if(health.overallPct === null){
+    noteEl.textContent = 'Not enough data yet to compute an overall health score for this project.';
+  } else if(health.overrunPenalty > 0){
+    noteEl.textContent = 'A projected timeline overrun has reduced this score by ' + Math.round(health.overrunPenalty) + ' point(s). See Task Burndown below.';
+  } else {
+    noteEl.textContent = 'Combines Releases, Tasks, Risks, and Decisions health, equally weighted.';
+  }
+
+  var gaugesRow = document.getElementById('healthGaugesRow');
+  gaugesRow.innerHTML =
+    buildGaugeBlock(health.releases.pct, 'Releases', 140) +
+    buildGaugeBlock(health.tasks.pct, 'Tasks', 140) +
+    buildGaugeBlock(health.risks.pct, 'Risks', 140) +
+    buildGaugeBlock(health.decisions.pct, 'Decisions', 140);
+
+  var burndown = health.burndown;
+  var warningEl = document.getElementById('healthBurndownWarning');
+  var chartEl = document.getElementById('healthBurndownChart');
+  var noDataEl = document.getElementById('healthBurndownNoData');
+
+  if(!burndown.hasEnoughData){
+    warningEl.classList.add('hidden');
+    chartEl.innerHTML = '';
+    noDataEl.classList.remove('hidden');
+    noDataEl.textContent = burndown.reason === 'no-dates'
+      ? 'Set a project start and end date to enable the burndown chart and velocity projection.'
+      : 'Not enough data exists to determine velocity or project completion. Complete a few tasks to begin tracking velocity.';
+  } else {
+    noDataEl.classList.add('hidden');
+    chartEl.innerHTML = buildBurndownChartSvg(project, burndown, 760, 280) +
+      '<div class="kf-health-legend">' +
+        '<span class="kf-health-legend-item"><span class="kf-health-legend-swatch" style="background:var(--kf-border-strong);"></span>Ideal pace</span>' +
+        '<span class="kf-health-legend-item"><span class="kf-health-legend-swatch" style="background:#0c66e4;"></span>Actual remaining</span>' +
+        '<span class="kf-health-legend-item"><span class="kf-health-legend-swatch" style="background:' + (burndown.isOverrun ? '#ae2e24' : 'var(--kf-text-faint)') + ';"></span>Projected</span>' +
+      '</div>';
+    if(burndown.isOverrun){
+      warningEl.classList.remove('hidden');
+      warningEl.innerHTML = '<span class="kf-icon" data-icon="warning" data-size="16"></span><span>At the current velocity (' +
+        burndown.velocityPerWeek.toFixed(1) + ' tasks/week), remaining work is projected to finish on ' +
+        escapeHTML(utcISOToLocalDisplayDate(new Date(burndown.projectedCompletionDate).toISOString())) +
+        ' — after the planned end date of ' + escapeHTML(utcISOToLocalDisplayDate(new Date(burndown.endDate).toISOString())) + '.</span>';
+      hydrateIcons(warningEl);
+    } else {
+      warningEl.classList.add('hidden');
+    }
+  }
+
+  var topMembers = computeTopTeamMembers(project);
+  var topMembersEl = document.getElementById('healthTopMembers');
+  if(topMembers.length === 0){
+    topMembersEl.innerHTML = '<div class="kf-health-empty">No active tasks are currently assigned to any team member.</div>';
+  } else {
+    var maxCount = topMembers[0].count;
+    topMembersEl.innerHTML = topMembers.map(function(row, idx){
+      var barPct = maxCount > 0 ? (row.count / maxCount) * 100 : 0;
+      return '<div class="kf-health-top-member-row">' +
+        '<span class="kf-health-top-member-rank">' + (idx + 1) + '</span>' +
+        '<span class="kf-avatar kf-avatar-sm" style="background:' + row.color + ';">' + escapeHTML(memberInitials(row.name)) + '</span>' +
+        '<span class="kf-health-top-member-name">' + escapeHTML(row.name) + '</span>' +
+        '<span class="kf-health-top-member-bar-track"><span class="kf-health-top-member-bar-fill" style="width:' + barPct + '%;"></span></span>' +
+        '<span class="kf-health-top-member-count">' + row.count + '</span>' +
+      '</div>';
+    }).join('');
+  }
+}
+
 function openDecisionsOverlay(){
   var project = getCurrentProject();
   if(!project){ toast('No project selected.'); return; }
@@ -8161,6 +8683,11 @@ function wireEvents(){
   document.getElementById('riskImpactSelect').addEventListener('change', updateRiskScorePreview);
 
   document.getElementById('decisionsBtn').addEventListener('click', openDecisionsOverlay);
+  document.getElementById('healthBtn').addEventListener('click', openHealthOverlay);
+  document.getElementById('healthClose').addEventListener('click', closeHealthOverlay);
+  document.getElementById('healthOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'healthOverlay') closeHealthOverlay();
+  });
   document.getElementById('decisionsModalClose').addEventListener('click', closeDecisionsOverlay);
   document.getElementById('decisionsDoneBtn').addEventListener('click', closeDecisionsOverlay);
   document.getElementById('decisionsOverlay').addEventListener('mousedown', function(e){
@@ -8419,6 +8946,9 @@ function wireEvents(){
   document.getElementById('settingsShowDecisionsBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('decisions', e.target.checked);
   });
+  document.getElementById('settingsShowHealthBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('health', e.target.checked);
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);
@@ -8530,6 +9060,7 @@ function wireEvents(){
     else if(isDocumentsOverlayOpen()) closeDocumentsOverlay();
     else if(isRisksOverlayOpen()) closeRisksOverlay();
     else if(isDecisionsOverlayOpen()) closeDecisionsOverlay();
+    else if(isHealthOverlayOpen()) closeHealthOverlay();
     else if(isAppSettingsOverlayOpen()) closeAppSettingsOverlay();
     else if(!document.getElementById('confirmOverlay').classList.contains('hidden')) closeConfirmDialog();
     else if(!document.getElementById('importConflictOverlay').classList.contains('hidden')) closeImportConflictModal();
