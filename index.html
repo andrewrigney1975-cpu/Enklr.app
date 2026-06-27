@@ -596,10 +596,18 @@
   #decisionsListView.hidden{display:none;}
   #decisionsFormView.hidden{display:none;}
   #deleteDecisionBtn.hidden{display:none;}
+  #principlesListView.hidden{display:none;}
+  #principlesFormView.hidden{display:none;}
+  #deletePrincipleBtn.hidden{display:none;}
+  #objectivesListView.hidden{display:none;}
+  #objectivesFormView.hidden{display:none;}
+  #deleteObjectiveBtn.hidden{display:none;}
   #documentsBtn.hidden{display:none;}
   #risksBtn.hidden{display:none;}
   #decisionsBtn.hidden{display:none;}
   #healthBtn.hidden{display:none;}
+  #principlesBtn.hidden{display:none;}
+  #objectivesBtn.hidden{display:none;}
   .kf-modal-footer.hidden{display:none;}
   .kf-tasktype-icon-grid{
     display:grid;grid-template-columns:repeat(6, 1fr);gap:4px;
@@ -1105,6 +1113,8 @@
       </div>
       <div class="kf-header-divider"></div>
       <div class="kf-drawer-action-group">
+        <button class="kf-header-btn" id="principlesBtn" title="Principles"><span class="kf-icon" data-icon="compass" data-size="14"></span>Principles</button>
+        <button class="kf-header-btn" id="objectivesBtn" title="Objectives"><span class="kf-icon" data-icon="target" data-size="14"></span>Objectives</button>
         <button class="kf-header-btn" id="healthBtn" title="Health Dashboard"><span class="kf-icon" data-icon="heartPulse" data-size="14"></span>Health Dashboard</button>
         <button class="kf-header-btn" id="documentsBtn" title="Documents"><span class="kf-icon" data-icon="ty_document" data-size="14"></span>Documents</button>
         <button class="kf-header-btn" id="risksBtn" title="Risks"><span class="kf-icon" data-icon="warning" data-size="14"></span>Risks</button>
@@ -1787,6 +1797,14 @@
           <label>Linked documents</label>
           <div id="riskDocumentPicker" class="kf-risk-doc-picker"></div>
         </div>
+        <div class="kf-field">
+          <label>Associated principle(s)</label>
+          <div id="riskPrinciplePicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label>Associated objective(s)</label>
+          <div id="riskObjectivePicker" class="kf-risk-doc-picker"></div>
+        </div>
       </div>
     </div>
     <div class="kf-modal-footer" id="risksListFooter">
@@ -1905,6 +1923,16 @@
       <p style="margin:0 0 12px;color:var(--kf-text-faint);font-size:12px;line-height:1.5;">Choose which modules should be used in this Project</p>
       <div style="display:flex;flex-direction:column;gap:4px;">
         <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowPrinciplesBtn">
+          <span class="kf-icon" data-icon="compass" data-size="14"></span>
+          <span>Principles</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowObjectivesBtn">
+          <span class="kf-icon" data-icon="target" data-size="14"></span>
+          <span>Objectives</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
           <input type="checkbox" id="settingsShowHealthBtn">
           <span class="kf-icon" data-icon="heartPulse" data-size="14"></span>
           <span>Health Dashboard</span>
@@ -1959,6 +1987,101 @@
         <h3 class="kf-health-section-title">Top 5 Team Members by Active Workload</h3>
         <div id="healthTopMembers"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Principles Modal -->
+<div class="kf-overlay hidden" id="principlesOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="principlesModalTitle">Principles</h2>
+      <button class="kf-btn kf-btn-ghost" id="principlesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="principlesListView">
+        <button class="kf-btn kf-btn-secondary" id="addPrincipleBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Principle
+        </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="principlesSearchInput" placeholder="Search principles...">
+        </div>
+        <div id="principlesList" class="kf-releases-list"></div>
+      </div>
+      <div id="principlesFormView" class="hidden">
+        <div class="kf-field">
+          <label for="principleTitleInput">Title</label>
+          <input type="text" id="principleTitleInput" maxlength="120" placeholder="e.g. Prefer simplicity over cleverness">
+        </div>
+        <div class="kf-field">
+          <label for="principleDescriptionInput">Description</label>
+          <textarea id="principleDescriptionInput" maxlength="2000" placeholder="Describe this principle..."></textarea>
+        </div>
+        <div class="kf-field">
+          <label for="principleDocUrlInput">External document link</label>
+          <div class="kf-doc-url-row">
+            <input type="url" id="principleDocUrlInput" maxlength="500" placeholder="https://example.com/doc">
+            <button type="button" class="kf-btn kf-btn-ghost kf-doc-url-open-btn hidden" id="principleDocUrlOpenBtn" title="Open document link in a new tab" aria-label="Open document link in a new tab">
+              <span class="kf-icon" data-icon="externalLink" data-size="16"></span>
+            </button>
+          </div>
+        </div>
+        <div class="kf-field" id="principleMetaDates" style="color:var(--kf-text-faint);font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="principlesListFooter">
+      <button class="kf-btn kf-btn-secondary" id="principlesDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="principlesFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deletePrincipleBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="principleFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="principleFormSaveBtn">Save Principle</button>
+    </div>
+  </div>
+</div>
+
+<!-- Objectives Modal -->
+<div class="kf-overlay hidden" id="objectivesOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="objectivesModalTitle">Objectives</h2>
+      <button class="kf-btn kf-btn-ghost" id="objectivesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="objectivesListView">
+        <button class="kf-btn kf-btn-secondary" id="addObjectiveBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Objective
+        </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="objectivesSearchInput" placeholder="Search objectives...">
+        </div>
+        <div id="objectivesList" class="kf-releases-list"></div>
+      </div>
+      <div id="objectivesFormView" class="hidden">
+        <div class="kf-field">
+          <label for="objectiveTitleInput">Title</label>
+          <input type="text" id="objectiveTitleInput" maxlength="120" placeholder="e.g. Reduce onboarding time by 50%">
+        </div>
+        <div class="kf-field">
+          <label for="objectiveDescriptionInput">Description</label>
+          <textarea id="objectiveDescriptionInput" maxlength="2000" placeholder="Describe this objective..."></textarea>
+        </div>
+        <div class="kf-field">
+          <label>Bound by these Principles</label>
+          <div id="objectivePrinciplePicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field" id="objectiveMetaDates" style="color:var(--kf-text-faint);font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="objectivesListFooter">
+      <button class="kf-btn kf-btn-secondary" id="objectivesDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="objectivesFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deleteObjectiveBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="objectiveFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="objectiveFormSaveBtn">Save Objective</button>
     </div>
   </div>
 </div>
@@ -2056,7 +2179,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-var APP_VERSION = '1.29.20260627.2049';
+var APP_VERSION = '1.30.20260627.2221';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -2116,6 +2239,8 @@ var ICON_PATHS = {
   ty_test:        '<path d="M9 2h6"/><path d="M10 2v6.5L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 8.5V2"/><path d="M8.5 14h7"/>',
   ty_review:      '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>',
   ty_plan:        '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M7 14l2 2 4-5"/>',
+  compass:        '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+  target:         '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
   ty_research:    '<path d="M2 5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15a1.5 1.5 0 0 0-1.5-1.5H2Z"/><path d="M22 5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v15a1.5 1.5 0 0 1 1.5-1.5H22Z"/>',
   ty_train:       '<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12.5V17c0 1.5 2.5 3 6 3s6-1.5 6-3v-4.5"/>',
   ty_support:     '<path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="2" y="13" width="4" height="6" rx="1.5"/><rect x="18" y="13" width="4" height="6" rx="1.5"/><path d="M20 19v1a3 3 0 0 1-3 3h-3"/>',
@@ -2457,6 +2582,10 @@ function migrateDB(){
     if(typeof p.riskCounter !== 'number'){ p.riskCounter = 1; changed = true; }
     if(!Array.isArray(p.decisions)){ p.decisions = []; changed = true; }
     if(typeof p.decCounter !== 'number'){ p.decCounter = 1; changed = true; }
+    if(!Array.isArray(p.principles)){ p.principles = []; changed = true; }
+    if(typeof p.prinCounter !== 'number'){ p.prinCounter = 1; changed = true; }
+    if(!Array.isArray(p.objectives)){ p.objectives = []; changed = true; }
+    if(typeof p.objCounter !== 'number'){ p.objCounter = 1; changed = true; }
     if(!Array.isArray(p.approvers)){ p.approvers = []; changed = true; }
     if(!Array.isArray(p.roles)){ p.roles = []; changed = true; }
     p.members.forEach(function(m){
@@ -2526,6 +2655,30 @@ function migrateDB(){
       if(!d.dateLastModified){ d.dateLastModified = d.dateCreated || epoch; changed = true; }
     });
 
+    p.principles.forEach(function(prin){
+      if(prin.documentUrl === undefined){ prin.documentUrl = null; changed = true; }
+      if(prin.description === undefined){ prin.description = ''; changed = true; }
+      if(!prin.dateCreated){ prin.dateCreated = epoch; changed = true; }
+      if(!prin.dateLastModified){ prin.dateLastModified = prin.dateCreated || epoch; changed = true; }
+    });
+
+    var validPrincipleIds = {};
+    p.principles.forEach(function(prin){ validPrincipleIds[prin.id] = true; });
+
+    p.objectives.forEach(function(o){
+      if(!Array.isArray(o.principleIds)){ o.principleIds = []; changed = true; }
+      else {
+        var filteredObjPrinIds = o.principleIds.filter(function(id){ return validPrincipleIds[id]; });
+        if(filteredObjPrinIds.length !== o.principleIds.length){ o.principleIds = filteredObjPrinIds; changed = true; }
+      }
+      if(o.description === undefined){ o.description = ''; changed = true; }
+      if(!o.dateCreated){ o.dateCreated = epoch; changed = true; }
+      if(!o.dateLastModified){ o.dateLastModified = o.dateCreated || epoch; changed = true; }
+    });
+
+    var validObjectiveIds = {};
+    p.objectives.forEach(function(o){ validObjectiveIds[o.id] = true; });
+
     p.risks.forEach(function(r){
       if(r.ownerId === undefined){ r.ownerId = null; changed = true; }
       else if(r.ownerId && !validMemberIds[r.ownerId]){ r.ownerId = null; changed = true; }
@@ -2535,6 +2688,16 @@ function migrateDB(){
       else {
         var filteredDocIds = r.documentIds.filter(function(id){ return validDocIds[id]; });
         if(filteredDocIds.length !== r.documentIds.length){ r.documentIds = filteredDocIds; changed = true; }
+      }
+      if(!Array.isArray(r.principleIds)){ r.principleIds = []; changed = true; }
+      else {
+        var filteredRiskPrinIds = r.principleIds.filter(function(id){ return validPrincipleIds[id]; });
+        if(filteredRiskPrinIds.length !== r.principleIds.length){ r.principleIds = filteredRiskPrinIds; changed = true; }
+      }
+      if(!Array.isArray(r.objectiveIds)){ r.objectiveIds = []; changed = true; }
+      else {
+        var filteredRiskObjIds = r.objectiveIds.filter(function(id){ return validObjectiveIds[id]; });
+        if(filteredRiskObjIds.length !== r.objectiveIds.length){ r.objectiveIds = filteredRiskObjIds; changed = true; }
       }
       if(!RISK_STATUS_META.hasOwnProperty(r.status)){ r.status = 'new'; changed = true; }
       if(r.dateToClose === undefined){ r.dateToClose = null; changed = true; }
@@ -2598,7 +2761,9 @@ function normalizeHeaderButtonVisibility(value){
     documents: v.documents !== false,
     risks: v.risks !== false,
     decisions: v.decisions !== false,
-    health: v.health !== false
+    health: v.health !== false,
+    principles: v.principles !== false,
+    objectives: v.objectives !== false
   };
 }
 function createDefaultProject(name, key){
@@ -2619,6 +2784,10 @@ function createDefaultProject(name, key){
     riskCounter: 1,
     decisions: [],
     decCounter: 1,
+    principles: [],
+    prinCounter: 1,
+    objectives: [],
+    objCounter: 1,
     approvers: [],
     roles: [],
     headerButtonVisibility: {documents: true, risks: true, decisions: true},
@@ -3195,6 +3364,8 @@ function addRisk(project, data){
     ownerId: data.ownerId || null,
     taskId: data.taskId || null,
     documentIds: Array.isArray(data.documentIds) ? data.documentIds.slice() : [],
+    principleIds: Array.isArray(data.principleIds) ? data.principleIds.slice() : [],
+    objectiveIds: Array.isArray(data.objectiveIds) ? data.objectiveIds.slice() : [],
     status: normalizeRiskStatus(data.status),
     dateToClose: data.dateToClose || null,
     dateClosed: data.dateClosed || null,
@@ -3217,6 +3388,8 @@ function updateRisk(project, riskId, data){
   risk.ownerId = data.ownerId || null;
   risk.taskId = data.taskId || null;
   risk.documentIds = Array.isArray(data.documentIds) ? data.documentIds.slice() : [];
+  risk.principleIds = Array.isArray(data.principleIds) ? data.principleIds.slice() : [];
+  risk.objectiveIds = Array.isArray(data.objectiveIds) ? data.objectiveIds.slice() : [];
   risk.status = normalizeRiskStatus(data.status);
   risk.dateToClose = data.dateToClose || null;
   risk.dateClosed = data.dateClosed || null;
@@ -3345,6 +3518,120 @@ function deleteDecision(project, decisionId){
   project.decisions = project.decisions.filter(function(d){ return d.id !== decisionId; });
   saveDB();
   return true;
+}
+
+/* =========================================================
+   PRINCIPLES
+   A per-project register of guiding principles — each with an
+   autogenerated key (<PROJECT>-PRIN-NNN), a description, and a link
+   to an external document. Risks may associate with zero or more.
+   ========================================================= */
+function nextPrincipleKey(project){
+  var n = project.prinCounter++;
+  return project.key + '-PRIN-' + String(n).padStart(3, '0');
+}
+function getPrincipleById(project, principleId){
+  if(!project || !principleId) return null;
+  return (project.principles || []).filter(function(p){ return p.id === principleId; })[0] || null;
+}
+function addPrinciple(project, data){
+  var now = new Date().toISOString();
+  var principle = {
+    id: uid('prin'),
+    key: nextPrincipleKey(project),
+    title: (data.title || '').trim().slice(0, 120) || 'Untitled principle',
+    description: (data.description || '').trim().slice(0, 2000),
+    documentUrl: normalizeDocumentationUrl(data.documentUrl),
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.principles.push(principle);
+  saveDB();
+  return principle;
+}
+function updatePrinciple(project, principleId, data){
+  var principle = getPrincipleById(project, principleId);
+  if(!principle) return;
+  var title = (data.title || '').trim().slice(0, 120);
+  principle.title = title || principle.title;
+  principle.description = (data.description || '').trim().slice(0, 2000);
+  principle.documentUrl = normalizeDocumentationUrl(data.documentUrl);
+  principle.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+function deletePrinciple(project, principleId){
+  var principle = getPrincipleById(project, principleId);
+  if(!principle) return 0;
+  project.principles = project.principles.filter(function(p){ return p.id !== principleId; });
+  var unlinkedCount = 0;
+  (project.objectives || []).forEach(function(o){
+    if(o.principleIds && o.principleIds.indexOf(principleId) !== -1){
+      o.principleIds = o.principleIds.filter(function(id){ return id !== principleId; });
+      unlinkedCount++;
+    }
+  });
+  (project.risks || []).forEach(function(r){
+    if(r.principleIds && r.principleIds.indexOf(principleId) !== -1){
+      r.principleIds = r.principleIds.filter(function(id){ return id !== principleId; });
+      unlinkedCount++;
+    }
+  });
+  saveDB();
+  return unlinkedCount;
+}
+
+/* =========================================================
+   OBJECTIVES
+   A per-project register of objectives — each with an autogenerated
+   key (<PROJECT>-OBJ-NNN) and zero or more Principles it's "Bound by".
+   Risks may associate with zero or more Objectives.
+   ========================================================= */
+function nextObjectiveKey(project){
+  var n = project.objCounter++;
+  return project.key + '-OBJ-' + String(n).padStart(3, '0');
+}
+function getObjectiveById(project, objectiveId){
+  if(!project || !objectiveId) return null;
+  return (project.objectives || []).filter(function(o){ return o.id === objectiveId; })[0] || null;
+}
+function addObjective(project, data){
+  var now = new Date().toISOString();
+  var objective = {
+    id: uid('obj'),
+    key: nextObjectiveKey(project),
+    title: (data.title || '').trim().slice(0, 120) || 'Untitled objective',
+    description: (data.description || '').trim().slice(0, 2000),
+    principleIds: Array.isArray(data.principleIds) ? data.principleIds.slice() : [],
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.objectives.push(objective);
+  saveDB();
+  return objective;
+}
+function updateObjective(project, objectiveId, data){
+  var objective = getObjectiveById(project, objectiveId);
+  if(!objective) return;
+  var title = (data.title || '').trim().slice(0, 120);
+  objective.title = title || objective.title;
+  objective.description = (data.description || '').trim().slice(0, 2000);
+  objective.principleIds = Array.isArray(data.principleIds) ? data.principleIds.slice() : [];
+  objective.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+function deleteObjective(project, objectiveId){
+  var objective = getObjectiveById(project, objectiveId);
+  if(!objective) return 0;
+  project.objectives = project.objectives.filter(function(o){ return o.id !== objectiveId; });
+  var unlinkedCount = 0;
+  (project.risks || []).forEach(function(r){
+    if(r.objectiveIds && r.objectiveIds.indexOf(objectiveId) !== -1){
+      r.objectiveIds = r.objectiveIds.filter(function(id){ return id !== objectiveId; });
+      unlinkedCount++;
+    }
+  });
+  saveDB();
+  return unlinkedCount;
 }
 
 /* =========================================================
@@ -3990,11 +4277,35 @@ function exportProjectJSON(project){
         ownerName: owner ? owner.name : null,
         taskId: r.taskId || null,
         documentIds: r.documentIds || [],
+        principleIds: r.principleIds || [],
+        objectiveIds: r.objectiveIds || [],
         status: r.status,
         dateToClose: r.dateToClose || null,
         dateClosed: r.dateClosed || null,
         dateCreated: r.dateCreated || null,
         dateLastModified: r.dateLastModified || null
+      };
+    }),
+    principles: (project.principles || []).map(function(prin){
+      return {
+        id: prin.id,
+        key: prin.key,
+        title: prin.title,
+        description: prin.description || '',
+        documentUrl: prin.documentUrl || null,
+        dateCreated: prin.dateCreated || null,
+        dateLastModified: prin.dateLastModified || null
+      };
+    }),
+    objectives: (project.objectives || []).map(function(o){
+      return {
+        id: o.id,
+        key: o.key,
+        title: o.title,
+        description: o.description || '',
+        principleIds: o.principleIds || [],
+        dateCreated: o.dateCreated || null,
+        dateLastModified: o.dateLastModified || null
       };
     }),
     decisions: (project.decisions || []).map(function(dec){
@@ -4229,6 +4540,10 @@ function buildProjectFromExportDoc(doc){
     riskCounter: 1,
     decisions: [],
     decCounter: 1,
+    principles: [],
+    prinCounter: 1,
+    objectives: [],
+    objCounter: 1,
     approvers: [],
     roles: Array.isArray(doc.roles) ? doc.roles.filter(function(r){ return typeof r === 'string' && r.trim(); }).map(function(r){ return r.trim().slice(0,60); }) : [],
     headerButtonVisibility: normalizeHeaderButtonVisibility(doc.headerButtonVisibility),
@@ -4430,7 +4745,55 @@ function buildProjectFromExportDoc(doc){
     });
   });
 
-  var unresolvedRiskOwners = 0, unresolvedRiskTasks = 0, unresolvedRiskDocs = 0;
+  var prinOldIdToNewId = {};
+  if(Array.isArray(doc.principles)){
+    doc.principles.forEach(function(prin){
+      if(!prin || typeof prin !== 'object') return;
+      var title = (typeof prin.title === 'string' && prin.title.trim()) ? prin.title.trim().slice(0,120) : null;
+      if(!title) return;
+      var newPrinciple = {
+        id: uid('prin'),
+        key: nextPrincipleKey(project),
+        title: title,
+        description: (typeof prin.description === 'string') ? prin.description.trim().slice(0,2000) : '',
+        documentUrl: normalizeDocumentationUrl(prin.documentUrl),
+        dateCreated: typeof prin.dateCreated === 'string' ? prin.dateCreated : importedAt,
+        dateLastModified: typeof prin.dateLastModified === 'string' ? prin.dateLastModified : importedAt
+      };
+      project.principles.push(newPrinciple);
+      if(typeof prin.id === 'string') prinOldIdToNewId[prin.id] = newPrinciple.id;
+    });
+  }
+
+  var unresolvedObjectivePrinciples = 0;
+  var objOldIdToNewId = {};
+  if(Array.isArray(doc.objectives)){
+    doc.objectives.forEach(function(o){
+      if(!o || typeof o !== 'object') return;
+      var title = (typeof o.title === 'string' && o.title.trim()) ? o.title.trim().slice(0,120) : null;
+      if(!title) return;
+      var principleIds = [];
+      if(Array.isArray(o.principleIds)){
+        o.principleIds.forEach(function(oldPrinId){
+          if(prinOldIdToNewId.hasOwnProperty(oldPrinId)) principleIds.push(prinOldIdToNewId[oldPrinId]);
+          else unresolvedObjectivePrinciples++;
+        });
+      }
+      var newObjective = {
+        id: uid('obj'),
+        key: nextObjectiveKey(project),
+        title: title,
+        description: (typeof o.description === 'string') ? o.description.trim().slice(0,2000) : '',
+        principleIds: principleIds,
+        dateCreated: typeof o.dateCreated === 'string' ? o.dateCreated : importedAt,
+        dateLastModified: typeof o.dateLastModified === 'string' ? o.dateLastModified : importedAt
+      };
+      project.objectives.push(newObjective);
+      if(typeof o.id === 'string') objOldIdToNewId[o.id] = newObjective.id;
+    });
+  }
+
+  var unresolvedRiskOwners = 0, unresolvedRiskTasks = 0, unresolvedRiskDocs = 0, unresolvedRiskPrinciples = 0, unresolvedRiskObjectives = 0;
   var riskOldIdToNewId = {};
   if(Array.isArray(doc.risks)){
     doc.risks.forEach(function(r){
@@ -4458,6 +4821,20 @@ function buildProjectFromExportDoc(doc){
           else unresolvedRiskDocs++;
         });
       }
+      var riskPrincipleIds = [];
+      if(Array.isArray(r.principleIds)){
+        r.principleIds.forEach(function(oldPrinId){
+          if(prinOldIdToNewId.hasOwnProperty(oldPrinId)) riskPrincipleIds.push(prinOldIdToNewId[oldPrinId]);
+          else unresolvedRiskPrinciples++;
+        });
+      }
+      var riskObjectiveIds = [];
+      if(Array.isArray(r.objectiveIds)){
+        r.objectiveIds.forEach(function(oldObjId){
+          if(objOldIdToNewId.hasOwnProperty(oldObjId)) riskObjectiveIds.push(objOldIdToNewId[oldObjId]);
+          else unresolvedRiskObjectives++;
+        });
+      }
       var newRisk = {
         id: uid('risk'),
         key: nextRiskKey(project),
@@ -4469,6 +4846,8 @@ function buildProjectFromExportDoc(doc){
         ownerId: ownerId,
         taskId: taskId,
         documentIds: documentIds,
+        principleIds: riskPrincipleIds,
+        objectiveIds: riskObjectiveIds,
         status: normalizeRiskStatus(r.status),
         dateToClose: isValidISODateString(r.dateToClose) ? r.dateToClose : null,
         dateClosed: isValidISODateString(r.dateClosed) ? r.dateClosed : null,
@@ -4554,6 +4933,9 @@ function buildProjectFromExportDoc(doc){
     unresolvedRiskOwners: unresolvedRiskOwners,
     unresolvedRiskTasks: unresolvedRiskTasks,
     unresolvedRiskDocs: unresolvedRiskDocs,
+    unresolvedRiskPrinciples: unresolvedRiskPrinciples,
+    unresolvedRiskObjectives: unresolvedRiskObjectives,
+    unresolvedObjectivePrinciples: unresolvedObjectivePrinciples,
     unresolvedDecisionOwners: unresolvedDecisionOwners,
     unresolvedDecisionTasks: unresolvedDecisionTasks,
     unresolvedDecisionDocs: unresolvedDecisionDocs,
@@ -4613,6 +4995,16 @@ function overwriteProjectFromResult(existingId, result){
     var match = /-(\d+)$/.exec(d.key || '');
     var suffix = match ? match[1] : String(idx + 1).padStart(3, '0');
     d.key = fresh.key + '-DEC-' + suffix;
+  });
+  (fresh.principles || []).forEach(function(prin, idx){
+    var match = /-(\d+)$/.exec(prin.key || '');
+    var suffix = match ? match[1] : String(idx + 1).padStart(3, '0');
+    prin.key = fresh.key + '-PRIN-' + suffix;
+  });
+  (fresh.objectives || []).forEach(function(o, idx){
+    var match = /-(\d+)$/.exec(o.key || '');
+    var suffix = match ? match[1] : String(idx + 1).padStart(3, '0');
+    o.key = fresh.key + '-OBJ-' + suffix;
   });
   db.projects[existingId] = fresh;
   db.currentProjectId = existingId;
@@ -4676,8 +5068,9 @@ function finaliseImport(result, wasOverwrite){
   if(result.unresolvedReleases > 0) msg += ' Skipped ' + result.unresolvedReleases + ' release reference(s) that could not be matched.';
   if(result.unresolvedTaskTypes > 0) msg += ' Skipped ' + result.unresolvedTaskTypes + ' task type reference(s) that could not be matched.';
   var unresolvedDocLinks = (result.unresolvedDocOwners || 0) + (result.unresolvedDocTasks || 0) + (result.unresolvedDocRelated || 0) + (result.unresolvedRiskOwners || 0) + (result.unresolvedRiskTasks || 0) + (result.unresolvedRiskDocs || 0) +
-    (result.unresolvedDecisionOwners || 0) + (result.unresolvedDecisionTasks || 0) + (result.unresolvedDecisionDocs || 0) + (result.unresolvedDecisionRisks || 0);
-  if(unresolvedDocLinks > 0) msg += ' Skipped ' + unresolvedDocLinks + ' document/risk/decision reference(s) that could not be matched.';
+    (result.unresolvedDecisionOwners || 0) + (result.unresolvedDecisionTasks || 0) + (result.unresolvedDecisionDocs || 0) + (result.unresolvedDecisionRisks || 0) +
+    (result.unresolvedRiskPrinciples || 0) + (result.unresolvedRiskObjectives || 0) + (result.unresolvedObjectivePrinciples || 0);
+  if(unresolvedDocLinks > 0) msg += ' Skipped ' + unresolvedDocLinks + ' document/risk/decision/principle/objective reference(s) that could not be matched.';
   toast(msg);
 }
 
@@ -6476,9 +6869,13 @@ var ui = {
   editingDocumentId: null,
   editingRiskId: null,
   editingDecisionId: null,
+  editingPrincipleId: null,
+  editingObjectiveId: null,
   documentsSearchTerm: '',
   risksSearchTerm: '',
   decisionsSearchTerm: '',
+  principlesSearchTerm: '',
+  objectivesSearchTerm: '',
   taskListCollapsedGroups: new Set(),
   sideNavExpanded: false
 };
@@ -6510,11 +6907,13 @@ function toast(message){
    ========================================================= */
 function applyHeaderButtonVisibility(){
   var project = getCurrentProject();
-  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true, health:true};
+  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true, health:true, principles:true, objectives:true};
   document.getElementById('documentsBtn').classList.toggle('hidden', !visibility.documents);
   document.getElementById('risksBtn').classList.toggle('hidden', !visibility.risks);
   document.getElementById('decisionsBtn').classList.toggle('hidden', !visibility.decisions);
   document.getElementById('healthBtn').classList.toggle('hidden', !visibility.health);
+  document.getElementById('principlesBtn').classList.toggle('hidden', !visibility.principles);
+  document.getElementById('objectivesBtn').classList.toggle('hidden', !visibility.objectives);
 }
 
 function openAppSettingsOverlay(){
@@ -6525,6 +6924,8 @@ function openAppSettingsOverlay(){
   document.getElementById('settingsShowRisksBtn').checked = visibility.risks;
   document.getElementById('settingsShowDecisionsBtn').checked = visibility.decisions;
   document.getElementById('settingsShowHealthBtn').checked = visibility.health;
+  document.getElementById('settingsShowPrinciplesBtn').checked = visibility.principles;
+  document.getElementById('settingsShowObjectivesBtn').checked = visibility.objectives;
   document.getElementById('appSettingsOverlay').classList.remove('hidden');
 }
 function closeAppSettingsOverlay(){
@@ -8024,6 +8425,32 @@ function getCheckedRiskIdsFrom(wrapId){
     return cb.getAttribute('data-risk-id');
   });
 }
+/* A fully generic version of the document/risk pickers above, for any
+   list of {id, key, title} items — used by Principles/Objectives. */
+function renderItemPickerInto(wrapId, items, selectedIds, emptyMessage){
+  var wrap = document.getElementById(wrapId);
+  wrap.innerHTML = '';
+  var sorted = (items || []).slice().sort(function(a, b){ return a.key.localeCompare(b.key, undefined, {numeric: true}); });
+  if(sorted.length === 0){
+    wrap.innerHTML = '<div class="kf-risk-doc-picker-empty">' + escapeHTML(emptyMessage || 'Nothing in this project yet.') + '</div>';
+    return;
+  }
+  sorted.forEach(function(item){
+    var row = document.createElement('label');
+    row.className = 'kf-risk-doc-picker-row';
+    var checked = selectedIds.indexOf(item.id) !== -1;
+    row.innerHTML =
+      '<input type="checkbox" data-item-id="' + item.id + '" ' + (checked ? 'checked' : '') + '>' +
+      '<span class="kf-dep-key">' + escapeHTML(item.key) + '</span>' +
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(item.title) + '</span>';
+    wrap.appendChild(row);
+  });
+}
+function getCheckedItemIdsFrom(wrapId){
+  return Array.from(document.querySelectorAll('#' + wrapId + ' input[type=checkbox]:checked')).map(function(cb){
+    return cb.getAttribute('data-item-id');
+  });
+}
 function renderRiskDocumentPicker(project, selectedDocIds){
   renderDocumentPickerInto('riskDocumentPicker', project, selectedDocIds);
 }
@@ -8056,6 +8483,8 @@ function showRisksFormView(riskId){
   document.getElementById('riskCloseTargetInput').value = risk ? utcISOToLocalDateValue(risk.dateToClose) : '';
   document.getElementById('riskClosedDateInput').value = risk ? utcISOToLocalDateValue(risk.dateClosed) : '';
   renderRiskDocumentPicker(project, risk ? risk.documentIds : []);
+  renderItemPickerInto('riskPrinciplePicker', project.principles || [], risk ? risk.principleIds : [], 'No principles in this project yet.');
+  renderItemPickerInto('riskObjectivePicker', project.objectives || [], risk ? risk.objectiveIds : [], 'No objectives in this project yet.');
 
   document.getElementById('riskTitleInput').focus();
 }
@@ -8107,6 +8536,12 @@ function renderRisksList(){
     if(r.documentIds && r.documentIds.length > 0){
       metaHTML += '<span>' + r.documentIds.length + ' doc' + (r.documentIds.length === 1 ? '' : 's') + '</span>';
     }
+    if(r.principleIds && r.principleIds.length > 0){
+      metaHTML += '<span>' + r.principleIds.length + ' principle' + (r.principleIds.length === 1 ? '' : 's') + '</span>';
+    }
+    if(r.objectiveIds && r.objectiveIds.length > 0){
+      metaHTML += '<span>' + r.objectiveIds.length + ' objective' + (r.objectiveIds.length === 1 ? '' : 's') + '</span>';
+    }
 
     row.innerHTML =
       '<div class="kf-release-row-top">' +
@@ -8140,6 +8575,8 @@ function saveRiskFromModal(){
     ownerId: document.getElementById('riskOwnerSelect').value || null,
     taskId: document.getElementById('riskTaskSelect').value || null,
     documentIds: getCheckedRiskDocumentIds(),
+    principleIds: getCheckedItemIdsFrom('riskPrinciplePicker'),
+    objectiveIds: getCheckedItemIdsFrom('riskObjectivePicker'),
     status: status,
     dateToClose: dateToClose,
     dateClosed: dateClosed
@@ -8458,6 +8895,299 @@ function deleteDecisionFromModal(){
 }
 
 /* =========================================================
+   PRINCIPLES MODAL
+   ========================================================= */
+function openPrinciplesOverlay(){
+  var project = getCurrentProject();
+  if(!project){ toast('No project selected.'); return; }
+  ui.principlesSearchTerm = '';
+  document.getElementById('principlesSearchInput').value = '';
+  showPrinciplesListView();
+  document.getElementById('principlesOverlay').classList.remove('hidden');
+}
+function closePrinciplesOverlay(){
+  document.getElementById('principlesOverlay').classList.add('hidden');
+}
+function isPrinciplesOverlayOpen(){
+  return !document.getElementById('principlesOverlay').classList.contains('hidden');
+}
+
+function showPrinciplesListView(){
+  ui.editingPrincipleId = null;
+  document.getElementById('principlesModalTitle').textContent = 'Principles';
+  document.getElementById('principlesListView').classList.remove('hidden');
+  document.getElementById('principlesFormView').classList.add('hidden');
+  document.getElementById('principlesListFooter').classList.remove('hidden');
+  document.getElementById('principlesFormFooter').classList.add('hidden');
+  renderPrinciplesList();
+}
+
+function showPrinciplesFormView(principleId){
+  var project = getCurrentProject();
+  if(!project) return;
+  ui.editingPrincipleId = principleId || null;
+  var principle = principleId ? getPrincipleById(project, principleId) : null;
+
+  document.getElementById('principlesModalTitle').textContent = principle ? 'Edit Principle' : 'New Principle';
+  document.getElementById('principlesListView').classList.add('hidden');
+  document.getElementById('principlesFormView').classList.remove('hidden');
+  document.getElementById('principlesListFooter').classList.add('hidden');
+  document.getElementById('principlesFormFooter').classList.remove('hidden');
+  document.getElementById('deletePrincipleBtn').classList.toggle('hidden', !principle);
+
+  document.getElementById('principleTitleInput').value = principle ? principle.title : '';
+  document.getElementById('principleDescriptionInput').value = principle ? principle.description : '';
+  document.getElementById('principleDocUrlInput').value = principle && principle.documentUrl ? principle.documentUrl : '';
+  updateDocUrlOpenButtonVisibilityFor('principleDocUrlInput', 'principleDocUrlOpenBtn');
+
+  var metaEl = document.getElementById('principleMetaDates');
+  if(principle){
+    metaEl.textContent = 'Added ' + utcISOToLocalDisplayDate(principle.dateCreated) +
+      (principle.dateLastModified && principle.dateLastModified !== principle.dateCreated ? ' \u00b7 Last changed ' + utcISOToLocalDisplayDate(principle.dateLastModified) : '');
+    metaEl.style.display = '';
+  } else {
+    metaEl.textContent = '';
+    metaEl.style.display = 'none';
+  }
+  document.getElementById('principleTitleInput').focus();
+}
+
+function renderPrinciplesList(){
+  var project = getCurrentProject();
+  var listEl = document.getElementById('principlesList');
+  listEl.innerHTML = '';
+  if(!project) return;
+
+  var allPrinciples = (project.principles || []).slice().sort(function(a, b){
+    return a.key.localeCompare(b.key, undefined, {numeric: true});
+  });
+
+  if(allPrinciples.length === 0){
+    listEl.innerHTML = '<div class="kf-releases-empty">No principles yet. Add one above to start guiding this project.</div>';
+    return;
+  }
+
+  var term = ui.principlesSearchTerm.trim().toLowerCase();
+  var principles = term ? allPrinciples.filter(function(p){
+    var hay = [p.key, p.title, p.description].join(' ').toLowerCase();
+    return hay.indexOf(term) !== -1;
+  }) : allPrinciples;
+
+  if(principles.length === 0){
+    listEl.innerHTML = '<div class="kf-releases-empty">No principles match \u201c' + escapeHTML(ui.principlesSearchTerm.trim()) + '\u201d.</div>';
+    return;
+  }
+
+  principles.forEach(function(p){
+    var row = document.createElement('div');
+    row.className = 'kf-release-row';
+    row.setAttribute('data-principle-id', p.id);
+
+    var metaHTML = '<span>Added ' + escapeHTML(utcISOToLocalDisplayDate(p.dateCreated)) + '</span>';
+
+    var urlLinkHTML = p.documentUrl
+      ? '<a class="kf-doc-row-link" href="' + escapeHTML(p.documentUrl) + '" target="_blank" rel="noopener noreferrer" title="Open ' + escapeHTML(p.documentUrl) + ' in a new tab" aria-label="Open document link in a new tab">' + iconSvg('externalLink', 14) + '</a>'
+      : '';
+
+    row.innerHTML =
+      '<div class="kf-release-row-top">' +
+        '<span class="kf-dep-key">' + escapeHTML(p.key) + '</span>' +
+        '<span class="kf-release-name">' + escapeHTML(p.title) + '</span>' +
+        urlLinkHTML +
+      '</div>' +
+      '<div class="kf-release-row-meta">' + metaHTML + '</div>';
+
+    var urlLinkEl = row.querySelector('.kf-doc-row-link');
+    if(urlLinkEl){
+      urlLinkEl.addEventListener('click', function(e){ e.stopPropagation(); });
+    }
+    row.addEventListener('click', function(){ showPrinciplesFormView(p.id); });
+    listEl.appendChild(row);
+  });
+}
+
+function savePrincipleFromModal(){
+  var project = getCurrentProject();
+  if(!project) return;
+  var title = document.getElementById('principleTitleInput').value.trim();
+  if(!title){ toast('Please enter a principle title.'); return; }
+
+  var data = {
+    title: title,
+    description: document.getElementById('principleDescriptionInput').value,
+    documentUrl: document.getElementById('principleDocUrlInput').value
+  };
+
+  if(ui.editingPrincipleId){
+    updatePrinciple(project, ui.editingPrincipleId, data);
+    toast('Principle updated.');
+  } else {
+    addPrinciple(project, data);
+    toast('Principle created.');
+  }
+  showPrinciplesListView();
+}
+
+function deletePrincipleFromModal(){
+  var project = getCurrentProject();
+  if(!project || !ui.editingPrincipleId) return;
+  var principle = getPrincipleById(project, ui.editingPrincipleId);
+  if(!principle) return;
+  confirmDialog(
+    'Delete ' + principle.key + '?',
+    'Any objectives or risks linking to this principle will have the link removed.',
+    function(){
+      var unlinked = deletePrinciple(project, principle.id);
+      toast('Deleted ' + principle.key + (unlinked > 0 ? ' \u2014 removed ' + unlinked + ' link(s) from objectives/risks.' : '.'));
+      showPrinciplesListView();
+    }
+  );
+}
+
+/* =========================================================
+   OBJECTIVES MODAL
+   ========================================================= */
+function openObjectivesOverlay(){
+  var project = getCurrentProject();
+  if(!project){ toast('No project selected.'); return; }
+  ui.objectivesSearchTerm = '';
+  document.getElementById('objectivesSearchInput').value = '';
+  showObjectivesListView();
+  document.getElementById('objectivesOverlay').classList.remove('hidden');
+}
+function closeObjectivesOverlay(){
+  document.getElementById('objectivesOverlay').classList.add('hidden');
+}
+function isObjectivesOverlayOpen(){
+  return !document.getElementById('objectivesOverlay').classList.contains('hidden');
+}
+
+function showObjectivesListView(){
+  ui.editingObjectiveId = null;
+  document.getElementById('objectivesModalTitle').textContent = 'Objectives';
+  document.getElementById('objectivesListView').classList.remove('hidden');
+  document.getElementById('objectivesFormView').classList.add('hidden');
+  document.getElementById('objectivesListFooter').classList.remove('hidden');
+  document.getElementById('objectivesFormFooter').classList.add('hidden');
+  renderObjectivesList();
+}
+
+function showObjectivesFormView(objectiveId){
+  var project = getCurrentProject();
+  if(!project) return;
+  ui.editingObjectiveId = objectiveId || null;
+  var objective = objectiveId ? getObjectiveById(project, objectiveId) : null;
+
+  document.getElementById('objectivesModalTitle').textContent = objective ? 'Edit Objective' : 'New Objective';
+  document.getElementById('objectivesListView').classList.add('hidden');
+  document.getElementById('objectivesFormView').classList.remove('hidden');
+  document.getElementById('objectivesListFooter').classList.add('hidden');
+  document.getElementById('objectivesFormFooter').classList.remove('hidden');
+  document.getElementById('deleteObjectiveBtn').classList.toggle('hidden', !objective);
+
+  document.getElementById('objectiveTitleInput').value = objective ? objective.title : '';
+  document.getElementById('objectiveDescriptionInput').value = objective ? objective.description : '';
+  renderItemPickerInto('objectivePrinciplePicker', project.principles || [], objective ? objective.principleIds : [], 'No principles in this project yet.');
+
+  var metaEl = document.getElementById('objectiveMetaDates');
+  if(objective){
+    metaEl.textContent = 'Added ' + utcISOToLocalDisplayDate(objective.dateCreated) +
+      (objective.dateLastModified && objective.dateLastModified !== objective.dateCreated ? ' \u00b7 Last changed ' + utcISOToLocalDisplayDate(objective.dateLastModified) : '');
+    metaEl.style.display = '';
+  } else {
+    metaEl.textContent = '';
+    metaEl.style.display = 'none';
+  }
+  document.getElementById('objectiveTitleInput').focus();
+}
+
+function renderObjectivesList(){
+  var project = getCurrentProject();
+  var listEl = document.getElementById('objectivesList');
+  listEl.innerHTML = '';
+  if(!project) return;
+
+  var allObjectives = (project.objectives || []).slice().sort(function(a, b){
+    return a.key.localeCompare(b.key, undefined, {numeric: true});
+  });
+
+  if(allObjectives.length === 0){
+    listEl.innerHTML = '<div class="kf-releases-empty">No objectives yet. Add one above to start tracking this project\u2019s goals.</div>';
+    return;
+  }
+
+  var term = ui.objectivesSearchTerm.trim().toLowerCase();
+  var objectives = term ? allObjectives.filter(function(o){
+    var hay = [o.key, o.title, o.description].join(' ').toLowerCase();
+    return hay.indexOf(term) !== -1;
+  }) : allObjectives;
+
+  if(objectives.length === 0){
+    listEl.innerHTML = '<div class="kf-releases-empty">No objectives match \u201c' + escapeHTML(ui.objectivesSearchTerm.trim()) + '\u201d.</div>';
+    return;
+  }
+
+  objectives.forEach(function(o){
+    var row = document.createElement('div');
+    row.className = 'kf-release-row';
+    row.setAttribute('data-objective-id', o.id);
+
+    var metaHTML = '<span>Added ' + escapeHTML(utcISOToLocalDisplayDate(o.dateCreated)) + '</span>';
+    if(o.principleIds && o.principleIds.length > 0){
+      metaHTML += '<span>' + o.principleIds.length + ' principle' + (o.principleIds.length === 1 ? '' : 's') + '</span>';
+    }
+
+    row.innerHTML =
+      '<div class="kf-release-row-top">' +
+        '<span class="kf-dep-key">' + escapeHTML(o.key) + '</span>' +
+        '<span class="kf-release-name">' + escapeHTML(o.title) + '</span>' +
+      '</div>' +
+      '<div class="kf-release-row-meta">' + metaHTML + '</div>';
+
+    row.addEventListener('click', function(){ showObjectivesFormView(o.id); });
+    listEl.appendChild(row);
+  });
+}
+
+function saveObjectiveFromModal(){
+  var project = getCurrentProject();
+  if(!project) return;
+  var title = document.getElementById('objectiveTitleInput').value.trim();
+  if(!title){ toast('Please enter an objective title.'); return; }
+
+  var data = {
+    title: title,
+    description: document.getElementById('objectiveDescriptionInput').value,
+    principleIds: getCheckedItemIdsFrom('objectivePrinciplePicker')
+  };
+
+  if(ui.editingObjectiveId){
+    updateObjective(project, ui.editingObjectiveId, data);
+    toast('Objective updated.');
+  } else {
+    addObjective(project, data);
+    toast('Objective created.');
+  }
+  showObjectivesListView();
+}
+
+function deleteObjectiveFromModal(){
+  var project = getCurrentProject();
+  if(!project || !ui.editingObjectiveId) return;
+  var objective = getObjectiveById(project, ui.editingObjectiveId);
+  if(!objective) return;
+  confirmDialog(
+    'Delete ' + objective.key + '?',
+    'Any risks linking to this objective will have the link removed.',
+    function(){
+      var unlinked = deleteObjective(project, objective.id);
+      toast('Deleted ' + objective.key + (unlinked > 0 ? ' \u2014 removed from ' + unlinked + ' risk(s).' : '.'));
+      showObjectivesListView();
+    }
+  );
+}
+
+/* =========================================================
    SVG / PNG EXPORT (Dependency Map, Cost/Benefit Chart)
    These SVGs are styled with CSS custom properties (var(--kf-...))
    so they adapt to light/dark theme on screen, and their <text>
@@ -8753,6 +9483,40 @@ function wireEvents(){
   document.getElementById('decisionFormSaveBtn').addEventListener('click', saveDecisionFromModal);
   document.getElementById('deleteDecisionBtn').addEventListener('click', deleteDecisionFromModal);
 
+  document.getElementById('principlesBtn').addEventListener('click', openPrinciplesOverlay);
+  document.getElementById('principlesModalClose').addEventListener('click', closePrinciplesOverlay);
+  document.getElementById('principlesDoneBtn').addEventListener('click', closePrinciplesOverlay);
+  document.getElementById('principlesOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'principlesOverlay') closePrinciplesOverlay();
+  });
+  document.getElementById('addPrincipleBtn').addEventListener('click', function(){ showPrinciplesFormView(null); });
+  document.getElementById('principlesSearchInput').addEventListener('input', function(e){
+    ui.principlesSearchTerm = e.target.value;
+    renderPrinciplesList();
+  });
+  document.getElementById('principleFormCancelBtn').addEventListener('click', showPrinciplesListView);
+  document.getElementById('principleFormSaveBtn').addEventListener('click', savePrincipleFromModal);
+  document.getElementById('deletePrincipleBtn').addEventListener('click', deletePrincipleFromModal);
+  document.getElementById('principleDocUrlInput').addEventListener('input', function(){
+    updateDocUrlOpenButtonVisibilityFor('principleDocUrlInput', 'principleDocUrlOpenBtn');
+  });
+  document.getElementById('principleDocUrlOpenBtn').addEventListener('click', function(){ openUrlInputInNewTab('principleDocUrlInput'); });
+
+  document.getElementById('objectivesBtn').addEventListener('click', openObjectivesOverlay);
+  document.getElementById('objectivesModalClose').addEventListener('click', closeObjectivesOverlay);
+  document.getElementById('objectivesDoneBtn').addEventListener('click', closeObjectivesOverlay);
+  document.getElementById('objectivesOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'objectivesOverlay') closeObjectivesOverlay();
+  });
+  document.getElementById('addObjectiveBtn').addEventListener('click', function(){ showObjectivesFormView(null); });
+  document.getElementById('objectivesSearchInput').addEventListener('input', function(e){
+    ui.objectivesSearchTerm = e.target.value;
+    renderObjectivesList();
+  });
+  document.getElementById('objectiveFormCancelBtn').addEventListener('click', showObjectivesListView);
+  document.getElementById('objectiveFormSaveBtn').addEventListener('click', saveObjectiveFromModal);
+  document.getElementById('deleteObjectiveBtn').addEventListener('click', deleteObjectiveFromModal);
+
   document.getElementById('deleteProjectBtn').addEventListener('click', function(){
     var p = getCurrentProject();
     if(!p) return;
@@ -9000,6 +9764,12 @@ function wireEvents(){
   document.getElementById('settingsShowHealthBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('health', e.target.checked);
   });
+  document.getElementById('settingsShowPrinciplesBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('principles', e.target.checked);
+  });
+  document.getElementById('settingsShowObjectivesBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('objectives', e.target.checked);
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);
@@ -9111,6 +9881,8 @@ function wireEvents(){
     else if(isDocumentsOverlayOpen()) closeDocumentsOverlay();
     else if(isRisksOverlayOpen()) closeRisksOverlay();
     else if(isDecisionsOverlayOpen()) closeDecisionsOverlay();
+    else if(isPrinciplesOverlayOpen()) closePrinciplesOverlay();
+    else if(isObjectivesOverlayOpen()) closeObjectivesOverlay();
     else if(isHealthOverlayOpen()) closeHealthOverlay();
     else if(isAppSettingsOverlayOpen()) closeAppSettingsOverlay();
     else if(!document.getElementById('confirmOverlay').classList.contains('hidden')) closeConfirmDialog();
