@@ -1990,7 +1990,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-var APP_VERSION = '1.22.20260627.0438';
+var APP_VERSION = '1.23.20260627.0505';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -8026,7 +8026,13 @@ function closeConfirmDialog(){
    ========================================================= */
 function wireEvents(){
   hydrateIcons(document);
-  document.getElementById('kfLogoIcon').innerHTML = iconSvg('board', 20);
+  document.getElementById('kfLogoIcon').innerHTML =
+    '<svg viewBox="0 0 24 24" width="22" height="22" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="2" y="3" width="20" height="18" rx="3" fill="#0c66e4"/>' +
+      '<rect x="5" y="6" width="4" height="12" rx="1" fill="#fff"/>' +
+      '<rect x="10.5" y="6" width="4" height="7" rx="1" fill="#fff" opacity=".85"/>' +
+      '<rect x="16" y="6" width="4" height="10" rx="1" fill="#fff" opacity=".7"/>' +
+    '</svg>';
   renderThemeToggleIcon();
 
   document.getElementById('sideNavToggle').addEventListener('click', toggleSideNav);
