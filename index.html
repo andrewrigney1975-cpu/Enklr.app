@@ -2209,7 +2209,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-var APP_VERSION = '1.33.20260628.0050';
+var APP_VERSION = '1.34.20260628.0115';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -4092,7 +4092,9 @@ function getRiskMatrixCellColor(likelihood, impact){
 /* Risks sharing the same (likelihood, impact) cell are arranged in a
    small grid within that cell so they stay individually visible
    rather than rendering as a single overlapping marker. */
-function computeRiskMatrixPoints(risks, marginLeft, marginTop, cellSize){
+var RISK_MATRIX_CELL_ASPECT = 1.7778;
+
+function computeRiskMatrixPoints(risks, marginLeft, marginTop, cellWidth, cellHeight){
   var cellGroups = {};
   risks.forEach(function(r){
     var l = clampRiskScoreValue(r.likelihood), i = clampRiskScoreValue(r.impact);
@@ -4105,56 +4107,60 @@ function computeRiskMatrixPoints(risks, marginLeft, marginTop, cellSize){
     var group = cellGroups[key];
     var parts = key.split('-');
     var l = parseInt(parts[0], 10), i = parseInt(parts[1], 10);
-    var baseX = marginLeft + (i - 1) * cellSize + cellSize / 2;
-    var baseY = marginTop + (5 - l) * cellSize + cellSize / 2;
+    var baseX = marginLeft + (i - 1) * cellWidth + cellWidth / 2;
+    var baseY = marginTop + (5 - l) * cellHeight + cellHeight / 2;
     var perRow = Math.ceil(Math.sqrt(group.length));
     var totalRows = Math.ceil(group.length / perRow);
-    var spacing = Math.min(20, (cellSize * 0.6) / Math.max(perRow, 1));
+    var spacingX = Math.min(28, (cellWidth * 0.6) / Math.max(perRow, 1));
+    var spacingY = Math.min(20, (cellHeight * 0.6) / Math.max(perRow, 1));
     group.forEach(function(r, idx){
       var row = Math.floor(idx / perRow);
       var col = idx % perRow;
-      var offsetX = (col - (perRow - 1) / 2) * spacing;
-      var offsetY = (row - (totalRows - 1) / 2) * spacing;
+      var offsetX = (col - (perRow - 1) / 2) * spacingX;
+      var offsetY = (row - (totalRows - 1) / 2) * spacingY;
       points.push({risk: r, x: baseX + offsetX, y: baseY + offsetY});
     });
   });
   return points;
 }
 
-function buildRiskMatrixSvg(risks, width, height){
-  width = width || 720; height = height || 560;
+function buildRiskMatrixSvg(risks, height){
+  height = height || 560;
   var marginLeft = 100, marginRight = 30, marginTop = 26, marginBottom = 70;
-  var plotSize = Math.min(width - marginLeft - marginRight, height - marginTop - marginBottom);
-  var cellSize = plotSize / 5;
+  var plotHeight = height - marginTop - marginBottom;
+  var cellHeight = plotHeight / 5;
+  var cellWidth = cellHeight * RISK_MATRIX_CELL_ASPECT;
+  var plotWidth = cellWidth * 5;
+  var width = marginLeft + marginRight + plotWidth;
 
   var cellsHTML = '';
   for(var l = 1; l <= 5; l++){
     for(var i = 1; i <= 5; i++){
-      var x = marginLeft + (i - 1) * cellSize;
-      var y = marginTop + (5 - l) * cellSize;
+      var x = marginLeft + (i - 1) * cellWidth;
+      var y = marginTop + (5 - l) * cellHeight;
       var color = getRiskMatrixCellColor(l, i);
       var score = l * i;
-      cellsHTML += '<rect x="' + x + '" y="' + y + '" width="' + cellSize + '" height="' + cellSize + '" fill="' + color + '" stroke="#fff" stroke-width="1.5" opacity="0.85"></rect>' +
-        '<text x="' + (x + cellSize - 6) + '" y="' + (y + cellSize - 8) + '" font-size="11" font-weight="700" text-anchor="end" fill="rgba(0,0,0,0.55)">' + score + '</text>';
+      cellsHTML += '<rect x="' + x + '" y="' + y + '" width="' + cellWidth + '" height="' + cellHeight + '" fill="' + color + '" stroke="#fff" stroke-width="1.5" opacity="0.85"></rect>' +
+        '<text x="' + (x + cellWidth - 6) + '" y="' + (y + cellHeight - 8) + '" font-size="11" font-weight="700" text-anchor="end" fill="rgba(0,0,0,0.55)">' + score + '</text>';
     }
   }
 
   var rowLabelsHTML = '';
   for(l = 1; l <= 5; l++){
-    var ly = marginTop + (5 - l) * cellSize + cellSize / 2;
+    var ly = marginTop + (5 - l) * cellHeight + cellHeight / 2;
     rowLabelsHTML += '<text x="' + (marginLeft - 10) + '" y="' + (ly + 4) + '" font-size="11" font-weight="600" text-anchor="end" fill="var(--kf-text)">' + l + ' ' + RISK_MATRIX_LIKELIHOOD_ROW_LABELS[l] + '</text>';
   }
   var colLabelsHTML = '';
   for(i = 1; i <= 5; i++){
-    var lx = marginLeft + (i - 1) * cellSize + cellSize / 2;
-    colLabelsHTML += '<text x="' + lx + '" y="' + (marginTop + plotSize + 18) + '" font-size="11" font-weight="600" text-anchor="middle" fill="var(--kf-text)">' + i + ' ' + RISK_MATRIX_IMPACT_COL_LABELS[i] + '</text>';
+    var lx = marginLeft + (i - 1) * cellWidth + cellWidth / 2;
+    colLabelsHTML += '<text x="' + lx + '" y="' + (marginTop + plotHeight + 18) + '" font-size="11" font-weight="600" text-anchor="middle" fill="var(--kf-text)">' + i + ' ' + RISK_MATRIX_IMPACT_COL_LABELS[i] + '</text>';
   }
 
   var axisTitlesHTML =
-    '<text x="' + (marginLeft + plotSize / 2) + '" y="' + (marginTop + plotSize + 40) + '" font-size="13" font-weight="700" text-anchor="middle" fill="var(--kf-text-secondary)">Impact</text>' +
-    '<text x="22" y="' + (marginTop + plotSize / 2) + '" font-size="13" font-weight="700" text-anchor="middle" transform="rotate(-90, 22, ' + (marginTop + plotSize / 2) + ')" fill="var(--kf-text-secondary)">Likelihood</text>';
+    '<text x="' + (marginLeft + plotWidth / 2) + '" y="' + (marginTop + plotHeight + 40) + '" font-size="13" font-weight="700" text-anchor="middle" fill="var(--kf-text-secondary)">Impact</text>' +
+    '<text x="22" y="' + (marginTop + plotHeight / 2) + '" font-size="13" font-weight="700" text-anchor="middle" transform="rotate(-90, 22, ' + (marginTop + plotHeight / 2) + ')" fill="var(--kf-text-secondary)">Likelihood</text>';
 
-  var points = computeRiskMatrixPoints(risks, marginLeft, marginTop, cellSize);
+  var points = computeRiskMatrixPoints(risks, marginLeft, marginTop, cellWidth, cellHeight);
   var pointsHTML = points.map(function(p){
     var r = p.risk;
     var isClosed = normalizeRiskStatus(r.status) === 'closed';
@@ -8888,7 +8894,7 @@ function renderHealthDashboard(){
       matrixNoDataEl.textContent = 'No risks logged yet \u2014 add one from the Risks button to plot it here.';
     } else {
       matrixNoDataEl.classList.add('hidden');
-      matrixChartEl.innerHTML = buildRiskMatrixSvg(allRisks, 720, 560);
+      matrixChartEl.innerHTML = buildRiskMatrixSvg(allRisks, 560);
       matrixLegendEl.innerHTML =
         '<span class="kf-health-legend-item"><span class="kf-health-legend-swatch" style="background:#1b2a4a;border-radius:50%;width:8px;height:8px;"></span>Solid marker = open/in review risk</span>' +
         '<span class="kf-health-legend-item kf-risk-matrix-point-faded" style="opacity:0.55;"><span class="kf-health-legend-swatch" style="background:#1b2a4a;border-radius:50%;width:8px;height:8px;"></span>Faded marker = closed risk</span>';
