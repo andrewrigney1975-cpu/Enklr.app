@@ -677,10 +677,15 @@
   .kf-health-gauge-label{font-size:12px;font-weight:500;color:var(--kf-text-secondary);text-align:center;}
   .kf-health-section{margin-bottom:24px;}
   .kf-health-section-title{font-size:14px;font-weight:500;margin:0 0 10px;color:var(--kf-text);}
+  .kf-health-section-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .kf-health-section-header-row .kf-health-section-title{margin:0;}
   .kf-health-overrun-warning{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--kf-radius);background:var(--kf-blocked-bg);color:var(--kf-blocked-fg);font-size:13px;font-weight:500;margin-bottom:12px;}
   .kf-health-overrun-warning.hidden{display:none;}
   .kf-health-no-data{padding:24px;text-align:center;color:var(--kf-text-faint);font-size:13px;background:var(--kf-column-bg);border-radius:var(--kf-radius);}
   .kf-health-no-data.hidden{display:none;}
+  #healthRiskMatrixSection.hidden{display:none;}
+  .kf-risk-matrix-point-faded{opacity:0.4;}
+  .kf-risk-matrix-point-faded:hover{opacity:0.75;}
   .kf-health-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--kf-text-secondary);}
   .kf-health-legend-item{display:flex;align-items:center;gap:6px;}
   .kf-health-legend-swatch{width:14px;height:3px;border-radius:2px;display:inline-block;}
@@ -1991,6 +1996,22 @@
         <div id="healthBurndownNoData" class="kf-health-no-data hidden"></div>
       </div>
 
+      <div class="kf-health-section hidden" id="healthRiskMatrixSection">
+        <div class="kf-health-section-header-row">
+          <h3 class="kf-health-section-title">Project Risks</h3>
+          <div class="kf-export-as-wrap">
+            <button class="kf-btn kf-btn-ghost" id="healthRiskMatrixExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+            <div class="kf-export-as-panel hidden" id="healthRiskMatrixExportAsPanel">
+              <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+              <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+            </div>
+          </div>
+        </div>
+        <div id="healthRiskMatrixChart"></div>
+        <div id="healthRiskMatrixNoData" class="kf-health-no-data hidden"></div>
+        <div id="healthRiskMatrixLegend" class="kf-health-legend"></div>
+      </div>
+
       <div class="kf-health-section">
         <h3 class="kf-health-section-title">Top 5 Team Members by Active Workload</h3>
         <div id="healthTopMembers"></div>
@@ -2187,7 +2208,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-var APP_VERSION = '1.31.20260627.2255';
+var APP_VERSION = '1.32.20260628.0013';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -4032,6 +4053,120 @@ function buildBurndownChartSvg(project, burndown, width, height){
     '<path d="' + idealPath + '" fill="none" stroke="var(--kf-border-strong)" stroke-width="1.5" stroke-dasharray="5,4"/>' +
     '<path d="' + actualPath + '" fill="none" stroke="#0c66e4" stroke-width="2.5"/>' +
     (projectedPath ? '<path d="' + projectedPath + '" fill="none" stroke="' + projectedColor + '" stroke-width="2" stroke-dasharray="6,4"/>' : '') +
+  '</svg>';
+}
+
+/* ---- 5x5 Risk Matrix ----
+   Likelihood (rows, 1=Rare to 5=Almost Certain, bottom to top) x
+   Impact (columns, 1=Insignificant to 5=Severe, left to right).
+   Band assignment is a direct lookup table rather than a pure
+   likelihood*impact formula, matching how real-world 5x5 matrices are
+   typically defined (the same numeric product can land in a different
+   band depending on whether likelihood or impact drove it). */
+var RISK_MATRIX_BAND_TABLE = {
+  1: {1: 'verylow', 2: 'verylow', 3: 'low',     4: 'medium',   5: 'medium'},
+  2: {1: 'verylow', 2: 'low',     3: 'medium',  4: 'medium',   5: 'high'},
+  3: {1: 'low',     2: 'medium',  3: 'medium',  4: 'high',     5: 'veryhigh'},
+  4: {1: 'medium',  2: 'medium',  3: 'high',    4: 'veryhigh', 5: 'extreme'},
+  5: {1: 'medium',  2: 'high',    3: 'veryhigh', 4: 'extreme', 5: 'extreme'}
+};
+var RISK_MATRIX_BAND_COLORS = {
+  verylow: '#4caf50', low: '#8bc34a', medium: '#fdd835',
+  high: '#fb8c00', veryhigh: '#f4511e', extreme: '#c62828'
+};
+var RISK_MATRIX_BAND_LABELS = {
+  verylow: 'Very low', low: 'Low', medium: 'Medium',
+  high: 'High', veryhigh: 'Very high', extreme: 'Extreme'
+};
+var RISK_MATRIX_IMPACT_COL_LABELS = {1: 'Insignificant', 2: 'Minor', 3: 'Significant', 4: 'Major', 5: 'Severe'};
+var RISK_MATRIX_LIKELIHOOD_ROW_LABELS = {1: 'Rare', 2: 'Unlikely', 3: 'Moderate', 4: 'Likely', 5: 'Almost Certain'};
+function getRiskMatrixCellBand(likelihood, impact){
+  var l = clampRiskScoreValue(likelihood), i = clampRiskScoreValue(impact);
+  return (RISK_MATRIX_BAND_TABLE[l] && RISK_MATRIX_BAND_TABLE[l][i]) || 'medium';
+}
+function getRiskMatrixCellColor(likelihood, impact){
+  return RISK_MATRIX_BAND_COLORS[getRiskMatrixCellBand(likelihood, impact)];
+}
+
+/* Risks sharing the same (likelihood, impact) cell are arranged in a
+   small grid within that cell so they stay individually visible
+   rather than rendering as a single overlapping marker. */
+function computeRiskMatrixPoints(risks, marginLeft, marginTop, cellSize){
+  var cellGroups = {};
+  risks.forEach(function(r){
+    var l = clampRiskScoreValue(r.likelihood), i = clampRiskScoreValue(r.impact);
+    var key = l + '-' + i;
+    if(!cellGroups[key]) cellGroups[key] = [];
+    cellGroups[key].push(r);
+  });
+  var points = [];
+  Object.keys(cellGroups).forEach(function(key){
+    var group = cellGroups[key];
+    var parts = key.split('-');
+    var l = parseInt(parts[0], 10), i = parseInt(parts[1], 10);
+    var baseX = marginLeft + (i - 1) * cellSize + cellSize / 2;
+    var baseY = marginTop + (5 - l) * cellSize + cellSize / 2;
+    var perRow = Math.ceil(Math.sqrt(group.length));
+    var totalRows = Math.ceil(group.length / perRow);
+    var spacing = Math.min(20, (cellSize * 0.6) / Math.max(perRow, 1));
+    group.forEach(function(r, idx){
+      var row = Math.floor(idx / perRow);
+      var col = idx % perRow;
+      var offsetX = (col - (perRow - 1) / 2) * spacing;
+      var offsetY = (row - (totalRows - 1) / 2) * spacing;
+      points.push({risk: r, x: baseX + offsetX, y: baseY + offsetY});
+    });
+  });
+  return points;
+}
+
+function buildRiskMatrixSvg(risks, width, height){
+  width = width || 720; height = height || 560;
+  var marginLeft = 100, marginRight = 30, marginTop = 26, marginBottom = 70;
+  var plotSize = Math.min(width - marginLeft - marginRight, height - marginTop - marginBottom);
+  var cellSize = plotSize / 5;
+
+  var cellsHTML = '';
+  for(var l = 1; l <= 5; l++){
+    for(var i = 1; i <= 5; i++){
+      var x = marginLeft + (i - 1) * cellSize;
+      var y = marginTop + (5 - l) * cellSize;
+      var color = getRiskMatrixCellColor(l, i);
+      var score = l * i;
+      cellsHTML += '<rect x="' + x + '" y="' + y + '" width="' + cellSize + '" height="' + cellSize + '" fill="' + color + '" stroke="#fff" stroke-width="1.5" opacity="0.85"></rect>' +
+        '<text x="' + (x + cellSize - 6) + '" y="' + (y + cellSize - 8) + '" font-size="11" font-weight="700" text-anchor="end" fill="rgba(0,0,0,0.55)">' + score + '</text>';
+    }
+  }
+
+  var rowLabelsHTML = '';
+  for(l = 1; l <= 5; l++){
+    var ly = marginTop + (5 - l) * cellSize + cellSize / 2;
+    rowLabelsHTML += '<text x="' + (marginLeft - 10) + '" y="' + (ly + 4) + '" font-size="11" font-weight="600" text-anchor="end" fill="var(--kf-text)">' + l + ' ' + RISK_MATRIX_LIKELIHOOD_ROW_LABELS[l] + '</text>';
+  }
+  var colLabelsHTML = '';
+  for(i = 1; i <= 5; i++){
+    var lx = marginLeft + (i - 1) * cellSize + cellSize / 2;
+    colLabelsHTML += '<text x="' + lx + '" y="' + (marginTop + plotSize + 18) + '" font-size="11" font-weight="600" text-anchor="middle" fill="var(--kf-text)">' + i + ' ' + RISK_MATRIX_IMPACT_COL_LABELS[i] + '</text>';
+  }
+
+  var axisTitlesHTML =
+    '<text x="' + (marginLeft + plotSize / 2) + '" y="' + (marginTop + plotSize + 40) + '" font-size="13" font-weight="700" text-anchor="middle" fill="var(--kf-text-secondary)">Impact</text>' +
+    '<text x="22" y="' + (marginTop + plotSize / 2) + '" font-size="13" font-weight="700" text-anchor="middle" transform="rotate(-90, 22, ' + (marginTop + plotSize / 2) + ')" fill="var(--kf-text-secondary)">Likelihood</text>';
+
+  var points = computeRiskMatrixPoints(risks, marginLeft, marginTop, cellSize);
+  var pointsHTML = points.map(function(p){
+    var r = p.risk;
+    var isClosed = normalizeRiskStatus(r.status) === 'closed';
+    var labelOffset = 10;
+    return '<g class="kf-risk-matrix-point' + (isClosed ? ' kf-risk-matrix-point-faded' : '') + '">' +
+      '<title>' + escapeHTML(r.key) + ' \u2014 ' + escapeHTML(r.title) + (isClosed ? ' [Closed]' : '') + '</title>' +
+      '<circle cx="' + p.x + '" cy="' + p.y + '" r="6" fill="#1b2a4a" stroke="#fff" stroke-width="1.5"></circle>' +
+      '<text x="' + (p.x + labelOffset) + '" y="' + (p.y + 4) + '" font-size="10" font-weight="700" fill="var(--kf-text)" style="paint-order:stroke;stroke:var(--kf-surface);stroke-width:3px;">' + escapeHTML(r.key) + '</text>' +
+    '</g>';
+  }).join('');
+
+  return '<svg viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" class="kf-risk-matrix-svg">' +
+    cellsHTML + rowLabelsHTML + colLabelsHTML + axisTitlesHTML + pointsHTML +
   '</svg>';
 }
 
@@ -8737,6 +8872,28 @@ function renderHealthDashboard(){
     }
   }
 
+  var riskMatrixSection = document.getElementById('healthRiskMatrixSection');
+  var riskFeatureEnabled = normalizeHeaderButtonVisibility(project.headerButtonVisibility).risks;
+  riskMatrixSection.classList.toggle('hidden', !riskFeatureEnabled);
+  if(riskFeatureEnabled){
+    var allRisks = project.risks || [];
+    var matrixChartEl = document.getElementById('healthRiskMatrixChart');
+    var matrixNoDataEl = document.getElementById('healthRiskMatrixNoData');
+    var matrixLegendEl = document.getElementById('healthRiskMatrixLegend');
+    if(allRisks.length === 0){
+      matrixChartEl.innerHTML = '';
+      matrixLegendEl.innerHTML = '';
+      matrixNoDataEl.classList.remove('hidden');
+      matrixNoDataEl.textContent = 'No risks logged yet \u2014 add one from the Risks button to plot it here.';
+    } else {
+      matrixNoDataEl.classList.add('hidden');
+      matrixChartEl.innerHTML = buildRiskMatrixSvg(allRisks, 720, 560);
+      matrixLegendEl.innerHTML =
+        '<span class="kf-health-legend-item"><span class="kf-health-legend-swatch" style="background:#1b2a4a;border-radius:50%;width:8px;height:8px;"></span>Solid marker = open/in review risk</span>' +
+        '<span class="kf-health-legend-item kf-risk-matrix-point-faded" style="opacity:0.55;"><span class="kf-health-legend-swatch" style="background:#1b2a4a;border-radius:50%;width:8px;height:8px;"></span>Faded marker = closed risk</span>';
+    }
+  }
+
   var topMembers = computeTopTeamMembers(project);
   var topMembersEl = document.getElementById('healthTopMembers');
   if(topMembers.length === 0){
@@ -9710,6 +9867,21 @@ function wireEvents(){
       var project = getCurrentProject();
       var filenameBase = (project ? project.key : 'export') + '-cost-benefit-chart';
       var svgEl = document.querySelector('#costBenefitInner svg');
+      if(!svgEl){ toast('Nothing to export.'); return; }
+      if(btn.getAttribute('data-export-type') === 'svg') exportSvgElementAsSvgFile(svgEl, filenameBase);
+      else exportSvgElementAsPng(svgEl, filenameBase, 4);
+    });
+  });
+  document.getElementById('healthRiskMatrixExportAsBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    toggleExportAsPanel('healthRiskMatrixExportAsPanel');
+  });
+  document.querySelectorAll('#healthRiskMatrixExportAsPanel .kf-export-as-option').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      closeAllExportAsPanels();
+      var project = getCurrentProject();
+      var filenameBase = (project ? project.key : 'export') + '-project-risks-matrix';
+      var svgEl = document.querySelector('#healthRiskMatrixChart svg');
       if(!svgEl){ toast('Nothing to export.'); return; }
       if(btn.getAttribute('data-export-type') === 'svg') exportSvgElementAsSvgFile(svgEl, filenameBase);
       else exportSvgElementAsPng(svgEl, filenameBase, 4);
