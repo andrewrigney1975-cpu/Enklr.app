@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enkl</title>
+<script>
+  /* Applied before CSS paints so there's no flash of the wrong theme. */
+  (function(){
+    try{
+      var saved = localStorage.getItem('kanbanflow_theme');
+      if(saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    }catch(e){ /* localStorage unavailable — fall back to light */ }
+  })();
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='0' y='0' width='24' height='24' fill='%230c66e4'/%3E%3Crect x='5' y='6' width='4' height='12' rx='1' fill='white'/%3E%3Crect x='10.5' y='6' width='4' height='7' rx='1' fill='white' opacity='.85'/%3E%3Crect x='16' y='6' width='4' height='10' rx='1' fill='white' opacity='.7'/%3E%3C/svg%3E">
+
+<!-- PWA: manifest + icons (embedded as data URIs to keep this a single self-contained file) -->
+<link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjogIkVua2wiLCAic2hvcnRfbmFtZSI6ICJFbmtsIiwgImRlc2NyaXB0aW9uIjogIkEgc2VsZi1jb250YWluZWQgS2FuYmFuIGJvYXJkIGFuZCBwcm9qZWN0IG1hbmFnZW1lbnQgYXBwLiIsICJzdGFydF91cmwiOiAiLiIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAiYmFja2dyb3VuZF9jb2xvciI6ICIjZjdmOGY5IiwgInRoZW1lX2NvbG9yIjogIiMwYzJhNTIiLCAiaWNvbnMiOiBbeyJzcmMiOiAiZGF0YTppbWFnZS9wbmc7YmFzZTY0LGlWQk9SdzBLR2dvQUFBQU5TVWhFVWdBQUFNQUFBQURBQ0FZQUFBQlMzR3dIQUFBQ1owbEVRVlI0MnUzY1RYR0RVQmlHVWNoa0NRb1FFRFd4QVpyUUVUWFpnd0lFVUFQdGhuSi80RHRIUUMrVGVaOUxKb3UyM2Jqc0RRVDE4QkVnQUJBQUNBQUVBQUlBQVlBQVFBQWdBQkFBQ0FBRUFBSUFBWUFBUUFBZ0FCQUFDQUFFQUFJQUFZQUFRQUFnQUJBQUNBQUVBQUlBQVlBQVFBQWdBQkFBQ0FBRUFBSUFBWUFBUUFBZ0FCQUFDQUFFQUFJQUFjRHZubGQ5OEcwZVR2K2IvYlNtZk41dmd1ZDlKWHplVDRMbmZkZTJvN1libHozNjhGT0drR0w0S1VOSU1meWFRM2dZZjdwemNvei96SE55akQvbk9iY0tJTmY0enpvdjEvalBPaS8zS0d1SjRHSDg1NStiZS96L1BiZlVHR3VJd0s5QWhGWjlBS1Z1LzZQbmw3cjlqNTVmK2hZdWZiNDNBTjRBSUFBUUFBZ0FCQUFDQUFHQUFFQUFJQUFRQUFnQUJBQUNBQUdBQUVBQUlBQVFBQWdBQkFBQ0FBR0FBRUFBSUFBUUFBZ0FCQUFDQUFHQUFFQUFJQUFRQUFnQUJBQUNBQUdBQUVBQUlBQVFBQWlnaUg1YVg1SFBGd0FJd0Z2QTdTOEFFUmkvQUVSZy9EVjcrZ2p5akhPYmg2L2hDOERiQUYrQlFBQWdBQkFBQ0FBRUFBSUFBWUFBUUFBZ0FCQUFDQUFFQUFJQUFZQUFRQUFjMGsvck8vTDVBc0FiQUcrQmlMZS9BQ2cyeGhyR0x3Q0tqTEtXOFRlTmY0dkNIK1BjNXVGejUrRUxnTXVOMVZjZ0VBQUlBQVFBQWdBQmdBQkFBQ0FBdUVzQS9iU0dQaDl2QUlnZFFLbGIyTzB2Z0xBUkdMOEF3a1pnL0hHMDNianNWM3p3YlI0TW43Z0JRTGl2UUNBQUVBQUlBQVFBQWdBQmdBQkFBQ0FBRUFBSUFBUUFBZ0FCZ0FCQUFDQUFCQUFDQUFHQUFFQUFJQUFRQUFnQUJBQUNBQUdBQUVBQUlBQVFBQWdBQkFBQ0FBR0FBRUFBSUFBUUFBZ0FCQUFDQUFHQUFDQzdIM2RHaWlkUGlqRkVBQUFBQUVsRlRrU3VRbUNDIiwgInNpemVzIjogIjE5MngxOTIiLCAidHlwZSI6ICJpbWFnZS9wbmciLCAicHVycG9zZSI6ICJhbnkgbWFza2FibGUifSwgeyJzcmMiOiAiZGF0YTppbWFnZS9wbmc7YmFzZTY0LGlWQk9SdzBLR2dvQUFBQU5TVWhFVWdBQUFnQUFBQUlBQ0FZQUFBRDBlTlQ2QUFBSU5FbEVRVlI0MnUzYVVYSGpNQlNHMGJyalJ3dUJBQVJOYUZpWWhDTm8vRzRoTUFBSFFSN1NhUnY1Nmh3RXU3Y3orMy95ZGxyVy9md0NBSWJ5N1FRQUlBQUFBQUVBQUFnQUFFQUFBQUFDQUFBUUFBQ0FBQUFBQkFBQUlBQUFBQUVBQUFnQUFFQUFBQUFDQUFBUUFBQ0FBQUFBQkFBQUlBQUFRQUFBQUFJQUFCQUFBSUFBQUFBRUFBQWdBQUFBQVFBQUNBQUFRQUFBQUFJQUFCQUFBSUFBQUFBRUFBQWdBQUFBQVFBQUNBQUFRQUFBZ0FBQUFBUUFBQ0FBQUFBQkFBQUlBQUJBQUFBQUFnQUFFQUFBZ0FBQUFBUUFBQ0FBQUFBQkFBQUlBQUJBQUFBQUFnQUFFQUFBZ0FBQUFBRUFBQWdBQUVBQUFBQUNBQUFRQUFDQUFBQUFCQUFBSUFBQUFBRUFBQWdBQUVBQUFBQUNBQUFRQUFDQUFBQUFCQUFBSUFBQUFBRUFBQUlBQUJBQUFJQUFBQUFFQUFBZ0FBQUFBUUFBQ0FBQVFBQUFBQUlBQUJBQUFJQUFBQUFFQUFBZ0FBQUFBUUFBQ0FBQVFBQUFBQUlBQUFTQUV3Q0FBQUFBQkFBQUlBQUFBQUVBQUFnQUFFQUFBQUFDQUFBUUFBQ0FBQUFBQkFBQUlBQUFBQUVBQUFnQUFFQUFBQUFDQUFBUUFBQ0FBQUFBQVFBQUNBQUFRQUFBQUFJQUFCQUFBSUFBQUFBRUFBQWdBQUFBQVFBQUNBQUFRQUFBQUFJQUFCQUFBSUFBQUFBRUFBQWdBQUFBQVFBQUFnQUFFQUFBZ0FBQUFBUUFBQ0FBQUFBQkFBRDBiWGFDc1J3MWgvcjdwTkw4VEd2ZWd2MU1iMzZtK1JIdDc1Ukt1L3NYdUMvVHN1Nm5NeGg5TVdEMHhZRFJGd01DQU1NdkJBeS9EREA4UWtBQVlQaUZnT0VYQW9aZkNFVGpsd0NOdjFzWWY3Y3cvdTdoQ3dER3pwY0FZK2RMZ0tIekpVQUFZUHlGZ1BFWEFzWmZDSVRrdndDTXYxc1oveXYvVExlTC9EbU52M3NKQUFCQUFPRDE3MlplLzZGdjVqWHJiZ0lBNCs5MnhuK3cyeGt4OXhNQUFJQUF3T3ZmRGIzK285L1E2OVVkQlFBQUlBRHcrbmRMci8vb3QvUnFkVThCQUFBSUFBQkFBUEFtbi8vajNkVG4vM2czOWJuYVhRVUFBQ0FBQUFBQkFBQUlBQUJBQUFBQUFnQUFFQUFBZ0FBQUFBUUFBQ0FBQUFBQkFBQUlBQUFRQUFDQUFBQUFCQUFBSUFBQUFBRUFBQWdBQUVBQUFBQUNBQUFRQUFDQUFBQUFCQUFBSUFBQUFBRUFBQWdBQUVBQUFBQUNBQUFRQUFBZ0FBQUFBUUFBQ0FBQVFBQUFBQUlBQUJBQUFJQUFBQUFFQUFBZ0FBQUFBUUFBQ0FBQVFBQUFBQUlBQUJBQUFJQUFBQUFFQUFBZ0FBQkFBQUFBQWdBQUVBQUFnQUFBQUFRQUFDQUFBQUFCQUFBSUFBQkFBQUFBQWdBQUVBQUFnQUFBQUFRQUFDQUFBQUFCQUFBSUFBQkFBQUNBQUFBQUJBQUFJQUFBQUFFQUFBZ0FBRUFBQUFBQ0FBQVFBQUNBQUFBQUJBQUFJQUFBQUFFQUFBZ0FBRUFBQUFBQ0FBQVFBQUNBQUFBQUJBQUFDQUFBUUFBQUFBSUFBQkFBQUlBQUFBQUVBQUFnQUFBQUFRQUFDQUFBUUFBQUFBSUFBQkFBQUlBQUFBQUVBQUFnQUFBQUFRQUFDQUFBRUFBQWdBQUFBQVFBQUNBQUFBQUJBQUFJQUFCQUFBQUFBZ0FBRUFBQWdBQUFBQVFBQUNBQUFBQUJBQUFJQUFCQUFBQUFBZ0FBRUFBQUlBQ0EvNWRLdTdtQ200SUFBQUFFQUFBZ0FDQWtuNnpkRWdRQUFDQUF3TXNWTndRQkFBQUlBUENDeGUxQUFJQWhjek5BQUlCQmN5dEFBQURHSHhBQVlOemNCd1FBME9uSUdUcmpEd0lBREo1YnVBWDhtdGtKNERyRGQ5UzhHWDVBQUlBUU1QeUFBSUFSWDhUUllzRG9nd0FBRENid1Ivd1NJQUFJQUFCQUFBQUFBZ0FBRUFBQWdBQUFBQVFBQUNBQUFBQUJBQUFJQUFCQUFBQUFnQUFFQUFBZ0FBQUFBUUFBQkFBQUlBQUFBQUVBQUFnQUFFQUFBQUFDQUFBUUFBQ0FBQUFBQkFBQUlBQUFBQUVBQUFnQUFFQUFBQUFDQUFBUUFBQWdBQUFBQVFBQUNBQUFRQUFBQUFJQUFCQUFBSUFBQUFBRUFBQWdBQUFBQVFBQUNBQUFRQUFBZEM2VmRuY0ZkeFVBQUlBQUFBQUVBRUJJUGxlN3B3QUFBQVFBZ0ZjcjdpZ0FBQUFCQU9EMWl2c0pBQUFqNW00SUFBQmo1bDRJQUFDTVB3SUF3TEM1RVFJQW9OT0JNM0xHWHdBQUdEdmM0Mk5tSndENDNPZ2ROVDhNUHdJQVFBZ1lmZ1FBd0lpakdERUdqTDRBQU1CWTBnRy9CQWdBQWdBQUVBQUFnQUFBQUFRQUFDQUFBQUFCQUFBSUFBQkFBQUFBQWdBQUVBQUFnQUFBQUFRQUFDQUFBQUFCQUFBSUFBQkFBQUFBQWdBQUJBQUFJQUFBQUFFQUFBZ0FBRUFBQUFBQ0FBQVFBQUNBQU9CblVtbU80S1lBQWdBQUVBQUFnQUNJeVNkcnR3UVFBQUNBQVBCeXhRMEJCQUFBSUFDOFlIRTdBQUZneU13TVFBQmcwTndLUUFDQThRY1FBQmczOXdFUUFIUTZjb2JPK0FNSUFJUG5GbTRCOE5LMHJQdnBEREVkTlJ0K0FBU0FFREQ4QUFnQU1XRDBBUVFBQURBT3Z3UUlBQUlBQUJBQUFJQUFBQUFFQUFBZ0FBQUFBUUFBQ0FBQVFBQUFBQUlBQUJBQUFJQUFBQUFFQUFBZ0FBQUFBUUFBQ0FBQVFBQUFBQUlBQUFRQUFDQUFBQUFCQUFBSUFBQkFBQUFBQWdBQUVBQUFnQUFBQUFRQUFDQUFBQUFCQUFBSUFBQkFBQUFBQWdBQUVBQUFnQUFBQUFRQUFBZ0FBRUFBQUFBQ0FBQVFBQUNBQUFBQUJBQUFJQUFBQUFFQUFBZ0FBRUFBQUFBQ0FBQVFBQUNBQUFBQUJBQUFJQUFBQUFFQUFBZ0FBQkFBQUlBQUFBQUVBQUFnQUFBQUFRQUFDQUFBUUFBQUFBSUFBQkFBQUlBQUFBQUVBQUFnQUFBQUFRQUFDQUFBUUFBQUFBSUFBQkFBQUNBQUFBQUJBQUFJQUFCQUFBQUFBZ0FBRUFBQWdBQUFBQVFBQUNBQUFBQUJBQUFJQUFCQUFBQUFBZ0FBRUFBQWdBQUFBQVFBQUNBQUFBQUJBQUFDQUFBUUFBQ0FBQUFBQkFBQUlBQUFBQUVBQUFnQUFFQUFBQUFDQUFBUUFBQ0FBQUFBQkFBQUlBQUFBQUVBQUFnQUFFQUFBQUFDQUFBRUFBQWdBQUFBQVFBQUNBQUFRQUFBQUFJQUFCQUFBSUFBQUFBRUFBQWdBQUFBQVFBQUNBQUFRQUFBQUFJQUFCQUFBSUFBQUFBRUFBQUlBQUJBQUFBQUFnQUFFQUFBZ0FBQUFLN2xDWFRIUC95Yit2Qm1BQUFBQUVsRlRrU3VRbUNDIiwgInNpemVzIjogIjUxMng1MTIiLCAidHlwZSI6ICJpbWFnZS9wbmciLCAicHVycG9zZSI6ICJhbnkgbWFza2FibGUifV19">
+<meta name="theme-color" content="#0c2a52">
+
+<!-- iOS PWA support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Enkl">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAACZ0lEQVR42u3cTXGDUBiGUchkCQoQEDWxAZrQETXZgwIEUAPthnJ/4DtHQC+TeZ9LJou23bjsDQT18BEgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAcDvnld98G0eTv+b/bSmfN5vgud9JXzeT4Lnfde2o7Yblz368FOGkGL4KUNIMfyaQ3gYf7pzcoz/zHNyjD/nObcKINf4zzov1/jPOi/3KGuJ4GH855+be/z/PbfUGGuIwK9AhFZ9AKVu/6Pnl7r9j55f+hYufb43AN4AIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAigiH5aX5HPFwAIwFvA7S8AERi/AERg/DV7+gjyjHObh6/hC8DbAF+BQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAc0k/rO/L5AsAbAG+BiLe/ACg2xhrGLwCKjLKW8TeNf4vCH+Pc5uFz5+ELgMuN1VcgEAAIAAQAAgABgABAACAAuEsA/bSGPh9vAIgdQKlb2O0vgLARGL8AwkZg/HG03bjsV3zwbR4Mn7gBQLivQCAAEAAIAAQAAgABgABAACAAEAAIAAQAAgABgABAACAABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAACC7H3dGiidPijFEAAAAAElFTkSuQmCC">
+<link rel="apple-touch-icon" sizes="192x192" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAACZ0lEQVR42u3cTXGDUBiGUchkCQoQEDWxAZrQETXZgwIEUAPthnJ/4DtHQC+TeZ9LJou23bjsDQT18BEgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAcDvnld98G0eTv+b/bSmfN5vgud9JXzeT4Lnfde2o7Yblz368FOGkGL4KUNIMfyaQ3gYf7pzcoz/zHNyjD/nObcKINf4zzov1/jPOi/3KGuJ4GH855+be/z/PbfUGGuIwK9AhFZ9AKVu/6Pnl7r9j55f+hYufb43AN4AIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAigiH5aX5HPFwAIwFvA7S8AERi/AERg/DV7+gjyjHObh6/hC8DbAF+BQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAc0k/rO/L5AsAbAG+BiLe/ACg2xhrGLwCKjLKW8TeNf4vCH+Pc5uFz5+ELgMuN1VcgEAAIAAQAAgABgABAACAAuEsA/bSGPh9vAIgdQKlb2O0vgLARGL8AwkZg/HG03bjsV3zwbR4Mn7gBQLivQCAAEAAIAAQAAgABgABAACAAEAAIAAQAAgABgABAACAABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAACC7H3dGiidPijFEAAAAAElFTkSuQmCC">
+<link rel="apple-touch-icon" sizes="512x512" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAINElEQVR42u3aUXHjMBSG0brjRwuBAARNaFiYhCNo/G4hMAAHQR7SaRv56hwEu7cz+3/ydlrW/fwCAIby7QQAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAAIAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAAASAEwCAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAAAgAAEAAAgAAAAAQAACAAAAABAAD0bXaCsRw1h/r7pNL8TGvegv1Mb36m+RHt75RKu/sXuC/Tsu6nMxh9MWD0xYDRFwMCAMMvBAy/EDD8QkAAYPiFgOEXAoZfCETjlwCNv1sYf7cw/u7hCwDGzpcAY+dLgKHzJUAAYPyFgPEXAsZfCITkvwCMv1sZ/yv/TLeL/DmNv3sJAABAAOD172Ze/6Fv5jXrbgIA4+92xn+w2xkx9xMAAIAAwOvfDb3+o9/Q69UdBQAAIADw+ndLr//ot/RqdU8BAAAIAABAAPAmn//j3dTn/3g39bnaXQUAACAAAAABAAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAAIAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAAEAAAIACA/5dKu7mCm4IAAAAEAAAgACAkn6zdEgQAACAAwMsVNwQBAAAIAPCCxe1AAIAhczNAAIBBcytAAADGHxAAYNzcBwQA0OnIGTrjDwIADJ5buAX8mtkJ4DrDd9S8GX5AAIAQMPyAAIARX8TRYsDogwAADCbwR/wSIAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAAIAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAdC6VdncFdxUAAIAAAAAEAEBIPle7pwAAAAQAgFcr7igAAAABAOD1ivsJAAAj5m4IAABj5l4IAACMPwIAwLC5EQIAoNOBM3LGXwAAGDvc42NmJwD43OgdNT8MPwIAQAgYfgQAwIijGDEGjL4AAMBY0gG/BAgAAgAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAOBnUmmO4KYAAgAAEAAAgACIySdrtwQQAACAAPByxQ0BBAAAIAC8YHE7AAFgyNwMQABg0NwKQACA8QcQABg39wEQAHQ6cobO+AMIAIPnFm4B8NK0rPvpDDEdNRt+AASAEDD8AAgAMWD0AQQAADAOvwQIAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAAAQAACAAAAABAAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAAIAABAAAAAAgAAEAAAgAAAAAQAACAAAAABAAACAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAQAACAAAAABAAAIAAAAAEAAAgAAEAAAAACAAAEAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAgAAAAAQAACAAAQAAAAAIAABAAAIAAAAAEAAAIAABAAAAAAgAAEAAAgAAAAK7lCXTHP/yb+vBmAAAAAElFTkSuQmCC">
+
+<!-- Android / general PWA support -->
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <header class="kf-header">
+    <button class="kf-header-hamburger" id="mobileMenuBtn" aria-label="Open menu" title="Menu">
+      <span class="kf-icon" data-icon="menu" data-size="20"></span>
+    </button>
+    <div class="kf-logo">
+      <span class="kf-icon" id="kfLogoIcon"></span>
+      <span>Enkl</span>
+    </div>
+    <div class="kf-header-controls" id="headerControls">
+      <div class="kf-drawer-header">
+        <span class="kf-drawer-title">Menu</span>
+        <button class="kf-btn kf-btn-ghost" id="drawerCloseBtn" aria-label="Close menu"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+      <div class="kf-header-divider"></div>
+      <div class="kf-project-picker">
+        <select id="projectSelect" class="kf-select-dark" aria-label="Select project"></select>
+        <button class="kf-btn kf-btn-ghost" id="projectSearchBtn" title="Project Search" aria-label="Project Search"><span class="kf-icon" data-icon="search" data-size="16"></span></button>
+        <button class="kf-header-btn" id="editProjectBtn" title="Edit project"><span class="kf-icon" data-icon="edit" data-size="14"></span>Edit</button>
+        <button class="kf-header-btn" id="manageTeamBtn" title="Manage team members"><span class="kf-icon" data-icon="team" data-size="14"></span>Team</button>
+        <button class="kf-header-btn" id="deleteProjectBtn" title="Delete project"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
+      </div>
+      <div class="kf-header-divider"></div>
+      <div class="kf-drawer-action-group">
+        <button class="kf-header-btn" id="healthBtn" title="Health Dashboard"><span class="kf-icon" data-icon="heartPulse" data-size="14"></span>Health Dashboard</button>
+        <div class="kf-header-movable-group" id="headerMovableGroup">
+          <button class="kf-header-btn" id="principlesBtn" title="Principles"><span class="kf-icon" data-icon="compass" data-size="14"></span>Principles</button>
+          <button class="kf-header-btn" id="objectivesBtn" title="Objectives"><span class="kf-icon" data-icon="target" data-size="14"></span>Objectives</button>
+          <button class="kf-header-btn" id="documentsBtn" title="Documents"><span class="kf-icon" data-icon="ty_document" data-size="14"></span>Documents</button>
+          <button class="kf-header-btn" id="risksBtn" title="Risks"><span class="kf-icon" data-icon="warning" data-size="14"></span>Risks</button>
+          <button class="kf-header-btn" id="decisionsBtn" title="Decisions"><span class="kf-icon" data-icon="ty_approve" data-size="14"></span>Decisions</button>
+          <button class="kf-header-btn" id="teamsCommitteesBtn" title="Teams &amp; Committees"><span class="kf-icon" data-icon="orgChart" data-size="14"></span>Teams &amp; Committees</button>
+        </div>
+        <div class="kf-export-as-wrap kf-header-more-wrap hidden" id="headerMoreWrap">
+          <button class="kf-header-btn" id="headerMoreBtn" title="More"><span class="kf-icon" data-icon="chevronDown" data-size="14"></span>More...</button>
+          <div class="kf-export-as-panel hidden kf-header-more-panel" id="headerMorePanel"></div>
+        </div>
+      </div>
+      <div class="kf-drawer-views-section" id="drawerViewsSection">
+        <div class="kf-header-divider"></div>
+        <div class="kf-drawer-section-label">Views</div>
+        <div id="drawerViewButtonsSlot" class="kf-drawer-view-slot"></div>
+      </div>
+      <div class="kf-drawer-views-section" id="drawerToolsSection">
+        <div class="kf-header-divider"></div>
+        <div class="kf-drawer-section-label">Tools</div>
+        <div id="drawerToolsButtonsSlot" class="kf-drawer-view-slot"></div>
+      </div>
+      <div class="kf-header-spacer"></div>
+      <div class="kf-drawer-action-group">
+        <button class="kf-header-btn kf-header-nav-projectaction" id="newProjectBtn" title="New Project"><span class="kf-icon" data-icon="plus" data-size="14"></span>New Project</button>
+        <button class="kf-header-btn kf-header-nav-projectaction" id="importProjectBtn" title="Import a project from an Enkl export file"><span class="kf-icon" data-icon="upload" data-size="14"></span>Import Project</button>
+        <button class="kf-header-btn kf-header-nav-projectaction" id="exportBtn" title="Export the current project"><span class="kf-icon" data-icon="download" data-size="14"></span>Export Project</button>
+        <div class="kf-export-as-wrap kf-projects-menu-wrap" id="projectsMenuWrap">
+          <button class="kf-header-btn" id="projectsMenuBtn" title="Projects"><span class="kf-icon" data-icon="chevronDown" data-size="14"></span>Projects...</button>
+          <div class="kf-export-as-panel hidden kf-header-more-panel" id="projectsMenuPanel">
+            <a href="#" class="kf-header-more-link" data-nav-target="newProjectBtn">New Project</a>
+            <a href="#" class="kf-header-more-link" data-nav-target="importProjectBtn">Import Project</a>
+            <a href="#" class="kf-header-more-link" data-nav-target="exportBtn">Export Project</a>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="importFileInput" accept="application/json,.json" style="display:none;">
+      <div class="kf-header-divider"></div>
+      <button class="kf-header-btn kf-theme-toggle" id="themeToggleBtn" title="Switch to dark theme" aria-label="Switch to dark theme"></button>
+      <button class="kf-header-btn" id="appSettingsBtn" title="Project Settings" aria-label="Project Settings"><span class="kf-icon" data-icon="ty_configure" data-size="16"></span><span class="kf-appsettings-label">Project Settings</span></button>
+    </div>
+  </header>
+  <div class="kf-drawer-backdrop" id="drawerBackdrop"></div>
+
+  <div class="kf-app-body" id="appBody">
+    <nav class="kf-side-nav" id="sideNav">
+      <button type="button" class="kf-side-nav-toggle" id="sideNavToggle" title="Expand navigation" aria-label="Expand navigation" aria-expanded="false">
+        <span class="kf-icon" data-icon="chevronRight" data-size="16"></span>
+      </button>
+      <div class="kf-side-nav-section">
+        <div class="kf-side-nav-label">Views</div>
+        <button type="button" class="kf-side-nav-item" id="navTaskListBtn" title="List View"><span class="kf-icon" data-icon="list" data-size="18"></span><span class="kf-side-nav-text">List View</span></button>
+        <button type="button" class="kf-side-nav-item" id="navTimelineBtn" title="Timeline"><span class="kf-icon" data-icon="timeline" data-size="18"></span><span class="kf-side-nav-text">Timeline</span></button>
+        <button type="button" class="kf-side-nav-item" id="navDepMapBtn" title="Dependency Map"><span class="kf-icon" data-icon="graph" data-size="18"></span><span class="kf-side-nav-text">Dependency Map</span></button>
+        <button type="button" class="kf-side-nav-item" id="navCostBenefitBtn" title="Cost/Benefit Chart"><span class="kf-icon" data-icon="quadrant" data-size="18"></span><span class="kf-side-nav-text">Cost/Benefit Chart</span></button>
+      </div>
+      <div class="kf-side-nav-section">
+        <div class="kf-side-nav-label">Tools</div>
+        <button type="button" class="kf-side-nav-item" id="navBulkEditBtn" title="Bulk Edit"><span class="kf-icon" data-icon="grid" data-size="18"></span><span class="kf-side-nav-text">Bulk Edit</span></button>
+        <button type="button" class="kf-side-nav-item" id="navArchivedBtn" title="Archived"><span class="kf-icon" data-icon="archive" data-size="18"></span><span class="kf-side-nav-text">Archived</span><span id="navArchivedCountBadge" class="kf-count-badge kf-archived-count-badge kf-vis-hidden"></span></button>
+        <button type="button" class="kf-side-nav-item" id="navTaskTypesBtn" title="Task Types"><span class="kf-icon" data-icon="tag" data-size="18"></span><span class="kf-side-nav-text">Task Types</span></button>
+        <button type="button" class="kf-side-nav-item" id="navReleasesBtn" title="Releases"><span class="kf-icon" data-icon="rocket" data-size="18"></span><span class="kf-side-nav-text">Releases</span></button>
+      </div>
+    </nav>
+
+    <div class="kf-main-content" id="mainContent">
+  <!-- Toolbar -->
+  <div class="kf-toolbar" id="toolbarRow1">
+    <span class="kf-board-key" id="toolbarKey">—</span>
+    <span class="kf-board-title" id="toolbarTitle">Board</span>
+    <div class="kf-search">
+      <span class="kf-icon" data-icon="search" data-size="14"></span>
+      <input type="text" id="searchInput" placeholder="Search tasks...">
+    </div>
+    <div class="kf-filter-chips" id="priorityFilterChips"></div>
+    <div class="kf-dropdown-filter" id="teamFilterWrap">
+      <button type="button" class="kf-dropdown-filter-btn" id="teamFilterBtn">
+        <span class="kf-icon" data-icon="orgChart" data-size="13"></span>
+        <span id="teamFilterLabel">Team</span>
+        <span class="kf-icon" data-icon="chevronDown" data-size="12"></span>
+      </button>
+      <div class="kf-dropdown-filter-panel hidden" id="teamFilterPanel"></div>
+    </div>
+    <div class="kf-dropdown-filter" id="assigneeFilterWrap">
+      <button type="button" class="kf-dropdown-filter-btn" id="assigneeFilterBtn">
+        <span class="kf-icon" data-icon="team" data-size="13"></span>
+        <span id="assigneeFilterLabel">Assignee</span>
+        <span class="kf-icon" data-icon="chevronDown" data-size="12"></span>
+      </button>
+      <div class="kf-dropdown-filter-panel hidden" id="assigneeFilterPanel"></div>
+    </div>
+    <div class="kf-dropdown-filter" id="taskTypeFilterWrap">
+      <button type="button" class="kf-dropdown-filter-btn" id="taskTypeFilterBtn">
+        <span class="kf-icon" data-icon="tag" data-size="13"></span>
+        <span id="taskTypeFilterLabel">Type</span>
+        <span class="kf-icon" data-icon="chevronDown" data-size="12"></span>
+      </button>
+      <div class="kf-dropdown-filter-panel hidden" id="taskTypeFilterPanel"></div>
+    </div>
+    <div class="kf-toolbar-spacer"></div>
+    <div class="kf-toolbar-view-buttons" id="toolbarRow2Buttons">
+      <button class="kf-btn kf-btn-secondary" id="bulkEditBtn"><span class="kf-icon" data-icon="grid" data-size="14"></span>Bulk Edit</button>
+      <button class="kf-btn kf-btn-secondary" id="archivedTasksBtn"><span class="kf-icon" data-icon="archive" data-size="14"></span>Archived<span id="archivedCountBadge" class="kf-count-badge kf-archived-count-badge kf-vis-hidden"></span></button>
+      <button class="kf-btn kf-btn-secondary" id="taskTypesBtn"><span class="kf-icon" data-icon="tag" data-size="14"></span>Task Types</button>
+      <button class="kf-btn kf-btn-secondary" id="releasesBtn"><span class="kf-icon" data-icon="rocket" data-size="14"></span>Releases</button>
+    </div>
+  </div>
+  <div class="kf-toolbar kf-toolbar-row2" id="toolbarRow2">
+    <div class="kf-toolbar-view-buttons" id="toolbarViewButtons">
+      <button class="kf-btn kf-btn-secondary" id="taskListBtn"><span class="kf-icon" data-icon="list" data-size="14"></span>List View</button>
+      <button class="kf-btn kf-btn-secondary" id="timelineBtn"><span class="kf-icon" data-icon="timeline" data-size="14"></span>Timeline</button>
+      <button class="kf-btn kf-btn-secondary" id="depMapBtn"><span class="kf-icon" data-icon="graph" data-size="14"></span>Dependency Map</button>
+      <button class="kf-btn kf-btn-secondary" id="costBenefitBtn"><span class="kf-icon" data-icon="quadrant" data-size="14"></span>Cost/Benefit Chart</button>
+    </div>
+    <div class="kf-toolbar-spacer"></div>
+    <button class="kf-btn kf-btn-secondary" id="addColumnTopBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Column</button>
+  </div>
+
+  <!-- Board -->
+  <div class="kf-board-wrap">
+    <div class="kf-board" id="board"></div>
+  </div>
+    </div>
+  </div>
+</div>
+
+<!-- Task Modal -->
+<div class="kf-overlay hidden" id="taskOverlay">
+  <div class="kf-modal" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="taskModalTitle">New task</h2>
+      <button class="kf-btn kf-btn-ghost" id="taskModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="taskTypeSelect">Type</label>
+        <select id="taskTypeSelect"></select>
+      </div>
+      <div class="kf-field">
+        <label for="taskTitleInput">Title</label>
+        <input type="text" id="taskTitleInput" maxlength="120" placeholder="e.g. Set up CI pipeline">
+      </div>
+      <div class="kf-field">
+        <label for="taskDescInput">Description</label>
+        <textarea id="taskDescInput" maxlength="2000" placeholder="Add more detail..."></textarea>
+      </div>
+      <div class="kf-field">
+        <label for="taskDocUrlInput">Documentation</label>
+        <div class="kf-doc-url-row">
+          <input type="url" id="taskDocUrlInput" maxlength="500" placeholder="https://example.com/doc">
+          <button type="button" class="kf-btn kf-btn-ghost kf-doc-url-open-btn hidden" id="taskDocUrlOpenBtn" title="Open documentation link in a new tab" aria-label="Open documentation link in a new tab">
+            <span class="kf-icon" data-icon="externalLink" data-size="16"></span>
+          </button>
+        </div>
+      </div>
+      <div class="kf-field-row">
+        <div class="kf-field">
+          <label for="taskPrioritySelect">Priority</label>
+          <div class="kf-priority-select-wrap">
+            <span class="kf-icon" id="taskPriorityIcon" data-size="16"></span>
+            <select id="taskPrioritySelect">
+              <option value="trivial">Trivial</option>
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+        </div>
+        <div class="kf-field">
+          <label for="taskAssigneeSelect">Assignee</label>
+          <select id="taskAssigneeSelect"></select>
+        </div>
+      </div>
+      <div class="kf-field-row">
+        <div class="kf-field">
+          <label for="taskColumnSelect">Column</label>
+          <select id="taskColumnSelect"></select>
+        </div>
+        <div class="kf-field">
+          <label for="taskReleaseSelect">Release</label>
+          <select id="taskReleaseSelect"></select>
+        </div>
+      </div>
+      <div class="kf-field-row">
+        <div class="kf-field">
+          <label for="taskStartDateInput">Start date</label>
+          <input type="date" id="taskStartDateInput">
+        </div>
+        <div class="kf-field">
+          <label for="taskEndDateInput">End date</label>
+          <input type="date" id="taskEndDateInput">
+        </div>
+      </div>
+      <div class="kf-field-row">
+        <div class="kf-field">
+          <label for="taskBusinessValueInput">Business value <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(1–1000)</span></label>
+          <input type="number" id="taskBusinessValueInput" min="1" max="1000" step="1">
+        </div>
+        <div class="kf-field">
+          <label for="taskCostInput">Task cost <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(1–1000)</span></label>
+          <input type="number" id="taskCostInput" min="1" max="1000" step="1">
+        </div>
+      </div>
+      <div class="kf-field">
+        <label>Depends on <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(must finish first)</span></label>
+        <div class="kf-dep-chips-selected" id="depChipsSelected"></div>
+        <input type="text" class="kf-dep-search" id="depSearchInput" placeholder="Filter tasks...">
+        <div class="kf-dep-list" id="depList"></div>
+      </div>
+      <div class="kf-checkbox-row">
+        <input type="checkbox" id="taskArchivedCheckbox">
+        <label for="taskArchivedCheckbox" style="text-transform:none;font-weight:500;">Archived <span style="color:var(--kf-text-faint);">(hidden from the board, list view, and dependency graph)</span></label>
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="taskDeleteBtn"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="taskCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="taskSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Column Modal -->
+<div class="kf-overlay hidden" id="columnOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="columnModalTitle">New column</h2>
+      <button class="kf-btn kf-btn-ghost" id="columnModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="columnNameInput">Column name</label>
+        <input type="text" id="columnNameInput" maxlength="40" placeholder="e.g. In Review">
+      </div>
+      <div class="kf-checkbox-row">
+        <input type="checkbox" id="columnDoneCheckbox">
+        <label for="columnDoneCheckbox" style="text-transform:none;font-weight:500;">Mark tasks in this column as "Done" (for dependency blocking)</label>
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="columnDeleteBtn"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="columnCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="columnSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Modal -->
+<div class="kf-overlay hidden" id="projectOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="projectModalTitle">New project</h2>
+      <button class="kf-btn kf-btn-ghost" id="projectModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="projectNameInput">Project name</label>
+        <input type="text" id="projectNameInput" maxlength="60" placeholder="e.g. Mobile App Revamp">
+      </div>
+      <div class="kf-field">
+        <label for="projectKeyInput">Project key</label>
+        <input type="text" id="projectKeyInput" maxlength="6" placeholder="e.g. MOB" style="text-transform:uppercase;">
+        <div class="kf-hint">Used as a prefix for task IDs, like MOB-1, MOB-2...</div>
+      </div>
+      <div class="kf-field-row">
+        <div class="kf-field">
+          <label for="projectStartDateInput">Start date</label>
+          <input type="date" id="projectStartDateInput">
+        </div>
+        <div class="kf-field">
+          <label for="projectEndDateInput">End date</label>
+          <input type="date" id="projectEndDateInput">
+        </div>
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="projectCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="projectSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="kf-overlay hidden" id="confirmOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="confirmTitle">Are you sure?</h2>
+      <button class="kf-btn kf-btn-ghost" id="confirmModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <p id="confirmMessage" style="margin:0;color:var(--kf-text);"></p>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="confirmCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-danger" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dependency Map Overlay -->
+<div class="kf-overlay hidden" id="depMapOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="depMapTitle">Dependency Map</h2>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="depMapArchiveToggle" title="Show archived tasks"><span class="kf-icon" data-icon="archive" data-size="16"></span><span id="depMapArchiveToggleLabel">Show archived</span></button>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="depMapZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="16"></span></button>
+        <span id="depMapZoomLabel" class="kf-zoom-label">100%</span>
+        <button class="kf-btn kf-btn-ghost" id="depMapZoomInBtn" title="Zoom in"><span class="kf-icon" data-icon="zoomIn" data-size="16"></span></button>
+        <button class="kf-btn kf-btn-ghost" id="depMapResetBtn" title="Reset view"><span class="kf-icon" data-icon="fit" data-size="16"></span></button>
+        <div class="kf-header-divider-light"></div>
+        <div class="kf-export-as-wrap">
+          <button class="kf-btn kf-btn-ghost" id="depMapExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+          <div class="kf-export-as-panel hidden" id="depMapExportAsPanel">
+            <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+            <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+          </div>
+        </div>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="depMapClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-depmap-legend" id="depMapLegend"></div>
+    <div class="kf-depmap-scroll" id="depMapScroll">
+      <div id="depMapInner" class="kf-depmap-inner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline Overlay -->
+<div class="kf-overlay hidden" id="timelineOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="timelineTitle">Timeline</h2>
+      <div class="kf-modal-header-actions">
+        <select id="timelineScaleSelect" class="kf-timeline-scale-select" aria-label="Timescale">
+          <option value="day">Day</option>
+          <option value="week">Week</option>
+          <option value="fortnight">Fortnight</option>
+          <option value="month">Month</option>
+          <option value="quarter">3 Months</option>
+          <option value="year">1 Year</option>
+        </select>
+        <button class="kf-btn kf-btn-ghost" id="timelineArchiveToggle" title="Show archived tasks"><span class="kf-icon" data-icon="archive" data-size="16"></span><span id="timelineArchiveToggleLabel">Show archived</span></button>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="timelineClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-depmap-legend" id="timelineLegend"></div>
+    <div id="timelineAlertBanner" class="kf-timeline-alert hidden"></div>
+    <div class="kf-timeline-scroll" id="timelineScroll">
+      <div id="timelineInner" class="kf-timeline-inner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Cost/Benefit Chart Overlay -->
+<div class="kf-overlay hidden" id="costBenefitOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="costBenefitTitle">Cost/Benefit Chart</h2>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="costBenefitArchiveToggle" title="Show archived tasks"><span class="kf-icon" data-icon="archive" data-size="16"></span><span id="costBenefitArchiveToggleLabel">Show archived</span></button>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="costBenefitZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="16"></span></button>
+        <span id="costBenefitZoomLabel" class="kf-zoom-label">100%</span>
+        <button class="kf-btn kf-btn-ghost" id="costBenefitZoomInBtn" title="Zoom in"><span class="kf-icon" data-icon="zoomIn" data-size="16"></span></button>
+        <button class="kf-btn kf-btn-ghost" id="costBenefitResetBtn" title="Reset view"><span class="kf-icon" data-icon="fit" data-size="16"></span></button>
+        <div class="kf-header-divider-light"></div>
+        <div class="kf-export-as-wrap">
+          <button class="kf-btn kf-btn-ghost" id="costBenefitExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+          <div class="kf-export-as-panel hidden" id="costBenefitExportAsPanel">
+            <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+            <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+          </div>
+        </div>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="costBenefitClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-depmap-legend" id="costBenefitLegend"></div>
+    <div class="kf-costbenefit-scroll" id="costBenefitScroll">
+      <div id="costBenefitInner" class="kf-costbenefit-inner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Task List Overlay -->
+<div class="kf-overlay hidden" id="taskListOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="taskListTitle">Task List</h2>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="taskListClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-tasklist-toolbar">
+      <div class="kf-search" style="max-width:260px;">
+        <span class="kf-icon" data-icon="search" data-size="14"></span>
+        <input type="text" id="taskListSearchInput" placeholder="Search tasks...">
+      </div>
+      <button type="button" class="kf-tasklist-toolbar-link" id="taskListCollapseAllBtn">Collapse all</button>
+      <button type="button" class="kf-tasklist-toolbar-link" id="taskListExpandAllBtn">Expand all</button>
+      <button type="button" class="kf-btn kf-btn-ghost" id="taskListExportCsvBtn" style="margin-left:auto;"><span class="kf-icon" data-icon="download" data-size="14"></span>Export as CSV</button>
+      <span id="taskListCount" class="kf-tasklist-count"></span>
+    </div>
+    <div class="kf-tasklist-header" id="taskListHeader"></div>
+    <div class="kf-tasklist-scroll" id="taskListScroll">
+      <div id="taskListBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Edit Overlay -->
+<div class="kf-overlay hidden" id="bulkEditOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="bulkEditTitle">Bulk Edit</h2>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="bulkEditClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-tasklist-toolbar">
+      <span style="color:var(--kf-text-faint);font-size:12px;">Edit any cell, then save to apply all changes at once. Includes archived tasks.</span>
+      <span id="bulkEditCount" class="kf-tasklist-count"></span>
+    </div>
+    <div class="kf-bulkedit-header" id="bulkEditHeader"></div>
+    <div class="kf-bulkedit-scroll" id="bulkEditScroll">
+      <div id="bulkEditBody"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <span id="bulkEditPendingCount" class="kf-footer-left kf-bulkedit-pending-count"></span>
+      <button class="kf-btn kf-btn-secondary" id="bulkEditCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="bulkEditSaveBtn" disabled>Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Archived Tasks Overlay -->
+<div class="kf-overlay hidden" id="archivedTasksOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="archivedTasksTitle">Archived tasks</h2>
+      <button class="kf-btn kf-btn-ghost" id="archivedTasksClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-archived-toolbar">
+        <label class="kf-archived-select-all-row">
+          <input type="checkbox" id="archivedSelectAllCheckbox">
+          <span>Select all</span>
+        </label>
+        <span id="archivedSelectedCount" class="kf-archived-selected-count"></span>
+      </div>
+      <div id="archivedTasksList" class="kf-archived-list"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="archivedTasksDoneBtn">Close</button>
+      <button class="kf-btn kf-btn-primary" id="reactivateSelectedBtn" disabled>Reactivate selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- Team Modal -->
+<div class="kf-overlay hidden" id="teamOverlay">
+  <div class="kf-modal kf-modal-md" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="teamModalTitle">Manage team</h2>
+      <button class="kf-btn kf-btn-ghost" id="teamModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="newMemberNameInput">Add a team member</label>
+        <div class="kf-member-add-row">
+          <input type="text" id="newMemberNameInput" maxlength="60" placeholder="e.g. Priya Shah">
+          <button class="kf-btn kf-btn-primary" id="addMemberBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Add</button>
+        </div>
+      </div>
+      <div id="memberList" class="kf-member-list"></div>
+      <datalist id="memberRoleOptions"></datalist>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="teamDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Task Types Modal -->
+<div class="kf-overlay hidden" id="taskTypesOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="taskTypesModalTitle">Manage task types</h2>
+      <button class="kf-btn kf-btn-ghost" id="taskTypesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="newTaskTypeNameInput">Add a task type</label>
+        <div class="kf-member-add-row">
+          <input type="text" id="newTaskTypeNameInput" maxlength="40" placeholder="e.g. Chore">
+          <button class="kf-btn kf-btn-primary" id="addTaskTypeBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Add</button>
+        </div>
+      </div>
+      <div id="taskTypeList" class="kf-member-list"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="taskTypesDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Releases Modal -->
+<div class="kf-overlay hidden" id="releasesOverlay">
+  <div class="kf-modal" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="releasesModalTitle">Releases</h2>
+      <button class="kf-btn kf-btn-ghost" id="releasesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="releasesListView">
+        <button class="kf-btn kf-btn-secondary" id="addReleaseBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Release
+        </button>
+        <div id="releasesList" class="kf-releases-list"></div>
+      </div>
+      <div id="releasesFormView" class="hidden">
+        <div class="kf-field">
+          <label for="releaseNameInput">Name</label>
+          <input type="text" id="releaseNameInput" maxlength="80" placeholder="e.g. v1.2 Launch">
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="releaseStatusSelect">Status</label>
+            <select id="releaseStatusSelect">
+              <option value="pending">Pending</option>
+              <option value="in_progress">In Progress</option>
+              <option value="deployed">Deployed</option>
+            </select>
+          </div>
+          <div class="kf-field">
+            <label for="releaseOwnerSelect">Managed by</label>
+            <select id="releaseOwnerSelect"></select>
+          </div>
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="releaseStartDateInput">Start date</label>
+            <input type="date" id="releaseStartDateInput">
+          </div>
+          <div class="kf-field">
+            <label for="releaseEndDateInput">End date</label>
+            <input type="date" id="releaseEndDateInput">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="releasesListFooter">
+      <button class="kf-btn kf-btn-secondary" id="releasesDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="releasesFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deleteReleaseBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="releaseFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="releaseFormSaveBtn">Save Release</button>
+    </div>
+  </div>
+</div>
+
+<!-- Documents Modal -->
+<div class="kf-overlay hidden" id="documentsOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="documentsModalTitle">Documents</h2>
+      <button class="kf-btn kf-btn-ghost" id="documentsModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="documentsListView">
+        <button class="kf-btn kf-btn-secondary" id="addDocumentBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Document
+        </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="documentsSearchInput" placeholder="Search documents...">
+        </div>
+        <div id="documentsList" class="kf-releases-list"></div>
+      </div>
+      <div id="documentsFormView" class="hidden">
+        <div class="kf-field">
+          <label for="documentTitleInput">Title</label>
+          <input type="text" id="documentTitleInput" maxlength="120" placeholder="e.g. Vendor Contract v2">
+        </div>
+        <div class="kf-field">
+          <label for="documentUrlInput">URL</label>
+          <div class="kf-doc-url-row">
+            <input type="url" id="documentUrlInput" maxlength="500" placeholder="https://example.com/doc">
+            <button type="button" class="kf-btn kf-btn-ghost kf-doc-url-open-btn hidden" id="documentUrlOpenBtn" title="Open document link in a new tab" aria-label="Open document link in a new tab">
+              <span class="kf-icon" data-icon="externalLink" data-size="16"></span>
+            </button>
+          </div>
+        </div>
+        <div class="kf-field">
+          <label for="documentDescriptionInput">Description</label>
+          <textarea id="documentDescriptionInput" maxlength="500" placeholder="Brief description of this document..." style="min-height:60px;"></textarea>
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="documentOwnerSelect">Owner</label>
+            <select id="documentOwnerSelect"></select>
+          </div>
+          <div class="kf-field">
+            <label for="documentTaskSelect">Linked task</label>
+            <select id="documentTaskSelect"></select>
+          </div>
+        </div>
+        <div class="kf-field">
+          <label>Related document(s)</label>
+          <div id="documentRelatedPicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field" id="documentMetaDates" style="color:var(--kf-text-faint);font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="documentsListFooter">
+      <button class="kf-btn kf-btn-secondary" id="documentsDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="documentsFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deleteDocumentBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="documentFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="documentFormSaveBtn">Save Document</button>
+    </div>
+  </div>
+</div>
+
+<!-- Risks Modal -->
+<div class="kf-overlay hidden" id="risksOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="risksModalTitle">Risks</h2>
+      <button class="kf-btn kf-btn-ghost" id="risksModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="risksListView">
+        <button class="kf-btn kf-btn-secondary" id="addRiskBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Risk
+        </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="risksSearchInput" placeholder="Search risks...">
+        </div>
+        <div id="risksList" class="kf-releases-list"></div>
+      </div>
+      <div id="risksFormView" class="hidden">
+        <div class="kf-field">
+          <label for="riskTitleInput">Title</label>
+          <input type="text" id="riskTitleInput" maxlength="120" placeholder="e.g. Key vendor may miss delivery date">
+        </div>
+        <div class="kf-field">
+          <label for="riskDescriptionInput">Description</label>
+          <textarea id="riskDescriptionInput" maxlength="2000" placeholder="Describe the risk in detail..."></textarea>
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="riskLikelihoodSelect">Likelihood</label>
+            <select id="riskLikelihoodSelect"></select>
+          </div>
+          <div class="kf-field">
+            <label for="riskImpactSelect">Impact</label>
+            <select id="riskImpactSelect"></select>
+          </div>
+        </div>
+        <div class="kf-field" id="riskScorePreview"></div>
+        <div class="kf-field">
+          <label for="riskMitigationsInput">Mitigations</label>
+          <textarea id="riskMitigationsInput" maxlength="2000" placeholder="What's being done to reduce this risk..."></textarea>
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="riskStatusSelect">Status</label>
+            <select id="riskStatusSelect">
+              <option value="new">New</option>
+              <option value="in_review">In Review</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div class="kf-field">
+            <label for="riskOwnerSelect">Owner</label>
+            <select id="riskOwnerSelect"></select>
+          </div>
+        </div>
+        <div class="kf-field">
+          <label for="riskTaskSelect">Linked task</label>
+          <select id="riskTaskSelect"></select>
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="riskCloseTargetInput">Target closure date</label>
+            <input type="date" id="riskCloseTargetInput">
+          </div>
+          <div class="kf-field">
+            <label for="riskClosedDateInput">Date closed</label>
+            <input type="date" id="riskClosedDateInput">
+          </div>
+        </div>
+        <div class="kf-field">
+          <label>Linked documents</label>
+          <div id="riskDocumentPicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label>Associated principle(s)</label>
+          <div id="riskPrinciplePicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label>Associated objective(s)</label>
+          <div id="riskObjectivePicker" class="kf-risk-doc-picker"></div>
+        </div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="risksListFooter">
+      <button class="kf-btn kf-btn-secondary" id="risksDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="risksFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deleteRiskBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="riskFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="riskFormSaveBtn">Save Risk</button>
+    </div>
+  </div>
+</div>
+
+<!-- Decisions Modal -->
+<div class="kf-overlay hidden" id="decisionsOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="decisionsModalTitle">Decisions</h2>
+      <button class="kf-btn kf-btn-ghost" id="decisionsModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="decisionsListView">
+        <button class="kf-btn kf-btn-secondary" id="addDecisionBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Decision
+        </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="decisionsSearchInput" placeholder="Search decisions...">
+        </div>
+        <div id="decisionsList" class="kf-releases-list"></div>
+      </div>
+      <div id="decisionsFormView" class="hidden">
+        <div class="kf-field">
+          <label for="decisionTitleInput">Title</label>
+          <input type="text" id="decisionTitleInput" maxlength="120" placeholder="e.g. Adopt PostgreSQL for the new service">
+        </div>
+        <div class="kf-field">
+          <label for="decisionDescriptionInput">Description</label>
+          <textarea id="decisionDescriptionInput" maxlength="2000" placeholder="Describe the decision and its rationale..."></textarea>
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="decisionTypeSelect">Type</label>
+            <select id="decisionTypeSelect">
+              <option value="strategy">Strategy</option>
+              <option value="policy">Policy</option>
+              <option value="budgetary">Budgetary</option>
+              <option value="financial">Financial</option>
+              <option value="functional">Functional</option>
+              <option value="technical">Technical</option>
+              <option value="process">Process</option>
+              <option value="operational">Operational</option>
+            </select>
+          </div>
+          <div class="kf-field">
+            <label for="decisionStatusSelect">Status</label>
+            <select id="decisionStatusSelect">
+              <option value="open">Open</option>
+              <option value="in_review">In Review</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="decisionOwnerSelect">Owner</label>
+            <select id="decisionOwnerSelect"></select>
+          </div>
+          <div class="kf-field">
+            <label for="decisionApproverInput">Approver</label>
+            <input type="text" id="decisionApproverInput" maxlength="80" list="decisionApproverOptions" placeholder="Type a name or pick an existing one">
+            <datalist id="decisionApproverOptions"></datalist>
+          </div>
+        </div>
+        <div class="kf-field">
+          <label for="decisionTaskSelect">Linked task</label>
+          <select id="decisionTaskSelect"></select>
+        </div>
+        <div class="kf-field">
+          <label>Linked documents</label>
+          <div id="decisionDocumentPicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label>Associated risk(s)</label>
+          <div id="decisionRiskPicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label>Influenced by</label>
+          <div id="decisionPrinciplePicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label>Alignment with</label>
+          <div id="decisionObjectivePicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field">
+          <label for="decisionOutcomeInput">Outcome</label>
+          <textarea id="decisionOutcomeInput" maxlength="2000" placeholder="What was the outcome of this decision..."></textarea>
+        </div>
+        <div class="kf-field" id="decisionMetaDates" style="color:var(--kf-text-faint);font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="decisionsListFooter">
+      <button class="kf-btn kf-btn-secondary" id="decisionsDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="decisionsFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deleteDecisionBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="decisionFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="decisionFormSaveBtn">Save Decision</button>
+    </div>
+  </div>
+</div>
+
+<!-- App Settings Modal -->
+<div class="kf-overlay hidden" id="appSettingsOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>App Settings</h2>
+      <button class="kf-btn kf-btn-ghost" id="appSettingsClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field-row" style="margin-bottom:4px;">
+        <label style="font-size:13px;font-weight:600;color:var(--kf-text);">Extended Project Modules</label>
+      </div>
+      <p style="margin:0 0 12px;color:var(--kf-text-faint);font-size:12px;line-height:1.5;">Choose which modules should be used in this Project</p>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowHealthBtn">
+          <span class="kf-icon" data-icon="heartPulse" data-size="14"></span>
+          <span>Health Dashboard</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowPrinciplesBtn">
+          <span class="kf-icon" data-icon="compass" data-size="14"></span>
+          <span>Principles</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowObjectivesBtn">
+          <span class="kf-icon" data-icon="target" data-size="14"></span>
+          <span>Objectives</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowDocumentsBtn">
+          <span class="kf-icon" data-icon="ty_document" data-size="14"></span>
+          <span>Documents</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowRisksBtn">
+          <span class="kf-icon" data-icon="warning" data-size="14"></span>
+          <span>Risks</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowDecisionsBtn">
+          <span class="kf-icon" data-icon="ty_approve" data-size="14"></span>
+          <span>Decisions</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowTeamsCommitteesBtn">
+          <span class="kf-icon" data-icon="orgChart" data-size="14"></span>
+          <span>Teams &amp; Committees</span>
+        </label>
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="appSettingsDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Health Dashboard Modal -->
+<div class="kf-overlay hidden" id="healthOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="healthTitle">Project Health Dashboard</h2>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="healthClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-modal-body" id="healthBody">
+      <div class="kf-health-overall-row">
+        <div id="healthOverallGauge"></div>
+        <div id="healthOverallNote" class="kf-health-overall-note"></div>
+      </div>
+      <div class="kf-health-gauges-row" id="healthGaugesRow"></div>
+
+      <div class="kf-health-section">
+        <h3 class="kf-health-section-title">Task Burndown &amp; Velocity</h3>
+        <div id="healthBurndownWarning" class="kf-health-overrun-warning hidden"></div>
+        <div id="healthBurndownChart"></div>
+        <div id="healthBurndownNoData" class="kf-health-no-data hidden"></div>
+      </div>
+
+      <div class="kf-health-section hidden" id="healthRiskMatrixSection">
+        <div class="kf-health-section-header-row">
+          <h3 class="kf-health-section-title">Project Risks</h3>
+          <div class="kf-export-as-wrap">
+            <button class="kf-btn kf-btn-ghost" id="healthRiskMatrixExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+            <div class="kf-export-as-panel hidden" id="healthRiskMatrixExportAsPanel">
+              <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+              <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+            </div>
+          </div>
+        </div>
+        <div id="healthRiskMatrixChart"></div>
+        <div id="healthRiskMatrixNoData" class="kf-health-no-data hidden"></div>
+        <div id="healthRiskMatrixLegend" class="kf-health-legend"></div>
+      </div>
+
+      <div class="kf-health-section">
+        <h3 class="kf-health-section-title">Top 5 Team Members by Active Workload</h3>
+        <div id="healthTopMembers"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Principles Modal -->
+<div class="kf-overlay hidden" id="principlesOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="principlesModalTitle">Principles</h2>
+      <button class="kf-btn kf-btn-ghost" id="principlesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="principlesListView">
+        <button class="kf-btn kf-btn-secondary" id="addPrincipleBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Principle
+        </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="principlesSearchInput" placeholder="Search principles...">
+        </div>
+        <div id="principlesList" class="kf-releases-list"></div>
+      </div>
+      <div id="principlesFormView" class="hidden">
+        <div class="kf-field">
+          <label for="principleTitleInput">Title</label>
+          <input type="text" id="principleTitleInput" maxlength="120" placeholder="e.g. Prefer simplicity over cleverness">
+        </div>
+        <div class="kf-field">
+          <label for="principleDescriptionInput">Description</label>
+          <textarea id="principleDescriptionInput" maxlength="2000" placeholder="Describe this principle..."></textarea>
+        </div>
+        <div class="kf-field">
+          <label for="principleDocUrlInput">External document link</label>
+          <div class="kf-doc-url-row">
+            <input type="url" id="principleDocUrlInput" maxlength="500" placeholder="https://example.com/doc">
+            <button type="button" class="kf-btn kf-btn-ghost kf-doc-url-open-btn hidden" id="principleDocUrlOpenBtn" title="Open document link in a new tab" aria-label="Open document link in a new tab">
+              <span class="kf-icon" data-icon="externalLink" data-size="16"></span>
+            </button>
+          </div>
+        </div>
+        <div class="kf-field" id="principleMetaDates" style="color:var(--kf-text-faint);font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="principlesListFooter">
+      <button class="kf-btn kf-btn-secondary" id="principlesDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="principlesFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deletePrincipleBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="principleFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="principleFormSaveBtn">Save Principle</button>
+    </div>
+  </div>
+</div>
+
+<!-- Objectives Modal -->
+<div class="kf-overlay hidden" id="objectivesOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="objectivesModalTitle">Objectives</h2>
+      <button class="kf-btn kf-btn-ghost" id="objectivesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="objectivesListView">
+        <button class="kf-btn kf-btn-secondary" id="addObjectiveBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Objective
+        </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="objectivesSearchInput" placeholder="Search objectives...">
+        </div>
+        <div id="objectivesList" class="kf-releases-list"></div>
+      </div>
+      <div id="objectivesFormView" class="hidden">
+        <div class="kf-field">
+          <label for="objectiveTitleInput">Title</label>
+          <input type="text" id="objectiveTitleInput" maxlength="120" placeholder="e.g. Reduce onboarding time by 50%">
+        </div>
+        <div class="kf-field">
+          <label for="objectiveDescriptionInput">Description</label>
+          <textarea id="objectiveDescriptionInput" maxlength="2000" placeholder="Describe this objective..."></textarea>
+        </div>
+        <div class="kf-field">
+          <label>Bound by these Principles</label>
+          <div id="objectivePrinciplePicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field" id="objectiveMetaDates" style="color:var(--kf-text-faint);font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="objectivesListFooter">
+      <button class="kf-btn kf-btn-secondary" id="objectivesDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="objectivesFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deleteObjectiveBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="objectiveFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="objectiveFormSaveBtn">Save Objective</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Search Modal -->
+<div class="kf-overlay hidden" id="projectSearchOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Project Search</h2>
+      <button class="kf-btn kf-btn-ghost" id="projectSearchClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-search" style="margin-bottom:14px;">
+        <span class="kf-icon" data-icon="search" data-size="14"></span>
+        <input type="text" id="projectSearchInput" placeholder="Search tasks, team members, principles, objectives, documents, risks, decisions...">
+      </div>
+      <div id="projectSearchResults"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="projectSearchDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Teams & Committees Modal -->
+<div class="kf-overlay hidden" id="teamsCommitteesOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="teamsCommitteesModalTitle">Teams &amp; Committees</h2>
+      <button class="kf-btn kf-btn-ghost" id="teamsCommitteesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="teamsCommitteesListView">
+        <button class="kf-btn kf-btn-secondary" id="addTeamCommitteeBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>New Team / Committee
+        </button>
+        <div class="kf-search" style="margin-bottom:10px;">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="teamsCommitteesSearchInput" placeholder="Search teams &amp; committees...">
+        </div>
+        <div class="kf-tc-expand-row">
+          <a href="#" id="tcExpandAllLink">Expand all</a>
+          <span>&middot;</span>
+          <a href="#" id="tcCollapseAllLink">Collapse all</a>
+        </div>
+        <div id="teamsCommitteesList" class="kf-tc-tree"></div>
+      </div>
+      <div id="teamsCommitteesFormView" class="hidden">
+        <div class="kf-field">
+          <label for="tcNameInput">Name</label>
+          <input type="text" id="tcNameInput" maxlength="120" placeholder="e.g. Engineering">
+        </div>
+        <div class="kf-field">
+          <label for="tcDescriptionInput">Description</label>
+          <textarea id="tcDescriptionInput" maxlength="2000" placeholder="Describe this team or committee..."></textarea>
+        </div>
+        <div class="kf-field">
+          <label for="tcTypeSelect">Type</label>
+          <select id="tcTypeSelect">
+            <option value="team">Team</option>
+            <option value="committee">Committee</option>
+          </select>
+        </div>
+        <div class="kf-field">
+          <label for="tcParentSelect">Parent team / committee</label>
+          <select id="tcParentSelect"></select>
+        </div>
+        <div class="kf-field">
+          <label>Members</label>
+          <div id="tcMemberPicker" class="kf-risk-doc-picker"></div>
+        </div>
+        <div class="kf-field" id="tcMetaDates" style="color:var(--kf-text-faint);font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer" id="teamsCommitteesListFooter">
+      <button class="kf-btn kf-btn-secondary" id="teamsCommitteesDoneBtn">Done</button>
+    </div>
+    <div class="kf-modal-footer hidden" id="teamsCommitteesFormFooter">
+      <button class="kf-btn kf-btn-danger kf-footer-left" id="deleteTeamCommitteeBtn">Delete</button>
+      <button class="kf-btn kf-btn-secondary" id="tcFormCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="tcFormSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Conflict Modal -->
+<div class="kf-overlay hidden" id="importConflictOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Project already exists</h2>
+      <button class="kf-btn kf-btn-ghost" id="importConflictClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <p id="importConflictMessage" style="margin:0 0 14px;color:var(--kf-text);line-height:1.5;"></p>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="kf-btn kf-btn-primary" id="importConflictOverwriteBtn" style="justify-content:center;">
+          <span class="kf-icon" data-icon="download" data-size="14"></span>Update existing project
+        </button>
+        <button class="kf-btn kf-btn-secondary" id="importConflictCopyBtn" style="justify-content:center;">
+          <span class="kf-icon" data-icon="plus" data-size="14"></span>Import as a copy
+        </button>
+        <button class="kf-btn kf-btn-ghost" id="importConflictCancelBtn" style="justify-content:center;color:var(--kf-text-secondary);">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overdue Tasks Alert -->
+<div class="kf-overlay hidden" id="overdueAlertOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2><span class="kf-icon" data-icon="clock" data-size="18" style="color:var(--kf-overdue-fg);margin-right:6px;vertical-align:middle;"></span>Overdue tasks</h2>
+      <button class="kf-btn kf-btn-ghost" id="overdueAlertClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <p id="overdueAlertMessage" style="margin:0 0 12px;color:var(--kf-text);line-height:1.6;"></p>
+      <div id="overdueAlertList" class="kf-overdue-alert-list"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-primary" id="overdueAlertOkBtn">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- Default Value/Cost Alert Modal -->
+<div class="kf-overlay hidden" id="defaultScoreAlertOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2><span class="kf-icon" data-icon="warning" data-size="18" style="color:var(--kf-overdue-fg);margin-right:6px;vertical-align:middle;"></span>Unscored tasks</h2>
+      <button class="kf-btn kf-btn-ghost" id="defaultScoreAlertClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <p id="defaultScoreAlertMessage" style="margin:0 0 12px;color:var(--kf-text);line-height:1.6;"></p>
+      <div id="defaultScoreAlertList" class="kf-defaultscore-alert-list"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-primary" id="defaultScoreAlertOkBtn">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- Backup Reminder Modal -->
+<div class="kf-overlay hidden" id="backupReminderOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2><span class="kf-icon" id="backupReminderIcon" data-icon="warning" data-size="18" style="color:#a54800;margin-right:6px;vertical-align:middle;"></span>Backup recommended</h2>
+      <button class="kf-btn kf-btn-ghost" id="backupReminderClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <p id="backupReminderMessage" style="margin:0 0 16px;color:var(--kf-text);line-height:1.6;"></p>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="kf-btn kf-btn-primary" id="backupNowBtn" style="justify-content:center;">
+          <span class="kf-icon" data-icon="download" data-size="14"></span>Back up now
+        </button>
+        <button class="kf-btn kf-btn-secondary" id="backupLaterBtn" style="justify-content:center;">
+          Remind me next session
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="kf-toast-wrap" id="toastWrap"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
