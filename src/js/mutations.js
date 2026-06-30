@@ -1,0 +1,1046 @@
+"use strict";
+import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject } from './storage.js';
+import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY } from './utils.js';
+import { clampTaskScore, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
+import { PRIORITY_META, RISK_STATUS_META, DECISION_TYPE_META, DECISION_STATUS_META, TEAM_COMMITTEE_TYPES } from './config.js';
+import { iconSvg } from './icons.js';
+
+function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+var _toast = function(msg){ console.error(msg); };
+export function setMutationsToast(fn){ _toast = fn; }
+
+export function addProject(name, key, startDate, endDate){
+  var p = createDefaultProject(name, key);
+  p.startDate = startDate || null;
+  p.endDate = endDate || null;
+  state.db.projects[p.id] = p;
+  state.db.projectOrder.push(p.id);
+  state.db.currentProjectId = p.id;
+  saveDB();
+}
+export function renameProject(projectId, name, key, startDate, endDate){
+  var p = state.db.projects[projectId];
+  if(!p) return;
+  p.name = name;
+  p.key = (key || p.key).toUpperCase().slice(0,6);
+  p.startDate = startDate || null;
+  p.endDate = endDate || null;
+  p.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deleteProject(projectId){
+  delete state.db.projects[projectId];
+  state.db.projectOrder = state.db.projectOrder.filter(function(id){ return id !== projectId; });
+  if(state.db.currentProjectId === projectId){
+    state.db.currentProjectId = state.db.projectOrder[0] || null;
+  }
+  if(!state.db.currentProjectId){
+    var p = createDefaultProject('My Project', 'PROJ');
+    state.db.projects[p.id] = p;
+    state.db.projectOrder.push(p.id);
+    state.db.currentProjectId = p.id;
+  }
+  saveDB();
+}
+
+/* ---- Team members (scoped per project) ---- */
+export function addMember(project, name){
+  var trimmed = (name || '').trim().slice(0, 60);
+  if(!trimmed) return null;
+  var member = {id: uid('member'), name: trimmed, color: memberColorForIndex(project.members.length), role: null, reportsToId: null};
+  project.members.push(member);
+  saveDB();
+  return member;
+}
+export function renameMember(project, memberId, name){
+  var member = getMemberById(project, memberId);
+  if(!member) return;
+  var trimmed = (name || '').trim().slice(0, 60);
+  if(!trimmed) return;
+  member.name = trimmed;
+  saveDB();
+}
+export function setMemberRole(project, memberId, role){
+  var member = getMemberById(project, memberId);
+  if(!member) return;
+  var trimmed = (role || '').trim();
+  member.role = trimmed ? registerRole(project, trimmed) : null;
+  saveDB();
+}
+export function setMemberReportsTo(project, memberId, reportsToId){
+  var member = getMemberById(project, memberId);
+  if(!member) return;
+  if(!reportsToId || reportsToId === memberId || !getMemberById(project, reportsToId)){
+    member.reportsToId = null;
+  } else {
+    member.reportsToId = reportsToId;
+  }
+  saveDB();
+}
+export function removeMember(project, memberId){
+  var member = getMemberById(project, memberId);
+  if(!member) return 0;
+  project.members = project.members.filter(function(m){ return m.id !== memberId; });
+  var unassignedCount = 0;
+  getTasksArray(project).forEach(function(t){
+    if(t.assigneeId === memberId){ t.assigneeId = null; unassignedCount++; }
+  });
+  (project.documents || []).forEach(function(d){
+    if(d.ownerId === memberId) d.ownerId = null;
+  });
+  (project.risks || []).forEach(function(r){
+    if(r.ownerId === memberId) r.ownerId = null;
+  });
+  (project.decisions || []).forEach(function(d){
+    if(d.ownerId === memberId) d.ownerId = null;
+  });
+  removeMemberFromAllTeamsCommittees(project, memberId);
+  project.members.forEach(function(m){
+    if(m.reportsToId === memberId) m.reportsToId = null;
+  });
+  saveDB();
+  return unassignedCount;
+}
+
+/* =========================================================
+   TASK TYPES
+   A per-project, user-managed set of task types (e.g. Feature, Bug).
+   A Task may have at most one type; the default for a task is none.
+   ========================================================= */
+/* Library of selectable icons for Task Types — shown in the icon
+   picker in the order listed here. A type's icon is only ever what
+   the user explicitly assigns (default: none); there is no automatic
+   fallback icon, so an unassigned type shows nothing on a task. */
+export var TASK_TYPE_ICON_LIBRARY_LOCAL = [
+  {name: 'sparkle', label: 'Feature'},
+  {name: 'bug', label: 'Bug'},
+  {name: 'ty_investigate', label: 'Investigate'},
+  {name: 'ty_document', label: 'Document'},
+  {name: 'ty_analyse', label: 'Analyse'},
+  {name: 'ty_procure', label: 'Procure'},
+  {name: 'ty_audit', label: 'Audit'},
+  {name: 'ty_report', label: 'Report'},
+  {name: 'ty_communicate', label: 'Communicate'},
+  {name: 'ty_design', label: 'Design'},
+  {name: 'ty_develop', label: 'Develop'},
+  {name: 'ty_test', label: 'Test'},
+  {name: 'ty_review', label: 'Review'},
+  {name: 'ty_plan', label: 'Plan'},
+  {name: 'ty_research', label: 'Research'},
+  {name: 'ty_train', label: 'Train'},
+  {name: 'ty_support', label: 'Support'},
+  {name: 'ty_deploy', label: 'Deploy'},
+  {name: 'ty_migrate', label: 'Migrate'},
+  {name: 'ty_configure', label: 'Configure'},
+  {name: 'ty_monitor', label: 'Monitor'},
+  {name: 'ty_approve', label: 'Approve'},
+  {name: 'ty_negotiate', label: 'Negotiate'},
+  {name: 'ty_schedule', label: 'Schedule'},
+  {name: 'ty_maintain', label: 'Maintain'},
+  {name: 'ty_coordinate', label: 'Coordinate'}
+];
+export function getTaskTypeIconLabel(iconName){
+  var entry = TASK_TYPE_ICON_LIBRARY.filter(function(i){ return i.name === iconName; })[0];
+  return entry ? entry.label : '';
+}
+export function setTaskTypeIcon(project, typeId, iconName){
+  var type = getTaskTypeById(project, typeId);
+  if(!type) return;
+  type.iconName = (iconName && isValidTaskTypeIconName(iconName)) ? iconName : null;
+  saveDB();
+}
+export function buildTaskTypeIconGridHTML(selectedIconName){
+  return TASK_TYPE_ICON_LIBRARY.map(function(icon){
+    var selected = icon.name === selectedIconName;
+    return '<button type="button" class="kf-tasktype-icon-option' + (selected ? ' selected' : '') + '" data-icon-name="' + icon.name + '" title="' + escapeHTML(icon.label) + '">' + iconSvg(icon.name, 18) + '</button>';
+  }).join('');
+}
+export function closeAllTaskTypeIconPanels(){
+  document.querySelectorAll('.kf-tasktype-icon-panel').forEach(function(panel){
+    panel.classList.add('hidden');
+  });
+}
+/* The panel is position:fixed (so it floats above the scrollable type
+   list instead of being clipped by it), so its coordinates have to be
+   computed relative to the viewport each time it opens — it doesn't
+   automatically follow its trigger the way an absolutely-positioned
+   popover nested inside it would. */
+export function positionTaskTypeIconPanel(triggerBtn, panel){
+  var rect = triggerBtn.getBoundingClientRect();
+  var panelWidth = 220;
+  var left = Math.max(8, Math.min(rect.left, window.innerWidth - panelWidth - 8));
+  panel.style.left = left + 'px';
+  var panelHeight = panel.getBoundingClientRect().height || 260;
+  var spaceBelow = window.innerHeight - rect.bottom;
+  if(spaceBelow < panelHeight + 8 && rect.top > panelHeight + 8){
+    panel.style.top = Math.max(8, rect.top - panelHeight - 4) + 'px';
+  } else {
+    panel.style.top = (rect.bottom + 4) + 'px';
+  }
+}
+export function addTaskType(project, name){
+  var trimmed = (name || '').trim().slice(0, 40);
+  if(!trimmed) return null;
+  var type = {id: uid('type'), name: trimmed, iconName: null};
+  project.taskTypes.push(type);
+  saveDB();
+  return type;
+}
+export function renameTaskType(project, typeId, name){
+  var type = getTaskTypeById(project, typeId);
+  if(!type) return;
+  var trimmed = (name || '').trim().slice(0, 40);
+  if(!trimmed) return;
+  type.name = trimmed;
+  saveDB();
+}
+export function removeTaskType(project, typeId){
+  var type = getTaskTypeById(project, typeId);
+  if(!type) return 0;
+  project.taskTypes = project.taskTypes.filter(function(tt){ return tt.id !== typeId; });
+  var unassignedCount = 0;
+  getTasksArray(project).forEach(function(t){
+    if(t.typeId === typeId){ t.typeId = null; unassignedCount++; }
+  });
+  saveDB();
+  return unassignedCount;
+}
+
+/* =========================================================
+   RELEASES
+   A Project can have many Releases; a Task can belong to at most one.
+   ========================================================= */
+export var RELEASE_STATUS_ORDER = ['pending', 'in_progress', 'deployed'];
+export var RELEASE_STATUS_META = {
+  pending: {label: 'Pending'},
+  in_progress: {label: 'In Progress'},
+  deployed: {label: 'Deployed'}
+};
+export function normalizeReleaseStatus(value){
+  return RELEASE_STATUS_META.hasOwnProperty(value) ? value : 'pending';
+}
+export function getReleaseStatusMeta(value){
+  return RELEASE_STATUS_META[normalizeReleaseStatus(value)];
+}
+export function addRelease(project, data){
+  var now = new Date().toISOString();
+  var name = (data.name || '').trim().slice(0, 80) || 'Untitled release';
+  var release = {
+    id: uid('release'),
+    name: name,
+    status: normalizeReleaseStatus(data.status),
+    ownerId: data.ownerId || null,
+    startDate: data.startDate || null,
+    endDate: data.endDate || null,
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.releases.push(release);
+  saveDB();
+  return release;
+}
+export function updateRelease(project, releaseId, data){
+  var release = getReleaseById(project, releaseId);
+  if(!release) return;
+  var name = (data.name || '').trim().slice(0, 80);
+  release.name = name || release.name;
+  release.status = normalizeReleaseStatus(data.status);
+  release.ownerId = data.ownerId || null;
+  release.startDate = data.startDate || null;
+  release.endDate = data.endDate || null;
+  release.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deleteRelease(project, releaseId){
+  var release = getReleaseById(project, releaseId);
+  if(!release) return 0;
+  project.releases = project.releases.filter(function(r){ return r.id !== releaseId; });
+  var unassignedCount = 0;
+  getTasksArray(project).forEach(function(t){
+    if(t.releaseId === releaseId){ t.releaseId = null; unassignedCount++; }
+  });
+  saveDB();
+  return unassignedCount;
+}
+
+/* =========================================================
+   DOCUMENTS
+   A per-project register of reference documents — each with an
+   autogenerated key (<PROJECT>-DOC-NNN), an external URL, an owner
+   drawn from Team Members, and an optional link to a single Task.
+   ========================================================= */
+export function nextDocKey(project){
+  var n = project.docCounter++;
+  return project.key + '-DOC-' + String(n).padStart(3, '0');
+}
+export function normalizeDocumentationUrl(value){
+  var trimmed = (value || '').trim();
+  if(!trimmed) return null;
+  if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) trimmed = 'https://' + trimmed;
+  return trimmed.slice(0, 500);
+}
+export function addDocument(project, data){
+  var now = new Date().toISOString();
+  var doc = {
+    id: uid('doc'),
+    key: nextDocKey(project),
+    title: (data.title || '').trim().slice(0, 120) || 'Untitled document',
+    url: normalizeDocumentationUrl(data.url),
+    description: (data.description || '').trim().slice(0, 500),
+    ownerId: data.ownerId || null,
+    taskId: data.taskId || null,
+    relatedDocumentIds: Array.isArray(data.relatedDocumentIds) ? data.relatedDocumentIds.slice() : [],
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.documents.push(doc);
+  saveDB();
+  return doc;
+}
+export function updateDocument(project, docId, data){
+  var doc = getDocumentById(project, docId);
+  if(!doc) return;
+  var title = (data.title || '').trim().slice(0, 120);
+  doc.title = title || doc.title;
+  doc.url = normalizeDocumentationUrl(data.url);
+  doc.description = (data.description || '').trim().slice(0, 500);
+  doc.ownerId = data.ownerId || null;
+  doc.taskId = data.taskId || null;
+  /* A document can never relate to itself — filtered defensively here
+     too, not just in the UI, in case data ever arrives some other way
+     (e.g. a future import path). */
+  doc.relatedDocumentIds = Array.isArray(data.relatedDocumentIds)
+    ? data.relatedDocumentIds.filter(function(id){ return id !== docId; })
+    : [];
+  doc.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deleteDocument(project, docId){
+  var doc = getDocumentById(project, docId);
+  if(!doc) return 0;
+  project.documents = project.documents.filter(function(d){ return d.id !== docId; });
+  var unlinkedCount = 0;
+  (project.risks || []).forEach(function(r){
+    if(r.documentIds && r.documentIds.indexOf(docId) !== -1){
+      r.documentIds = r.documentIds.filter(function(id){ return id !== docId; });
+      unlinkedCount++;
+    }
+  });
+  (project.decisions || []).forEach(function(d){
+    if(d.documentIds && d.documentIds.indexOf(docId) !== -1){
+      d.documentIds = d.documentIds.filter(function(id){ return id !== docId; });
+      unlinkedCount++;
+    }
+  });
+  project.documents.forEach(function(d){
+    if(d.relatedDocumentIds && d.relatedDocumentIds.indexOf(docId) !== -1){
+      d.relatedDocumentIds = d.relatedDocumentIds.filter(function(id){ return id !== docId; });
+      unlinkedCount++;
+    }
+  });
+  saveDB();
+  return unlinkedCount;
+}
+
+/* =========================================================
+   RISKS
+   A per-project risk register following a standard 5x5 risk matrix:
+   likelihood (1-5) x impact (1-5), each independently rated. A Risk
+   may link to a single Task and to zero or more Documents.
+   ========================================================= */
+export function clampRiskScoreValue(v){
+  var n = Math.round(Number(v));
+  if(!isFinite(n)) return 1;
+  return Math.max(1, Math.min(5, n));
+}
+export function normalizeRiskStatus(value){
+  return RISK_STATUS_META.hasOwnProperty(value) ? value : 'new';
+}
+export function getRiskStatusMeta(value){
+  return RISK_STATUS_META[normalizeRiskStatus(value)];
+}
+export function riskScore(risk){
+  return clampRiskScoreValue(risk.likelihood) * clampRiskScoreValue(risk.impact);
+}
+/* Standard 5x5 matrix banding: 1-4 Low, 5-9 Medium, 10-15 High, 16-25 Critical. */
+export function riskScoreBand(score){
+  if(score >= 16) return 'critical';
+  if(score >= 10) return 'high';
+  if(score >= 5) return 'medium';
+  return 'low';
+}
+export function nextRiskKey(project){
+  var n = project.riskCounter++;
+  return project.key + '-RISK-' + String(n).padStart(3, '0');
+}
+export function addRisk(project, data){
+  var now = new Date().toISOString();
+  var risk = {
+    id: uid('risk'),
+    key: nextRiskKey(project),
+    title: (data.title || '').trim().slice(0, 120) || 'Untitled risk',
+    description: (data.description || '').trim().slice(0, 2000),
+    likelihood: clampRiskScoreValue(data.likelihood),
+    impact: clampRiskScoreValue(data.impact),
+    mitigations: (data.mitigations || '').trim().slice(0, 2000),
+    ownerId: data.ownerId || null,
+    taskId: data.taskId || null,
+    documentIds: Array.isArray(data.documentIds) ? data.documentIds.slice() : [],
+    principleIds: Array.isArray(data.principleIds) ? data.principleIds.slice() : [],
+    objectiveIds: Array.isArray(data.objectiveIds) ? data.objectiveIds.slice() : [],
+    status: normalizeRiskStatus(data.status),
+    dateToClose: data.dateToClose || null,
+    dateClosed: data.dateClosed || null,
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.risks.push(risk);
+  saveDB();
+  return risk;
+}
+export function updateRisk(project, riskId, data){
+  var risk = getRiskById(project, riskId);
+  if(!risk) return;
+  var title = (data.title || '').trim().slice(0, 120);
+  risk.title = title || risk.title;
+  risk.description = (data.description || '').trim().slice(0, 2000);
+  risk.likelihood = clampRiskScoreValue(data.likelihood);
+  risk.impact = clampRiskScoreValue(data.impact);
+  risk.mitigations = (data.mitigations || '').trim().slice(0, 2000);
+  risk.ownerId = data.ownerId || null;
+  risk.taskId = data.taskId || null;
+  risk.documentIds = Array.isArray(data.documentIds) ? data.documentIds.slice() : [];
+  risk.principleIds = Array.isArray(data.principleIds) ? data.principleIds.slice() : [];
+  risk.objectiveIds = Array.isArray(data.objectiveIds) ? data.objectiveIds.slice() : [];
+  risk.status = normalizeRiskStatus(data.status);
+  risk.dateToClose = data.dateToClose || null;
+  risk.dateClosed = data.dateClosed || null;
+  risk.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deleteRisk(project, riskId){
+  var risk = getRiskById(project, riskId);
+  if(!risk) return false;
+  project.risks = project.risks.filter(function(r){ return r.id !== riskId; });
+  (project.decisions || []).forEach(function(d){
+    if(d.riskIds && d.riskIds.indexOf(riskId) !== -1){
+      d.riskIds = d.riskIds.filter(function(id){ return id !== riskId; });
+    }
+  });
+  saveDB();
+  return true;
+}
+
+/* =========================================================
+   DECISIONS
+   A per-project decision log — each with an autogenerated key
+   (<PROJECT>-DEC-NNN), exactly one type, an owner drawn from Team
+   Members, an optional link to a single Task, and zero or more
+   linked Documents.
+   ========================================================= */
+export function normalizeDecisionType(value){
+  return DECISION_TYPE_META.hasOwnProperty(value) ? value : 'strategy';
+}
+export function normalizeDecisionStatus(value){
+  return DECISION_STATUS_META.hasOwnProperty(value) ? value : 'open';
+}
+export function getDecisionStatusMeta(value){
+  return DECISION_STATUS_META[normalizeDecisionStatus(value)];
+}
+export function getDecisionTypeMeta(value){
+  return DECISION_TYPE_META[normalizeDecisionType(value)];
+}
+/* Generic "free-text combobox backed by a per-project vocabulary"
+   helper — matching is case-insensitive so e.g. "Developer" and
+   "developer" reuse the same entry rather than creating a near-
+   duplicate, but the casing of whichever value was entered FIRST is
+   what's kept/reused. Used by both the Decision Approver field and
+   Team Member Role. */
+export function registerVocabularyValue(list, name, maxLen){
+  var trimmed = (name || '').trim().slice(0, maxLen || 80);
+  if(!trimmed) return null;
+  var existing = list.filter(function(v){ return v.toLowerCase() === trimmed.toLowerCase(); })[0];
+  if(existing) return existing;
+  list.push(trimmed);
+  return trimmed;
+}
+export function registerApprover(project, name){
+  if(!Array.isArray(project.approvers)) project.approvers = [];
+  return registerVocabularyValue(project.approvers, name, 80);
+}
+export function registerRole(project, name){
+  if(!Array.isArray(project.roles)) project.roles = [];
+  return registerVocabularyValue(project.roles, name, 60);
+}
+export function nextDecisionKey(project){
+  var n = project.decCounter++;
+  return project.key + '-DEC-' + String(n).padStart(3, '0');
+}
+export function addDecision(project, data){
+  var now = new Date().toISOString();
+  var decision = {
+    id: uid('dec'),
+    key: nextDecisionKey(project),
+    title: (data.title || '').trim().slice(0, 120) || 'Untitled decision',
+    description: (data.description || '').trim().slice(0, 2000),
+    type: normalizeDecisionType(data.type),
+    status: normalizeDecisionStatus(data.status),
+    outcome: (data.outcome || '').trim().slice(0, 2000),
+    ownerId: data.ownerId || null,
+    approver: registerApprover(project, data.approver),
+    taskId: data.taskId || null,
+    documentIds: Array.isArray(data.documentIds) ? data.documentIds.slice() : [],
+    riskIds: Array.isArray(data.riskIds) ? data.riskIds.slice() : [],
+    principleIds: Array.isArray(data.principleIds) ? data.principleIds.slice() : [],
+    objectiveIds: Array.isArray(data.objectiveIds) ? data.objectiveIds.slice() : [],
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.decisions.push(decision);
+  saveDB();
+  return decision;
+}
+export function updateDecision(project, decisionId, data){
+  var decision = getDecisionById(project, decisionId);
+  if(!decision) return;
+  var title = (data.title || '').trim().slice(0, 120);
+  decision.title = title || decision.title;
+  decision.description = (data.description || '').trim().slice(0, 2000);
+  decision.type = normalizeDecisionType(data.type);
+  decision.status = normalizeDecisionStatus(data.status);
+  decision.outcome = (data.outcome || '').trim().slice(0, 2000);
+  decision.ownerId = data.ownerId || null;
+  decision.approver = registerApprover(project, data.approver);
+  decision.taskId = data.taskId || null;
+  decision.documentIds = Array.isArray(data.documentIds) ? data.documentIds.slice() : [];
+  decision.riskIds = Array.isArray(data.riskIds) ? data.riskIds.slice() : [];
+  decision.principleIds = Array.isArray(data.principleIds) ? data.principleIds.slice() : [];
+  decision.objectiveIds = Array.isArray(data.objectiveIds) ? data.objectiveIds.slice() : [];
+  decision.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deleteDecision(project, decisionId){
+  var decision = getDecisionById(project, decisionId);
+  if(!decision) return false;
+  project.decisions = project.decisions.filter(function(d){ return d.id !== decisionId; });
+  saveDB();
+  return true;
+}
+
+/* =========================================================
+   PRINCIPLES
+   A per-project register of guiding principles — each with an
+   autogenerated key (<PROJECT>-PRIN-NNN), a description, and a link
+   to an external document. Risks may associate with zero or more.
+   ========================================================= */
+export function nextPrincipleKey(project){
+  var n = project.prinCounter++;
+  return project.key + '-PRIN-' + String(n).padStart(3, '0');
+}
+export function addPrinciple(project, data){
+  var now = new Date().toISOString();
+  var principle = {
+    id: uid('prin'),
+    key: nextPrincipleKey(project),
+    title: (data.title || '').trim().slice(0, 120) || 'Untitled principle',
+    description: (data.description || '').trim().slice(0, 2000),
+    documentUrl: normalizeDocumentationUrl(data.documentUrl),
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.principles.push(principle);
+  saveDB();
+  return principle;
+}
+export function updatePrinciple(project, principleId, data){
+  var principle = getPrincipleById(project, principleId);
+  if(!principle) return;
+  var title = (data.title || '').trim().slice(0, 120);
+  principle.title = title || principle.title;
+  principle.description = (data.description || '').trim().slice(0, 2000);
+  principle.documentUrl = normalizeDocumentationUrl(data.documentUrl);
+  principle.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deletePrinciple(project, principleId){
+  var principle = getPrincipleById(project, principleId);
+  if(!principle) return 0;
+  project.principles = project.principles.filter(function(p){ return p.id !== principleId; });
+  var unlinkedCount = 0;
+  (project.objectives || []).forEach(function(o){
+    if(o.principleIds && o.principleIds.indexOf(principleId) !== -1){
+      o.principleIds = o.principleIds.filter(function(id){ return id !== principleId; });
+      unlinkedCount++;
+    }
+  });
+  (project.risks || []).forEach(function(r){
+    if(r.principleIds && r.principleIds.indexOf(principleId) !== -1){
+      r.principleIds = r.principleIds.filter(function(id){ return id !== principleId; });
+      unlinkedCount++;
+    }
+  });
+  (project.decisions || []).forEach(function(d){
+    if(d.principleIds && d.principleIds.indexOf(principleId) !== -1){
+      d.principleIds = d.principleIds.filter(function(id){ return id !== principleId; });
+      unlinkedCount++;
+    }
+  });
+  saveDB();
+  return unlinkedCount;
+}
+
+/* =========================================================
+   OBJECTIVES
+   A per-project register of objectives — each with an autogenerated
+   key (<PROJECT>-OBJ-NNN) and zero or more Principles it's "Bound by".
+   Risks may associate with zero or more Objectives.
+   ========================================================= */
+export function nextObjectiveKey(project){
+  var n = project.objCounter++;
+  return project.key + '-OBJ-' + String(n).padStart(3, '0');
+}
+export function addObjective(project, data){
+  var now = new Date().toISOString();
+  var objective = {
+    id: uid('obj'),
+    key: nextObjectiveKey(project),
+    title: (data.title || '').trim().slice(0, 120) || 'Untitled objective',
+    description: (data.description || '').trim().slice(0, 2000),
+    principleIds: Array.isArray(data.principleIds) ? data.principleIds.slice() : [],
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.objectives.push(objective);
+  saveDB();
+  return objective;
+}
+export function updateObjective(project, objectiveId, data){
+  var objective = getObjectiveById(project, objectiveId);
+  if(!objective) return;
+  var title = (data.title || '').trim().slice(0, 120);
+  objective.title = title || objective.title;
+  objective.description = (data.description || '').trim().slice(0, 2000);
+  objective.principleIds = Array.isArray(data.principleIds) ? data.principleIds.slice() : [];
+  objective.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deleteObjective(project, objectiveId){
+  var objective = getObjectiveById(project, objectiveId);
+  if(!objective) return 0;
+  project.objectives = project.objectives.filter(function(o){ return o.id !== objectiveId; });
+  var unlinkedCount = 0;
+  (project.risks || []).forEach(function(r){
+    if(r.objectiveIds && r.objectiveIds.indexOf(objectiveId) !== -1){
+      r.objectiveIds = r.objectiveIds.filter(function(id){ return id !== objectiveId; });
+      unlinkedCount++;
+    }
+  });
+  (project.decisions || []).forEach(function(d){
+    if(d.objectiveIds && d.objectiveIds.indexOf(objectiveId) !== -1){
+      d.objectiveIds = d.objectiveIds.filter(function(id){ return id !== objectiveId; });
+      unlinkedCount++;
+    }
+  });
+  saveDB();
+  return unlinkedCount;
+}
+
+/* =========================================================
+   TEAMS & COMMITTEES
+   A hierarchical org structure: each node is either a Team or a
+   Committee, has 0 or 1 parent, and 0+ Team Members. Membership is
+   stored in EXACTLY ONE place (memberIds on the team/committee) —
+   there is no separate, editable copy on the Team Member, so the two
+   views can never drift out of sync. The Team modal can only ever
+   show membership read-only; the team/committee's own form is the
+   single source of truth for editing it.
+   ========================================================= */
+export function normalizeTeamCommitteeType(value){
+  return value === 'committee' ? 'committee' : 'team';
+}
+export function nextTeamCommitteeKey(project, type){
+  var n = project.tcCounter++;
+  var prefix = normalizeTeamCommitteeType(type) === 'committee' ? 'COMM' : 'TEAM';
+  return project.key + '-' + prefix + '-' + String(n).padStart(3, '0');
+}
+/* True if `candidateAncestorId` is anywhere in `id`'s ancestor chain
+   (or IS `id` itself) — used to reject a parent assignment that would
+   create a cycle. */
+export function isTeamCommitteeAncestor(project, id, candidateAncestorId){
+  var current = getTeamCommitteeById(project, candidateAncestorId);
+  var guard = 0;
+  while(current && guard < 1000){
+    if(current.id === id) return true;
+    current = current.parentId ? getTeamCommitteeById(project, current.parentId) : null;
+    guard++;
+  }
+  return false;
+}
+export function getTeamCommitteeChildren(project, parentId){
+  return (project.teamsCommittees || []).filter(function(tc){ return (tc.parentId || null) === (parentId || null); });
+}
+export function addTeamCommittee(project, data){
+  var now = new Date().toISOString();
+  var type = normalizeTeamCommitteeType(data.type);
+  var parentId = data.parentId && getTeamCommitteeById(project, data.parentId) ? data.parentId : null;
+  var tc = {
+    id: uid('tc'),
+    key: nextTeamCommitteeKey(project, type),
+    name: (data.name || '').trim().slice(0, 120) || 'Untitled team',
+    description: (data.description || '').trim().slice(0, 2000),
+    type: type,
+    parentId: parentId,
+    memberIds: Array.isArray(data.memberIds) ? data.memberIds.slice() : [],
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.teamsCommittees.push(tc);
+  saveDB();
+  return tc;
+}
+export function updateTeamCommittee(project, id, data){
+  var tc = getTeamCommitteeById(project, id);
+  if(!tc) return {ok: false, reason: 'not-found'};
+  var name = (data.name || '').trim().slice(0, 120);
+  var proposedParentId = data.parentId || null;
+  if(proposedParentId){
+    if(proposedParentId === id || !getTeamCommitteeById(project, proposedParentId)){
+      proposedParentId = null;
+    } else if(isTeamCommitteeAncestor(project, id, proposedParentId)){
+      return {ok: false, reason: 'cycle'};
+    }
+  }
+  tc.name = name || tc.name;
+  tc.description = (data.description || '').trim().slice(0, 2000);
+  tc.type = normalizeTeamCommitteeType(data.type);
+  tc.parentId = proposedParentId;
+  tc.memberIds = Array.isArray(data.memberIds) ? data.memberIds.slice() : [];
+  tc.dateLastModified = new Date().toISOString();
+  saveDB();
+  return {ok: true};
+}
+export function deleteTeamCommittee(project, id){
+  var tc = getTeamCommitteeById(project, id);
+  if(!tc) return {orphanedCount: 0};
+  var orphanedCount = 0;
+  (project.teamsCommittees || []).forEach(function(child){
+    if(child.parentId === id){ child.parentId = null; orphanedCount++; }
+  });
+  project.teamsCommittees = project.teamsCommittees.filter(function(t){ return t.id !== id; });
+  saveDB();
+  return {orphanedCount: orphanedCount};
+}
+export function removeMemberFromAllTeamsCommittees(project, memberId){
+  var removedCount = 0;
+  (project.teamsCommittees || []).forEach(function(tc){
+    if(tc.memberIds && tc.memberIds.indexOf(memberId) !== -1){
+      tc.memberIds = tc.memberIds.filter(function(mid){ return mid !== memberId; });
+      removedCount++;
+    }
+  });
+  return removedCount;
+}
+/* Read-only: which teams/committees a given member currently belongs
+   to, for display on their own row in the Team modal. */
+export function getTeamsCommitteesForMember(project, memberId){
+  return (project.teamsCommittees || [])
+    .filter(function(tc){ return tc.memberIds && tc.memberIds.indexOf(memberId) !== -1; })
+    .sort(function(a, b){ return a.name.localeCompare(b.name); });
+}
+/* Builds the full tree, hierarchical-then-alphabetical at every
+   level (roots sorted alphabetically, each node's children sorted
+   alphabetically under it), as a flat list of {node, depth} entries
+   in display order — convenient for rendering without recursion in
+   the UI layer. */
+export function buildTeamCommitteeTree(project){
+  var all = project.teamsCommittees || [];
+  var byParent = {};
+  all.forEach(function(tc){
+    var key = tc.parentId || '__root__';
+    if(!byParent[key]) byParent[key] = [];
+    byParent[key].push(tc);
+  });
+  Object.keys(byParent).forEach(function(key){
+    byParent[key].sort(function(a, b){ return a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}); });
+  });
+  var flat = [];
+  function walk(parentKey, depth){
+    (byParent[parentKey] || []).forEach(function(tc){
+      flat.push({node: tc, depth: depth});
+      walk(tc.id, depth + 1);
+    });
+  }
+  walk('__root__', 0);
+  return flat;
+}
+
+/* =========================================================
+   COLUMNS
+   ========================================================= */
+export function addColumn(project, name, done){
+  var col = makeColumn(name, done);
+  project.columns.push(col);
+  saveDB();
+  return col;
+}
+export function updateColumn(project, columnId, name, done){
+  var col = getColumn(project, columnId);
+  if(!col) return;
+  col.name = name;
+  col.done = !!done;
+  saveDB();
+}
+export function deleteColumn(project, columnId){
+  if(project.columns.length <= 1){
+    _toast("A board needs at least one column.");
+    return false;
+  }
+  var col = getColumn(project, columnId);
+  if(!col) return false;
+  var target = project.columns.find(function(c){ return c.id !== columnId; });
+  col.order.forEach(function(taskId){
+    var t = project.tasks[taskId];
+    if(t){ t.columnId = target.id; target.order.push(taskId); }
+  });
+  project.columns = project.columns.filter(function(c){ return c.id !== columnId; });
+  saveDB();
+  return true;
+}
+export function reorderColumns(project, draggedId, targetId){
+  var fromIdx = project.columns.findIndex(function(c){ return c.id === draggedId; });
+  var toIdx = project.columns.findIndex(function(c){ return c.id === targetId; });
+  if(fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+  var col = project.columns.splice(fromIdx,1)[0];
+  project.columns.splice(toIdx,0,col);
+  saveDB();
+}
+
+/* =========================================================
+   TASKS
+   ========================================================= */
+export function addTask(project, data){
+  var col = getColumn(project, data.columnId) || project.columns[0];
+  var n = project.taskCounter++;
+  var now = new Date().toISOString();
+  var t = {
+    id: uid('task'),
+    key: project.key + '-' + n,
+    title: data.title,
+    description: data.description || '',
+    priority: data.priority || 'medium',
+    columnId: col.id,
+    dependencies: data.dependencies || [],
+    assigneeId: data.assigneeId || null,
+    releaseId: data.releaseId || null,
+    typeId: data.typeId || null,
+    documentationUrl: normalizeDocumentationUrl(data.documentationUrl),
+    /* Defensive fallback only — the task modal already prefills these
+       defaults (today / +14 days) before the user ever saves, so this
+       just protects any other call path from ending up with no dates. */
+    startDate: data.startDate || localDateValueToUTCISO(defaultStartDateValue()),
+    endDate: data.endDate || localDateValueToUTCISO(defaultEndDateValue()),
+    businessValue: clampTaskScore(data.businessValue),
+    taskCost: clampTaskScore(data.taskCost),
+    archived: !!data.archived,
+    dateCreated: now,
+    dateLastModified: now
+  };
+  project.tasks[t.id] = t;
+  col.order.push(t.id);
+  saveDB();
+  return t.id;
+}
+
+export function updateTask(project, taskId, data){
+  var t = project.tasks[taskId];
+  if(!t) return;
+  t.title = data.title;
+  t.description = data.description || '';
+  t.priority = data.priority || 'medium';
+  t.dependencies = data.dependencies || [];
+  t.assigneeId = data.assigneeId || null;
+  t.releaseId = data.releaseId || null;
+  t.typeId = data.typeId || null;
+  t.documentationUrl = normalizeDocumentationUrl(data.documentationUrl);
+  t.startDate = data.startDate || null;
+  t.endDate = data.endDate || null;
+  t.businessValue = clampTaskScore(data.businessValue);
+  t.taskCost = clampTaskScore(data.taskCost);
+  t.archived = !!data.archived;
+  t.dateLastModified = new Date().toISOString();
+  if(data.columnId && data.columnId !== t.columnId){
+    moveTaskToColumn(project, taskId, data.columnId, -1);
+  }
+  saveDB();
+}
+
+export function deleteTask(project, taskId){
+  delete project.tasks[taskId];
+  project.columns.forEach(function(c){ c.order = c.order.filter(function(id){ return id !== taskId; }); });
+  getTasksArray(project).forEach(function(t){
+    if(t.dependencies && t.dependencies.indexOf(taskId) !== -1){
+      t.dependencies = t.dependencies.filter(function(id){ return id !== taskId; });
+    }
+  });
+  (project.documents || []).forEach(function(d){
+    if(d.taskId === taskId) d.taskId = null;
+  });
+  (project.risks || []).forEach(function(r){
+    if(r.taskId === taskId) r.taskId = null;
+  });
+  (project.decisions || []).forEach(function(d){
+    if(d.taskId === taskId) d.taskId = null;
+  });
+  saveDB();
+}
+
+export function reactivateTasks(project, taskIds){
+  var count = 0;
+  taskIds.forEach(function(taskId){
+    var t = project.tasks[taskId];
+    if(!t || !t.archived) return;
+    t.archived = false;
+    t.dateLastModified = new Date().toISOString();
+    count++;
+  });
+  if(count > 0) saveDB();
+  return count;
+}
+
+export function moveTaskToColumn(project, taskId, targetColumnId, index){
+  var t = project.tasks[taskId];
+  if(!t) return;
+  project.columns.forEach(function(c){ c.order = c.order.filter(function(id){ return id !== taskId; }); });
+  var target = getColumn(project, targetColumnId);
+  if(!target) return;
+  if(index === -1 || index == null || index > target.order.length){
+    target.order.push(taskId);
+  } else {
+    target.order.splice(index, 0, taskId);
+  }
+  t.columnId = target.id;
+  t.dateLastModified = new Date().toISOString();
+}
+
+/* =========================================================
+   5x5 RISK MATRIX
+   Likelihood (rows, 1=Rare to 5=Almost Certain, bottom to top) x
+   Impact (columns, 1=Insignificant to 5=Severe, left to right).
+   Band assignment is a direct lookup table rather than a pure
+   likelihood*impact formula, matching how real-world 5x5 matrices are
+   typically defined (the same numeric product can land in a different
+   band depending on whether likelihood or impact drove it).
+   ========================================================= */
+export var RISK_MATRIX_BAND_TABLE = {
+  1: {1: 'verylow', 2: 'verylow', 3: 'low',     4: 'medium',   5: 'medium'},
+  2: {1: 'verylow', 2: 'low',     3: 'medium',  4: 'medium',   5: 'high'},
+  3: {1: 'low',     2: 'medium',  3: 'medium',  4: 'high',     5: 'veryhigh'},
+  4: {1: 'medium',  2: 'medium',  3: 'high',    4: 'veryhigh', 5: 'extreme'},
+  5: {1: 'medium',  2: 'high',    3: 'veryhigh', 4: 'extreme', 5: 'extreme'}
+};
+export var RISK_MATRIX_BAND_COLORS = {
+  verylow: '#4caf50', low: '#8bc34a', medium: '#fdd835',
+  high: '#fb8c00', veryhigh: '#f4511e', extreme: '#c62828'
+};
+export var RISK_MATRIX_BAND_LABELS = {
+  verylow: 'Very low', low: 'Low', medium: 'Medium',
+  high: 'High', veryhigh: 'Very high', extreme: 'Extreme'
+};
+export var RISK_MATRIX_IMPACT_COL_LABELS = {1: 'Insignificant', 2: 'Minor', 3: 'Significant', 4: 'Major', 5: 'Severe'};
+export var RISK_MATRIX_LIKELIHOOD_ROW_LABELS = {1: 'Rare', 2: 'Unlikely', 3: 'Moderate', 4: 'Likely', 5: 'Almost Certain'};
+export function getRiskMatrixCellBand(likelihood, impact){
+  var l = clampRiskScoreValue(likelihood), i = clampRiskScoreValue(impact);
+  return (RISK_MATRIX_BAND_TABLE[l] && RISK_MATRIX_BAND_TABLE[l][i]) || 'medium';
+}
+export function getRiskMatrixCellColor(likelihood, impact){
+  return RISK_MATRIX_BAND_COLORS[getRiskMatrixCellBand(likelihood, impact)];
+}
+
+/* Risks sharing the same (likelihood, impact) cell are arranged in a
+   small grid within that cell so they stay individually visible
+   rather than rendering as a single overlapping marker. */
+export var RISK_MATRIX_CELL_ASPECT = 1.7778;
+
+export function computeRiskMatrixPoints(risks, marginLeft, marginTop, cellWidth, cellHeight){
+  var cellGroups = {};
+  risks.forEach(function(r){
+    var l = clampRiskScoreValue(r.likelihood), i = clampRiskScoreValue(r.impact);
+    var key = l + '-' + i;
+    if(!cellGroups[key]) cellGroups[key] = [];
+    cellGroups[key].push(r);
+  });
+  var points = [];
+  Object.keys(cellGroups).forEach(function(key){
+    var group = cellGroups[key];
+    var parts = key.split('-');
+    var l = parseInt(parts[0], 10), i = parseInt(parts[1], 10);
+    var baseX = marginLeft + (i - 1) * cellWidth + cellWidth / 2;
+    var baseY = marginTop + (5 - l) * cellHeight + cellHeight / 2;
+    var perRow = Math.ceil(Math.sqrt(group.length));
+    var totalRows = Math.ceil(group.length / perRow);
+    var spacingX = Math.min(28, (cellWidth * 0.6) / Math.max(perRow, 1));
+    var spacingY = Math.min(20, (cellHeight * 0.6) / Math.max(perRow, 1));
+    group.forEach(function(r, idx){
+      var row = Math.floor(idx / perRow);
+      var col = idx % perRow;
+      var offsetX = (col - (perRow - 1) / 2) * spacingX;
+      var offsetY = (row - (totalRows - 1) / 2) * spacingY;
+      points.push({risk: r, x: baseX + offsetX, y: baseY + offsetY});
+    });
+  });
+  return points;
+}
+
+export function buildRiskMatrixSvg(risks, height){
+  height = height || 560;
+  var marginLeft = 100, marginRight = 30, marginTop = 26, marginBottom = 70;
+  var plotHeight = height - marginTop - marginBottom;
+  var cellHeight = plotHeight / 5;
+  var cellWidth = cellHeight * RISK_MATRIX_CELL_ASPECT;
+  var plotWidth = cellWidth * 5;
+  var width = marginLeft + marginRight + plotWidth;
+
+  var cellsHTML = '';
+  for(var l = 1; l <= 5; l++){
+    for(var i = 1; i <= 5; i++){
+      var x = marginLeft + (i - 1) * cellWidth;
+      var y = marginTop + (5 - l) * cellHeight;
+      var color = getRiskMatrixCellColor(l, i);
+      var score = l * i;
+      cellsHTML += '<rect x="' + x + '" y="' + y + '" width="' + cellWidth + '" height="' + cellHeight + '" fill="' + color + '" stroke="#fff" stroke-width="1.5" opacity="0.85"></rect>' +
+        '<text x="' + (x + cellWidth - 6) + '" y="' + (y + cellHeight - 8) + '" font-size="11" font-weight="700" text-anchor="end" fill="rgba(0,0,0,0.55)">' + score + '</text>';
+    }
+  }
+
+  var rowLabelsHTML = '';
+  for(l = 1; l <= 5; l++){
+    var ly = marginTop + (5 - l) * cellHeight + cellHeight / 2;
+    rowLabelsHTML += '<text x="' + (marginLeft - 10) + '" y="' + (ly + 4) + '" font-size="11" font-weight="600" text-anchor="end" fill="var(--kf-text)">' + l + ' ' + RISK_MATRIX_LIKELIHOOD_ROW_LABELS[l] + '</text>';
+  }
+  var colLabelsHTML = '';
+  for(i = 1; i <= 5; i++){
+    var lx = marginLeft + (i - 1) * cellWidth + cellWidth / 2;
+    colLabelsHTML += '<text x="' + lx + '" y="' + (marginTop + plotHeight + 18) + '" font-size="11" font-weight="600" text-anchor="middle" fill="var(--kf-text)">' + i + ' ' + RISK_MATRIX_IMPACT_COL_LABELS[i] + '</text>';
+  }
+
+  var axisTitlesHTML =
+    '<text x="' + (marginLeft + plotWidth / 2) + '" y="' + (marginTop + plotHeight + 40) + '" font-size="13" font-weight="700" text-anchor="middle" fill="var(--kf-text-secondary)">Impact</text>' +
+    '<text x="22" y="' + (marginTop + plotHeight / 2) + '" font-size="13" font-weight="700" text-anchor="middle" transform="rotate(-90, 22, ' + (marginTop + plotHeight / 2) + ')" fill="var(--kf-text-secondary)">Likelihood</text>';
+
+  var points = computeRiskMatrixPoints(risks, marginLeft, marginTop, cellWidth, cellHeight);
+  var pointsHTML = points.map(function(p){
+    var r = p.risk;
+    var isClosed = normalizeRiskStatus(r.status) === 'closed';
+    var labelOffset = 10;
+    return '<g class="kf-risk-matrix-point' + (isClosed ? ' kf-risk-matrix-point-faded' : '') + '">' +
+      '<title>' + escapeHTML(r.key) + ' — ' + escapeHTML(r.title) + (isClosed ? ' [Closed]' : '') + '</title>' +
+      '<circle cx="' + p.x + '" cy="' + p.y + '" r="6" fill="#1b2a4a" stroke="#fff" stroke-width="1.5"></circle>' +
+      '<text x="' + (p.x + labelOffset) + '" y="' + (p.y + 4) + '" font-size="10" font-weight="700" fill="var(--kf-text)" style="paint-order:stroke;stroke:var(--kf-surface);stroke-width:3px;">' + escapeHTML(r.key) + '</text>' +
+    '</g>';
+  }).join('');
+
+  return '<svg viewBox="0 0 ' + width + ' ' + height + '" width="' + width + '" height="' + height + '" class="kf-risk-matrix-svg">' +
+    cellsHTML + rowLabelsHTML + colLabelsHTML + axisTitlesHTML + pointsHTML +
+  '</svg>';
+}
