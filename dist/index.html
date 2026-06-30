@@ -409,6 +409,7 @@
     border-radius:3px;
   }
   .kf-dropdown-filter-clear:hover{background:var(--kf-column-bg);}
+  .kf-dropdown-filter-row.kf-team-filter-empty{opacity:0.45;}
 
   .kf-toolbar-spacer{flex:1;}
   .kf-btn{
@@ -1256,6 +1257,14 @@
       <input type="text" id="searchInput" placeholder="Search tasks...">
     </div>
     <div class="kf-filter-chips" id="priorityFilterChips"></div>
+    <div class="kf-dropdown-filter" id="teamFilterWrap">
+      <button type="button" class="kf-dropdown-filter-btn" id="teamFilterBtn">
+        <span class="kf-icon" data-icon="orgChart" data-size="13"></span>
+        <span id="teamFilterLabel">Team</span>
+        <span class="kf-icon" data-icon="chevronDown" data-size="12"></span>
+      </button>
+      <div class="kf-dropdown-filter-panel hidden" id="teamFilterPanel"></div>
+    </div>
     <div class="kf-dropdown-filter" id="assigneeFilterWrap">
       <button type="button" class="kf-dropdown-filter-btn" id="assigneeFilterBtn">
         <span class="kf-icon" data-icon="team" data-size="13"></span>
@@ -2370,7 +2379,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-var APP_VERSION = '1.46.20260630.0100';
+var APP_VERSION = '1.47.20260630.0129';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -7675,6 +7684,7 @@ var ui = {
   searchTerm: '',
   activePriorities: new Set(),
   activeAssignees: new Set(),
+  activeTeams: new Set(),
   activeTaskTypes: new Set(),
   editingTaskId: null,
   taskModalColumnId: null,
@@ -7718,6 +7728,7 @@ function resetFilters(){
   ui.searchTerm = '';
   ui.activePriorities = new Set();
   ui.activeAssignees = new Set();
+  ui.activeTeams = new Set();
   ui.activeTaskTypes = new Set();
   var searchInput = document.getElementById('searchInput');
   if(searchInput) searchInput.value = '';
@@ -7774,6 +7785,8 @@ function applyHeaderButtonVisibility(){
   morePanel.innerHTML = useMoreMenu ? enabledItems.map(function(item){
     return '<a href="#" class="kf-header-more-link" data-nav-target="' + item.id + '">' + escapeHTML(item.label) + '</a>';
   }).join('') : '';
+
+  renderTeamFilterChips();
 }
 
 function openAppSettingsOverlay(){
@@ -7803,12 +7816,14 @@ function updateHeaderButtonVisibilitySetting(field, isVisible){
   project.headerButtonVisibility = visibility;
   saveDB();
   applyHeaderButtonVisibility();
+  renderBoard();
 }
 
 function renderAll(){
   renderProjectSelect();
   renderToolbar();
   renderPriorityFilterChips();
+  renderTeamFilterChips();
   renderAssigneeFilterChips();
   renderTaskTypeFilterChips();
   applyHeaderButtonVisibility();
@@ -7856,6 +7871,99 @@ function renderPriorityFilterChips(){
 }
 
 var UNASSIGNED_FILTER_KEY = '__unassigned__';
+
+/* The Team filter only ever lists type==='team' entries (never
+   committees, per spec) and is entirely hidden — not just empty —
+   whenever Teams & Committees is disabled in App Settings, or when
+   the project genuinely has zero teams. A team with no tasks
+   currently assigned to any of its members (via the Task -> Member
+   -> Team relationship) is still shown, but greyed out, rather than
+   omitted, so the picker's options don't shift unpredictably as
+   tasks get reassigned. */
+function teamHasAnyMatchingTask(project, teamId){
+  var tasks = getTasksArray(project);
+  for(var i = 0; i < tasks.length; i++){
+    var t = tasks[i];
+    if(t.archived || !t.assigneeId) continue;
+    var memberTeamIds = getTeamsCommitteesForMember(project, t.assigneeId).map(function(tc){ return tc.id; });
+    if(memberTeamIds.indexOf(teamId) !== -1) return true;
+  }
+  return false;
+}
+function renderTeamFilterChips(){
+  var wrap = document.getElementById('teamFilterWrap');
+  var btn = document.getElementById('teamFilterBtn');
+  var panel = document.getElementById('teamFilterPanel');
+  var label = document.getElementById('teamFilterLabel');
+  if(!wrap) return;
+
+  var project = getCurrentProject();
+  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {teamsCommittees: false};
+  var teams = (project && visibility.teamsCommittees)
+    ? (project.teamsCommittees || []).filter(function(tc){ return tc.type === 'team'; }).sort(function(a, b){ return a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}); })
+    : [];
+
+  if(!visibility.teamsCommittees || teams.length === 0){
+    wrap.classList.add('kf-vis-hidden');
+    panel.classList.add('hidden');
+    ui.activeTeams.clear();
+    return;
+  }
+  wrap.classList.remove('kf-vis-hidden');
+
+  var n = ui.activeTeams.size;
+  if(n === 0){
+    label.textContent = 'Team';
+  } else if(n === 1){
+    var onlyTeam = getTeamCommitteeById(project, ui.activeTeams.values().next().value);
+    label.textContent = onlyTeam ? onlyTeam.name : 'Team';
+  } else {
+    label.textContent = n + ' teams';
+  }
+  wrap.classList.toggle('active', n > 0);
+
+  panel.innerHTML = '';
+  teams.forEach(function(tc){
+    var hasTasks = teamHasAnyMatchingTask(project, tc.id);
+    var row = document.createElement('label');
+    row.className = 'kf-dropdown-filter-row' + (hasTasks ? '' : ' kf-team-filter-empty');
+    var checked = ui.activeTeams.has(tc.id);
+    row.title = hasTasks ? '' : 'No tasks currently assigned to this team\u2019s members';
+    row.innerHTML =
+      '<input type="checkbox" ' + (checked ? 'checked' : '') + '>' +
+      '<span class="kf-dropdown-filter-name">' + escapeHTML(tc.name) + '</span>';
+    row.querySelector('input').addEventListener('change', function(e){
+      if(e.target.checked) ui.activeTeams.add(tc.id);
+      else ui.activeTeams.delete(tc.id);
+      renderTeamFilterChips();
+      renderBoard();
+    });
+    panel.appendChild(row);
+  });
+
+  if(n > 0){
+    var divider = document.createElement('div');
+    divider.className = 'kf-dropdown-filter-divider';
+    panel.appendChild(divider);
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'kf-dropdown-filter-clear';
+    clearBtn.textContent = 'Clear selection';
+    clearBtn.addEventListener('click', function(){
+      ui.activeTeams.clear();
+      renderTeamFilterChips();
+      renderBoard();
+    });
+    panel.appendChild(clearBtn);
+  }
+}
+function toggleTeamFilterPanel(){
+  var panel = document.getElementById('teamFilterPanel');
+  panel.classList.toggle('hidden');
+}
+function closeTeamFilterPanel(){
+  document.getElementById('teamFilterPanel').classList.add('hidden');
+}
 
 function renderAssigneeFilterChips(){
   var wrap = document.getElementById('assigneeFilterWrap');
@@ -8054,6 +8162,15 @@ function closeTaskTypeFilterPanel(){
 
 function taskMatchesFilters(task){
   if(ui.activePriorities.size > 0 && !ui.activePriorities.has(task.priority)) return false;
+  if(ui.activeTeams.size > 0){
+    /* ui.activeTeams only ever contains type==='team' ids (the picker
+       never offers committees), so no extra type check is needed here
+       even though a member can belong to committees too. */
+    var project = getCurrentProject();
+    var memberTeamIds = task.assigneeId ? getTeamsCommitteesForMember(project, task.assigneeId).map(function(tc){ return tc.id; }) : [];
+    var matchesAnySelectedTeam = memberTeamIds.some(function(tcId){ return ui.activeTeams.has(tcId); });
+    if(!matchesAnySelectedTeam) return false;
+  }
   if(ui.activeAssignees.size > 0){
     var assigneeKey = task.assigneeId || UNASSIGNED_FILTER_KEY;
     if(!ui.activeAssignees.has(assigneeKey)) return false;
@@ -11145,6 +11262,10 @@ function wireEvents(){
     renderBoard();
   });
 
+  document.getElementById('teamFilterBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    toggleTeamFilterPanel();
+  });
   document.getElementById('assigneeFilterBtn').addEventListener('click', function(e){
     e.stopPropagation();
     toggleAssigneeFilterPanel();
@@ -11154,6 +11275,8 @@ function wireEvents(){
     toggleTaskTypeFilterPanel();
   });
   document.addEventListener('click', function(e){
+    var teamWrap = document.getElementById('teamFilterWrap');
+    if(teamWrap && !teamWrap.contains(e.target)) closeTeamFilterPanel();
     var wrap = document.getElementById('assigneeFilterWrap');
     if(wrap && !wrap.contains(e.target)) closeAssigneeFilterPanel();
     var typeWrap = document.getElementById('taskTypeFilterWrap');
@@ -11254,6 +11377,7 @@ function wireEvents(){
     else if(isTaskListOpen()) closeTaskListOverlay();
     else if(isBulkEditOverlayOpen()) closeBulkEditOverlay();
     else if(isArchivedTasksOverlayOpen()) closeArchivedTasksOverlay();
+    else if(!document.getElementById('teamFilterPanel').classList.contains('hidden')) closeTeamFilterPanel();
     else if(!document.getElementById('assigneeFilterPanel').classList.contains('hidden')) closeAssigneeFilterPanel();
     else if(!document.getElementById('taskTypeFilterPanel').classList.contains('hidden')) closeTaskTypeFilterPanel();
     else if(isMobileDrawerOpen()) closeMobileDrawer();
