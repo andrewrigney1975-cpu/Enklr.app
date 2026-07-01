@@ -1,0 +1,12 @@
+{
+  "name": "enkl-tests",
+  "version": "1.0.0",
+  "description": "Test suite for Enkl ../dist/index.html",
+  "private": true,
+  "scripts": {
+    "test": "node run_all_tests.js"
+  },
+  "dependencies": {
+    "jsdom": "^29.1.1"
+  }
+}
