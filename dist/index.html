@@ -120,6 +120,7 @@
         <button type="button" class="kf-side-nav-item" id="navTimelineBtn" title="Timeline"><span class="kf-icon" data-icon="timeline" data-size="18"></span><span class="kf-side-nav-text">Timeline</span></button>
         <button type="button" class="kf-side-nav-item" id="navDepMapBtn" title="Dependency Map"><span class="kf-icon" data-icon="graph" data-size="18"></span><span class="kf-side-nav-text">Dependency Map</span></button>
         <button type="button" class="kf-side-nav-item" id="navCostBenefitBtn" title="Cost/Benefit Chart"><span class="kf-icon" data-icon="quadrant" data-size="18"></span><span class="kf-side-nav-text">Cost/Benefit Chart</span></button>
+        <button type="button" class="kf-side-nav-item" id="navOrgChartBtn" title="Org Chart"><span class="kf-icon" data-icon="orgChart" data-size="18"></span><span class="kf-side-nav-text">Org Chart</span></button>
       </div>
       <div class="kf-side-nav-section">
         <div class="kf-side-nav-label">Tools</div>
@@ -178,6 +179,7 @@
       <button class="kf-btn kf-btn-secondary" id="timelineBtn"><span class="kf-icon" data-icon="timeline" data-size="14"></span>Timeline</button>
       <button class="kf-btn kf-btn-secondary" id="depMapBtn"><span class="kf-icon" data-icon="graph" data-size="14"></span>Dependency Map</button>
       <button class="kf-btn kf-btn-secondary" id="costBenefitBtn"><span class="kf-icon" data-icon="quadrant" data-size="14"></span>Cost/Benefit Chart</button>
+      <button class="kf-btn kf-btn-secondary" id="orgChartBtn"><span class="kf-icon" data-icon="orgChart" data-size="14"></span>Org Chart</button>
     </div>
     <div class="kf-toolbar-spacer"></div>
     <button class="kf-btn kf-btn-secondary" id="addColumnTopBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Column</button>
@@ -394,6 +396,43 @@
       <div id="depMapInner" class="kf-depmap-inner"></div>
     </div>
   </div>
+</div>
+
+<!-- Org Chart Overlay -->
+<div class="kf-overlay hidden" id="orgChartOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="orgChartTitle">Org Chart</h2>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="orgChartFilterToggle" title="Switch to Committees"><span class="kf-icon" data-icon="team" data-size="16"></span><span id="orgChartFilterToggleLabel">Showing: Teams</span></button>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="orgChartZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="16"></span></button>
+        <span id="orgChartZoomLabel" class="kf-zoom-label">100%</span>
+        <button class="kf-btn kf-btn-ghost" id="orgChartZoomInBtn" title="Zoom in"><span class="kf-icon" data-icon="zoomIn" data-size="16"></span></button>
+        <button class="kf-btn kf-btn-ghost" id="orgChartResetBtn" title="Reset view"><span class="kf-icon" data-icon="fit" data-size="16"></span></button>
+        <div class="kf-header-divider-light"></div>
+        <div class="kf-export-as-wrap">
+          <button class="kf-btn kf-btn-ghost" id="orgChartExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+          <div class="kf-export-as-panel hidden" id="orgChartExportAsPanel">
+            <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+            <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+          </div>
+        </div>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="orgChartClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-depmap-legend" id="orgChartLegend"></div>
+    <div class="kf-depmap-scroll" id="orgChartScroll">
+      <div id="orgChartInner" class="kf-depmap-inner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Org Chart Member Popover -->
+<div class="kf-org-member-popover hidden" id="orgChartMemberPopover">
+  <div class="kf-org-member-popover-title" id="orgChartMemberPopoverTitle"></div>
+  <div class="kf-org-member-popover-list" id="orgChartMemberPopoverList"></div>
 </div>
 
 <!-- Timeline Overlay -->
@@ -2471,7 +2510,8 @@
     principlesSearchTerm: "",
     objectivesSearchTerm: "",
     taskListCollapsedGroups: /* @__PURE__ */ new Set(),
-    sideNavExpanded: false
+    sideNavExpanded: false,
+    orgChartFilter: "team"
   };
   function resetFilters() {
     ui.searchTerm = "";
@@ -3518,6 +3558,8 @@
     morePanel.innerHTML = useMoreMenu ? enabledItems.map(function(item) {
       return '<a href="#" class="kf-header-more-link" data-nav-target="' + item.id + '">' + escapeHTML2(item.label) + "</a>";
     }).join("") : "";
+    document.getElementById("orgChartBtn").classList.toggle("kf-vis-hidden", !visibility.teamsCommittees);
+    document.getElementById("navOrgChartBtn").classList.toggle("kf-vis-hidden", !visibility.teamsCommittees);
     renderTeamFilterChips();
   }
   function openAppSettingsOverlay() {
@@ -4737,13 +4779,261 @@
     return !document.getElementById("depMapOverlay").classList.contains("hidden");
   }
 
-  // src/js/views/timeline.js
+  // src/js/views/org-chart.js
   function escapeHTML5(s) {
     var d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
     return d.innerHTML;
   }
   function iconHTML3(name, size) {
+    return '<span class="kf-icon">' + iconSvg(name, size) + "</span>";
+  }
+  var _toast5 = function(msg) {
+    console.error(msg);
+  };
+  function setOrgChartDeps(deps) {
+    if (deps.toast) _toast5 = deps.toast;
+  }
+  var orgChartState = { scale: 1, panActive: false, panMoved: false, panStartX: 0, panStartY: 0, panStartScrollLeft: 0, panStartScrollTop: 0 };
+  var ORGCHART_MIN_ZOOM = 0.3;
+  var ORGCHART_MAX_ZOOM = 2.5;
+  var lastOrgChartLayout = null;
+  var ORGCHART_NODE_W = 180;
+  var ORGCHART_NODE_H = 62;
+  var ORGCHART_GAP_X = 30;
+  var ORGCHART_GAP_Y = 56;
+  var ORGCHART_MARGIN = 30;
+  var ORGCHART_TYPE_ACCENT = { team: "#0c66e4", committee: "#6554c0" };
+  function getEffectiveParentId(node, filterType, tcMap) {
+    var current = node.parentId ? tcMap[node.parentId] : null;
+    var guard = 0;
+    while (current && current.type !== filterType && guard < 1e3) {
+      current = current.parentId ? tcMap[current.parentId] : null;
+      guard++;
+    }
+    return current ? current.id : null;
+  }
+  function buildOrgChartForest(project, filterType) {
+    var all = project.teamsCommittees || [];
+    var tcMap = {};
+    all.forEach(function(tc) {
+      tcMap[tc.id] = tc;
+    });
+    var included = all.filter(function(tc) {
+      return tc.type === filterType;
+    });
+    var byParent = {};
+    included.forEach(function(tc) {
+      var key = getEffectiveParentId(tc, filterType, tcMap) || "__root__";
+      if (!byParent[key]) byParent[key] = [];
+      byParent[key].push(tc);
+    });
+    Object.keys(byParent).forEach(function(key) {
+      byParent[key].sort(function(a, b) {
+        return a.name.localeCompare(b.name, void 0, { sensitivity: "base" });
+      });
+    });
+    function buildNode(tc) {
+      return { tc, children: (byParent[tc.id] || []).map(buildNode) };
+    }
+    return (byParent["__root__"] || []).map(buildNode);
+  }
+  function computeOrgChartLayout(project, filterType) {
+    var roots = buildOrgChartForest(project, filterType);
+    var nodes = [];
+    var edges = [];
+    var positions = {};
+    var leafCursor = 0;
+    function place(n, depth) {
+      var y = ORGCHART_MARGIN + depth * (ORGCHART_NODE_H + ORGCHART_GAP_Y);
+      var x;
+      if (n.children.length === 0) {
+        x = ORGCHART_MARGIN + leafCursor * (ORGCHART_NODE_W + ORGCHART_GAP_X);
+        leafCursor++;
+      } else {
+        var childXs = n.children.map(function(c) {
+          return place(c, depth + 1);
+        });
+        x = childXs.reduce(function(a, b) {
+          return a + b;
+        }, 0) / childXs.length;
+      }
+      positions[n.tc.id] = { x, y };
+      nodes.push({ tc: n.tc, x, y, w: ORGCHART_NODE_W, h: ORGCHART_NODE_H });
+      n.children.forEach(function(c) {
+        edges.push({ fromId: n.tc.id, toId: c.tc.id });
+      });
+      return x;
+    }
+    roots.forEach(function(r) {
+      place(r, 0);
+    });
+    var maxX = ORGCHART_MARGIN, maxY = ORGCHART_MARGIN;
+    nodes.forEach(function(n) {
+      maxX = Math.max(maxX, n.x + n.w);
+      maxY = Math.max(maxY, n.y + n.h);
+    });
+    return {
+      nodes,
+      edges,
+      positions,
+      width: roots.length ? maxX + ORGCHART_MARGIN : ORGCHART_MARGIN * 2,
+      height: roots.length ? maxY + ORGCHART_MARGIN : ORGCHART_MARGIN * 2
+    };
+  }
+  function renderOrgChart() {
+    var project = getCurrentProject();
+    var inner = document.getElementById("orgChartInner");
+    var legend = document.getElementById("orgChartLegend");
+    var filterType = ui.orgChartFilter;
+    var typeLabel = TEAM_COMMITTEE_TYPES[filterType];
+    document.getElementById("orgChartTitle").textContent = "Org Chart" + (project ? " \u2014 " + project.name : "");
+    legend.innerHTML = '<span class="kf-legend-item"><span class="kf-legend-swatch" style="background:' + ORGCHART_TYPE_ACCENT[filterType] + ';"></span>' + escapeHTML5(typeLabel) + '</span><span class="kf-legend-item">' + iconSvg("team", 12) + ' Number of direct members</span><span class="kf-legend-item">Click a box to see its members</span>';
+    var hasAny = project && (project.teamsCommittees || []).some(function(tc) {
+      return tc.type === filterType;
+    });
+    if (!hasAny) {
+      inner.innerHTML = '<div class="kf-depmap-empty">' + iconHTML3("inbox", 36) + "<div>No " + escapeHTML5(typeLabel.toLowerCase()) + "s yet \u2014 add some in Teams &amp; Committees to see them here.</div></div>";
+      lastOrgChartLayout = null;
+      return;
+    }
+    var layout = computeOrgChartLayout(project, filterType);
+    lastOrgChartLayout = layout;
+    var accent = ORGCHART_TYPE_ACCENT[filterType];
+    var edgesHTML = layout.edges.map(function(e) {
+      var fromPos = layout.positions[e.fromId], toPos = layout.positions[e.toId];
+      if (!fromPos || !toPos) return "";
+      var px = fromPos.x + ORGCHART_NODE_W / 2, py = fromPos.y + ORGCHART_NODE_H;
+      var cx = toPos.x + ORGCHART_NODE_W / 2, cy = toPos.y;
+      var midY = py + ORGCHART_GAP_Y / 2;
+      var path = "M " + px + " " + py + " L " + px + " " + midY + " L " + cx + " " + midY + " L " + cx + " " + cy;
+      return '<path class="kf-org-edge" d="' + path + '" fill="none" stroke="var(--kf-border-strong)" stroke-width="2"></path>';
+    }).join("");
+    var nodesHTML = layout.nodes.map(function(n) {
+      var tc = n.tc;
+      var members = tc.memberIds || [];
+      var name = tc.name.length > 22 ? tc.name.slice(0, 21) + "\u2026" : tc.name;
+      return '<g class="kf-orgnode" data-tc-id="' + tc.id + '" transform="translate(' + n.x + "," + n.y + ')"><rect class="kf-orgnode-box" x="0" y="0" width="' + n.w + '" height="' + n.h + '" rx="6" style="fill:var(--kf-surface);stroke:var(--kf-border);" stroke-width="1.5"></rect><rect x="0" y="0" width="5" height="' + n.h + '" rx="2" fill="' + accent + '"></rect><text x="16" y="18" font-size="10" font-weight="700" style="fill:var(--kf-text-faint);">' + escapeHTML5(tc.key) + '</text><text x="16" y="36" font-size="13" font-weight="600" style="fill:var(--kf-text);"><title>' + escapeHTML5(tc.name) + "</title>" + escapeHTML5(name) + '</text><g transform="translate(16,' + (n.h - 16) + ')" style="color:var(--kf-text-faint);">' + iconSvg("team", 13) + '</g><text x="34" y="' + (n.h - 5) + '" font-size="11" font-weight="600" style="fill:var(--kf-text-faint);">' + members.length + "</text></g>";
+    }).join("");
+    var svgHTML = '<svg width="' + layout.width + '" height="' + layout.height + '" viewBox="0 0 ' + layout.width + " " + layout.height + '" xmlns="http://www.w3.org/2000/svg">' + edgesHTML + nodesHTML + "</svg>";
+    inner.innerHTML = svgHTML;
+    applyOrgChartZoom();
+  }
+  function applyOrgChartZoom() {
+    var svg = document.querySelector("#orgChartInner svg");
+    document.getElementById("orgChartZoomLabel").textContent = Math.round(orgChartState.scale * 100) + "%";
+    if (!svg || !lastOrgChartLayout) return;
+    svg.setAttribute("width", Math.round(lastOrgChartLayout.width * orgChartState.scale));
+    svg.setAttribute("height", Math.round(lastOrgChartLayout.height * orgChartState.scale));
+  }
+  function setOrgChartZoom(delta) {
+    orgChartState.scale = Math.max(ORGCHART_MIN_ZOOM, Math.min(ORGCHART_MAX_ZOOM, Math.round((orgChartState.scale + delta) * 100) / 100));
+    applyOrgChartZoom();
+  }
+  function resetOrgChartZoom() {
+    orgChartState.scale = 1;
+    applyOrgChartZoom();
+    var scroll = document.getElementById("orgChartScroll");
+    scroll.scrollLeft = 0;
+    scroll.scrollTop = 0;
+  }
+  function zoomOrgChartAtPoint(deltaScale, clientX, clientY) {
+    if (!lastOrgChartLayout) return;
+    var scroll = document.getElementById("orgChartScroll");
+    if (!scroll) return;
+    var oldScale = orgChartState.scale;
+    var newScale = Math.max(ORGCHART_MIN_ZOOM, Math.min(ORGCHART_MAX_ZOOM, Math.round((oldScale + deltaScale) * 100) / 100));
+    if (newScale === oldScale) return;
+    var rect = scroll.getBoundingClientRect();
+    var offsetX = clientX != null ? clientX - rect.left : rect.width / 2;
+    var offsetY = clientY != null ? clientY - rect.top : rect.height / 2;
+    var oldWidth = lastOrgChartLayout.width * oldScale;
+    var oldHeight = lastOrgChartLayout.height * oldScale;
+    var fracX = oldWidth > 0 ? (scroll.scrollLeft + offsetX) / oldWidth : 0;
+    var fracY = oldHeight > 0 ? (scroll.scrollTop + offsetY) / oldHeight : 0;
+    orgChartState.scale = newScale;
+    applyOrgChartZoom();
+    var newWidth = lastOrgChartLayout.width * newScale;
+    var newHeight = lastOrgChartLayout.height * newScale;
+    scroll.scrollLeft = fracX * newWidth - offsetX;
+    scroll.scrollTop = fracY * newHeight - offsetY;
+  }
+  function updateOrgChartFilterToggleButton() {
+    var btn = document.getElementById("orgChartFilterToggle");
+    var label = document.getElementById("orgChartFilterToggleLabel");
+    if (!btn) return;
+    var showingCommittees = ui.orgChartFilter === "committee";
+    btn.classList.toggle("active", showingCommittees);
+    label.textContent = showingCommittees ? "Showing: Committees" : "Showing: Teams";
+    btn.title = showingCommittees ? "Switch to Teams" : "Switch to Committees";
+  }
+  function toggleOrgChartFilter() {
+    ui.orgChartFilter = ui.orgChartFilter === "committee" ? "team" : "committee";
+    closeOrgChartMemberPopover();
+    updateOrgChartFilterToggleButton();
+    renderOrgChart();
+  }
+  function openOrgChartMemberPopover(tcId, anchorRect) {
+    var project = getCurrentProject();
+    var tc = project && getTeamCommitteeById(project, tcId);
+    if (!tc) return;
+    var popover = document.getElementById("orgChartMemberPopover");
+    var members = (tc.memberIds || []).map(function(id) {
+      return getMemberById(project, id);
+    }).filter(Boolean).sort(function(a, b) {
+      return a.name.localeCompare(b.name, void 0, { sensitivity: "base" });
+    });
+    document.getElementById("orgChartMemberPopoverTitle").innerHTML = escapeHTML5(tc.name) + ' <span class="kf-decision-type-pill">' + escapeHTML5(TEAM_COMMITTEE_TYPES[tc.type]) + "</span>";
+    var listEl = document.getElementById("orgChartMemberPopoverList");
+    listEl.innerHTML = members.length ? members.map(function(m) {
+      return '<div class="kf-tc-member-item"><span class="kf-avatar kf-avatar-sm" style="background:' + m.color + ';">' + escapeHTML5(memberInitials(m.name)) + "</span>" + escapeHTML5(m.name) + (m.role ? ' <span class="kf-health-top-member-role">' + escapeHTML5(m.role) + "</span>" : "") + "</div>";
+    }).join("") : '<div class="kf-tc-empty" style="padding:10px 0;">No direct members.</div>';
+    popover.classList.remove("hidden");
+    var popW = popover.offsetWidth || 240;
+    var left = Math.min(anchorRect.left, window.innerWidth - popW - 12);
+    left = Math.max(8, left);
+    var top = anchorRect.bottom + 8;
+    popover.style.left = left + "px";
+    popover.style.top = top + "px";
+  }
+  function closeOrgChartMemberPopover() {
+    document.getElementById("orgChartMemberPopover").classList.add("hidden");
+  }
+  function isOrgChartMemberPopoverOpen() {
+    return !document.getElementById("orgChartMemberPopover").classList.contains("hidden");
+  }
+  function openOrgChartOverlay() {
+    var project = getCurrentProject();
+    if (!project) {
+      _toast5("No project selected.");
+      return;
+    }
+    orgChartState.scale = 1;
+    orgChartState.panActive = false;
+    orgChartState.panMoved = false;
+    closeOrgChartMemberPopover();
+    updateOrgChartFilterToggleButton();
+    renderOrgChart();
+    document.getElementById("orgChartOverlay").classList.remove("hidden");
+  }
+  function closeOrgChartOverlay() {
+    document.getElementById("orgChartOverlay").classList.add("hidden");
+    orgChartState.panActive = false;
+    orgChartState.panMoved = false;
+    closeOrgChartMemberPopover();
+    document.getElementById("orgChartScroll").classList.remove("kf-depmap-panning");
+  }
+  function isOrgChartOpen() {
+    return !document.getElementById("orgChartOverlay").classList.contains("hidden");
+  }
+
+  // src/js/views/timeline.js
+  function escapeHTML6(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+  function iconHTML4(name, size) {
     return '<span class="kf-icon">' + iconSvg(name, size) + "</span>";
   }
   function buildEl2(tag, className, innerHTML) {
@@ -4753,13 +5043,13 @@
     return el;
   }
   var PRIORITY_ORDER2 = ["trivial", "low", "medium", "high", "critical"];
-  var _toast5 = function(msg) {
+  var _toast6 = function(msg) {
     console.error(msg);
   };
   var _openTaskModal4 = function() {
   };
   function setTimelineDeps(deps) {
-    if (deps.toast) _toast5 = deps.toast;
+    if (deps.toast) _toast6 = deps.toast;
     if (deps.openTaskModal) _openTaskModal4 = deps.openTaskModal;
   }
   function localCalDateFromISO(iso) {
@@ -4945,7 +5235,7 @@
   function openTimelineOverlay() {
     var project = getCurrentProject();
     if (!project) {
-      _toast5("No project selected.");
+      _toast6("No project selected.");
       return;
     }
     document.getElementById("timelineScaleSelect").value = ui.timelineScale;
@@ -4973,21 +5263,21 @@
     var range = computeTimelineRange(project);
     if (!range.start || !range.end) {
       var msg = !range.start && !range.end ? "Set a project start date (or a start date on at least one task) and a project end date to see a timeline." : !range.start ? "Set a project start date, or a start date on at least one task, to see a timeline." : "Set a project end date to see a timeline.";
-      inner.appendChild(buildEl2("div", "kf-timeline-empty", iconHTML3("inbox", 36) + "<div>" + escapeHTML5(msg) + "</div>"));
+      inner.appendChild(buildEl2("div", "kf-timeline-empty", iconHTML4("inbox", 36) + "<div>" + escapeHTML6(msg) + "</div>"));
       return;
     }
     if (range.end.getTime() < range.start.getTime()) {
-      inner.appendChild(buildEl2("div", "kf-timeline-empty", iconHTML3("inbox", 36) + "<div>The project's end date is before its start date. Fix the project dates to see a timeline.</div>"));
+      inner.appendChild(buildEl2("div", "kf-timeline-empty", iconHTML4("inbox", 36) + "<div>The project's end date is before its start date. Fix the project dates to see a timeline.</div>"));
       return;
     }
     var overrunTask = findTimelineOverrun(project, range.end);
     if (overrunTask) {
       alertBanner.classList.remove("hidden");
-      alertBanner.innerHTML = iconHTML3("warning", 16) + "<span>" + escapeHTML5(overrunTask.key) + " \u201C" + escapeHTML5(overrunTask.title) + "\u201D is scheduled to finish " + escapeHTML5(utcISOToLocalDisplayDate(overrunTask.endDate)) + " \u2014 after the project's end date of " + escapeHTML5(utcISOToLocalDisplayDate(project.endDate)) + ".</span>";
+      alertBanner.innerHTML = iconHTML4("warning", 16) + "<span>" + escapeHTML6(overrunTask.key) + " \u201C" + escapeHTML6(overrunTask.title) + "\u201D is scheduled to finish " + escapeHTML6(utcISOToLocalDisplayDate(overrunTask.endDate)) + " \u2014 after the project's end date of " + escapeHTML6(utcISOToLocalDisplayDate(project.endDate)) + ".</span>";
     }
     legend.innerHTML = PRIORITY_ORDER2.map(function(key) {
       var conf = getPriority(key);
-      return '<span class="kf-legend-item"><span class="kf-legend-swatch" style="background:' + conf.accent + ';"></span>' + escapeHTML5(conf.label) + "</span>";
+      return '<span class="kf-legend-item"><span class="kf-legend-swatch" style="background:' + conf.accent + ';"></span>' + escapeHTML6(conf.label) + "</span>";
     }).join("") + '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-blue);"></span>Today</span>' + (ui.timelineShowArchived ? '<span class="kf-legend-item">' + iconSvg("archive", 12) + " Archived task (ghosted)</span>" : "");
     var activeTasks = getTasksArray(project).filter(function(t) {
       return !t.archived;
@@ -4997,7 +5287,7 @@
     }) : [];
     var tasks = activeTasks.concat(archivedTasks);
     if (tasks.length === 0) {
-      inner.appendChild(buildEl2("div", "kf-timeline-empty", iconHTML3("inbox", 36) + "<div>No tasks to show on the timeline yet.</div>"));
+      inner.appendChild(buildEl2("div", "kf-timeline-empty", iconHTML4("inbox", 36) + "<div>No tasks to show on the timeline yet.</div>"));
       return;
     }
     function effectiveStart(t) {
@@ -5031,7 +5321,7 @@
     headerTrack.className = "kf-timeline-track";
     headerTrack.style.width = totalTrackWidth + "px";
     columns.forEach(function(col) {
-      var cell = buildEl2("div", "kf-timeline-col-header", escapeHTML5(col.label));
+      var cell = buildEl2("div", "kf-timeline-col-header", escapeHTML6(col.label));
       cell.style.width = col.width + "px";
       headerTrack.appendChild(cell);
     });
@@ -5064,14 +5354,14 @@
       nameCell.style.minWidth = nameColWidth + "px";
       var assignee = getMemberById(project, t.assigneeId);
       if (assignee) {
-        var avatar = buildEl2("span", "kf-avatar kf-avatar-sm", escapeHTML5(memberInitials(assignee.name)));
+        var avatar = buildEl2("span", "kf-avatar kf-avatar-sm", escapeHTML6(memberInitials(assignee.name)));
         avatar.style.background = assignee.color;
         avatar.title = assignee.name;
         nameCell.appendChild(avatar);
       }
       var nameText = document.createElement("div");
       nameText.className = "kf-timeline-name-text";
-      nameText.innerHTML = '<span class="kf-timeline-name-key">' + escapeHTML5(t.key) + '</span><span class="kf-timeline-name-title">' + escapeHTML5(t.title) + "</span>";
+      nameText.innerHTML = '<span class="kf-timeline-name-key">' + escapeHTML6(t.key) + '</span><span class="kf-timeline-name-title">' + escapeHTML6(t.title) + "</span>";
       nameCell.appendChild(nameText);
       row.appendChild(nameCell);
       var track = document.createElement("div");
@@ -5097,12 +5387,12 @@
         bar.style.width = barWidth + "px";
         bar.style.background = prio.accent;
         if (assignee) {
-          var barAvatar = buildEl2("span", "kf-avatar kf-avatar-sm", escapeHTML5(memberInitials(assignee.name)));
+          var barAvatar = buildEl2("span", "kf-avatar kf-avatar-sm", escapeHTML6(memberInitials(assignee.name)));
           barAvatar.style.background = assignee.color;
           barAvatar.title = assignee.name;
           bar.appendChild(barAvatar);
         }
-        bar.appendChild(buildEl2("span", "kf-timeline-bar-key", escapeHTML5(t.key)));
+        bar.appendChild(buildEl2("span", "kf-timeline-bar-key", escapeHTML6(t.key)));
         var taskType = getTaskTypeById(project, t.typeId);
         if (taskType && taskType.iconName) {
           var barTypeIcon = buildEl2("span", "kf-timeline-bar-type-icon", iconSvg(taskType.iconName, 13));
@@ -5126,12 +5416,12 @@
   }
 
   // src/js/views/cost-benefit.js
-  function escapeHTML6(s) {
+  function escapeHTML7(s) {
     var d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
     return d.innerHTML;
   }
-  function iconHTML4(name, size) {
+  function iconHTML5(name, size) {
     return '<span class="kf-icon">' + iconSvg(name, size) + "</span>";
   }
   function buildEl3(tag, className, innerHTML) {
@@ -5140,13 +5430,13 @@
     if (innerHTML !== void 0) el.innerHTML = innerHTML;
     return el;
   }
-  var _toast6 = function(msg) {
+  var _toast7 = function(msg) {
     console.error(msg);
   };
   var _openTaskModal5 = function() {
   };
   function setCostBenefitDeps(deps) {
-    if (deps.toast) _toast6 = deps.toast;
+    if (deps.toast) _toast7 = deps.toast;
     if (deps.openTaskModal) _openTaskModal5 = deps.openTaskModal;
   }
   var CB_WIDTH = 880;
@@ -5226,14 +5516,14 @@
     legend.innerHTML = PRIORITY_ORDER.map(function(key) {
       var conf = getPriority(key);
       var dotSize = Math.round(8 * CB_PRIORITY_RADIUS_MULTIPLIER[key]);
-      return '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:' + conf.accent + ";width:" + dotSize + "px;height:" + dotSize + 'px;"></span>' + escapeHTML6(conf.label) + "</span>";
+      return '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:' + conf.accent + ";width:" + dotSize + "px;height:" + dotSize + 'px;"></span>' + escapeHTML7(conf.label) + "</span>";
     }).join("") + '<span class="kf-legend-item" style="color:var(--kf-text-faint);">Marker size = priority</span><span class="kf-legend-item" style="margin-left:auto;color:var(--kf-text-faint);">Quadrants split at the midpoint (500) of the 1\u20131000 scale</span>' + (ui.cbShowArchived ? '<span class="kf-legend-item">' + iconSvg("archive", 12) + " Archived task (greyed out)</span>" : "");
     var hasTasks = project && getTasksArray(project).some(function(t) {
       return !t.archived || ui.cbShowArchived;
     });
     if (!hasTasks) {
       inner.innerHTML = "";
-      inner.appendChild(buildEl3("div", "kf-depmap-empty", iconHTML4("inbox", 36) + "<div>No tasks yet \u2014 set Business Value and Task Cost on a task to plot it here.</div>"));
+      inner.appendChild(buildEl3("div", "kf-depmap-empty", iconHTML5("inbox", 36) + "<div>No tasks yet \u2014 set Business Value and Task Cost on a task to plot it here.</div>"));
       return;
     }
     var layout = computeCostBenefitLayout(project);
@@ -5257,7 +5547,7 @@
       var t = p.task;
       var prio = getPriority(t.priority);
       var labelOffset = p.radius + 6;
-      return '<g class="kf-cb-point' + (t.archived ? " kf-cb-point-archived" : "") + '" data-task-id="' + t.id + '"><title>' + escapeHTML6(t.key) + " \u2014 " + escapeHTML6(t.title) + " (Cost " + p.cost + ", Value " + p.value + ")" + (t.archived ? " [Archived]" : "") + '</title><circle class="kf-cb-dot" cx="' + p.x + '" cy="' + p.y + '" r="' + p.radius + '" fill="' + prio.accent + '" style="stroke:var(--kf-surface);" stroke-width="1.5"></circle><text x="' + (p.x + labelOffset) + '" y="' + (p.y + 4) + '" font-size="10" font-weight="600" style="fill:var(--kf-text-secondary);">' + escapeHTML6(t.key) + "</text></g>";
+      return '<g class="kf-cb-point' + (t.archived ? " kf-cb-point-archived" : "") + '" data-task-id="' + t.id + '"><title>' + escapeHTML7(t.key) + " \u2014 " + escapeHTML7(t.title) + " (Cost " + p.cost + ", Value " + p.value + ")" + (t.archived ? " [Archived]" : "") + '</title><circle class="kf-cb-dot" cx="' + p.x + '" cy="' + p.y + '" r="' + p.radius + '" fill="' + prio.accent + '" style="stroke:var(--kf-surface);" stroke-width="1.5"></circle><text x="' + (p.x + labelOffset) + '" y="' + (p.y + 4) + '" font-size="10" font-weight="600" style="fill:var(--kf-text-secondary);">' + escapeHTML7(t.key) + "</text></g>";
     }).join("");
     inner.innerHTML = '<svg width="' + CB_WIDTH + '" height="' + CB_HEIGHT + '" viewBox="0 0 ' + CB_WIDTH + " " + CB_HEIGHT + '" xmlns="http://www.w3.org/2000/svg">' + quadrantsHTML + axesHTML + quadrantLabelsHTML + ticksHTML + axisTitlesHTML + pointsHTML + "</svg>";
     applyCbZoom();
@@ -5317,7 +5607,7 @@
   function openCostBenefitOverlay() {
     var project = getCurrentProject();
     if (!project) {
-      _toast6("No project selected.");
+      _toast7("No project selected.");
       return;
     }
     cbZoomState.scale = 1;
@@ -5338,7 +5628,7 @@
   }
 
   // src/js/features/export.js
-  var _toast7 = function(msg) {
+  var _toast8 = function(msg) {
     console.error(msg);
   };
   function buildHierarchy(project) {
@@ -5553,18 +5843,18 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    _toast7("Exported " + doc.totalTasks + " tasks and " + doc.members.length + " team member(s) to " + a.download);
+    _toast8("Exported " + doc.totalTasks + " tasks and " + doc.members.length + " team member(s) to " + a.download);
   }
 
   // src/js/features/import.js
-  var _toast8 = function(msg) {
+  var _toast9 = function(msg) {
     console.error(msg);
   };
   var _renderAll = function() {
   };
   var _resetFilters = function() {
   };
-  function escapeHTML7(str) {
+  function escapeHTML8(str) {
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   function flattenImportedHierarchy(nodes, out) {
@@ -6261,27 +6551,27 @@
     if (!file) return;
     var reader = new FileReader();
     reader.onerror = function() {
-      _toast8("Could not read that file.");
+      _toast9("Could not read that file.");
     };
     reader.onload = function() {
       var parsed;
       try {
         parsed = JSON.parse(reader.result);
       } catch (e) {
-        _toast8("That file isn't valid JSON.");
+        _toast9("That file isn't valid JSON.");
         return;
       }
       var result;
       try {
         result = buildProjectFromExportDoc(parsed);
       } catch (e) {
-        _toast8(e.message || "Could not import that file.");
+        _toast9(e.message || "Could not import that file.");
         return;
       }
       var conflict = findConflictingProject(result.project.name, result.project.key);
       if (conflict) {
         pendingImport = { result, conflictId: conflict.id };
-        var msg = "A project named \u201C" + escapeHTML7(conflict.name) + "\u201D (" + conflict.key + ") already exists on this board. Would you like to overwrite it with the imported data, or keep both as separate projects?";
+        var msg = "A project named \u201C" + escapeHTML8(conflict.name) + "\u201D (" + conflict.key + ") already exists on this board. Would you like to overwrite it with the imported data, or keep both as separate projects?";
         document.getElementById("importConflictMessage").innerHTML = msg;
         document.getElementById("importConflictOverlay").classList.remove("hidden");
         return;
@@ -6306,7 +6596,7 @@
     if (result.unresolvedTaskTypes > 0) msg += " Skipped " + result.unresolvedTaskTypes + " task type reference(s) that could not be matched.";
     var unresolvedDocLinks = (result.unresolvedDocOwners || 0) + (result.unresolvedDocTasks || 0) + (result.unresolvedDocRelated || 0) + (result.unresolvedRiskOwners || 0) + (result.unresolvedRiskTasks || 0) + (result.unresolvedRiskDocs || 0) + (result.unresolvedDecisionOwners || 0) + (result.unresolvedDecisionTasks || 0) + (result.unresolvedDecisionDocs || 0) + (result.unresolvedDecisionRisks || 0) + (result.unresolvedRiskPrinciples || 0) + (result.unresolvedRiskObjectives || 0) + (result.unresolvedObjectivePrinciples || 0) + (result.unresolvedDecisionPrinciples || 0) + (result.unresolvedDecisionObjectives || 0) + (result.unresolvedTcParents || 0) + (result.unresolvedTcMembers || 0) + (result.unresolvedMemberReportsTo || 0);
     if (unresolvedDocLinks > 0) msg += " Skipped " + unresolvedDocLinks + " document/risk/decision/principle/objective/team reference(s) that could not be matched.";
-    _toast8(msg);
+    _toast9(msg);
   }
   function closeImportConflictModal() {
     document.getElementById("importConflictOverlay").classList.add("hidden");
@@ -9372,6 +9662,7 @@
   setBoardDeps({ toast, confirmDialog, openTaskModal, openColumnModal });
   setTaskListDeps({ toast, openTaskModal });
   setDepMapDeps({ toast, openTaskModal });
+  setOrgChartDeps({ toast });
   setTimelineDeps({ toast, openTaskModal });
   setCostBenefitDeps({ toast, openTaskModal });
   setBulkEditDeps({ confirmDialog, exportProjectJSON });
@@ -9541,6 +9832,7 @@
     document.getElementById("navTimelineBtn").addEventListener("click", openTimelineOverlay);
     document.getElementById("navDepMapBtn").addEventListener("click", openDepMapOverlay);
     document.getElementById("navCostBenefitBtn").addEventListener("click", openCostBenefitOverlay);
+    document.getElementById("navOrgChartBtn").addEventListener("click", openOrgChartOverlay);
     document.getElementById("navBulkEditBtn").addEventListener("click", openBulkEditOverlay);
     document.getElementById("navArchivedBtn").addEventListener("click", openArchivedTasksOverlay);
     document.getElementById("navTaskTypesBtn").addEventListener("click", openTaskTypesModal);
@@ -9897,6 +10189,50 @@
       closeDepMapOverlay();
       openTaskModal(taskId, task.columnId);
     });
+    document.getElementById("orgChartBtn").addEventListener("click", openOrgChartOverlay);
+    document.getElementById("orgChartClose").addEventListener("click", closeOrgChartOverlay);
+    document.getElementById("orgChartFilterToggle").addEventListener("click", toggleOrgChartFilter);
+    document.getElementById("orgChartZoomInBtn").addEventListener("click", function() {
+      setOrgChartZoom(0.1);
+    });
+    document.getElementById("orgChartZoomOutBtn").addEventListener("click", function() {
+      setOrgChartZoom(-0.1);
+    });
+    document.getElementById("orgChartResetBtn").addEventListener("click", resetOrgChartZoom);
+    document.getElementById("orgChartExportAsBtn").addEventListener("click", function(e) {
+      e.stopPropagation();
+      toggleExportAsPanel("orgChartExportAsPanel");
+    });
+    document.querySelectorAll("#orgChartExportAsPanel .kf-export-as-option").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        closeAllExportAsPanels();
+        var project = getCurrentProject();
+        var filenameBase = (project ? project.key : "export") + "-org-chart";
+        var svgEl = document.querySelector("#orgChartInner svg");
+        if (!svgEl) {
+          toast("Nothing to export.");
+          return;
+        }
+        if (btn.getAttribute("data-export-type") === "svg") exportSvgElementAsSvgFile(svgEl, filenameBase);
+        else exportSvgElementAsPng(svgEl, filenameBase, 4);
+      });
+    });
+    document.getElementById("orgChartOverlay").addEventListener("mousedown", function(e) {
+      if (e.target.id === "orgChartOverlay") closeOrgChartOverlay();
+    });
+    document.getElementById("orgChartInner").addEventListener("click", function(e) {
+      if (orgChartState.panMoved) return;
+      var node = e.target.closest(".kf-orgnode");
+      if (!node) {
+        closeOrgChartMemberPopover();
+        return;
+      }
+      var tcId = node.getAttribute("data-tc-id");
+      openOrgChartMemberPopover(tcId, node.getBoundingClientRect());
+    });
+    document.addEventListener("click", function(e) {
+      if (isOrgChartMemberPopoverOpen() && !e.target.closest("#orgChartMemberPopover") && !e.target.closest(".kf-orgnode")) closeOrgChartMemberPopover();
+    });
     document.getElementById("timelineBtn").addEventListener("click", openTimelineOverlay);
     document.getElementById("timelineClose").addEventListener("click", closeTimelineOverlay);
     document.getElementById("timelineOverlay").addEventListener("mousedown", function(e) {
@@ -10038,6 +10374,38 @@
       if (depMapState.panActive) {
         depMapState.panActive = false;
         depMapScrollEl.classList.remove("kf-depmap-panning");
+      }
+    });
+    var orgChartScrollEl = document.getElementById("orgChartScroll");
+    orgChartScrollEl.addEventListener("wheel", function(e) {
+      if (!lastOrgChartLayout) return;
+      e.preventDefault();
+      zoomOrgChartAtPoint(e.deltaY < 0 ? 0.12 : -0.12, e.clientX, e.clientY);
+    }, { passive: false });
+    orgChartScrollEl.addEventListener("mousedown", function(e) {
+      if (e.button !== 0) return;
+      orgChartState.panActive = true;
+      orgChartState.panMoved = false;
+      orgChartState.panStartX = e.clientX;
+      orgChartState.panStartY = e.clientY;
+      orgChartState.panStartScrollLeft = orgChartScrollEl.scrollLeft;
+      orgChartState.panStartScrollTop = orgChartScrollEl.scrollTop;
+      orgChartScrollEl.classList.add("kf-depmap-panning");
+    });
+    document.addEventListener("mousemove", function(e) {
+      if (!orgChartState.panActive) return;
+      var dx = e.clientX - orgChartState.panStartX;
+      var dy = e.clientY - orgChartState.panStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) orgChartState.panMoved = true;
+      if (orgChartState.panMoved) {
+        orgChartScrollEl.scrollLeft = orgChartState.panStartScrollLeft - dx;
+        orgChartScrollEl.scrollTop = orgChartState.panStartScrollTop - dy;
+      }
+    });
+    document.addEventListener("mouseup", function() {
+      if (orgChartState.panActive) {
+        orgChartState.panActive = false;
+        orgChartScrollEl.classList.remove("kf-depmap-panning");
       }
     });
     document.getElementById("exportBtn").addEventListener("click", function() {
@@ -10196,6 +10564,8 @@
       else if (!document.getElementById("defaultScoreAlertOverlay").classList.contains("hidden")) closeDefaultScoreAlert();
       else if (!document.getElementById("backupReminderOverlay").classList.contains("hidden")) dismissBackupReminder();
       else if (isDepMapOpen()) closeDepMapOverlay();
+      else if (isOrgChartMemberPopoverOpen()) closeOrgChartMemberPopover();
+      else if (isOrgChartOpen()) closeOrgChartOverlay();
       else if (isTimelineOverlayOpen()) closeTimelineOverlay();
       else if (isCostBenefitOverlayOpen()) closeCostBenefitOverlay();
       else if (isTaskListOpen()) closeTaskListOverlay();

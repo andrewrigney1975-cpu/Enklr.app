@@ -3,7 +3,7 @@ const fs = require('fs');
 const html = fs.readFileSync('../dist/index.html', 'utf8');
 function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-const VIEWS_BTN_IDS = ['taskListBtn', 'timelineBtn', 'depMapBtn', 'costBenefitBtn'];
+const VIEWS_BTN_IDS = ['taskListBtn', 'timelineBtn', 'depMapBtn', 'costBenefitBtn', 'orgChartBtn'];
 const TOOLS_BTN_IDS = ['bulkEditBtn', 'archivedTasksBtn', 'taskTypesBtn', 'releasesBtn'];
 const ALL_RELOCATING_IDS = VIEWS_BTN_IDS.concat(TOOLS_BTN_IDS);
 
@@ -42,7 +42,7 @@ const ALL_RELOCATING_IDS = VIEWS_BTN_IDS.concat(TOOLS_BTN_IDS);
 
     const viewsOrder = Array.from(viewsSlot.querySelectorAll('button')).map(b => b.id).filter(Boolean);
     const toolsOrder = Array.from(toolsSlot.querySelectorAll('button')).map(b => b.id).filter(Boolean);
-    log('Views section lists List View, Timeline, Dependency Map, Cost/Benefit Chart in order',
+    log('Views section lists List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart in order',
         viewsOrder.join(',') === VIEWS_BTN_IDS.join(','), viewsOrder.join(','));
     log('Tools section lists Bulk Edit, Archived, Task Types, Releases in order',
         toolsOrder.join(',') === TOOLS_BTN_IDS.join(','), toolsOrder.join(','));
@@ -76,7 +76,7 @@ const ALL_RELOCATING_IDS = VIEWS_BTN_IDS.concat(TOOLS_BTN_IDS);
         row1RelevantOrder.indexOf('addColumnTopBtn') === row1RelevantOrder.length - 1);
 
     const row2Order = Array.from(row2.querySelectorAll('button')).map(b => b.id).filter(Boolean);
-    log('row 2 order: List View, Timeline, Dependency Map, Cost/Benefit Chart (no Column — it moved to row 1)',
+    log('row 2 order: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart (no Column — it moved to row 1)',
         row2Order.join(',') === VIEWS_BTN_IDS.join(','), row2Order.join(','));
   }
 

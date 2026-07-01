@@ -15,6 +15,7 @@ import { deleteProject, closeAllTaskTypeIconPanels, setMutationsToast } from './
 import { renderAll, renderBoard, setBoardDeps, closeTeamFilterPanel, closeAssigneeFilterPanel, closeTaskTypeFilterPanel, toggleTeamFilterPanel, toggleAssigneeFilterPanel, toggleTaskTypeFilterPanel, openAppSettingsOverlay, closeAppSettingsOverlay, isAppSettingsOverlayOpen, updateHeaderButtonVisibilitySetting } from './views/board.js';
 import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListOpen, renderTaskListBody, collapseAllTaskListGroups, expandAllTaskListGroups, exportTaskListAsCsv } from './views/task-list.js';
 import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, toggleDepMapShowArchived, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
+import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
 import { setTimelineDeps, openTimelineOverlay, closeTimelineOverlay, isTimelineOverlayOpen, toggleTimelineShowArchived, renderTimeline } from './views/timeline.js';
 import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenefitOverlay, isCostBenefitOverlayOpen, toggleCostBenefitShowArchived, setCbZoom, resetCbZoom, zoomCbAtPoint } from './views/cost-benefit.js';
 
@@ -46,6 +47,7 @@ import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOve
 setBoardDeps({ toast, confirmDialog, openTaskModal, openColumnModal });
 setTaskListDeps({ toast, openTaskModal });
 setDepMapDeps({ toast, openTaskModal });
+setOrgChartDeps({ toast });
 setTimelineDeps({ toast, openTaskModal });
 setCostBenefitDeps({ toast, openTaskModal });
 setBulkEditDeps({ confirmDialog, exportProjectJSON });
@@ -238,6 +240,7 @@ function wireEvents(){
   document.getElementById('navTimelineBtn').addEventListener('click', openTimelineOverlay);
   document.getElementById('navDepMapBtn').addEventListener('click', openDepMapOverlay);
   document.getElementById('navCostBenefitBtn').addEventListener('click', openCostBenefitOverlay);
+  document.getElementById('navOrgChartBtn').addEventListener('click', openOrgChartOverlay);
   document.getElementById('navBulkEditBtn').addEventListener('click', openBulkEditOverlay);
   document.getElementById('navArchivedBtn').addEventListener('click', openArchivedTasksOverlay);
   document.getElementById('navTaskTypesBtn').addEventListener('click', openTaskTypesModal);
@@ -564,6 +567,41 @@ function wireEvents(){
     openTaskModal(taskId, task.columnId);
   });
 
+  document.getElementById('orgChartBtn').addEventListener('click', openOrgChartOverlay);
+  document.getElementById('orgChartClose').addEventListener('click', closeOrgChartOverlay);
+  document.getElementById('orgChartFilterToggle').addEventListener('click', toggleOrgChartFilter);
+  document.getElementById('orgChartZoomInBtn').addEventListener('click', function(){ setOrgChartZoom(0.1); });
+  document.getElementById('orgChartZoomOutBtn').addEventListener('click', function(){ setOrgChartZoom(-0.1); });
+  document.getElementById('orgChartResetBtn').addEventListener('click', resetOrgChartZoom);
+  document.getElementById('orgChartExportAsBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    toggleExportAsPanel('orgChartExportAsPanel');
+  });
+  document.querySelectorAll('#orgChartExportAsPanel .kf-export-as-option').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      closeAllExportAsPanels();
+      var project = getCurrentProject();
+      var filenameBase = (project ? project.key : 'export') + '-org-chart';
+      var svgEl = document.querySelector('#orgChartInner svg');
+      if(!svgEl){ toast('Nothing to export.'); return; }
+      if(btn.getAttribute('data-export-type') === 'svg') exportSvgElementAsSvgFile(svgEl, filenameBase);
+      else exportSvgElementAsPng(svgEl, filenameBase, 4);
+    });
+  });
+  document.getElementById('orgChartOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'orgChartOverlay') closeOrgChartOverlay();
+  });
+  document.getElementById('orgChartInner').addEventListener('click', function(e){
+    if(orgChartState.panMoved) return;
+    var node = e.target.closest('.kf-orgnode');
+    if(!node){ closeOrgChartMemberPopover(); return; }
+    var tcId = node.getAttribute('data-tc-id');
+    openOrgChartMemberPopover(tcId, node.getBoundingClientRect());
+  });
+  document.addEventListener('click', function(e){
+    if(isOrgChartMemberPopoverOpen() && !e.target.closest('#orgChartMemberPopover') && !e.target.closest('.kf-orgnode')) closeOrgChartMemberPopover();
+  });
+
   document.getElementById('timelineBtn').addEventListener('click', openTimelineOverlay);
   document.getElementById('timelineClose').addEventListener('click', closeTimelineOverlay);
   document.getElementById('timelineOverlay').addEventListener('mousedown', function(e){
@@ -698,6 +736,39 @@ function wireEvents(){
     if(depMapState.panActive){
       depMapState.panActive = false;
       depMapScrollEl.classList.remove('kf-depmap-panning');
+    }
+  });
+
+  var orgChartScrollEl = document.getElementById('orgChartScroll');
+  orgChartScrollEl.addEventListener('wheel', function(e){
+    if(!lastOrgChartLayout) return;
+    e.preventDefault();
+    zoomOrgChartAtPoint(e.deltaY < 0 ? 0.12 : -0.12, e.clientX, e.clientY);
+  }, {passive: false});
+  orgChartScrollEl.addEventListener('mousedown', function(e){
+    if(e.button !== 0) return;
+    orgChartState.panActive = true;
+    orgChartState.panMoved = false;
+    orgChartState.panStartX = e.clientX;
+    orgChartState.panStartY = e.clientY;
+    orgChartState.panStartScrollLeft = orgChartScrollEl.scrollLeft;
+    orgChartState.panStartScrollTop = orgChartScrollEl.scrollTop;
+    orgChartScrollEl.classList.add('kf-depmap-panning');
+  });
+  document.addEventListener('mousemove', function(e){
+    if(!orgChartState.panActive) return;
+    var dx = e.clientX - orgChartState.panStartX;
+    var dy = e.clientY - orgChartState.panStartY;
+    if(Math.abs(dx) > 3 || Math.abs(dy) > 3) orgChartState.panMoved = true;
+    if(orgChartState.panMoved){
+      orgChartScrollEl.scrollLeft = orgChartState.panStartScrollLeft - dx;
+      orgChartScrollEl.scrollTop = orgChartState.panStartScrollTop - dy;
+    }
+  });
+  document.addEventListener('mouseup', function(){
+    if(orgChartState.panActive){
+      orgChartState.panActive = false;
+      orgChartScrollEl.classList.remove('kf-depmap-panning');
     }
   });
 
@@ -861,6 +932,8 @@ function wireEvents(){
     else if(!document.getElementById('defaultScoreAlertOverlay').classList.contains('hidden')) closeDefaultScoreAlert();
     else if(!document.getElementById('backupReminderOverlay').classList.contains('hidden')) dismissBackupReminder();
     else if(isDepMapOpen()) closeDepMapOverlay();
+    else if(isOrgChartMemberPopoverOpen()) closeOrgChartMemberPopover();
+    else if(isOrgChartOpen()) closeOrgChartOverlay();
     else if(isTimelineOverlayOpen()) closeTimelineOverlay();
     else if(isCostBenefitOverlayOpen()) closeCostBenefitOverlay();
     else if(isTaskListOpen()) closeTaskListOverlay();

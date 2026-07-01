@@ -3054,6 +3054,69 @@
     color: var(--kf-border-strong);
   }
 
+  /* Org Chart */
+  #orgChartFilterToggle {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  #orgChartFilterToggle.active {
+    background: var(--kf-chip-active-bg);
+    color: #fff;
+  }
+
+  #orgChartFilterToggle.active:hover {
+    background: var(--kf-chip-active-bg);
+  }
+
+  .kf-orgnode rect.kf-orgnode-box {
+    transition: stroke .1s, stroke-width .1s;
+  }
+
+  .kf-orgnode {
+    cursor: pointer;
+  }
+
+  .kf-orgnode:hover rect.kf-orgnode-box {
+    stroke: var(--kf-blue);
+    stroke-width: 2;
+  }
+
+  .kf-org-member-popover {
+    position: fixed;
+    z-index: 60;
+    min-width: 220px;
+    max-width: 300px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--kf-surface);
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    box-shadow: var(--kf-modal-shadow);
+    padding: 10px 12px;
+  }
+
+  .kf-org-member-popover.hidden {
+    display: none;
+  }
+
+  .kf-org-member-popover-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .kf-org-member-popover-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
   /* Cost/Benefit Chart */
   .kf-costbenefit-scroll {
     flex: 1;

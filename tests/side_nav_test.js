@@ -60,8 +60,8 @@ function ruleFor(text, selector){
 
     const viewsOrder = Array.from(sections[0].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
     const toolsOrder = Array.from(sections[1].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
-    log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart',
-        viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn', viewsOrder.join(','));
+    log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart',
+        viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn,navOrgChartBtn', viewsOrder.join(','));
     log('Tools section: Bulk Edit, Archived, Task Types, Releases',
         toolsOrder.join(',') === 'navBulkEditBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn', toolsOrder.join(','));
 
@@ -123,6 +123,7 @@ function ruleFor(text, selector){
       ['navTimelineBtn', 'timelineOverlay', 'timelineClose'],
       ['navDepMapBtn', 'depMapOverlay', 'depMapClose'],
       ['navCostBenefitBtn', 'costBenefitOverlay', 'costBenefitClose'],
+      ['navOrgChartBtn', 'orgChartOverlay', 'orgChartClose'],
       ['navBulkEditBtn', 'bulkEditOverlay', 'bulkEditClose'],
       ['navArchivedBtn', 'archivedTasksOverlay', 'archivedTasksClose'],
       ['navTaskTypesBtn', 'taskTypesOverlay', 'taskTypesDoneBtn'],

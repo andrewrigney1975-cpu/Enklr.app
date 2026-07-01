@@ -198,7 +198,8 @@ export var ui = {
   principlesSearchTerm: '',
   objectivesSearchTerm: '',
   taskListCollapsedGroups: new Set(),
-  sideNavExpanded: false
+  sideNavExpanded: false,
+  orgChartFilter: 'team'
 };
 
 export function resetFilters(){

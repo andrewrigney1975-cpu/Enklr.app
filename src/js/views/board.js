@@ -65,6 +65,9 @@ export function applyHeaderButtonVisibility(){
     return '<a href="#" class="kf-header-more-link" data-nav-target="' + item.id + '">' + escapeHTML(item.label) + '</a>';
   }).join('') : '';
 
+  document.getElementById('orgChartBtn').classList.toggle('kf-vis-hidden', !visibility.teamsCommittees);
+  document.getElementById('navOrgChartBtn').classList.toggle('kf-vis-hidden', !visibility.teamsCommittees);
+
   renderTeamFilterChips();
 }
 
