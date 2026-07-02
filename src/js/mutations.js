@@ -1,7 +1,7 @@
 "use strict";
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject } from './storage.js';
 import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY } from './utils.js';
-import { evaluateTransition } from './features/workflow-engine.js';
+import { evaluateTransition, getWorkflowConditionField, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION } from './features/workflow-engine.js';
 import { clampTaskScore, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
 import { PRIORITY_META, RISK_STATUS_META, DECISION_TYPE_META, DECISION_STATUS_META, TEAM_COMMITTEE_TYPES } from './config.js';
 import { iconSvg } from './icons.js';
@@ -826,35 +826,63 @@ export function setWorkflowNodePosition(project, columnId, x, y){
   node.y = y;
   saveDB();
 }
-export function addWorkflowEdge(project, fromColumnId, toColumnId, type, message){
+function normalizeWorkflowEdgeType(type){
+  return (type === 'disallowed' || type === 'conditional') ? type : 'allowed';
+}
+/* Defends against a condition referencing a field/operator that isn't
+   (or is no longer) part of the shared vocabulary in workflow-engine.js
+   — falls back to the default condition / first valid operator for the
+   field rather than persisting something evaluateCondition can't trust. */
+function normalizeWorkflowCondition(condition){
+  var field = getWorkflowConditionField(condition && condition.field);
+  if(!field) return Object.assign({}, WORKFLOW_DEFAULT_CONDITION);
+  var operators = WORKFLOW_CONDITION_OPERATORS[field.valueKind];
+  var opDef = operators.filter(function(o){ return o.key === (condition && condition.operator); })[0] || operators[0];
+  var value = null;
+  if(opDef.needsValue){
+    if(field.valueKind === 'number'){
+      value = Number(condition.value);
+      if(!isFinite(value)) value = 0;
+    } else {
+      value = String(condition.value == null ? '' : condition.value).slice(0, 80);
+    }
+  }
+  return {field: field.key, operator: opDef.key, value: value};
+}
+export function buildWorkflowEdgeFields(type, message, condition){
+  var normalizedType = normalizeWorkflowEdgeType(type);
+  return {
+    type: normalizedType,
+    message: (normalizedType === 'disallowed' || normalizedType === 'conditional') ? ((message || '').trim().slice(0, 300) || null) : null,
+    condition: normalizedType === 'conditional' ? normalizeWorkflowCondition(condition || WORKFLOW_DEFAULT_CONDITION) : null
+  };
+}
+export function addWorkflowEdge(project, fromColumnId, toColumnId, type, message, condition){
   if(!project.workflow || fromColumnId === toColumnId) return null;
-  var normalizedType = type === 'disallowed' ? 'disallowed' : 'allowed';
+  var fields = buildWorkflowEdgeFields(type, message, condition);
   var existing = project.workflow.edges.filter(function(e){
     return e.fromColumnId === fromColumnId && e.toColumnId === toColumnId;
   })[0];
   if(existing){
-    existing.type = normalizedType;
-    existing.message = normalizedType === 'disallowed' ? ((message || '').trim().slice(0, 300) || null) : null;
+    existing.type = fields.type;
+    existing.message = fields.message;
+    existing.condition = fields.condition;
     saveDB();
     return existing;
   }
-  var edge = {
-    id: uid('wfedge'),
-    fromColumnId: fromColumnId,
-    toColumnId: toColumnId,
-    type: normalizedType,
-    message: normalizedType === 'disallowed' ? ((message || '').trim().slice(0, 300) || null) : null
-  };
+  var edge = Object.assign({id: uid('wfedge'), fromColumnId: fromColumnId, toColumnId: toColumnId}, fields);
   project.workflow.edges.push(edge);
   saveDB();
   return edge;
 }
-export function updateWorkflowEdge(project, edgeId, type, message){
+export function updateWorkflowEdge(project, edgeId, type, message, condition){
   if(!project.workflow) return;
   var edge = project.workflow.edges.filter(function(e){ return e.id === edgeId; })[0];
   if(!edge) return;
-  edge.type = type === 'disallowed' ? 'disallowed' : 'allowed';
-  edge.message = edge.type === 'disallowed' ? ((message || '').trim().slice(0, 300) || null) : null;
+  var fields = buildWorkflowEdgeFields(type, message, condition);
+  edge.type = fields.type;
+  edge.message = fields.message;
+  edge.condition = fields.condition;
   saveDB();
 }
 export function deleteWorkflowEdge(project, edgeId){
@@ -933,7 +961,7 @@ export function updateTask(project, taskId, data){
   t.dateLastModified = new Date().toISOString();
   var blocked = null;
   if(data.columnId && data.columnId !== t.columnId){
-    var result = evaluateTransition(project, t.columnId, data.columnId);
+    var result = evaluateTransition(project, t, data.columnId);
     if(result.allowed) moveTaskToColumn(project, taskId, data.columnId, -1);
     else blocked = result;
   }

@@ -45,7 +45,16 @@ export function openTaskModal(taskId, defaultColumnId){
   var colSelect = document.getElementById('taskColumnSelect');
   colSelect.innerHTML = '';
   var currentColumnId = task ? task.columnId : ui.taskModalColumnId;
-  var reachableColumnIds = getReachableColumnIds(project, currentColumnId);
+  /* A Conditional edge needs real task properties to evaluate against.
+     An existing task has them; a brand-new one doesn't yet, so a
+     synthetic task shaped like what addTask() would create is used
+     instead — the same defaults the form itself starts with. */
+  var taskForReachability = task || {
+    columnId: ui.taskModalColumnId,
+    assigneeId: null, releaseId: null, typeId: null, documentationUrl: null,
+    priority: 'medium', businessValue: 1, taskCost: 1, archived: false, dependencies: []
+  };
+  var reachableColumnIds = getReachableColumnIds(project, taskForReachability);
   project.columns.forEach(function(c){
     if(!reachableColumnIds.has(c.id)) return;
     var opt = document.createElement('option');

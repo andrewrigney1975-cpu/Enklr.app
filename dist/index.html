@@ -3217,6 +3217,12 @@
     background: var(--kf-chip-active-bg);
   }
 
+  .kf-workflow-mode-btn-conditional.active,
+  .kf-workflow-mode-btn-conditional.active:hover {
+    background: var(--kf-overdue-fg);
+    color: var(--kf-overdue-bg);
+  }
+
   .kf-wfnode {
     cursor: grab;
   }
@@ -3247,7 +3253,10 @@
     margin-bottom: 10px;
   }
 
-  #workflowEdgeMessageField.hidden {
+  #workflowEdgeMessageField.hidden,
+  #workflowEdgeConditionRow.hidden,
+  #workflowEdgeConditionValueField.hidden,
+  #workflowEdgeConditionValueSelect.hidden {
     display: none;
   }
 
@@ -4015,6 +4024,7 @@
           <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeSelectBtn" data-mode="select" title="Select, move, and edit nodes/connectors">Select</button>
           <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeAllowedBtn" data-mode="allowed" title="Drag from one column to another to mark the transition Allowed">Draw Allowed</button>
           <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeDisallowedBtn" data-mode="disallowed" title="Drag from one column to another to mark the transition Disallowed">Draw Disallowed</button>
+          <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn kf-workflow-mode-btn-conditional" id="workflowModeConditionalBtn" data-mode="conditional" title="Drag from one column to another to mark the transition Conditional Allow">Draw Conditional</button>
         </div>
         <div class="kf-header-divider-light"></div>
         <button class="kf-btn kf-btn-ghost" id="workflowZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="16"></span></button>
@@ -4036,6 +4046,7 @@
     <div class="kf-depmap-legend" id="workflowLegend">
       <span class="kf-legend-item"><span class="kf-legend-swatch" style="background:var(--kf-good-fg);"></span>Allowed transition</span>
       <span class="kf-legend-item"><span class="kf-legend-swatch" style="background:var(--kf-danger);"></span>Disallowed transition</span>
+      <span class="kf-legend-item"><span class="kf-legend-swatch" style="background:var(--kf-overdue-fg);"></span>Conditional Allow transition</span>
       <span class="kf-legend-item">Drag a column box to reposition it</span>
     </div>
     <div class="kf-depmap-scroll" id="workflowScroll">
@@ -4052,7 +4063,23 @@
     <select id="workflowEdgeTypeSelect">
       <option value="allowed">Allowed</option>
       <option value="disallowed">Disallowed</option>
+      <option value="conditional">Conditional Allow</option>
     </select>
+  </div>
+  <div class="kf-field-row hidden" id="workflowEdgeConditionRow">
+    <div class="kf-field">
+      <label for="workflowEdgeConditionFieldSelect">If</label>
+      <select id="workflowEdgeConditionFieldSelect"></select>
+    </div>
+    <div class="kf-field">
+      <label for="workflowEdgeConditionOperatorSelect">&nbsp;</label>
+      <select id="workflowEdgeConditionOperatorSelect"></select>
+    </div>
+  </div>
+  <div class="kf-field hidden" id="workflowEdgeConditionValueField">
+    <label for="workflowEdgeConditionValueInput">Value</label>
+    <select id="workflowEdgeConditionValueSelect" class="hidden"></select>
+    <input type="text" id="workflowEdgeConditionValueInput">
   </div>
   <div class="kf-field" id="workflowEdgeMessageField">
     <label for="workflowEdgeMessageInput">Message shown to the user <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(optional)</span></label>
@@ -6018,7 +6045,7 @@ self.onmessage = function(e) {
             changed = true;
           }
           p.workflow.edges.forEach(function(e) {
-            if (e.type !== "allowed" && e.type !== "disallowed") {
+            if (e.type !== "allowed" && e.type !== "disallowed" && e.type !== "conditional") {
               e.type = "allowed";
               changed = true;
             }
@@ -6028,6 +6055,15 @@ self.onmessage = function(e) {
             }
             if (!e.id) {
               e.id = uid("wfedge");
+              changed = true;
+            }
+            if (e.type === "conditional") {
+              if (!e.condition || typeof e.condition !== "object" || typeof e.condition.field !== "string" || typeof e.condition.operator !== "string") {
+                e.condition = { field: "assigneeId", operator: "is_set", value: null };
+                changed = true;
+              }
+            } else if (e.condition !== null && e.condition !== void 0) {
+              e.condition = null;
               changed = true;
             }
           });
@@ -6401,16 +6437,96 @@ self.onmessage = function(e) {
       return e.fromColumnId === fromColumnId && e.toColumnId === toColumnId;
     })[0] || null;
   }
-  function evaluateTransition(project, fromColumnId, toColumnId) {
+  var WORKFLOW_CONDITION_FIELDS = [
+    { key: "assigneeId", label: "Assignee", valueKind: "presence" },
+    { key: "releaseId", label: "Release", valueKind: "presence" },
+    { key: "typeId", label: "Task Type", valueKind: "presence" },
+    { key: "documentationUrl", label: "Documentation URL", valueKind: "presence" },
+    { key: "dependencies", label: "Dependencies", valueKind: "presence-array" },
+    { key: "priority", label: "Priority", valueKind: "enum", options: PRIORITY_ORDER.map(function(p) {
+      return { value: p, label: PRIORITY_META[p].label };
+    }) },
+    { key: "businessValue", label: "Business Value", valueKind: "number" },
+    { key: "taskCost", label: "Task Cost", valueKind: "number" },
+    { key: "archived", label: "Archived", valueKind: "boolean" }
+  ];
+  var WORKFLOW_CONDITION_OPERATORS = {
+    "presence": [
+      { key: "is_set", label: "is set", needsValue: false },
+      { key: "is_empty", label: "is empty", needsValue: false }
+    ],
+    "presence-array": [
+      { key: "is_set", label: "has any", needsValue: false },
+      { key: "is_empty", label: "has none", needsValue: false }
+    ],
+    "enum": [
+      { key: "equals", label: "is", needsValue: true },
+      { key: "not_equals", label: "is not", needsValue: true }
+    ],
+    "number": [
+      { key: "equals", label: "=", needsValue: true },
+      { key: "not_equals", label: "\u2260", needsValue: true },
+      { key: "greater_than", label: ">", needsValue: true },
+      { key: "less_than", label: "<", needsValue: true },
+      { key: "greater_or_equal", label: "\u2265", needsValue: true },
+      { key: "less_or_equal", label: "\u2264", needsValue: true }
+    ],
+    "boolean": [
+      { key: "is_true", label: "is true", needsValue: false },
+      { key: "is_false", label: "is false", needsValue: false }
+    ]
+  };
+  function getWorkflowConditionField(key) {
+    return WORKFLOW_CONDITION_FIELDS.filter(function(f) {
+      return f.key === key;
+    })[0] || null;
+  }
+  var WORKFLOW_DEFAULT_CONDITION = { field: "assigneeId", operator: "is_set", value: null };
+  function evaluateCondition(task, condition) {
+    if (!condition || !condition.field || !condition.operator) return true;
+    var raw = task ? task[condition.field] : void 0;
+    var isArrayField = Array.isArray(raw);
+    switch (condition.operator) {
+      case "is_set":
+        return isArrayField ? raw.length > 0 : raw !== null && raw !== void 0 && raw !== "";
+      case "is_empty":
+        return isArrayField ? raw.length === 0 : raw === null || raw === void 0 || raw === "";
+      case "is_true":
+        return raw === true;
+      case "is_false":
+        return raw === false;
+      case "equals":
+        return String(raw) === String(condition.value);
+      case "not_equals":
+        return String(raw) !== String(condition.value);
+      case "greater_than":
+        return Number(raw) > Number(condition.value);
+      case "less_than":
+        return Number(raw) < Number(condition.value);
+      case "greater_or_equal":
+        return Number(raw) >= Number(condition.value);
+      case "less_or_equal":
+        return Number(raw) <= Number(condition.value);
+      default:
+        return true;
+    }
+  }
+  function evaluateTransition(project, task, toColumnId) {
+    var fromColumnId = task.columnId;
     if (fromColumnId === toColumnId) return { allowed: true, message: null };
     if (!isWorkflowEnabled(project)) return { allowed: true, message: null };
     ensureProjectWorkflow(project);
     var edge = findWorkflowEdge(project, fromColumnId, toColumnId);
-    if (edge && edge.type === "allowed") return { allowed: true, message: null };
-    if (edge && edge.type === "disallowed") return { allowed: false, message: edge.message || WORKFLOW_DEFAULT_DENY_MESSAGE };
-    return { allowed: false, message: WORKFLOW_DEFAULT_DENY_MESSAGE };
+    if (!edge) return { allowed: false, message: WORKFLOW_DEFAULT_DENY_MESSAGE };
+    if (edge.type === "allowed") return { allowed: true, message: null };
+    if (edge.type === "conditional") {
+      if (evaluateCondition(task, edge.condition)) return { allowed: true, message: null };
+      return { allowed: false, message: edge.message || WORKFLOW_DEFAULT_DENY_MESSAGE };
+    }
+    return { allowed: false, message: edge.message || WORKFLOW_DEFAULT_DENY_MESSAGE };
   }
-  function getReachableColumnIds(project, fromColumnId) {
+  function getReachableColumnIds(project, task) {
+    var fromColumnId = task.columnId;
     var set = /* @__PURE__ */ new Set([fromColumnId]);
     if (!isWorkflowEnabled(project)) {
       project.columns.forEach(function(c) {
@@ -6421,7 +6537,7 @@ self.onmessage = function(e) {
     ensureProjectWorkflow(project);
     project.columns.forEach(function(c) {
       if (c.id === fromColumnId) return;
-      if (evaluateTransition(project, fromColumnId, c.id).allowed) set.add(c.id);
+      if (evaluateTransition(project, task, c.id).allowed) set.add(c.id);
     });
     return set;
   }
@@ -7196,37 +7312,63 @@ self.onmessage = function(e) {
     node.y = y;
     saveDB();
   }
-  function addWorkflowEdge(project, fromColumnId, toColumnId, type, message) {
+  function normalizeWorkflowEdgeType(type) {
+    return type === "disallowed" || type === "conditional" ? type : "allowed";
+  }
+  function normalizeWorkflowCondition(condition) {
+    var field = getWorkflowConditionField(condition && condition.field);
+    if (!field) return Object.assign({}, WORKFLOW_DEFAULT_CONDITION);
+    var operators = WORKFLOW_CONDITION_OPERATORS[field.valueKind];
+    var opDef = operators.filter(function(o) {
+      return o.key === (condition && condition.operator);
+    })[0] || operators[0];
+    var value = null;
+    if (opDef.needsValue) {
+      if (field.valueKind === "number") {
+        value = Number(condition.value);
+        if (!isFinite(value)) value = 0;
+      } else {
+        value = String(condition.value == null ? "" : condition.value).slice(0, 80);
+      }
+    }
+    return { field: field.key, operator: opDef.key, value };
+  }
+  function buildWorkflowEdgeFields(type, message, condition) {
+    var normalizedType = normalizeWorkflowEdgeType(type);
+    return {
+      type: normalizedType,
+      message: normalizedType === "disallowed" || normalizedType === "conditional" ? (message || "").trim().slice(0, 300) || null : null,
+      condition: normalizedType === "conditional" ? normalizeWorkflowCondition(condition || WORKFLOW_DEFAULT_CONDITION) : null
+    };
+  }
+  function addWorkflowEdge(project, fromColumnId, toColumnId, type, message, condition) {
     if (!project.workflow || fromColumnId === toColumnId) return null;
-    var normalizedType = type === "disallowed" ? "disallowed" : "allowed";
+    var fields = buildWorkflowEdgeFields(type, message, condition);
     var existing = project.workflow.edges.filter(function(e) {
       return e.fromColumnId === fromColumnId && e.toColumnId === toColumnId;
     })[0];
     if (existing) {
-      existing.type = normalizedType;
-      existing.message = normalizedType === "disallowed" ? (message || "").trim().slice(0, 300) || null : null;
+      existing.type = fields.type;
+      existing.message = fields.message;
+      existing.condition = fields.condition;
       saveDB();
       return existing;
     }
-    var edge = {
-      id: uid("wfedge"),
-      fromColumnId,
-      toColumnId,
-      type: normalizedType,
-      message: normalizedType === "disallowed" ? (message || "").trim().slice(0, 300) || null : null
-    };
+    var edge = Object.assign({ id: uid("wfedge"), fromColumnId, toColumnId }, fields);
     project.workflow.edges.push(edge);
     saveDB();
     return edge;
   }
-  function updateWorkflowEdge(project, edgeId, type, message) {
+  function updateWorkflowEdge(project, edgeId, type, message, condition) {
     if (!project.workflow) return;
     var edge = project.workflow.edges.filter(function(e) {
       return e.id === edgeId;
     })[0];
     if (!edge) return;
-    edge.type = type === "disallowed" ? "disallowed" : "allowed";
-    edge.message = edge.type === "disallowed" ? (message || "").trim().slice(0, 300) || null : null;
+    var fields = buildWorkflowEdgeFields(type, message, condition);
+    edge.type = fields.type;
+    edge.message = fields.message;
+    edge.condition = fields.condition;
     saveDB();
   }
   function deleteWorkflowEdge(project, edgeId) {
@@ -7299,7 +7441,7 @@ self.onmessage = function(e) {
     t.dateLastModified = (/* @__PURE__ */ new Date()).toISOString();
     var blocked = null;
     if (data.columnId && data.columnId !== t.columnId) {
-      var result = evaluateTransition(project, t.columnId, data.columnId);
+      var result = evaluateTransition(project, t, data.columnId);
       if (result.allowed) moveTaskToColumn(project, taskId, data.columnId, -1);
       else blocked = result;
     }
@@ -8012,7 +8154,7 @@ self.onmessage = function(e) {
       e.preventDefault();
       var draggedTask = ui.draggedTaskId ? project.tasks[ui.draggedTaskId] : null;
       if (draggedTask && isWorkflowEnabled(project)) {
-        var result = evaluateTransition(project, draggedTask.columnId, col.id);
+        var result = evaluateTransition(project, draggedTask, col.id);
         section.classList.remove("kf-dragover");
         section.classList.toggle("kf-dragover-allowed", result.allowed);
         section.classList.toggle("kf-dragover-blocked", !result.allowed);
@@ -8036,7 +8178,7 @@ self.onmessage = function(e) {
       if (!taskId) return;
       var draggedTask = project.tasks[taskId];
       if (draggedTask && isWorkflowEnabled(project)) {
-        var result = evaluateTransition(project, draggedTask.columnId, col.id);
+        var result = evaluateTransition(project, draggedTask, col.id);
         if (!result.allowed) {
           _toast2(result.message);
           return;
@@ -9030,7 +9172,7 @@ self.onmessage = function(e) {
     panStartScrollLeft: 0,
     panStartScrollTop: 0,
     mode: "select",
-    // 'select' | 'allowed' | 'disallowed'
+    // 'select' | 'allowed' | 'disallowed' | 'conditional'
     draggingColumnId: null,
     dragMoved: false,
     dragPointerStartX: 0,
@@ -9040,6 +9182,31 @@ self.onmessage = function(e) {
     drawingFromColumnId: null,
     popoverEdgeId: null
   };
+  var WORKFLOW_EDGE_COLOR = { allowed: "var(--kf-good-fg)", disallowed: "var(--kf-danger)", conditional: "var(--kf-overdue-fg)" };
+  function dotMarkerPair(id, color) {
+    return '<marker id="kf-wf-dot-start-' + id + '" viewBox="0 0 10 10" refX="0.75" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-surface)" stroke="' + color + '" stroke-width="1.6"/></marker><marker id="kf-wf-dot-end-' + id + '" viewBox="0 0 10 10" refX="9.25" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="' + color + '" stroke="' + color + '" stroke-width="1.6"/></marker>';
+  }
+  function describeWorkflowCondition(condition) {
+    if (!condition) return "";
+    var field = getWorkflowConditionField(condition.field);
+    var fieldLabel = field ? field.label : condition.field;
+    var opDef = field ? (WORKFLOW_CONDITION_OPERATORS[field.valueKind] || []).filter(function(o) {
+      return o.key === condition.operator;
+    })[0] : null;
+    var opLabel = opDef ? opDef.label : condition.operator;
+    var valueLabel = "";
+    if (opDef && opDef.needsValue) {
+      if (field && field.valueKind === "enum") {
+        var opt = (field.options || []).filter(function(o) {
+          return o.value === condition.value;
+        })[0];
+        valueLabel = " " + (opt ? opt.label : condition.value);
+      } else {
+        valueLabel = " " + condition.value;
+      }
+    }
+    return fieldLabel + " " + opLabel + valueLabel;
+  }
   var WORKFLOW_MIN_ZOOM = 0.3;
   var WORKFLOW_MAX_ZOOM = 2.5;
   var lastWorkflowLayout = null;
@@ -9058,21 +9225,39 @@ self.onmessage = function(e) {
       height: maxY + WORKFLOW_MARGIN
     };
   }
-  function clipToNodeBoundary(cx, cy, towardX, towardY) {
-    var dx = towardX - cx, dy = towardY - cy;
-    if (dx === 0 && dy === 0) return { x: cx, y: cy };
-    var halfW = WORKFLOW_NODE_W / 2, halfH = WORKFLOW_NODE_H / 2;
-    var scaleX = dx !== 0 ? halfW / Math.abs(dx) : Infinity;
-    var scaleY = dy !== 0 ? halfH / Math.abs(dy) : Infinity;
-    var scale = Math.min(scaleX, scaleY);
-    return { x: cx + dx * scale, y: cy + dy * scale };
+  function pickAttachmentSide(fromCenter, toCenter) {
+    var dx = toCenter.x - fromCenter.x, dy = toCenter.y - fromCenter.y;
+    if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
+    return dy >= 0 ? "bottom" : "top";
+  }
+  function sideMidpoint(pos, side) {
+    switch (side) {
+      case "right":
+        return { x: pos.x + WORKFLOW_NODE_W, y: pos.y + WORKFLOW_NODE_H / 2 };
+      case "left":
+        return { x: pos.x, y: pos.y + WORKFLOW_NODE_H / 2 };
+      case "top":
+        return { x: pos.x + WORKFLOW_NODE_W / 2, y: pos.y };
+      default:
+        return { x: pos.x + WORKFLOW_NODE_W / 2, y: pos.y + WORKFLOW_NODE_H };
+    }
+  }
+  function sideNormal(side) {
+    return { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 } }[side];
   }
   function edgePathD(fromPos, toPos) {
     var fromCenter = { x: fromPos.x + WORKFLOW_NODE_W / 2, y: fromPos.y + WORKFLOW_NODE_H / 2 };
     var toCenter = { x: toPos.x + WORKFLOW_NODE_W / 2, y: toPos.y + WORKFLOW_NODE_H / 2 };
-    var start = clipToNodeBoundary(fromCenter.x, fromCenter.y, toCenter.x, toCenter.y);
-    var end = clipToNodeBoundary(toCenter.x, toCenter.y, fromCenter.x, fromCenter.y);
-    return "M " + start.x + " " + start.y + " L " + end.x + " " + end.y;
+    var startSide = pickAttachmentSide(fromCenter, toCenter);
+    var endSide = pickAttachmentSide(toCenter, fromCenter);
+    var start = sideMidpoint(fromPos, startSide);
+    var end = sideMidpoint(toPos, endSide);
+    var dist = Math.hypot(end.x - start.x, end.y - start.y);
+    var bend = Math.max(40, dist * 0.4);
+    var sn = sideNormal(startSide), en = sideNormal(endSide);
+    var c1 = { x: start.x + sn.x * bend, y: start.y + sn.y * bend };
+    var c2 = { x: end.x + en.x * bend, y: end.y + en.y * bend };
+    return "M " + start.x + " " + start.y + " C " + c1.x + " " + c1.y + ", " + c2.x + " " + c2.y + ", " + end.x + " " + end.y;
   }
   function updateWorkflowModeButtons() {
     document.querySelectorAll(".kf-workflow-mode-btn").forEach(function(btn) {
@@ -9080,7 +9265,7 @@ self.onmessage = function(e) {
     });
   }
   function setWorkflowMode(mode) {
-    workflowEditorState.mode = mode === "allowed" || mode === "disallowed" ? mode : "select";
+    workflowEditorState.mode = mode === "allowed" || mode === "disallowed" || mode === "conditional" ? mode : "select";
     workflowEditorState.drawingFromColumnId = null;
     var draft = document.getElementById("workflowDraftEdge");
     if (draft) draft.remove();
@@ -9103,15 +9288,14 @@ self.onmessage = function(e) {
     }
     var layout = computeWorkflowLayout(project);
     lastWorkflowLayout = layout;
-    var defsHTML = '<defs><marker id="kf-wf-arrow-allowed" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="var(--kf-good-fg)"></path></marker><marker id="kf-wf-arrow-disallowed" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="var(--kf-danger)"></path></marker></defs>';
+    var defsHTML = "<defs>" + dotMarkerPair("allowed", "var(--kf-good-fg)") + dotMarkerPair("disallowed", "var(--kf-danger)") + dotMarkerPair("conditional", "var(--kf-overdue-fg)") + "</defs>";
     var edgesHTML = project.workflow.edges.map(function(e) {
       var fromPos = layout.positions[e.fromColumnId], toPos = layout.positions[e.toColumnId];
       if (!fromPos || !toPos) return "";
       var d = edgePathD(fromPos, toPos);
-      var isAllowed = e.type === "allowed";
-      var color = isAllowed ? "var(--kf-good-fg)" : "var(--kf-danger)";
-      var marker = isAllowed ? "url(#kf-wf-arrow-allowed)" : "url(#kf-wf-arrow-disallowed)";
-      return '<g class="kf-wfedge-group" data-edge-id="' + e.id + '">' + (e.message ? "<title>" + escapeHTML6(e.message) + "</title>" : "") + '<path class="kf-wfedge" d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2.5" marker-end="' + marker + '"></path><path class="kf-wfedge-hit" data-edge-id="' + e.id + '" d="' + d + '" fill="none" stroke="transparent" stroke-width="16"></path></g>';
+      var color = WORKFLOW_EDGE_COLOR[e.type] || WORKFLOW_EDGE_COLOR.allowed;
+      var titleText = e.type === "conditional" ? describeWorkflowCondition(e.condition) + (e.message ? " \u2014 " + e.message : "") : e.message;
+      return '<g class="kf-wfedge-group" data-edge-id="' + e.id + '">' + (titleText ? "<title>" + escapeHTML6(titleText) + "</title>" : "") + '<path class="kf-wfedge" d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2.5" marker-start="url(#kf-wf-dot-start-' + e.type + ')" marker-end="url(#kf-wf-dot-end-' + e.type + ')"></path><path class="kf-wfedge-hit" data-edge-id="' + e.id + '" d="' + d + '" fill="none" stroke="transparent" stroke-width="16"></path></g>';
     }).join("");
     var nodesHTML = project.columns.map(function(col) {
       var pos = layout.positions[col.id];
@@ -9218,8 +9402,12 @@ self.onmessage = function(e) {
     if (!fromNode) return;
     var point = clientPointToSvgPoint(clientX, clientY);
     var fromCenter = { x: fromNode.x + WORKFLOW_NODE_W / 2, y: fromNode.y + WORKFLOW_NODE_H / 2 };
-    var start = clipToNodeBoundary(fromCenter.x, fromCenter.y, point.x, point.y);
-    draft.setAttribute("d", "M " + start.x + " " + start.y + " L " + point.x + " " + point.y);
+    var side = pickAttachmentSide(fromCenter, point);
+    var start = sideMidpoint(fromNode, side);
+    var sn = sideNormal(side);
+    var bend = Math.max(40, Math.hypot(point.x - start.x, point.y - start.y) * 0.4);
+    var c1 = { x: start.x + sn.x * bend, y: start.y + sn.y * bend };
+    draft.setAttribute("d", "M " + start.x + " " + start.y + " C " + c1.x + " " + c1.y + ", " + point.x + " " + point.y + ", " + point.x + " " + point.y);
   }
   function startWorkflowEdgeDraw(columnId, clientX, clientY) {
     workflowEditorState.drawingFromColumnId = columnId;
@@ -9228,7 +9416,7 @@ self.onmessage = function(e) {
     var draft = document.createElementNS("http://www.w3.org/2000/svg", "path");
     draft.setAttribute("id", "workflowDraftEdge");
     draft.setAttribute("fill", "none");
-    draft.setAttribute("stroke", workflowEditorState.mode === "disallowed" ? "var(--kf-danger)" : "var(--kf-good-fg)");
+    draft.setAttribute("stroke", WORKFLOW_EDGE_COLOR[workflowEditorState.mode] || WORKFLOW_EDGE_COLOR.allowed);
     draft.setAttribute("stroke-width", "2.5");
     draft.setAttribute("stroke-dasharray", "5,4");
     svg.appendChild(draft);
@@ -9325,9 +9513,10 @@ self.onmessage = function(e) {
       var toColumnId = targetNodeEl ? targetNodeEl.getAttribute("data-column-id") : null;
       if (toColumnId && toColumnId !== fromColumnId) {
         var project2 = getCurrentProject();
-        var edge = addWorkflowEdge(project2, fromColumnId, toColumnId, workflowEditorState.mode, null);
+        var condition = workflowEditorState.mode === "conditional" ? WORKFLOW_DEFAULT_CONDITION : null;
+        var edge = addWorkflowEdge(project2, fromColumnId, toColumnId, workflowEditorState.mode, null, condition);
         renderWorkflowEditor();
-        if (edge && workflowEditorState.mode === "disallowed") {
+        if (edge && (workflowEditorState.mode === "disallowed" || workflowEditorState.mode === "conditional")) {
           openWorkflowEdgePopover(edge.id, e.clientX, e.clientY);
         }
       }
@@ -9346,6 +9535,57 @@ self.onmessage = function(e) {
     if (!hit) return;
     openWorkflowEdgePopover(hit.getAttribute("data-edge-id"), e.clientX, e.clientY);
   }
+  function populateWorkflowEdgeConditionFieldOptions() {
+    var select = document.getElementById("workflowEdgeConditionFieldSelect");
+    if (select.options.length > 0) return;
+    WORKFLOW_CONDITION_FIELDS.forEach(function(f) {
+      var opt = document.createElement("option");
+      opt.value = f.key;
+      opt.textContent = f.label;
+      select.appendChild(opt);
+    });
+  }
+  function updateWorkflowEdgeOperatorOptions(preserveOperator, preserveValue) {
+    var fieldKey = document.getElementById("workflowEdgeConditionFieldSelect").value;
+    var field = getWorkflowConditionField(fieldKey) || WORKFLOW_CONDITION_FIELDS[0];
+    var operators = WORKFLOW_CONDITION_OPERATORS[field.valueKind] || [];
+    var opSelect = document.getElementById("workflowEdgeConditionOperatorSelect");
+    opSelect.innerHTML = "";
+    operators.forEach(function(o) {
+      var opt = document.createElement("option");
+      opt.value = o.key;
+      opt.textContent = o.label;
+      opSelect.appendChild(opt);
+    });
+    opSelect.value = operators.some(function(o) {
+      return o.key === preserveOperator;
+    }) ? preserveOperator : operators[0] ? operators[0].key : "";
+    var needsValue = operators.length > 0 && operators[0].needsValue;
+    var valueField = document.getElementById("workflowEdgeConditionValueField");
+    var valueSelect = document.getElementById("workflowEdgeConditionValueSelect");
+    var valueInput = document.getElementById("workflowEdgeConditionValueInput");
+    valueField.classList.toggle("hidden", !needsValue);
+    if (!needsValue) return;
+    if (field.valueKind === "enum") {
+      valueSelect.innerHTML = "";
+      (field.options || []).forEach(function(o) {
+        var opt = document.createElement("option");
+        opt.value = o.value;
+        opt.textContent = o.label;
+        valueSelect.appendChild(opt);
+      });
+      valueSelect.value = (field.options || []).some(function(o) {
+        return o.value === preserveValue;
+      }) ? preserveValue : field.options[0] && field.options[0].value;
+      valueSelect.classList.remove("hidden");
+      valueInput.classList.add("hidden");
+    } else {
+      valueInput.type = field.valueKind === "number" ? "number" : "text";
+      valueInput.value = preserveValue != null ? preserveValue : "";
+      valueInput.classList.remove("hidden");
+      valueSelect.classList.add("hidden");
+    }
+  }
   function openWorkflowEdgePopover(edgeId, clientX, clientY) {
     var project = getCurrentProject();
     var edge = project && project.workflow ? project.workflow.edges.filter(function(e) {
@@ -9362,6 +9602,10 @@ self.onmessage = function(e) {
     document.getElementById("workflowEdgePopoverTitle").textContent = (fromCol ? fromCol.name : "?") + " \u2192 " + (toCol ? toCol.name : "?");
     document.getElementById("workflowEdgeTypeSelect").value = edge.type;
     document.getElementById("workflowEdgeMessageInput").value = edge.message || "";
+    populateWorkflowEdgeConditionFieldOptions();
+    var condition = edge.condition || WORKFLOW_DEFAULT_CONDITION;
+    document.getElementById("workflowEdgeConditionFieldSelect").value = condition.field;
+    updateWorkflowEdgeOperatorOptions(condition.operator, condition.value);
     updateWorkflowEdgePopoverMessageVisibility();
     var popover = document.getElementById("workflowEdgePopover");
     popover.classList.remove("hidden");
@@ -9373,8 +9617,21 @@ self.onmessage = function(e) {
     popover.style.top = top + "px";
   }
   function updateWorkflowEdgePopoverMessageVisibility() {
-    var isDisallowed = document.getElementById("workflowEdgeTypeSelect").value === "disallowed";
-    document.getElementById("workflowEdgeMessageField").classList.toggle("hidden", !isDisallowed);
+    var type = document.getElementById("workflowEdgeTypeSelect").value;
+    document.getElementById("workflowEdgeMessageField").classList.toggle("hidden", type === "allowed");
+    document.getElementById("workflowEdgeConditionRow").classList.toggle("hidden", type !== "conditional");
+    if (type !== "conditional") document.getElementById("workflowEdgeConditionValueField").classList.add("hidden");
+  }
+  function refreshWorkflowEdgeConditionControls() {
+    if (document.getElementById("workflowEdgeTypeSelect").value !== "conditional") return;
+    populateWorkflowEdgeConditionFieldOptions();
+    updateWorkflowEdgeOperatorOptions(
+      document.getElementById("workflowEdgeConditionOperatorSelect").value,
+      document.getElementById("workflowEdgeConditionValueSelect").value
+    );
+  }
+  function handleWorkflowEdgeConditionFieldChange() {
+    updateWorkflowEdgeOperatorOptions();
   }
   function closeWorkflowEdgePopover() {
     document.getElementById("workflowEdgePopover").classList.add("hidden");
@@ -9388,7 +9645,15 @@ self.onmessage = function(e) {
     if (!project || !workflowEditorState.popoverEdgeId) return;
     var type = document.getElementById("workflowEdgeTypeSelect").value;
     var message = document.getElementById("workflowEdgeMessageInput").value;
-    updateWorkflowEdge(project, workflowEditorState.popoverEdgeId, type, message);
+    var condition = null;
+    if (type === "conditional") {
+      var fieldKey = document.getElementById("workflowEdgeConditionFieldSelect").value;
+      var operator = document.getElementById("workflowEdgeConditionOperatorSelect").value;
+      var field = getWorkflowConditionField(fieldKey);
+      var valueEl = field && field.valueKind === "enum" ? document.getElementById("workflowEdgeConditionValueSelect") : document.getElementById("workflowEdgeConditionValueInput");
+      condition = { field: fieldKey, operator, value: valueEl.classList.contains("hidden") ? null : valueEl.value };
+    }
+    updateWorkflowEdge(project, workflowEditorState.popoverEdgeId, type, message, condition);
     closeWorkflowEdgePopover();
     renderWorkflowEditor();
   }
@@ -10100,7 +10365,7 @@ self.onmessage = function(e) {
         };
       }),
       columns: project.columns.map(function(c, idx) {
-        return { name: c.name, done: c.done, order: idx };
+        return { id: c.id, name: c.name, done: c.done, order: idx };
       }),
       taskTypes: (project.taskTypes || []).map(function(tt) {
         return { id: tt.id, name: tt.name, iconName: tt.iconName || null };
@@ -10204,6 +10469,14 @@ self.onmessage = function(e) {
       approvers: (project.approvers || []).slice(),
       roles: (project.roles || []).slice(),
       headerButtonVisibility: normalizeHeaderButtonVisibility(project.headerButtonVisibility),
+      /* Only present once the Workflow editor has been opened at least
+         once (see ensureProjectWorkflow in features/workflow-engine.js —
+         project.workflow is created lazily). Omitting it entirely for a
+         project that's never materialized one lets import.js tell "never
+         customized" apart from "customized down to zero nodes/edges",
+         so the same lazy default-topology seeding still kicks in on
+         first open after import. */
+      workflow: project.workflow ? { nodes: project.workflow.nodes, edges: project.workflow.edges } : null,
       hierarchy
     };
     var blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
@@ -10333,13 +10606,14 @@ self.onmessage = function(e) {
     });
     var cyclesRemoved = sanitizeAcyclicGraph(flat);
     var columns = null;
+    var columnOldIdToNewId = {};
     if (Array.isArray(doc.columns) && doc.columns.length > 0) {
       var validCols = doc.columns.map(function(c, idx) {
         if (!c || typeof c !== "object") return null;
         var name = typeof c.name === "string" && c.name.trim() ? c.name.trim().slice(0, 40) : null;
         if (!name) return null;
         var order = typeof c.order === "number" && isFinite(c.order) ? c.order : idx;
-        return { name, done: !!c.done, order };
+        return { oldId: typeof c.id === "string" && c.id ? c.id : null, name, done: !!c.done, order };
       }).filter(Boolean).sort(function(a, b) {
         return a.order - b.order;
       });
@@ -10351,7 +10625,9 @@ self.onmessage = function(e) {
       });
       if (validCols.length > 0) {
         columns = validCols.map(function(c) {
-          return makeColumn(c.name, c.done);
+          var newCol = makeColumn(c.name, c.done);
+          if (c.oldId) columnOldIdToNewId[c.oldId] = newCol.id;
+          return newCol;
         });
       }
     }
@@ -10420,6 +10696,41 @@ self.onmessage = function(e) {
       dateLastModified: doc.project && typeof doc.project.dateLastModified === "string" ? doc.project.dateLastModified : importedAt,
       dateLastExported: doc.project && typeof doc.project.dateLastExported === "string" ? doc.project.dateLastExported : null
     };
+    var unresolvedWorkflowNodes = 0, unresolvedWorkflowEdges = 0;
+    if (doc.workflow && typeof doc.workflow === "object") {
+      var importedWfNodes = {};
+      if (doc.workflow.nodes && typeof doc.workflow.nodes === "object") {
+        Object.keys(doc.workflow.nodes).forEach(function(oldColId) {
+          var newColId = columnOldIdToNewId[oldColId];
+          if (!newColId) {
+            unresolvedWorkflowNodes++;
+            return;
+          }
+          var pos = doc.workflow.nodes[oldColId];
+          importedWfNodes[newColId] = {
+            x: pos && typeof pos.x === "number" && isFinite(pos.x) ? pos.x : 0,
+            y: pos && typeof pos.y === "number" && isFinite(pos.y) ? pos.y : 0
+          };
+        });
+      }
+      var importedWfEdges = [];
+      if (Array.isArray(doc.workflow.edges)) {
+        doc.workflow.edges.forEach(function(e) {
+          if (!e || typeof e !== "object") return;
+          var fromColumnId = columnOldIdToNewId[e.fromColumnId];
+          var toColumnId = columnOldIdToNewId[e.toColumnId];
+          if (!fromColumnId || !toColumnId || fromColumnId === toColumnId) {
+            unresolvedWorkflowEdges++;
+            return;
+          }
+          var fields = buildWorkflowEdgeFields(e.type, e.message, e.condition);
+          importedWfEdges.push(Object.assign({ id: uid("wfedge"), fromColumnId, toColumnId }, fields));
+        });
+      }
+      if (Object.keys(importedWfNodes).length > 0 || importedWfEdges.length > 0) {
+        project.workflow = { nodes: importedWfNodes, edges: importedWfEdges };
+      }
+    }
     var memberOldIdToNewId = {};
     var memberNameToNewId = {};
     var unresolvedMemberReportsTo = 0;
@@ -10834,6 +11145,8 @@ self.onmessage = function(e) {
       taskCount: Object.keys(project.tasks).length,
       columnCount: project.columns.length,
       memberCount: project.members.length,
+      unresolvedWorkflowNodes,
+      unresolvedWorkflowEdges,
       unresolvedDeps,
       unresolvedAssignees,
       unresolvedReleases,
@@ -10967,8 +11280,8 @@ self.onmessage = function(e) {
     if (result.unresolvedAssignees > 0) msg += " Skipped " + result.unresolvedAssignees + " assignee reference(s) that could not be matched.";
     if (result.unresolvedReleases > 0) msg += " Skipped " + result.unresolvedReleases + " release reference(s) that could not be matched.";
     if (result.unresolvedTaskTypes > 0) msg += " Skipped " + result.unresolvedTaskTypes + " task type reference(s) that could not be matched.";
-    var unresolvedDocLinks = (result.unresolvedDocOwners || 0) + (result.unresolvedDocTasks || 0) + (result.unresolvedDocRelated || 0) + (result.unresolvedRiskOwners || 0) + (result.unresolvedRiskTasks || 0) + (result.unresolvedRiskDocs || 0) + (result.unresolvedDecisionOwners || 0) + (result.unresolvedDecisionTasks || 0) + (result.unresolvedDecisionDocs || 0) + (result.unresolvedDecisionRisks || 0) + (result.unresolvedRiskPrinciples || 0) + (result.unresolvedRiskObjectives || 0) + (result.unresolvedObjectivePrinciples || 0) + (result.unresolvedDecisionPrinciples || 0) + (result.unresolvedDecisionObjectives || 0) + (result.unresolvedTcParents || 0) + (result.unresolvedTcMembers || 0) + (result.unresolvedMemberReportsTo || 0);
-    if (unresolvedDocLinks > 0) msg += " Skipped " + unresolvedDocLinks + " document/risk/decision/principle/objective/team reference(s) that could not be matched.";
+    var unresolvedDocLinks = (result.unresolvedDocOwners || 0) + (result.unresolvedDocTasks || 0) + (result.unresolvedDocRelated || 0) + (result.unresolvedRiskOwners || 0) + (result.unresolvedRiskTasks || 0) + (result.unresolvedRiskDocs || 0) + (result.unresolvedDecisionOwners || 0) + (result.unresolvedDecisionTasks || 0) + (result.unresolvedDecisionDocs || 0) + (result.unresolvedDecisionRisks || 0) + (result.unresolvedRiskPrinciples || 0) + (result.unresolvedRiskObjectives || 0) + (result.unresolvedObjectivePrinciples || 0) + (result.unresolvedDecisionPrinciples || 0) + (result.unresolvedDecisionObjectives || 0) + (result.unresolvedTcParents || 0) + (result.unresolvedTcMembers || 0) + (result.unresolvedMemberReportsTo || 0) + (result.unresolvedWorkflowNodes || 0) + (result.unresolvedWorkflowEdges || 0);
+    if (unresolvedDocLinks > 0) msg += " Skipped " + unresolvedDocLinks + " document/risk/decision/principle/objective/team/workflow reference(s) that could not be matched.";
     _toast10(msg);
   }
   function closeImportConflictModal() {
@@ -11530,7 +11843,19 @@ self.onmessage = function(e) {
     var colSelect = document.getElementById("taskColumnSelect");
     colSelect.innerHTML = "";
     var currentColumnId = task ? task.columnId : ui.taskModalColumnId;
-    var reachableColumnIds = getReachableColumnIds(project, currentColumnId);
+    var taskForReachability = task || {
+      columnId: ui.taskModalColumnId,
+      assigneeId: null,
+      releaseId: null,
+      typeId: null,
+      documentationUrl: null,
+      priority: "medium",
+      businessValue: 1,
+      taskCost: 1,
+      archived: false,
+      dependencies: []
+    };
+    var reachableColumnIds = getReachableColumnIds(project, taskForReachability);
     project.columns.forEach(function(c) {
       if (!reachableColumnIds.has(c.id)) return;
       var opt = document.createElement("option");
@@ -14967,6 +15292,9 @@ self.onmessage = function(e) {
     document.getElementById("workflowModeDisallowedBtn").addEventListener("click", function() {
       setWorkflowMode("disallowed");
     });
+    document.getElementById("workflowModeConditionalBtn").addEventListener("click", function() {
+      setWorkflowMode("conditional");
+    });
     document.getElementById("workflowZoomInBtn").addEventListener("click", function() {
       setWorkflowZoom(0.1);
     });
@@ -14996,7 +15324,11 @@ self.onmessage = function(e) {
       if (e.target.id === "workflowOverlay") closeWorkflowOverlay();
     });
     document.getElementById("workflowInner").addEventListener("click", handleWorkflowInnerClick);
-    document.getElementById("workflowEdgeTypeSelect").addEventListener("change", updateWorkflowEdgePopoverMessageVisibility);
+    document.getElementById("workflowEdgeTypeSelect").addEventListener("change", function() {
+      updateWorkflowEdgePopoverMessageVisibility();
+      refreshWorkflowEdgeConditionControls();
+    });
+    document.getElementById("workflowEdgeConditionFieldSelect").addEventListener("change", handleWorkflowEdgeConditionFieldChange);
     document.getElementById("workflowEdgeSaveBtn").addEventListener("click", saveWorkflowEdgePopover);
     document.getElementById("workflowEdgeDeleteBtn").addEventListener("click", deleteWorkflowEdgeFromPopover);
     document.getElementById("workflowEdgeCancelBtn").addEventListener("click", closeWorkflowEdgePopover);

@@ -654,7 +654,7 @@ export function renderColumn(project, col){
     e.preventDefault();
     var draggedTask = ui.draggedTaskId ? project.tasks[ui.draggedTaskId] : null;
     if(draggedTask && isWorkflowEnabled(project)){
-      var result = evaluateTransition(project, draggedTask.columnId, col.id);
+      var result = evaluateTransition(project, draggedTask, col.id);
       section.classList.remove('kf-dragover');
       section.classList.toggle('kf-dragover-allowed', result.allowed);
       section.classList.toggle('kf-dragover-blocked', !result.allowed);
@@ -678,7 +678,7 @@ export function renderColumn(project, col){
     if(!taskId) return;
     var draggedTask = project.tasks[taskId];
     if(draggedTask && isWorkflowEnabled(project)){
-      var result = evaluateTransition(project, draggedTask.columnId, col.id);
+      var result = evaluateTransition(project, draggedTask, col.id);
       if(!result.allowed){ _toast(result.message); return; }
     }
     var cards = Array.prototype.slice.call(tasksWrap.querySelectorAll('.kf-card'));

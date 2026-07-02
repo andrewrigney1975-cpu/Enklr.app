@@ -3,7 +3,7 @@ import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButton
 import { PRIORITY_META } from '../config.js';
 import { clampTaskScore, memberColorForIndex, isValidISODateString } from '../date-utils.js';
 import { getColumn, isValidTaskTypeIconName } from '../utils.js';
-import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue } from '../mutations.js';
+import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue, buildWorkflowEdgeFields } from '../mutations.js';
 
 var _toast = function(msg){ console.error(msg); };
 export function setImportToast(fn){ _toast = fn; }
@@ -140,6 +140,15 @@ export function buildProjectFromExportDoc(doc){
   var cyclesRemoved = sanitizeAcyclicGraph(flat);
 
   var columns = null;
+  /* Old export id -> newly-generated column id, for remapping
+     project.workflow's column references below (each import gets
+     fresh column ids, same as every other entity type here). Only
+     populated for columns sourced from doc.columns itself — the
+     name-only fallback path below has no ids to carry over, so any
+     workflow data just won't have anything to remap onto in that
+     case (an export from before columns carried ids, or a
+     hand-edited file). */
+  var columnOldIdToNewId = {};
   if(Array.isArray(doc.columns) && doc.columns.length > 0){
     var validCols = doc.columns
       .map(function(c, idx){
@@ -147,7 +156,7 @@ export function buildProjectFromExportDoc(doc){
         var name = (typeof c.name === 'string' && c.name.trim()) ? c.name.trim().slice(0,40) : null;
         if(!name) return null;
         var order = (typeof c.order === 'number' && isFinite(c.order)) ? c.order : idx;
-        return {name: name, done: !!c.done, order: order};
+        return {oldId: (typeof c.id === 'string' && c.id) ? c.id : null, name: name, done: !!c.done, order: order};
       })
       .filter(Boolean)
       .sort(function(a, b){ return a.order - b.order; });
@@ -160,7 +169,11 @@ export function buildProjectFromExportDoc(doc){
     });
 
     if(validCols.length > 0){
-      columns = validCols.map(function(c){ return makeColumn(c.name, c.done); });
+      columns = validCols.map(function(c){
+        var newCol = makeColumn(c.name, c.done);
+        if(c.oldId) columnOldIdToNewId[c.oldId] = newCol.id;
+        return newCol;
+      });
     }
   }
 
@@ -229,6 +242,44 @@ export function buildProjectFromExportDoc(doc){
     dateLastModified: (doc.project && typeof doc.project.dateLastModified === 'string') ? doc.project.dateLastModified : importedAt,
     dateLastExported: (doc.project && typeof doc.project.dateLastExported === 'string') ? doc.project.dateLastExported : null
   };
+
+  /* project.workflow is only set here when something in doc.workflow
+     actually survives remapping — an absent doc.workflow (older export,
+     or a project that never opened the editor) leaves project.workflow
+     unset entirely, and a doc.workflow whose every node/edge referenced
+     a column id that failed to remap does too, so ensureProjectWorkflow
+     still treats this as "never materialized" and seeds the normal
+     left-to-right default layout the first time the editor is opened,
+     rather than persisting a broken, permanently edge-less workflow. */
+  var unresolvedWorkflowNodes = 0, unresolvedWorkflowEdges = 0;
+  if(doc.workflow && typeof doc.workflow === 'object'){
+    var importedWfNodes = {};
+    if(doc.workflow.nodes && typeof doc.workflow.nodes === 'object'){
+      Object.keys(doc.workflow.nodes).forEach(function(oldColId){
+        var newColId = columnOldIdToNewId[oldColId];
+        if(!newColId){ unresolvedWorkflowNodes++; return; }
+        var pos = doc.workflow.nodes[oldColId];
+        importedWfNodes[newColId] = {
+          x: (pos && typeof pos.x === 'number' && isFinite(pos.x)) ? pos.x : 0,
+          y: (pos && typeof pos.y === 'number' && isFinite(pos.y)) ? pos.y : 0
+        };
+      });
+    }
+    var importedWfEdges = [];
+    if(Array.isArray(doc.workflow.edges)){
+      doc.workflow.edges.forEach(function(e){
+        if(!e || typeof e !== 'object') return;
+        var fromColumnId = columnOldIdToNewId[e.fromColumnId];
+        var toColumnId = columnOldIdToNewId[e.toColumnId];
+        if(!fromColumnId || !toColumnId || fromColumnId === toColumnId){ unresolvedWorkflowEdges++; return; }
+        var fields = buildWorkflowEdgeFields(e.type, e.message, e.condition);
+        importedWfEdges.push(Object.assign({id: uid('wfedge'), fromColumnId: fromColumnId, toColumnId: toColumnId}, fields));
+      });
+    }
+    if(Object.keys(importedWfNodes).length > 0 || importedWfEdges.length > 0){
+      project.workflow = {nodes: importedWfNodes, edges: importedWfEdges};
+    }
+  }
 
   var memberOldIdToNewId = {};
   var memberNameToNewId = {};
@@ -664,6 +715,8 @@ export function buildProjectFromExportDoc(doc){
     taskCount: Object.keys(project.tasks).length,
     columnCount: project.columns.length,
     memberCount: project.members.length,
+    unresolvedWorkflowNodes: unresolvedWorkflowNodes,
+    unresolvedWorkflowEdges: unresolvedWorkflowEdges,
     unresolvedDeps: unresolvedDeps,
     unresolvedAssignees: unresolvedAssignees,
     unresolvedReleases: unresolvedReleases,
@@ -823,8 +876,9 @@ export function finaliseImport(result, wasOverwrite){
     (result.unresolvedDecisionOwners || 0) + (result.unresolvedDecisionTasks || 0) + (result.unresolvedDecisionDocs || 0) + (result.unresolvedDecisionRisks || 0) +
     (result.unresolvedRiskPrinciples || 0) + (result.unresolvedRiskObjectives || 0) + (result.unresolvedObjectivePrinciples || 0) +
     (result.unresolvedDecisionPrinciples || 0) + (result.unresolvedDecisionObjectives || 0) +
-    (result.unresolvedTcParents || 0) + (result.unresolvedTcMembers || 0) + (result.unresolvedMemberReportsTo || 0);
-  if(unresolvedDocLinks > 0) msg += ' Skipped ' + unresolvedDocLinks + ' document/risk/decision/principle/objective/team reference(s) that could not be matched.';
+    (result.unresolvedTcParents || 0) + (result.unresolvedTcMembers || 0) + (result.unresolvedMemberReportsTo || 0) +
+    (result.unresolvedWorkflowNodes || 0) + (result.unresolvedWorkflowEdges || 0);
+  if(unresolvedDocLinks > 0) msg += ' Skipped ' + unresolvedDocLinks + ' document/risk/decision/principle/objective/team/workflow reference(s) that could not be matched.';
   _toast(msg);
 }
 

@@ -16,7 +16,7 @@ import { renderAll, renderBoard, setBoardDeps, closeTeamFilterPanel, closeAssign
 import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListOpen, renderTaskListBody, collapseAllTaskListGroups, expandAllTaskListGroups, exportTaskListAsCsv } from './views/task-list.js';
 import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, toggleDepMapShowArchived, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
 import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
-import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, updateWorkflowEdgePopoverMessageVisibility, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen } from './views/workflow-editor.js';
+import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, updateWorkflowEdgePopoverMessageVisibility, refreshWorkflowEdgeConditionControls, handleWorkflowEdgeConditionFieldChange, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen } from './views/workflow-editor.js';
 import { setTimelineDeps, openTimelineOverlay, closeTimelineOverlay, isTimelineOverlayOpen, toggleTimelineShowArchived, renderTimeline } from './views/timeline.js';
 import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenefitOverlay, isCostBenefitOverlayOpen, toggleCostBenefitShowArchived, setCbZoom, resetCbZoom, zoomCbAtPoint } from './views/cost-benefit.js';
 
@@ -637,6 +637,7 @@ function wireEvents(){
   document.getElementById('workflowModeSelectBtn').addEventListener('click', function(){ setWorkflowMode('select'); });
   document.getElementById('workflowModeAllowedBtn').addEventListener('click', function(){ setWorkflowMode('allowed'); });
   document.getElementById('workflowModeDisallowedBtn').addEventListener('click', function(){ setWorkflowMode('disallowed'); });
+  document.getElementById('workflowModeConditionalBtn').addEventListener('click', function(){ setWorkflowMode('conditional'); });
   document.getElementById('workflowZoomInBtn').addEventListener('click', function(){ setWorkflowZoom(0.1); });
   document.getElementById('workflowZoomOutBtn').addEventListener('click', function(){ setWorkflowZoom(-0.1); });
   document.getElementById('workflowResetBtn').addEventListener('click', resetWorkflowZoom);
@@ -659,7 +660,11 @@ function wireEvents(){
     if(e.target.id === 'workflowOverlay') closeWorkflowOverlay();
   });
   document.getElementById('workflowInner').addEventListener('click', handleWorkflowInnerClick);
-  document.getElementById('workflowEdgeTypeSelect').addEventListener('change', updateWorkflowEdgePopoverMessageVisibility);
+  document.getElementById('workflowEdgeTypeSelect').addEventListener('change', function(){
+    updateWorkflowEdgePopoverMessageVisibility();
+    refreshWorkflowEdgeConditionControls();
+  });
+  document.getElementById('workflowEdgeConditionFieldSelect').addEventListener('change', handleWorkflowEdgeConditionFieldChange);
   document.getElementById('workflowEdgeSaveBtn').addEventListener('click', saveWorkflowEdgePopover);
   document.getElementById('workflowEdgeDeleteBtn').addEventListener('click', deleteWorkflowEdgeFromPopover);
   document.getElementById('workflowEdgeCancelBtn').addEventListener('click', closeWorkflowEdgePopover);

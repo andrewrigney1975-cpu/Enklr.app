@@ -287,9 +287,24 @@ export function migrateDB(){
         });
         if(filteredWfEdges.length !== p.workflow.edges.length){ p.workflow.edges = filteredWfEdges; changed = true; }
         p.workflow.edges.forEach(function(e){
-          if(e.type !== 'allowed' && e.type !== 'disallowed'){ e.type = 'allowed'; changed = true; }
+          if(e.type !== 'allowed' && e.type !== 'disallowed' && e.type !== 'conditional'){ e.type = 'allowed'; changed = true; }
           if(e.message !== null && typeof e.message !== 'string'){ e.message = null; changed = true; }
           if(!e.id){ e.id = uid('wfedge'); changed = true; }
+          /* Structural check only (not against the live field/operator
+             vocabulary in workflow-engine.js, to avoid storage.js
+             depending on it) — a condition referencing a since-removed
+             field just evaluates as if the field were unset, it never
+             crashes, and any edit through the popover UI re-normalizes
+             it against the current vocabulary anyway. */
+          if(e.type === 'conditional'){
+            if(!e.condition || typeof e.condition !== 'object' || typeof e.condition.field !== 'string' || typeof e.condition.operator !== 'string'){
+              e.condition = {field: 'assigneeId', operator: 'is_set', value: null};
+              changed = true;
+            }
+          } else if(e.condition !== null && e.condition !== undefined){
+            e.condition = null;
+            changed = true;
+          }
         });
       }
     }

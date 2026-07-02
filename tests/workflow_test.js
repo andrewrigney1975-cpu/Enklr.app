@@ -15,9 +15,22 @@ function fakeDataTransfer(){
   };
 }
 
+class FakeFile { constructor(text){ this._text = text; } }
+function installFakeFileReader(window){
+  window.FileReader = class {
+    readAsText(f){ const s = this; setTimeout(() => { s.result = f._text; if (s.onload) s.onload(); }, 0); }
+  };
+}
+
 (async () => {
+  let lastBlobText = null;
   const dom = new JSDOM(html, { runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true });
   const { window } = dom;
+  installFakeFileReader(window);
+  window.URL.createObjectURL = () => 'blob://fake';
+  window.URL.revokeObjectURL = () => {};
+  const OrigBlob = window.Blob;
+  window.Blob = function(parts, opts){ lastBlobText = parts[0]; return new OrigBlob(parts, opts); };
   await wait(300);
   const doc = window.document;
   function log(label, ok, extra){ console.log((ok?'PASS':'FAIL') + ' - ' + label + (extra !== undefined ? ' :: ' + extra : '')); }
@@ -220,6 +233,224 @@ function fakeDataTransfer(){
 
   doc.getElementById('workflowClose').click();
   await wait(10);
+
+  /* ---- Curved connectors: edges render as cubic beziers with dot markers ---- */
+  doc.getElementById('workflowBtn').click();
+  await wait(20);
+  const samplePath = doc.querySelector('#workflowInner .kf-wfedge');
+  log('connector paths use a cubic bezier curve ("C"), not a straight line ("L")',
+      samplePath && samplePath.getAttribute('d').indexOf(' C ') !== -1 && samplePath.getAttribute('d').indexOf(' L ') === -1,
+      samplePath && samplePath.getAttribute('d'));
+  log('connectors carry both a start marker and an end marker (dot style)',
+      samplePath && !!samplePath.getAttribute('marker-start') && !!samplePath.getAttribute('marker-end'),
+      samplePath && (samplePath.getAttribute('marker-start') + ' / ' + samplePath.getAttribute('marker-end')));
+
+  /* ---- Conditional Allow: creating a connector, condition builder UI ---- */
+  doc.getElementById('workflowModeConditionalBtn').click();
+  await wait(10);
+  log('Draw Conditional mode button becomes active', doc.getElementById('workflowModeConditionalBtn').classList.contains('active'));
+
+  const todoNode2 = doc.querySelector('#workflowInner .kf-wfnode[data-column-id="' + todoCol.id + '"]');
+  const doneNode2 = doc.querySelector('#workflowInner .kf-wfnode[data-column-id="' + doneCol.id + '"]');
+  doc.elementFromPoint = function(){ return doneNode2; };
+  todoNode2.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, clientX: 50, clientY: 50, button: 0 }));
+  await wait(5);
+  doc.dispatchEvent(new window.MouseEvent('mousemove', { bubbles: true, clientX: 120, clientY: 60 }));
+  await wait(5);
+  doc.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true, clientX: 120, clientY: 60 }));
+  await wait(20);
+
+  proj = currentProject();
+  let todoToDone = proj.workflow.edges.find(e => e.fromColumnId === todoCol.id && e.toColumnId === doneCol.id);
+  log('releasing creates a Conditional Allow edge To Do -> Done', !!todoToDone && todoToDone.type === 'conditional', JSON.stringify(todoToDone));
+  log('the new edge gets the default condition (Assignee is set)',
+      todoToDone.condition && todoToDone.condition.field === 'assigneeId' && todoToDone.condition.operator === 'is_set', JSON.stringify(todoToDone.condition));
+  log('creating a Conditional connector auto-opens the popover', !doc.getElementById('workflowEdgePopover').classList.contains('hidden'));
+  log('popover shows Conditional Allow selected as the type', doc.getElementById('workflowEdgeTypeSelect').value === 'conditional');
+  log('the condition builder row is visible for a Conditional edge', !doc.getElementById('workflowEdgeConditionRow').classList.contains('hidden'));
+  log('the value field is hidden for "is set" (that operator needs no value)', doc.getElementById('workflowEdgeConditionValueField').classList.contains('hidden'));
+
+  doc.getElementById('workflowEdgeConditionFieldSelect').value = 'businessValue';
+  doc.getElementById('workflowEdgeConditionFieldSelect').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await wait(10);
+  const numericOps = Array.from(doc.querySelectorAll('#workflowEdgeConditionOperatorSelect option')).map(o => o.value);
+  log('switching to a numeric field (Business Value) repopulates operators with numeric comparisons',
+      numericOps.indexOf('greater_than') !== -1 && numericOps.indexOf('is_set') === -1, numericOps.join(','));
+  log('the value field becomes visible with a number input for a numeric field',
+      !doc.getElementById('workflowEdgeConditionValueField').classList.contains('hidden') &&
+      !doc.getElementById('workflowEdgeConditionValueInput').classList.contains('hidden') &&
+      doc.getElementById('workflowEdgeConditionValueInput').type === 'number');
+
+  doc.getElementById('workflowEdgeConditionFieldSelect').value = 'priority';
+  doc.getElementById('workflowEdgeConditionFieldSelect').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await wait(10);
+  log('switching to an enum field (Priority) shows a value <select> populated with priority options',
+      !doc.getElementById('workflowEdgeConditionValueSelect').classList.contains('hidden') &&
+      doc.getElementById('workflowEdgeConditionValueInput').classList.contains('hidden') &&
+      doc.querySelectorAll('#workflowEdgeConditionValueSelect option').length === 5);
+
+  doc.getElementById('workflowEdgeConditionFieldSelect').value = 'assigneeId';
+  doc.getElementById('workflowEdgeConditionFieldSelect').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await wait(10);
+  const conditionalMessage = 'Assign this task before it can move to Done.';
+  doc.getElementById('workflowEdgeMessageInput').value = conditionalMessage;
+  doc.getElementById('workflowEdgeSaveBtn').click();
+  await wait(10);
+  proj = currentProject();
+  let savedConditionalEdge = proj.workflow.edges.find(e => e.id === todoToDone.id);
+  log('saving persists the Assignee-is-set condition and the message',
+      savedConditionalEdge.condition.field === 'assigneeId' && savedConditionalEdge.condition.operator === 'is_set' && savedConditionalEdge.message === conditionalMessage,
+      JSON.stringify(savedConditionalEdge));
+
+  doc.getElementById('workflowClose').click();
+  await wait(10);
+
+  /* ---- Conditional Allow enforcement: fails while unassigned ---- */
+  proj = currentProject();
+  log('sanity check: t1 is still unassigned', !proj.tasks[t1.id].assigneeId);
+  let t1Card = doc.querySelector('.kf-card[data-task-id="' + t1.id + '"]');
+  let doneTasksWrap2 = doc.querySelector('.kf-tasks[data-column-id="' + doneCol.id + '"]');
+  let doneSection2 = doneTasksWrap2.closest('.kf-column');
+
+  const dtC1 = fakeDataTransfer();
+  const dragStartC1 = new window.Event('dragstart', { bubbles: true, cancelable: true });
+  dragStartC1.dataTransfer = dtC1;
+  t1Card.dispatchEvent(dragStartC1);
+  const dragOverC1 = new window.Event('dragover', { bubbles: true, cancelable: true });
+  dragOverC1.dataTransfer = dtC1;
+  doneTasksWrap2.dispatchEvent(dragOverC1);
+  await wait(5);
+  log('dragging an unassigned task along the "Assignee is set" Conditional edge is blocked (red)', doneSection2.classList.contains('kf-dragover-blocked'));
+  const conditionalBanner = doneSection2.querySelector('.kf-workflow-block-banner');
+  log('the banner shows the connector\'s configured message', conditionalBanner && conditionalBanner.textContent === conditionalMessage, conditionalBanner && conditionalBanner.textContent);
+
+  const dropC1 = new window.Event('drop', { bubbles: true, cancelable: true });
+  dropC1.dataTransfer = dtC1;
+  doneTasksWrap2.dispatchEvent(dropC1);
+  await wait(20);
+  log('the drop is rejected while the condition fails', currentProject().tasks[t1.id].columnId === todoCol.id);
+
+  /* ---- Edit Task Column dropdown reflects the same Conditional rule ---- */
+  t1Card = doc.querySelector('.kf-card[data-task-id="' + t1.id + '"]');
+  t1Card.click();
+  await wait(10);
+  let colOptionIds = Array.from(doc.querySelectorAll('#taskColumnSelect option')).map(o => o.value);
+  log('while unassigned, Done is excluded from the Column dropdown (condition currently fails)', colOptionIds.indexOf(doneCol.id) === -1, colOptionIds.join(','));
+
+  const assigneeOptions = Array.from(doc.querySelectorAll('#taskAssigneeSelect option'));
+  const firstRealAssignee = assigneeOptions.find(o => o.value);
+  doc.getElementById('taskAssigneeSelect').value = firstRealAssignee.value;
+  doc.getElementById('taskSaveBtn').click();
+  await wait(20);
+  log('the assignee was saved and the task stayed in To Do (column selection unchanged)',
+      currentProject().tasks[t1.id].assigneeId === firstRealAssignee.value && currentProject().tasks[t1.id].columnId === todoCol.id);
+
+  t1Card = doc.querySelector('.kf-card[data-task-id="' + t1.id + '"]');
+  t1Card.click();
+  await wait(10);
+  colOptionIds = Array.from(doc.querySelectorAll('#taskColumnSelect option')).map(o => o.value);
+  log('once assigned, Done is included in the Column dropdown (condition now passes)', colOptionIds.indexOf(doneCol.id) !== -1, colOptionIds.join(','));
+  doc.getElementById('taskColumnSelect').value = doneCol.id;
+  doc.getElementById('taskSaveBtn').click();
+  await wait(20);
+  log('saving the Column change via the modal succeeds once the condition passes', currentProject().tasks[t1.id].columnId === doneCol.id);
+
+  /* ---- Deleting a Conditional connector removes it (rule + connector together) ---- */
+  doc.getElementById('workflowBtn').click();
+  await wait(20);
+  doc.getElementById('workflowModeSelectBtn').click();
+  await wait(10);
+  const conditionalEdgeHit = doc.querySelector('#workflowInner .kf-wfedge-hit[data-edge-id="' + savedConditionalEdge.id + '"]');
+  conditionalEdgeHit.dispatchEvent(new window.Event('click', { bubbles: true }));
+  await wait(10);
+  log('clicking the Conditional edge reopens its popover, pre-filled',
+      !doc.getElementById('workflowEdgePopover').classList.contains('hidden') &&
+      doc.getElementById('workflowEdgeTypeSelect').value === 'conditional' &&
+      doc.getElementById('workflowEdgeConditionFieldSelect').value === 'assigneeId' &&
+      doc.getElementById('workflowEdgeMessageInput').value === conditionalMessage);
+  doc.getElementById('workflowEdgeDeleteBtn').click();
+  await wait(10);
+  proj = currentProject();
+  log('Delete removes the Conditional edge (rule + connector) from storage', !proj.workflow.edges.find(e => e.id === savedConditionalEdge.id));
+  log('the connector is gone from the SVG too', !doc.querySelector('#workflowInner .kf-wfedge-hit[data-edge-id="' + savedConditionalEdge.id + '"]'));
+
+  doc.getElementById('workflowClose').click();
+  await wait(10);
+
+  /* ---- Workflow customization round-trips through export/import ---- */
+  doc.getElementById('workflowBtn').click();
+  await wait(20);
+  doc.getElementById('workflowModeDisallowedBtn').click();
+  await wait(10);
+  const backlogNodeRT = doc.querySelector('#workflowInner .kf-wfnode[data-column-id="' + backlogCol.id + '"]');
+  const doneNodeRT = doc.querySelector('#workflowInner .kf-wfnode[data-column-id="' + doneCol.id + '"]');
+  doc.elementFromPoint = function(){ return doneNodeRT; };
+  backlogNodeRT.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, clientX: 10, clientY: 10, button: 0 }));
+  await wait(5);
+  doc.dispatchEvent(new window.MouseEvent('mousemove', { bubbles: true, clientX: 80, clientY: 20 }));
+  await wait(5);
+  doc.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true, clientX: 80, clientY: 20 }));
+  await wait(20);
+  const exportRoundTripMessage = 'Cannot skip straight to Done from Backlog.';
+  doc.getElementById('workflowEdgeMessageInput').value = exportRoundTripMessage;
+  doc.getElementById('workflowEdgeSaveBtn').click();
+  await wait(10);
+  doc.getElementById('workflowClose').click();
+  await wait(10);
+
+  proj = currentProject();
+  const originalWorkflowSnapshot = JSON.parse(JSON.stringify(proj.workflow));
+
+  doc.getElementById('exportBtn').click();
+  await wait(20);
+  const exportedDoc = JSON.parse(lastBlobText);
+  log('export includes a workflow field with nodes and edges', !!exportedDoc.workflow && !!exportedDoc.workflow.nodes && Array.isArray(exportedDoc.workflow.edges));
+  log('exported columns carry their id (needed to remap workflow references on re-import)',
+      exportedDoc.columns.every(c => typeof c.id === 'string' && !!c.id));
+  log('the exported workflow edge count matches the live project',
+      exportedDoc.workflow.edges.length === originalWorkflowSnapshot.edges.length,
+      exportedDoc.workflow.edges.length + ' vs ' + originalWorkflowSnapshot.edges.length);
+
+  const fileInput = doc.getElementById('importFileInput');
+  Object.defineProperty(fileInput, 'files', { value: [new FakeFile(lastBlobText)], configurable: true });
+  fileInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await wait(30);
+  if(!doc.getElementById('importConflictOverlay').classList.contains('hidden')){
+    doc.getElementById('importConflictCopyBtn').click();
+    await wait(20);
+  }
+  const importedProj = currentProject();
+  log('the imported project has its own workflow object (not shared/aliased with the original)',
+      !!importedProj.workflow && importedProj.workflow !== proj.workflow);
+  log('the imported workflow has the same number of nodes and edges as the original',
+      Object.keys(importedProj.workflow.nodes).length === Object.keys(originalWorkflowSnapshot.nodes).length &&
+      importedProj.workflow.edges.length === originalWorkflowSnapshot.edges.length,
+      Object.keys(importedProj.workflow.nodes).length + '/' + importedProj.workflow.edges.length);
+
+  const importedColumnIdByName = {};
+  importedProj.columns.forEach(c => { importedColumnIdByName[c.name] = c.id; });
+  const importedBacklogToDone = importedProj.workflow.edges.find(e =>
+    e.fromColumnId === importedColumnIdByName['Backlog'] && e.toColumnId === importedColumnIdByName['Done']);
+  log('the Disallowed Backlog -> Done edge round-tripped with its message, remapped to the new column ids',
+      !!importedBacklogToDone && importedBacklogToDone.type === 'disallowed' && importedBacklogToDone.message === exportRoundTripMessage,
+      JSON.stringify(importedBacklogToDone));
+
+  const importedToDoToInProgress = importedProj.workflow.edges.find(e =>
+    e.fromColumnId === importedColumnIdByName['To Do'] && e.toColumnId === importedColumnIdByName['In Progress']);
+  log('a plain default Allowed edge also round-tripped correctly', !!importedToDoToInProgress && importedToDoToInProgress.type === 'allowed');
+
+  log('imported node positions carry over for a column present in both exports (Backlog)',
+      !!importedProj.workflow.nodes[importedColumnIdByName['Backlog']] &&
+      importedProj.workflow.nodes[importedColumnIdByName['Backlog']].x === originalWorkflowSnapshot.nodes[backlogCol.id].x,
+      JSON.stringify(importedProj.workflow.nodes[importedColumnIdByName['Backlog']]));
+
+  /* Importing switched the active project to the new copy — switch back
+     to the original so every assertion below (which references its
+     column/task ids) keeps working. */
+  doc.getElementById('projectSelect').value = proj.id;
+  doc.getElementById('projectSelect').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await wait(20);
+  log('switched back to the original project for the remaining assertions', currentProject().id === proj.id);
 
   /* ---- Column deletion cleans up its workflow node + referencing edges ---- */
   const doneSection = doc.querySelector('.kf-column[data-column-id="' + doneCol.id + '"]');

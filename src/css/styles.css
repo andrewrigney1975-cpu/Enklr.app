@@ -3182,6 +3182,12 @@
     background: var(--kf-chip-active-bg);
   }
 
+  .kf-workflow-mode-btn-conditional.active,
+  .kf-workflow-mode-btn-conditional.active:hover {
+    background: var(--kf-overdue-fg);
+    color: var(--kf-overdue-bg);
+  }
+
   .kf-wfnode {
     cursor: grab;
   }
@@ -3212,7 +3218,10 @@
     margin-bottom: 10px;
   }
 
-  #workflowEdgeMessageField.hidden {
+  #workflowEdgeMessageField.hidden,
+  #workflowEdgeConditionRow.hidden,
+  #workflowEdgeConditionValueField.hidden,
+  #workflowEdgeConditionValueSelect.hidden {
     display: none;
   }
 

@@ -95,7 +95,7 @@ export function exportProjectJSON(project){
         dateLastModified: r.dateLastModified || null
       };
     }),
-    columns: project.columns.map(function(c, idx){ return {name: c.name, done: c.done, order: idx}; }),
+    columns: project.columns.map(function(c, idx){ return {id: c.id, name: c.name, done: c.done, order: idx}; }),
     taskTypes: (project.taskTypes || []).map(function(tt){ return {id: tt.id, name: tt.name, iconName: tt.iconName || null}; }),
     documents: (project.documents || []).map(function(d){
       var owner = getMemberById(project, d.ownerId);
@@ -196,6 +196,14 @@ export function exportProjectJSON(project){
     approvers: (project.approvers || []).slice(),
     roles: (project.roles || []).slice(),
     headerButtonVisibility: normalizeHeaderButtonVisibility(project.headerButtonVisibility),
+    /* Only present once the Workflow editor has been opened at least
+       once (see ensureProjectWorkflow in features/workflow-engine.js —
+       project.workflow is created lazily). Omitting it entirely for a
+       project that's never materialized one lets import.js tell "never
+       customized" apart from "customized down to zero nodes/edges",
+       so the same lazy default-topology seeding still kicks in on
+       first open after import. */
+    workflow: project.workflow ? {nodes: project.workflow.nodes, edges: project.workflow.edges} : null,
     hierarchy: hierarchy
   };
   var blob = new Blob([JSON.stringify(doc, null, 2)], {type:'application/json'});

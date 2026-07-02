@@ -445,6 +445,7 @@
           <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeSelectBtn" data-mode="select" title="Select, move, and edit nodes/connectors">Select</button>
           <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeAllowedBtn" data-mode="allowed" title="Drag from one column to another to mark the transition Allowed">Draw Allowed</button>
           <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeDisallowedBtn" data-mode="disallowed" title="Drag from one column to another to mark the transition Disallowed">Draw Disallowed</button>
+          <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn kf-workflow-mode-btn-conditional" id="workflowModeConditionalBtn" data-mode="conditional" title="Drag from one column to another to mark the transition Conditional Allow">Draw Conditional</button>
         </div>
         <div class="kf-header-divider-light"></div>
         <button class="kf-btn kf-btn-ghost" id="workflowZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="16"></span></button>
@@ -466,6 +467,7 @@
     <div class="kf-depmap-legend" id="workflowLegend">
       <span class="kf-legend-item"><span class="kf-legend-swatch" style="background:var(--kf-good-fg);"></span>Allowed transition</span>
       <span class="kf-legend-item"><span class="kf-legend-swatch" style="background:var(--kf-danger);"></span>Disallowed transition</span>
+      <span class="kf-legend-item"><span class="kf-legend-swatch" style="background:var(--kf-overdue-fg);"></span>Conditional Allow transition</span>
       <span class="kf-legend-item">Drag a column box to reposition it</span>
     </div>
     <div class="kf-depmap-scroll" id="workflowScroll">
@@ -482,7 +484,23 @@
     <select id="workflowEdgeTypeSelect">
       <option value="allowed">Allowed</option>
       <option value="disallowed">Disallowed</option>
+      <option value="conditional">Conditional Allow</option>
     </select>
+  </div>
+  <div class="kf-field-row hidden" id="workflowEdgeConditionRow">
+    <div class="kf-field">
+      <label for="workflowEdgeConditionFieldSelect">If</label>
+      <select id="workflowEdgeConditionFieldSelect"></select>
+    </div>
+    <div class="kf-field">
+      <label for="workflowEdgeConditionOperatorSelect">&nbsp;</label>
+      <select id="workflowEdgeConditionOperatorSelect"></select>
+    </div>
+  </div>
+  <div class="kf-field hidden" id="workflowEdgeConditionValueField">
+    <label for="workflowEdgeConditionValueInput">Value</label>
+    <select id="workflowEdgeConditionValueSelect" class="hidden"></select>
+    <input type="text" id="workflowEdgeConditionValueInput">
   </div>
   <div class="kf-field" id="workflowEdgeMessageField">
     <label for="workflowEdgeMessageInput">Message shown to the user <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(optional)</span></label>
