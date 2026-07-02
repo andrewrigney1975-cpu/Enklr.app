@@ -119,6 +119,7 @@
         <button type="button" class="kf-side-nav-item" id="navDepMapBtn" title="Dependency Map"><span class="kf-icon" data-icon="graph" data-size="18"></span><span class="kf-side-nav-text">Dependency Map</span></button>
         <button type="button" class="kf-side-nav-item" id="navCostBenefitBtn" title="Cost/Benefit Chart"><span class="kf-icon" data-icon="quadrant" data-size="18"></span><span class="kf-side-nav-text">Cost/Benefit Chart</span></button>
         <button type="button" class="kf-side-nav-item" id="navOrgChartBtn" title="Org Chart"><span class="kf-icon" data-icon="orgChart" data-size="18"></span><span class="kf-side-nav-text">Org Chart</span></button>
+        <button type="button" class="kf-side-nav-item" id="navWorkflowBtn" title="Workflow"><span class="kf-icon" data-icon="workflow" data-size="18"></span><span class="kf-side-nav-text">Workflow</span></button>
       </div>
       <div class="kf-side-nav-section">
         <div class="kf-side-nav-label">Tools</div>
@@ -178,6 +179,7 @@
       <button class="kf-btn kf-btn-secondary" id="depMapBtn"><span class="kf-icon" data-icon="graph" data-size="14"></span>Dependency Map</button>
       <button class="kf-btn kf-btn-secondary" id="costBenefitBtn"><span class="kf-icon" data-icon="quadrant" data-size="14"></span>Cost/Benefit Chart</button>
       <button class="kf-btn kf-btn-secondary" id="orgChartBtn"><span class="kf-icon" data-icon="orgChart" data-size="14"></span>Org Chart</button>
+      <button class="kf-btn kf-btn-secondary" id="workflowBtn"><span class="kf-icon" data-icon="workflow" data-size="14"></span>Workflow</button>
     </div>
     <div class="kf-toolbar-spacer"></div>
     <button class="kf-btn kf-btn-secondary" id="addColumnTopBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Column</button>
@@ -431,6 +433,66 @@
 <div class="kf-org-member-popover hidden" id="orgChartMemberPopover">
   <div class="kf-org-member-popover-title" id="orgChartMemberPopoverTitle"></div>
   <div class="kf-org-member-popover-list" id="orgChartMemberPopoverList"></div>
+</div>
+
+<!-- Workflow Editor Overlay -->
+<div class="kf-overlay hidden" id="workflowOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="workflowTitle">Workflow</h2>
+      <div class="kf-modal-header-actions">
+        <div class="kf-workflow-mode-group">
+          <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeSelectBtn" data-mode="select" title="Select, move, and edit nodes/connectors">Select</button>
+          <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeAllowedBtn" data-mode="allowed" title="Drag from one column to another to mark the transition Allowed">Draw Allowed</button>
+          <button class="kf-btn kf-btn-ghost kf-workflow-mode-btn" id="workflowModeDisallowedBtn" data-mode="disallowed" title="Drag from one column to another to mark the transition Disallowed">Draw Disallowed</button>
+        </div>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="workflowZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="16"></span></button>
+        <span id="workflowZoomLabel" class="kf-zoom-label">100%</span>
+        <button class="kf-btn kf-btn-ghost" id="workflowZoomInBtn" title="Zoom in"><span class="kf-icon" data-icon="zoomIn" data-size="16"></span></button>
+        <button class="kf-btn kf-btn-ghost" id="workflowResetBtn" title="Reset view"><span class="kf-icon" data-icon="fit" data-size="16"></span></button>
+        <div class="kf-header-divider-light"></div>
+        <div class="kf-export-as-wrap">
+          <button class="kf-btn kf-btn-ghost" id="workflowExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+          <div class="kf-export-as-panel hidden" id="workflowExportAsPanel">
+            <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+            <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+          </div>
+        </div>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="workflowClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-depmap-legend" id="workflowLegend">
+      <span class="kf-legend-item"><span class="kf-legend-swatch" style="background:var(--kf-good-fg);"></span>Allowed transition</span>
+      <span class="kf-legend-item"><span class="kf-legend-swatch" style="background:var(--kf-danger);"></span>Disallowed transition</span>
+      <span class="kf-legend-item">Drag a column box to reposition it</span>
+    </div>
+    <div class="kf-depmap-scroll" id="workflowScroll">
+      <div id="workflowInner" class="kf-depmap-inner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Workflow Edge Popover -->
+<div class="kf-org-member-popover kf-workflow-edge-popover hidden" id="workflowEdgePopover">
+  <div class="kf-org-member-popover-title" id="workflowEdgePopoverTitle">Transition</div>
+  <div class="kf-field">
+    <label for="workflowEdgeTypeSelect">Type</label>
+    <select id="workflowEdgeTypeSelect">
+      <option value="allowed">Allowed</option>
+      <option value="disallowed">Disallowed</option>
+    </select>
+  </div>
+  <div class="kf-field" id="workflowEdgeMessageField">
+    <label for="workflowEdgeMessageInput">Message shown to the user <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(optional)</span></label>
+    <textarea id="workflowEdgeMessageInput" maxlength="300" placeholder="e.g. This task must be reviewed before it can move to Done."></textarea>
+  </div>
+  <div class="kf-workflow-edge-popover-actions">
+    <button class="kf-btn kf-btn-danger" id="workflowEdgeDeleteBtn"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
+    <button class="kf-btn kf-btn-secondary" id="workflowEdgeCancelBtn">Cancel</button>
+    <button class="kf-btn kf-btn-primary" id="workflowEdgeSaveBtn">Save</button>
+  </div>
 </div>
 
 <!-- Timeline Overlay -->
@@ -1006,6 +1068,11 @@
           <input type="checkbox" id="settingsShowTeamsCommitteesBtn">
           <span class="kf-icon" data-icon="orgChart" data-size="14"></span>
           <span>Teams &amp; Committees</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowWorkflowBtn">
+          <span class="kf-icon" data-icon="workflow" data-size="14"></span>
+          <span>Workflow</span>
         </label>
       </div>
     </div>

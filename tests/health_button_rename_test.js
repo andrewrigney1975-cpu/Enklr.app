@@ -53,8 +53,8 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
   const settingsRows = Array.from(doc.querySelectorAll('#appSettingsOverlay .kf-risk-doc-picker-row'));
   const rowIds = settingsRows.map(r => r.querySelector('input').id);
-  log('App Settings order matches the current header button order (Health Dashboard, Principles, Objectives, Documents, Risks, Decisions, Teams & Committees)',
-      rowIds.join(',') === 'settingsShowHealthBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowDocumentsBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowTeamsCommitteesBtn',
+  log('App Settings order matches the current header button order (Health Dashboard, Principles, Objectives, Documents, Risks, Decisions, Teams & Committees, Workflow)',
+      rowIds.join(',') === 'settingsShowHealthBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowDocumentsBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowTeamsCommitteesBtn,settingsShowWorkflowBtn',
       rowIds.join(','));
 
   console.log('\nHealth button rename/reposition/icon test complete.');

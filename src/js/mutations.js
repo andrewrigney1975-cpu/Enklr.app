@@ -1,6 +1,7 @@
 "use strict";
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject } from './storage.js';
 import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY } from './utils.js';
+import { evaluateTransition } from './features/workflow-engine.js';
 import { clampTaskScore, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
 import { PRIORITY_META, RISK_STATUS_META, DECISION_TYPE_META, DECISION_STATUS_META, TEAM_COMMITTEE_TYPES } from './config.js';
 import { iconSvg } from './icons.js';
@@ -804,8 +805,62 @@ export function deleteColumn(project, columnId){
     if(t){ t.columnId = target.id; target.order.push(taskId); }
   });
   project.columns = project.columns.filter(function(c){ return c.id !== columnId; });
+  if(project.workflow){
+    delete project.workflow.nodes[columnId];
+    project.workflow.edges = project.workflow.edges.filter(function(e){
+      return e.fromColumnId !== columnId && e.toColumnId !== columnId;
+    });
+  }
   saveDB();
   return true;
+}
+
+/* =========================================================
+   WORKFLOW (state machine editor)
+   ========================================================= */
+export function setWorkflowNodePosition(project, columnId, x, y){
+  if(!project.workflow) return;
+  var node = project.workflow.nodes[columnId];
+  if(!node) return;
+  node.x = x;
+  node.y = y;
+  saveDB();
+}
+export function addWorkflowEdge(project, fromColumnId, toColumnId, type, message){
+  if(!project.workflow || fromColumnId === toColumnId) return null;
+  var normalizedType = type === 'disallowed' ? 'disallowed' : 'allowed';
+  var existing = project.workflow.edges.filter(function(e){
+    return e.fromColumnId === fromColumnId && e.toColumnId === toColumnId;
+  })[0];
+  if(existing){
+    existing.type = normalizedType;
+    existing.message = normalizedType === 'disallowed' ? ((message || '').trim().slice(0, 300) || null) : null;
+    saveDB();
+    return existing;
+  }
+  var edge = {
+    id: uid('wfedge'),
+    fromColumnId: fromColumnId,
+    toColumnId: toColumnId,
+    type: normalizedType,
+    message: normalizedType === 'disallowed' ? ((message || '').trim().slice(0, 300) || null) : null
+  };
+  project.workflow.edges.push(edge);
+  saveDB();
+  return edge;
+}
+export function updateWorkflowEdge(project, edgeId, type, message){
+  if(!project.workflow) return;
+  var edge = project.workflow.edges.filter(function(e){ return e.id === edgeId; })[0];
+  if(!edge) return;
+  edge.type = type === 'disallowed' ? 'disallowed' : 'allowed';
+  edge.message = edge.type === 'disallowed' ? ((message || '').trim().slice(0, 300) || null) : null;
+  saveDB();
+}
+export function deleteWorkflowEdge(project, edgeId){
+  if(!project.workflow) return;
+  project.workflow.edges = project.workflow.edges.filter(function(e){ return e.id !== edgeId; });
+  saveDB();
 }
 export function reorderColumns(project, draggedId, targetId){
   var fromIdx = project.columns.findIndex(function(c){ return c.id === draggedId; });
@@ -852,9 +907,16 @@ export function addTask(project, data){
   return t.id;
 }
 
+/* Returns null on success, or {allowed:false, message} if a workflow-
+   disallowed column change was rejected — the caller (saveTaskFromModal)
+   surfaces that message instead of "Task updated." In normal use this
+   is unreachable, since the Edit Task modal's Column dropdown is
+   already filtered to reachable columns (see getReachableColumnIds) —
+   this is a belt-and-suspenders guard for the second moveTaskToColumn
+   call site, not a primary UX surface. */
 export function updateTask(project, taskId, data){
   var t = project.tasks[taskId];
-  if(!t) return;
+  if(!t) return null;
   t.title = data.title;
   t.description = data.description || '';
   t.priority = data.priority || 'medium';
@@ -869,10 +931,14 @@ export function updateTask(project, taskId, data){
   t.taskCost = clampTaskScore(data.taskCost);
   t.archived = !!data.archived;
   t.dateLastModified = new Date().toISOString();
+  var blocked = null;
   if(data.columnId && data.columnId !== t.columnId){
-    moveTaskToColumn(project, taskId, data.columnId, -1);
+    var result = evaluateTransition(project, t.columnId, data.columnId);
+    if(result.allowed) moveTaskToColumn(project, taskId, data.columnId, -1);
+    else blocked = result;
   }
   saveDB();
+  return blocked;
 }
 
 export function deleteTask(project, taskId){

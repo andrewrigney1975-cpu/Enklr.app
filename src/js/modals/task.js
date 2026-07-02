@@ -8,6 +8,7 @@ import { PRIORITY_ORDER } from '../config.js';
 import { escapeHTML, renderBoard } from '../views/board.js';
 import { addTask, updateTask, deleteTask, normalizeDocumentationUrl } from '../mutations.js';
 import { confirmDialog } from './confirm.js';
+import { getReachableColumnIds } from '../features/workflow-engine.js';
 
 export function openTaskModal(taskId, defaultColumnId){
   var project = getCurrentProject();
@@ -43,11 +44,14 @@ export function openTaskModal(taskId, defaultColumnId){
 
   var colSelect = document.getElementById('taskColumnSelect');
   colSelect.innerHTML = '';
+  var currentColumnId = task ? task.columnId : ui.taskModalColumnId;
+  var reachableColumnIds = getReachableColumnIds(project, currentColumnId);
   project.columns.forEach(function(c){
+    if(!reachableColumnIds.has(c.id)) return;
     var opt = document.createElement('option');
     opt.value = c.id;
     opt.textContent = c.name;
-    if((task ? task.columnId : ui.taskModalColumnId) === c.id) opt.selected = true;
+    if(currentColumnId === c.id) opt.selected = true;
     colSelect.appendChild(opt);
   });
 
@@ -232,7 +236,8 @@ export function saveTaskFromModal(){
   }
 
   if(ui.editingTaskId){
-    updateTask(project, ui.editingTaskId, data);
+    var blocked = updateTask(project, ui.editingTaskId, data);
+    if(blocked){ toast(blocked.message); return; }
     toast('Task updated.');
   } else {
     addTask(project, data);

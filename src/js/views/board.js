@@ -11,6 +11,7 @@ import { getPriority } from '../ui.js';
 import { getTeamsCommitteesForMember } from '../mutations.js';
 import { reorderColumns, deleteColumn, moveTaskToColumn, updateTask, addTask, deleteTask } from '../mutations.js';
 import { getReleaseById } from '../utils.js';
+import { isWorkflowEnabled, evaluateTransition } from '../features/workflow-engine.js';
 
 export function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
@@ -39,7 +40,7 @@ export var HEADER_MOVABLE_NAV_ITEMS = [
 ];
 export function applyHeaderButtonVisibility(){
   var project = getCurrentProject();
-  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true, health:true, principles:true, objectives:true, teamsCommittees:true};
+  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true, health:true, principles:true, objectives:true, teamsCommittees:true, workflow:false};
   document.getElementById('healthBtn').classList.toggle('hidden', !visibility.health);
 
   var enabledItems = HEADER_MOVABLE_NAV_ITEMS.filter(function(item){ return visibility[item.key]; });
@@ -67,6 +68,8 @@ export function applyHeaderButtonVisibility(){
 
   document.getElementById('orgChartBtn').classList.toggle('kf-vis-hidden', !visibility.teamsCommittees);
   document.getElementById('navOrgChartBtn').classList.toggle('kf-vis-hidden', !visibility.teamsCommittees);
+  document.getElementById('workflowBtn').classList.toggle('kf-vis-hidden', !visibility.workflow);
+  document.getElementById('navWorkflowBtn').classList.toggle('kf-vis-hidden', !visibility.workflow);
 
   renderTeamFilterChips();
 }
@@ -82,6 +85,7 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowPrinciplesBtn').checked = visibility.principles;
   document.getElementById('settingsShowObjectivesBtn').checked = visibility.objectives;
   document.getElementById('settingsShowTeamsCommitteesBtn').checked = visibility.teamsCommittees;
+  document.getElementById('settingsShowWorkflowBtn').checked = visibility.workflow;
   document.getElementById('appSettingsOverlay').classList.remove('hidden');
 }
 export function closeAppSettingsOverlay(){
@@ -614,6 +618,9 @@ export function renderColumn(project, col){
     }
   });
 
+  var wfAlert = document.createElement('div');
+  wfAlert.className = 'kf-workflow-block-banner hidden';
+
   var tasksWrap = document.createElement('div');
   tasksWrap.className = 'kf-tasks';
   tasksWrap.setAttribute('data-column-id', col.id);
@@ -627,21 +634,53 @@ export function renderColumn(project, col){
     visibleCount++;
     tasksWrap.appendChild(renderCard(project, t));
   });
+  /* Appended into tasksWrap itself (absolutely positioned, see CSS)
+     rather than as a sibling before it — a sibling would push
+     tasksWrap's own box down when shown, moving it out from under the
+     cursor mid-drag, which triggers a spurious dragleave -> the
+     banner hides -> tasksWrap snaps back up -> dragover fires again,
+     an infinite flicker loop. Overlaying it inside tasksWrap instead
+     never changes tasksWrap's box, so the drag target stays put. */
+  tasksWrap.appendChild(wfAlert);
+
+  function clearWorkflowDragFeedback(){
+    section.classList.remove('kf-dragover', 'kf-dragover-allowed', 'kf-dragover-blocked');
+    wfAlert.classList.add('hidden');
+    wfAlert.textContent = '';
+  }
 
   tasksWrap.addEventListener('dragover', function(e){
     if(e.dataTransfer.types.indexOf('application/x-kf-task') === -1) return;
     e.preventDefault();
-    section.classList.add('kf-dragover');
+    var draggedTask = ui.draggedTaskId ? project.tasks[ui.draggedTaskId] : null;
+    if(draggedTask && isWorkflowEnabled(project)){
+      var result = evaluateTransition(project, draggedTask.columnId, col.id);
+      section.classList.remove('kf-dragover');
+      section.classList.toggle('kf-dragover-allowed', result.allowed);
+      section.classList.toggle('kf-dragover-blocked', !result.allowed);
+      wfAlert.textContent = result.allowed ? '' : result.message;
+      wfAlert.classList.toggle('hidden', result.allowed);
+      e.dataTransfer.dropEffect = result.allowed ? 'move' : 'none';
+    } else {
+      section.classList.remove('kf-dragover-allowed', 'kf-dragover-blocked');
+      section.classList.add('kf-dragover');
+      wfAlert.classList.add('hidden');
+    }
   });
   tasksWrap.addEventListener('dragleave', function(e){
-    section.classList.remove('kf-dragover');
+    clearWorkflowDragFeedback();
   });
   tasksWrap.addEventListener('drop', function(e){
     if(e.dataTransfer.types.indexOf('application/x-kf-task') === -1) return;
     e.preventDefault();
-    section.classList.remove('kf-dragover');
+    clearWorkflowDragFeedback();
     var taskId = e.dataTransfer.getData('application/x-kf-task');
     if(!taskId) return;
+    var draggedTask = project.tasks[taskId];
+    if(draggedTask && isWorkflowEnabled(project)){
+      var result = evaluateTransition(project, draggedTask.columnId, col.id);
+      if(!result.allowed){ _toast(result.message); return; }
+    }
     var cards = Array.prototype.slice.call(tasksWrap.querySelectorAll('.kf-card'));
     var dropIndex = cards.length;
     for(var i=0;i<cards.length;i++){

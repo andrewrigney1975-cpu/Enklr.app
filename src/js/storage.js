@@ -262,6 +262,37 @@ export function migrateDB(){
       if(!dec.dateCreated){ dec.dateCreated = epoch; changed = true; }
       if(!dec.dateLastModified){ dec.dateLastModified = dec.dateCreated || epoch; changed = true; }
     });
+
+    /* project.workflow is only ever created lazily (see
+       ensureProjectWorkflow in features/workflow-engine.js) — a
+       project that has never opened the Workflow editor has no
+       `workflow` key at all, which must stay that way here so first-
+       materialization can still be detected there. This block only
+       sanitizes shape and drops stale column references for projects
+       that already have one. */
+    if(p.workflow !== undefined){
+      if(!p.workflow || typeof p.workflow !== 'object'){
+        p.workflow = {nodes: {}, edges: []};
+        changed = true;
+      } else {
+        if(!p.workflow.nodes || typeof p.workflow.nodes !== 'object'){ p.workflow.nodes = {}; changed = true; }
+        if(!Array.isArray(p.workflow.edges)){ p.workflow.edges = []; changed = true; }
+        var validColumnIds = {};
+        p.columns.forEach(function(c){ validColumnIds[c.id] = true; });
+        Object.keys(p.workflow.nodes).forEach(function(colId){
+          if(!validColumnIds[colId]){ delete p.workflow.nodes[colId]; changed = true; }
+        });
+        var filteredWfEdges = p.workflow.edges.filter(function(e){
+          return e && validColumnIds[e.fromColumnId] && validColumnIds[e.toColumnId];
+        });
+        if(filteredWfEdges.length !== p.workflow.edges.length){ p.workflow.edges = filteredWfEdges; changed = true; }
+        p.workflow.edges.forEach(function(e){
+          if(e.type !== 'allowed' && e.type !== 'disallowed'){ e.type = 'allowed'; changed = true; }
+          if(e.message !== null && typeof e.message !== 'string'){ e.message = null; changed = true; }
+          if(!e.id){ e.id = uid('wfedge'); changed = true; }
+        });
+      }
+    }
   });
   if(changed) saveDB();
 }
@@ -291,7 +322,12 @@ export function normalizeHeaderButtonVisibility(value){
     health: v.health !== false,
     principles: v.principles !== false,
     objectives: v.objectives !== false,
-    teamsCommittees: v.teamsCommittees !== false
+    teamsCommittees: v.teamsCommittees !== false,
+    /* Opt-in, unlike every field above: turning this on newly
+       restricts drag-and-drop / Edit Task column choices, so a
+       corrupted or missing value must never silently start enforcing
+       transitions the user never configured. */
+    workflow: v.workflow === true
   };
 }
 

@@ -16,6 +16,7 @@ import { renderAll, renderBoard, setBoardDeps, closeTeamFilterPanel, closeAssign
 import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListOpen, renderTaskListBody, collapseAllTaskListGroups, expandAllTaskListGroups, exportTaskListAsCsv } from './views/task-list.js';
 import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, toggleDepMapShowArchived, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
 import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
+import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, updateWorkflowEdgePopoverMessageVisibility, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen } from './views/workflow-editor.js';
 import { setTimelineDeps, openTimelineOverlay, closeTimelineOverlay, isTimelineOverlayOpen, toggleTimelineShowArchived, renderTimeline } from './views/timeline.js';
 import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenefitOverlay, isCostBenefitOverlayOpen, toggleCostBenefitShowArchived, setCbZoom, resetCbZoom, zoomCbAtPoint } from './views/cost-benefit.js';
 
@@ -49,6 +50,7 @@ setBoardDeps({ toast, confirmDialog, openTaskModal, openColumnModal });
 setTaskListDeps({ toast, openTaskModal });
 setDepMapDeps({ toast, openTaskModal });
 setOrgChartDeps({ toast });
+setWorkflowEditorDeps({ toast });
 setTimelineDeps({ toast, openTaskModal });
 setCostBenefitDeps({ toast, openTaskModal });
 setBulkEditDeps({ confirmDialog, exportProjectJSON });
@@ -629,6 +631,52 @@ function wireEvents(){
     if(isOrgChartMemberPopoverOpen() && !e.target.closest('#orgChartMemberPopover') && !e.target.closest('.kf-orgnode')) closeOrgChartMemberPopover();
   });
 
+  document.getElementById('workflowBtn').addEventListener('click', openWorkflowOverlay);
+  document.getElementById('navWorkflowBtn').addEventListener('click', openWorkflowOverlay);
+  document.getElementById('workflowClose').addEventListener('click', closeWorkflowOverlay);
+  document.getElementById('workflowModeSelectBtn').addEventListener('click', function(){ setWorkflowMode('select'); });
+  document.getElementById('workflowModeAllowedBtn').addEventListener('click', function(){ setWorkflowMode('allowed'); });
+  document.getElementById('workflowModeDisallowedBtn').addEventListener('click', function(){ setWorkflowMode('disallowed'); });
+  document.getElementById('workflowZoomInBtn').addEventListener('click', function(){ setWorkflowZoom(0.1); });
+  document.getElementById('workflowZoomOutBtn').addEventListener('click', function(){ setWorkflowZoom(-0.1); });
+  document.getElementById('workflowResetBtn').addEventListener('click', resetWorkflowZoom);
+  document.getElementById('workflowExportAsBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    toggleExportAsPanel('workflowExportAsPanel');
+  });
+  document.querySelectorAll('#workflowExportAsPanel .kf-export-as-option').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      closeAllExportAsPanels();
+      var project = getCurrentProject();
+      var filenameBase = (project ? project.key : 'export') + '-workflow';
+      var svgEl = document.querySelector('#workflowInner svg');
+      if(!svgEl){ toast('Nothing to export.'); return; }
+      if(btn.getAttribute('data-export-type') === 'svg') exportSvgElementAsSvgFile(svgEl, filenameBase);
+      else exportSvgElementAsPng(svgEl, filenameBase, 4);
+    });
+  });
+  document.getElementById('workflowOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'workflowOverlay') closeWorkflowOverlay();
+  });
+  document.getElementById('workflowInner').addEventListener('click', handleWorkflowInnerClick);
+  document.getElementById('workflowEdgeTypeSelect').addEventListener('change', updateWorkflowEdgePopoverMessageVisibility);
+  document.getElementById('workflowEdgeSaveBtn').addEventListener('click', saveWorkflowEdgePopover);
+  document.getElementById('workflowEdgeDeleteBtn').addEventListener('click', deleteWorkflowEdgeFromPopover);
+  document.getElementById('workflowEdgeCancelBtn').addEventListener('click', closeWorkflowEdgePopover);
+  document.addEventListener('click', function(e){
+    if(isWorkflowEdgePopoverOpen() && !e.target.closest('#workflowEdgePopover') && !e.target.closest('.kf-wfedge-hit')) closeWorkflowEdgePopover();
+  });
+
+  var workflowScrollEl = document.getElementById('workflowScroll');
+  workflowScrollEl.addEventListener('wheel', function(e){
+    if(!lastWorkflowLayout) return;
+    e.preventDefault();
+    zoomWorkflowAtPoint(e.deltaY < 0 ? 0.12 : -0.12, e.clientX, e.clientY);
+  }, {passive: false});
+  workflowScrollEl.addEventListener('mousedown', handleWorkflowScrollMouseDown);
+  document.addEventListener('mousemove', handleWorkflowPointerMove);
+  document.addEventListener('mouseup', handleWorkflowPointerUp);
+
   document.getElementById('timelineBtn').addEventListener('click', openTimelineOverlay);
   document.getElementById('timelineClose').addEventListener('click', closeTimelineOverlay);
   document.getElementById('timelineOverlay').addEventListener('mousedown', function(e){
@@ -849,6 +897,9 @@ function wireEvents(){
   document.getElementById('settingsShowTeamsCommitteesBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('teamsCommittees', e.target.checked);
   });
+  document.getElementById('settingsShowWorkflowBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('workflow', e.target.checked);
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);
@@ -976,6 +1027,8 @@ function wireEvents(){
     else if(isDepMapOpen()) closeDepMapOverlay();
     else if(isOrgChartMemberPopoverOpen()) closeOrgChartMemberPopover();
     else if(isOrgChartOpen()) closeOrgChartOverlay();
+    else if(isWorkflowEdgePopoverOpen()) closeWorkflowEdgePopover();
+    else if(isWorkflowOverlayOpen()) closeWorkflowOverlay();
     else if(isTimelineOverlayOpen()) closeTimelineOverlay();
     else if(isCostBenefitOverlayOpen()) closeCostBenefitOverlay();
     else if(isTaskListOpen()) closeTaskListOverlay();

@@ -961,6 +961,43 @@
     background: var(--kf-column-bg-drag);
   }
 
+  .kf-column.kf-dragover-allowed {
+    border-color: var(--kf-good-fg);
+    background: var(--kf-good-bg);
+  }
+
+  .kf-column.kf-dragover-blocked {
+    border-color: var(--kf-danger);
+    background: var(--kf-danger-hover-bg);
+  }
+
+  /* Positioned absolutely within .kf-tasks (not a normal-flow sibling
+     before it) so showing/hiding it never changes .kf-tasks' own box
+     — see the comment in renderColumn() in board.js for why that
+     matters (a layout shift under the cursor mid-drag causes a
+     dragleave/dragover flicker loop). pointer-events:none keeps it
+     from ever becoming the drag event target itself. */
+  .kf-workflow-block-banner {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    right: 4px;
+    z-index: 3;
+    padding: 6px 8px;
+    border-radius: var(--kf-radius);
+    background: var(--kf-danger);
+    color: var(--kf-column-bg);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    box-shadow: var(--kf-shadow);
+    pointer-events: none;
+  }
+
+  .kf-workflow-block-banner.hidden {
+    display: none;
+  }
+
   .kf-column-header {
     display: flex;
     align-items: center;
@@ -1081,6 +1118,7 @@
   }
 
   .kf-tasks {
+    position: relative;
     flex: 1;
     overflow-y: auto;
     padding: 2px 8px 4px 8px;
@@ -3122,6 +3160,71 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+
+  /* Workflow editor */
+  .kf-workflow-mode-group {
+    display: flex;
+    gap: 2px;
+  }
+
+  .kf-workflow-mode-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .kf-workflow-mode-btn.active {
+    background: var(--kf-chip-active-bg);
+    color: #fff;
+  }
+
+  .kf-workflow-mode-btn.active:hover {
+    background: var(--kf-chip-active-bg);
+  }
+
+  .kf-wfnode {
+    cursor: grab;
+  }
+
+  .kf-wfnode:active {
+    cursor: grabbing;
+  }
+
+  .kf-wfnode rect.kf-wfnode-box {
+    transition: stroke .1s, stroke-width .1s;
+  }
+
+  .kf-wfnode:hover rect.kf-wfnode-box {
+    stroke: var(--kf-blue);
+    stroke-width: 2;
+  }
+
+  .kf-wfedge-hit {
+    cursor: pointer;
+  }
+
+  .kf-workflow-edge-popover {
+    width: 280px;
+    max-width: 90vw;
+  }
+
+  .kf-workflow-edge-popover .kf-field {
+    margin-bottom: 10px;
+  }
+
+  #workflowEdgeMessageField.hidden {
+    display: none;
+  }
+
+  .kf-workflow-edge-popover-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .kf-workflow-edge-popover-actions .kf-btn-secondary,
+  .kf-workflow-edge-popover-actions .kf-btn-primary {
+    margin-left: auto;
   }
 
   /* Document Map */
