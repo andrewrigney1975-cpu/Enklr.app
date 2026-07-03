@@ -21,6 +21,7 @@ export var WORKFLOW_DEFAULT_DENY_MESSAGE = 'This transition is not allowed in th
 export var WORKFLOW_NODE_W = 200;
 export var WORKFLOW_NODE_H = 70;
 export var WORKFLOW_GAP_X = 120;
+export var WORKFLOW_GAP_Y = 40;
 export var WORKFLOW_MARGIN = 40;
 
 export function isWorkflowEnabled(project){
@@ -79,6 +80,78 @@ export function findWorkflowEdge(project, fromColumnId, toColumnId){
   return project.workflow.edges.filter(function(e){
     return e.fromColumnId === fromColumnId && e.toColumnId === toColumnId;
   })[0] || null;
+}
+
+/* =========================================================
+   REFLOW — auto-layout heuristic for the visual editor
+   Crossing minimization is NP-hard in general; this is a greedy
+   interval-graph coloring (the same technique arc-diagram / lane-
+   assignment layouts use), not an optimal solver. Column order (x) is
+   always preserved exactly — Reflow only ever chooses which row (y) a
+   node sits on, moving a node off the main row only when some edge
+   that skips over it needs the room to route around it instead of
+   through it.
+   ========================================================= */
+export function computeReflowedLayout(project){
+  var rankById = {};
+  project.columns.forEach(function(col, idx){ rankById[col.id] = idx; });
+
+  /* Each edge becomes an interval over rank-space. Direction doesn't
+     matter for this — a backward edge (e.g. Done -> To Do) skips the
+     same intermediate columns a forward edge spanning the same ranks
+     would. Adjacent/self edges never need to detour, so they're
+     dropped before lane assignment. */
+  var edgeIntervals = (project.workflow ? project.workflow.edges : []).map(function(e){
+    var a = rankById[e.fromColumnId], b = rankById[e.toColumnId];
+    return {lo: Math.min(a, b), hi: Math.max(a, b)};
+  }).filter(function(iv){ return iv.hi - iv.lo > 1; });
+
+  /* Every interval here already skips over at least one column (that's
+     what the filter above guarantees), so every one of them needs a
+     detour lane — there's no "lane 0 means no detour" case. Widest
+     span first (most constrained), each edge takes the lowest detour
+     lane whose already-assigned intervals it doesn't overlap, so two
+     skip-edges only share a lane when their spans don't overlap. */
+  edgeIntervals.sort(function(a, b){ return (b.hi - b.lo) - (a.hi - a.lo); });
+  var lanes = [];
+  edgeIntervals.forEach(function(iv){
+    var lane = 0;
+    while(lanes[lane] && lanes[lane].some(function(o){ return iv.lo <= o.hi && o.lo <= iv.hi; })) lane++;
+    if(!lanes[lane]) lanes[lane] = [];
+    lanes[lane].push(iv);
+    iv.lane = lane;
+  });
+
+  /* Lane -> row: lane 0 is the first detour row, alternating above/below
+     the main row (row 0) as lanes increase, to balance space rather than
+     stacking every detour on one side. A node only leaves the main row
+     if some edge's span strictly covers its rank; processed widest-first,
+     so the first (most constrained) edge to reach a given node's rank
+     wins it — later/shorter edges just connect to wherever their
+     endpoints already ended up. edgePathD's existing side-attachment
+     routing needs no changes for that; it already handles nodes at
+     different y positions. */
+  var rowByColumnId = {};
+  project.columns.forEach(function(col){ rowByColumnId[col.id] = 0; });
+  edgeIntervals.forEach(function(iv){
+    var n = iv.lane + 1;
+    var row = Math.ceil(n / 2) * (n % 2 === 1 ? 1 : -1);
+    project.columns.forEach(function(col, idx){
+      if(idx > iv.lo && idx < iv.hi && rowByColumnId[col.id] === 0) rowByColumnId[col.id] = row;
+    });
+  });
+
+  var rows = project.columns.map(function(col){ return rowByColumnId[col.id]; });
+  var minRow = Math.min(0, rows.length ? Math.min.apply(null, rows) : 0);
+
+  var positions = {};
+  project.columns.forEach(function(col, idx){
+    positions[col.id] = {
+      x: WORKFLOW_MARGIN + idx * (WORKFLOW_NODE_W + WORKFLOW_GAP_X),
+      y: WORKFLOW_MARGIN + (rowByColumnId[col.id] - minRow) * (WORKFLOW_NODE_H + WORKFLOW_GAP_Y)
+    };
+  });
+  return positions;
 }
 
 /* =========================================================

@@ -2329,6 +2329,17 @@
     display: none;
   }
 
+  /* The confirm dialog can be triggered from inside another already-open
+     .kf-overlay (e.g. Reflow's "are you sure?" prompt while the Workflow
+     editor is open) — same-z-index siblings stack by DOM order, and
+     #confirmOverlay is declared earlier in index.html than most feature
+     modals, so without this it would render *behind* whichever modal
+     triggered it. Bumped above the base modal tier (1000) but below the
+     drawer/toast tier (1090+), which should always stay topmost. */
+  #confirmOverlay {
+    z-index: 1050;
+  }
+
   .kf-modal {
     background: var(--kf-surface);
     border-radius: 6px;
@@ -4032,6 +4043,7 @@
         <span id="workflowZoomLabel" class="kf-zoom-label">100%</span>
         <button class="kf-btn kf-btn-ghost" id="workflowZoomInBtn" title="Zoom in"><span class="kf-icon" data-icon="zoomIn" data-size="16"></span></button>
         <button class="kf-btn kf-btn-ghost" id="workflowResetBtn" title="Reset view"><span class="kf-icon" data-icon="fit" data-size="16"></span></button>
+        <button class="kf-btn kf-btn-ghost" id="workflowReflowBtn" title="Reflow layout to reduce connector overlap"><span class="kf-icon" data-icon="grid" data-size="16"></span>Reflow</button>
         <div class="kf-header-divider-light"></div>
         <div class="kf-export-as-wrap">
           <button class="kf-btn kf-btn-ghost" id="workflowExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
@@ -6395,6 +6407,7 @@ self.onmessage = function(e) {
   var WORKFLOW_NODE_W = 200;
   var WORKFLOW_NODE_H = 70;
   var WORKFLOW_GAP_X = 120;
+  var WORKFLOW_GAP_Y = 40;
   var WORKFLOW_MARGIN = 40;
   function isWorkflowEnabled(project) {
     if (!project) return false;
@@ -6437,6 +6450,54 @@ self.onmessage = function(e) {
     return project.workflow.edges.filter(function(e) {
       return e.fromColumnId === fromColumnId && e.toColumnId === toColumnId;
     })[0] || null;
+  }
+  function computeReflowedLayout(project) {
+    var rankById = {};
+    project.columns.forEach(function(col, idx) {
+      rankById[col.id] = idx;
+    });
+    var edgeIntervals = (project.workflow ? project.workflow.edges : []).map(function(e) {
+      var a = rankById[e.fromColumnId], b = rankById[e.toColumnId];
+      return { lo: Math.min(a, b), hi: Math.max(a, b) };
+    }).filter(function(iv) {
+      return iv.hi - iv.lo > 1;
+    });
+    edgeIntervals.sort(function(a, b) {
+      return b.hi - b.lo - (a.hi - a.lo);
+    });
+    var lanes = [];
+    edgeIntervals.forEach(function(iv) {
+      var lane = 0;
+      while (lanes[lane] && lanes[lane].some(function(o) {
+        return iv.lo <= o.hi && o.lo <= iv.hi;
+      })) lane++;
+      if (!lanes[lane]) lanes[lane] = [];
+      lanes[lane].push(iv);
+      iv.lane = lane;
+    });
+    var rowByColumnId = {};
+    project.columns.forEach(function(col) {
+      rowByColumnId[col.id] = 0;
+    });
+    edgeIntervals.forEach(function(iv) {
+      var n = iv.lane + 1;
+      var row = Math.ceil(n / 2) * (n % 2 === 1 ? 1 : -1);
+      project.columns.forEach(function(col, idx) {
+        if (idx > iv.lo && idx < iv.hi && rowByColumnId[col.id] === 0) rowByColumnId[col.id] = row;
+      });
+    });
+    var rows = project.columns.map(function(col) {
+      return rowByColumnId[col.id];
+    });
+    var minRow = Math.min(0, rows.length ? Math.min.apply(null, rows) : 0);
+    var positions = {};
+    project.columns.forEach(function(col, idx) {
+      positions[col.id] = {
+        x: WORKFLOW_MARGIN + idx * (WORKFLOW_NODE_W + WORKFLOW_GAP_X),
+        y: WORKFLOW_MARGIN + (rowByColumnId[col.id] - minRow) * (WORKFLOW_NODE_H + WORKFLOW_GAP_Y)
+      };
+    });
+    return positions;
   }
   var WORKFLOW_CONDITION_FIELDS = [
     { key: "assigneeId", label: "Assignee", valueKind: "presence" },
@@ -7311,6 +7372,14 @@ self.onmessage = function(e) {
     if (!node) return;
     node.x = x;
     node.y = y;
+    saveDB();
+  }
+  function reflowWorkflowLayout(project) {
+    if (!project.workflow) return;
+    var positions = computeReflowedLayout(project);
+    Object.keys(positions).forEach(function(colId) {
+      project.workflow.nodes[colId] = positions[colId];
+    });
     saveDB();
   }
   function normalizeWorkflowEdgeType(type) {
@@ -9161,8 +9230,12 @@ self.onmessage = function(e) {
   var _toast6 = function(msg) {
     console.error(msg);
   };
+  var _confirmDialog2 = function(title, msg, cb) {
+    if (window.confirm(title + "\n" + msg)) cb();
+  };
   function setWorkflowEditorDeps(deps) {
     if (deps.toast) _toast6 = deps.toast;
+    if (deps.confirmDialog) _confirmDialog2 = deps.confirmDialog;
   }
   var workflowEditorState = {
     scale: 1,
@@ -9348,6 +9421,18 @@ self.onmessage = function(e) {
     scroll.scrollLeft = fracX * newWidth - offsetX;
     scroll.scrollTop = fracY * newHeight - offsetY;
   }
+  function handleWorkflowReflow() {
+    var project = getCurrentProject();
+    if (!project || !project.workflow) return;
+    _confirmDialog2(
+      "Reflow this workflow?",
+      "Nodes will be rearranged into a clean grid to reduce connector overlap. Any custom positions you\u2019ve dragged will be replaced.",
+      function() {
+        reflowWorkflowLayout(project);
+        renderWorkflowEditor();
+      }
+    );
+  }
   function openWorkflowOverlay() {
     var project = getCurrentProject();
     if (!project) {
@@ -9503,6 +9588,11 @@ self.onmessage = function(e) {
         setWorkflowNodePosition(project, columnId, node.x, node.y);
       }
       renderWorkflowEditor();
+      if (workflowEditorState.dragMoved) {
+        setTimeout(function() {
+          workflowEditorState.dragMoved = false;
+        }, 50);
+      }
       return;
     }
     if (workflowEditorState.drawingFromColumnId) {
@@ -11298,13 +11388,13 @@ self.onmessage = function(e) {
     if (innerHTML !== void 0) el.innerHTML = innerHTML;
     return el;
   }
-  var _confirmDialog2 = function(title, msg, cb) {
+  var _confirmDialog3 = function(title, msg, cb) {
     if (window.confirm(title + "\n" + msg)) cb();
   };
   var _exportProjectJSON = function() {
   };
   function setBulkEditDeps(deps) {
-    if (deps.confirmDialog) _confirmDialog2 = deps.confirmDialog;
+    if (deps.confirmDialog) _confirmDialog3 = deps.confirmDialog;
     if (deps.exportProjectJSON) _exportProjectJSON = deps.exportProjectJSON;
   }
   var BULKEDIT_COLUMNS = [
@@ -11600,7 +11690,7 @@ self.onmessage = function(e) {
     renderBoard();
     toast("Updated " + changedCount + " task" + (changedCount === 1 ? "" : "s") + ".");
     if (changedCount > 0) {
-      _confirmDialog2(
+      _confirmDialog3(
         "Back up this project?",
         "You just made a bulk change to " + changedCount + " task" + (changedCount === 1 ? "" : "s") + ". Would you like to export a backup now?",
         function() {
@@ -14682,7 +14772,7 @@ self.onmessage = function(e) {
   setTaskListDeps({ toast, openTaskModal });
   setDepMapDeps({ toast, openTaskModal });
   setOrgChartDeps({ toast });
-  setWorkflowEditorDeps({ toast });
+  setWorkflowEditorDeps({ toast, confirmDialog });
   setTimelineDeps({ toast, openTaskModal });
   setCostBenefitDeps({ toast, openTaskModal });
   setBulkEditDeps({ confirmDialog, exportProjectJSON });
@@ -15304,6 +15394,7 @@ self.onmessage = function(e) {
       setWorkflowZoom(-0.1);
     });
     document.getElementById("workflowResetBtn").addEventListener("click", resetWorkflowZoom);
+    document.getElementById("workflowReflowBtn").addEventListener("click", handleWorkflowReflow);
     document.getElementById("workflowExportAsBtn").addEventListener("click", function(e) {
       e.stopPropagation();
       toggleExportAsPanel("workflowExportAsPanel");

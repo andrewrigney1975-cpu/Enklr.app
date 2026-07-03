@@ -2,14 +2,16 @@
 import { getCurrentProject } from '../store.js';
 import { iconSvg } from '../icons.js';
 import { ensureProjectWorkflow, WORKFLOW_NODE_W, WORKFLOW_NODE_H, WORKFLOW_MARGIN, WORKFLOW_CONDITION_FIELDS, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION, getWorkflowConditionField } from '../features/workflow-engine.js';
-import { setWorkflowNodePosition, addWorkflowEdge, updateWorkflowEdge, deleteWorkflowEdge } from '../mutations.js';
+import { setWorkflowNodePosition, addWorkflowEdge, updateWorkflowEdge, deleteWorkflowEdge, reflowWorkflowLayout } from '../mutations.js';
 
 function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 
 var _toast = function(msg){ console.error(msg); };
+var _confirmDialog = function(title, msg, cb){ if(window.confirm(title + '\n' + msg)) cb(); };
 export function setWorkflowEditorDeps(deps){
   if(deps.toast) _toast = deps.toast;
+  if(deps.confirmDialog) _confirmDialog = deps.confirmDialog;
 }
 
 /* =========================================================
@@ -238,6 +240,24 @@ export function zoomWorkflowAtPoint(deltaScale, clientX, clientY){
   scroll.scrollTop = fracY * newHeight - offsetY;
 }
 
+/* Rearranges every node into a clean, ordinality-preserving grid that
+   reduces how often connectors overlap unrelated nodes — see
+   computeReflowedLayout in features/workflow-engine.js for the
+   algorithm. Confirms first since it discards any custom positions
+   the user has dragged. */
+export function handleWorkflowReflow(){
+  var project = getCurrentProject();
+  if(!project || !project.workflow) return;
+  _confirmDialog(
+    'Reflow this workflow?',
+    'Nodes will be rearranged into a clean grid to reduce connector overlap. Any custom positions you’ve dragged will be replaced.',
+    function(){
+      reflowWorkflowLayout(project);
+      renderWorkflowEditor();
+    }
+  );
+}
+
 export function openWorkflowOverlay(){
   var project = getCurrentProject();
   if(!project){ _toast('No project selected.'); return; }
@@ -402,6 +422,16 @@ export function handleWorkflowPointerUp(e){
       setWorkflowNodePosition(project, columnId, node.x, node.y);
     }
     renderWorkflowEditor();
+    /* dragMoved stays true through the synthetic 'click' this mouseup
+       is about to trigger (so a drag that happens to release over a
+       connector doesn't also pop its properties open), then clears on
+       a delay — mirrors ui.dragWasMove's card-drag-vs-click guard in
+       views/board.js. Without this reset, dragMoved stuck true forever
+       after the first node drag, silently blocking every future
+       connector click for the rest of the session. */
+    if(workflowEditorState.dragMoved){
+      setTimeout(function(){ workflowEditorState.dragMoved = false; }, 50);
+    }
     return;
   }
   if(workflowEditorState.drawingFromColumnId){

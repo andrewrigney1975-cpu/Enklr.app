@@ -452,6 +452,72 @@ function installFakeFileReader(window){
   await wait(20);
   log('switched back to the original project for the remaining assertions', currentProject().id === proj.id);
 
+  /* ---- Reflow: rearranges nodes to reduce connector overlap ---- */
+  doc.getElementById('workflowBtn').click();
+  await wait(20);
+
+  proj = currentProject();
+  const beforeCancelNodes = JSON.parse(JSON.stringify(proj.workflow.nodes));
+  doc.getElementById('workflowReflowBtn').click();
+  await wait(10);
+  log('clicking Reflow opens a confirm dialog before changing anything', !doc.getElementById('confirmOverlay').classList.contains('hidden'));
+  const confirmZ = parseInt(window.getComputedStyle(doc.getElementById('confirmOverlay')).zIndex, 10);
+  const workflowZ = parseInt(window.getComputedStyle(doc.getElementById('workflowOverlay')).zIndex, 10);
+  log('the confirm dialog stacks above the still-open Workflow editor (z-index)', confirmZ > workflowZ, confirmZ + ' vs ' + workflowZ);
+  doc.getElementById('confirmCancelBtn').click();
+  await wait(10);
+  log('canceling the confirm leaves node positions untouched',
+      JSON.stringify(currentProject().workflow.nodes) === JSON.stringify(beforeCancelNodes));
+
+  doc.getElementById('workflowReflowBtn').click();
+  await wait(10);
+  doc.getElementById('confirmOkBtn').click();
+  await wait(20);
+
+  proj = currentProject();
+  const backlogPos = proj.workflow.nodes[backlogCol.id];
+  const todoPos = proj.workflow.nodes[todoCol.id];
+  const progressPos = proj.workflow.nodes[progressCol.id];
+  const donePos = proj.workflow.nodes[doneCol.id];
+  log('Reflow preserves left-to-right column order (x strictly increasing, Backlog < To Do < In Progress < Done)',
+      backlogPos.x < todoPos.x && todoPos.x < progressPos.x && progressPos.x < donePos.x,
+      [backlogPos.x, todoPos.x, progressPos.x, donePos.x].join(','));
+  log('the columns skipped by the Backlog -> Done connector move to a different row than Backlog/Done',
+      todoPos.y !== backlogPos.y && progressPos.y !== backlogPos.y && backlogPos.y === donePos.y,
+      JSON.stringify({backlog: backlogPos.y, todo: todoPos.y, progress: progressPos.y, done: donePos.y}));
+  log('the two skipped columns land on the same detour row as each other', todoPos.y === progressPos.y);
+
+  const afterFirstReflow = JSON.parse(JSON.stringify(proj.workflow.nodes));
+  doc.getElementById('workflowReflowBtn').click();
+  await wait(10);
+  doc.getElementById('confirmOkBtn').click();
+  await wait(20);
+  log('Reflow is idempotent — running it again produces the same positions',
+      JSON.stringify(currentProject().workflow.nodes) === JSON.stringify(afterFirstReflow));
+
+  /* ---- Regression: clicking a connector still works after dragging a node ---- */
+  doc.getElementById('workflowModeSelectBtn').click();
+  await wait(10);
+  proj = currentProject();
+  const dragTargetNode = doc.querySelector('#workflowInner .kf-wfnode[data-column-id="' + todoCol.id + '"]');
+  dragTargetNode.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, clientX: 200, clientY: 200, button: 0 }));
+  await wait(5);
+  doc.dispatchEvent(new window.MouseEvent('mousemove', { bubbles: true, clientX: 260, clientY: 240 }));
+  await wait(5);
+  doc.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true, clientX: 260, clientY: 240 }));
+  await wait(60); // past the dragMoved reset delay
+
+  const anyEdgeHit = doc.querySelector('#workflowInner .kf-wfedge-hit');
+  anyEdgeHit.dispatchEvent(new window.Event('click', { bubbles: true }));
+  await wait(10);
+  log('clicking a connector still opens its popover after a node has been dragged',
+      !doc.getElementById('workflowEdgePopover').classList.contains('hidden'));
+  doc.getElementById('workflowEdgeCancelBtn').click();
+  await wait(10);
+
+  doc.getElementById('workflowClose').click();
+  await wait(10);
+
   /* ---- Column deletion cleans up its workflow node + referencing edges ---- */
   const doneSection = doc.querySelector('.kf-column[data-column-id="' + doneCol.id + '"]');
   const doneDeleteBtn = doneSection.querySelector('.kf-column-actions button[title="Delete column"]');

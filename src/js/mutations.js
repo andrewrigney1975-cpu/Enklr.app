@@ -1,7 +1,7 @@
 "use strict";
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject } from './storage.js';
 import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY } from './utils.js';
-import { evaluateTransition, getWorkflowConditionField, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION } from './features/workflow-engine.js';
+import { evaluateTransition, getWorkflowConditionField, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION, computeReflowedLayout } from './features/workflow-engine.js';
 import { clampTaskScore, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
 import { PRIORITY_META, RISK_STATUS_META, DECISION_TYPE_META, DECISION_STATUS_META, TEAM_COMMITTEE_TYPES } from './config.js';
 import { iconSvg } from './icons.js';
@@ -824,6 +824,12 @@ export function setWorkflowNodePosition(project, columnId, x, y){
   if(!node) return;
   node.x = x;
   node.y = y;
+  saveDB();
+}
+export function reflowWorkflowLayout(project){
+  if(!project.workflow) return;
+  var positions = computeReflowedLayout(project);
+  Object.keys(positions).forEach(function(colId){ project.workflow.nodes[colId] = positions[colId]; });
   saveDB();
 }
 function normalizeWorkflowEdgeType(type){

@@ -16,7 +16,7 @@ import { renderAll, renderBoard, setBoardDeps, closeTeamFilterPanel, closeAssign
 import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListOpen, renderTaskListBody, collapseAllTaskListGroups, expandAllTaskListGroups, exportTaskListAsCsv } from './views/task-list.js';
 import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, toggleDepMapShowArchived, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
 import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
-import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, updateWorkflowEdgePopoverMessageVisibility, refreshWorkflowEdgeConditionControls, handleWorkflowEdgeConditionFieldChange, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen } from './views/workflow-editor.js';
+import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, handleWorkflowReflow, updateWorkflowEdgePopoverMessageVisibility, refreshWorkflowEdgeConditionControls, handleWorkflowEdgeConditionFieldChange, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen } from './views/workflow-editor.js';
 import { setTimelineDeps, openTimelineOverlay, closeTimelineOverlay, isTimelineOverlayOpen, toggleTimelineShowArchived, renderTimeline } from './views/timeline.js';
 import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenefitOverlay, isCostBenefitOverlayOpen, toggleCostBenefitShowArchived, setCbZoom, resetCbZoom, zoomCbAtPoint } from './views/cost-benefit.js';
 
@@ -50,7 +50,7 @@ setBoardDeps({ toast, confirmDialog, openTaskModal, openColumnModal });
 setTaskListDeps({ toast, openTaskModal });
 setDepMapDeps({ toast, openTaskModal });
 setOrgChartDeps({ toast });
-setWorkflowEditorDeps({ toast });
+setWorkflowEditorDeps({ toast, confirmDialog });
 setTimelineDeps({ toast, openTaskModal });
 setCostBenefitDeps({ toast, openTaskModal });
 setBulkEditDeps({ confirmDialog, exportProjectJSON });
@@ -641,6 +641,7 @@ function wireEvents(){
   document.getElementById('workflowZoomInBtn').addEventListener('click', function(){ setWorkflowZoom(0.1); });
   document.getElementById('workflowZoomOutBtn').addEventListener('click', function(){ setWorkflowZoom(-0.1); });
   document.getElementById('workflowResetBtn').addEventListener('click', resetWorkflowZoom);
+  document.getElementById('workflowReflowBtn').addEventListener('click', handleWorkflowReflow);
   document.getElementById('workflowExportAsBtn').addEventListener('click', function(e){
     e.stopPropagation();
     toggleExportAsPanel('workflowExportAsPanel');

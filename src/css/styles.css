@@ -2294,6 +2294,17 @@
     display: none;
   }
 
+  /* The confirm dialog can be triggered from inside another already-open
+     .kf-overlay (e.g. Reflow's "are you sure?" prompt while the Workflow
+     editor is open) — same-z-index siblings stack by DOM order, and
+     #confirmOverlay is declared earlier in index.html than most feature
+     modals, so without this it would render *behind* whichever modal
+     triggered it. Bumped above the base modal tier (1000) but below the
+     drawer/toast tier (1090+), which should always stay topmost. */
+  #confirmOverlay {
+    z-index: 1050;
+  }
+
   .kf-modal {
     background: var(--kf-surface);
     border-radius: 6px;
