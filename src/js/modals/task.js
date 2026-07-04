@@ -14,11 +14,11 @@ import { openSetPrivateKeyModal } from './private-key-set.js';
 import { openUnlockPrivateTaskModal } from './private-key-unlock.js';
 
 /* Toggles between the full editable form and the "private, no key
-   given" reduced view (title only, read-only, no Save). */
+   given" reduced view (title only, read-only, no Save/Delete). */
 function showTaskFullFields(show){
   document.getElementById('taskFullFields').classList.toggle('hidden', !show);
   document.getElementById('taskPrivateReducedView').classList.toggle('hidden', show);
-  document.getElementById('taskSaveBtn').classList.toggle('hidden', !show);
+  document.getElementById('taskSaveBtn').classList.toggle('kf-vis-hidden', !show);
 }
 
 export function openTaskModal(taskId, defaultColumnId){
@@ -41,7 +41,7 @@ export function openTaskModal(taskId, defaultColumnId){
         showTaskFullFields(false);
         document.getElementById('taskModalTitle').textContent = 'Edit ' + task.key;
         document.getElementById('taskPrivateReducedTitle').textContent = task.title;
-        document.getElementById('taskDeleteBtn').classList.remove('kf-vis-hidden');
+        document.getElementById('taskDeleteBtn').classList.add('kf-vis-hidden');
         document.getElementById('taskOverlay').classList.remove('hidden');
       } else { // 'unlocked'
         ui.taskModalUnlockedDerivedBits = result.derivedBits;
