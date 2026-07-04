@@ -2,7 +2,7 @@
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject } from './storage.js';
 import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY } from './utils.js';
 import { evaluateTransition, getWorkflowConditionField, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION, computeReflowedLayout } from './features/workflow-engine.js';
-import { clampTaskScore, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
+import { clampTaskScore, clampProgress, clampEffortHours, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
 import { PRIORITY_META, RISK_STATUS_META, DECISION_TYPE_META, DECISION_STATUS_META, TEAM_COMMITTEE_TYPES } from './config.js';
 import { iconSvg } from './icons.js';
 
@@ -931,6 +931,9 @@ export function addTask(project, data){
     endDate: data.endDate || localDateValueToUTCISO(defaultEndDateValue()),
     businessValue: clampTaskScore(data.businessValue),
     taskCost: clampTaskScore(data.taskCost),
+    progress: clampProgress(data.progress),
+    estimatedEffort: clampEffortHours(data.estimatedEffort),
+    actualEffort: clampEffortHours(data.actualEffort),
     archived: !!data.archived,
     isPrivate: !!data.isPrivate,
     privateSalt: data.privateSalt || null,
@@ -968,6 +971,9 @@ export function updateTask(project, taskId, data){
   t.endDate = data.endDate || null;
   t.businessValue = clampTaskScore(data.businessValue);
   t.taskCost = clampTaskScore(data.taskCost);
+  t.progress = clampProgress(data.progress);
+  t.estimatedEffort = clampEffortHours(data.estimatedEffort);
+  t.actualEffort = clampEffortHours(data.actualEffort);
   t.archived = !!data.archived;
   t.isPrivate = !!data.isPrivate;
   t.privateSalt = data.privateSalt || null;

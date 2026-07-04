@@ -270,6 +270,22 @@
           <input type="date" id="taskEndDateInput">
         </div>
       </div>
+      <div id="taskTimeTrackingFields">
+        <div class="kf-field">
+          <label for="taskProgressInput">Progress <span id="taskProgressValueLabel" style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">0%</span></label>
+          <input type="range" id="taskProgressInput" min="0" max="100" step="1" value="0">
+        </div>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="taskEstEffortInput">Estimated effort <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(hours)</span></label>
+            <input type="number" id="taskEstEffortInput" min="0" step="any">
+          </div>
+          <div class="kf-field">
+            <label for="taskActualEffortInput">Actual effort <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(hours)</span></label>
+            <input type="number" id="taskActualEffortInput" min="0" step="any">
+          </div>
+        </div>
+      </div>
       <div class="kf-field-row">
         <div class="kf-field">
           <label for="taskBusinessValueInput">Business value <span style="font-weight:400;text-transform:none;color:var(--kf-text-faint);">(1–1000)</span></label>
@@ -1220,6 +1236,11 @@
           <input type="checkbox" id="settingsShowWorkflowBtn">
           <span class="kf-icon" data-icon="workflow" data-size="14"></span>
           <span>Workflow</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowTimeTrackingBtn">
+          <span class="kf-icon" data-icon="stopwatch" data-size="14"></span>
+          <span>Time Tracking and Progress</span>
         </label>
       </div>
     </div>

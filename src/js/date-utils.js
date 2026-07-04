@@ -1,6 +1,6 @@
 "use strict";
 
-import { TASK_SCORE_MIN, TASK_SCORE_MAX, MEMBER_PALETTE } from './config.js';
+import { TASK_SCORE_MIN, TASK_SCORE_MAX, TASK_PROGRESS_MIN, TASK_PROGRESS_MAX, MEMBER_PALETTE } from './config.js';
 
 export function pad2(n){ return n < 10 ? '0' + n : '' + n; }
 
@@ -60,6 +60,25 @@ export function clampTaskScore(value){
   if(n < TASK_SCORE_MIN) return TASK_SCORE_MIN;
   if(n > TASK_SCORE_MAX) return TASK_SCORE_MAX;
   return n;
+}
+
+/* Progress is an integer percentage clamped to [0, 100]. Anything
+   missing or non-numeric falls back to 0 (not yet started). */
+export function clampProgress(value){
+  var n = Math.round(Number(value));
+  if(!isFinite(n)) return TASK_PROGRESS_MIN;
+  if(n < TASK_PROGRESS_MIN) return TASK_PROGRESS_MIN;
+  if(n > TASK_PROGRESS_MAX) return TASK_PROGRESS_MAX;
+  return n;
+}
+
+/* Effort hours are decimal and non-negative, rounded to 2dp to avoid
+   float drift. Anything missing, non-numeric, or negative falls back
+   to 0 (not yet estimated/logged). */
+export function clampEffortHours(value){
+  var n = Number(value);
+  if(!isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100) / 100;
 }
 
 export function memberColorForIndex(i){

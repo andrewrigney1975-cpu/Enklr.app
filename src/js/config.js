@@ -8,7 +8,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-export var APP_VERSION = '1.57.20260704.1608';
+export var APP_VERSION = '1.58.20260704.1659';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -28,6 +28,7 @@ export var ICON_PATHS = {
   chevronRight: '<path d="M9 6l6 6-6 6"/>',
   warning:     '<path d="M10.29 3.86l-8.18 14.18A1.5 1.5 0 0 0 3.4 20h17.2a1.5 1.5 0 0 0 1.29-2.26L13.71 3.86a1.5 1.5 0 0 0-2.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   clock:       '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  stopwatch:   '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5"/><path d="M9 2h6"/><path d="M12 3.5v1.5"/><path d="M17.5 5.5l1 1"/>',
   search:      '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
   board:       '<rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="10" rx="1"/><rect x="16" y="4" width="5" height="13" rx="1"/>',
   p_critical:  '<path d="M6 16l6-6 6 6"/><path d="M6 10l6-6 6 6"/>',
@@ -144,6 +145,8 @@ export var MOBILE_BREAKPOINT = 1024;
    ========================================================= */
 export var TASK_SCORE_MIN = 1;
 export var TASK_SCORE_MAX = 1000;
+export var TASK_PROGRESS_MIN = 0;
+export var TASK_PROGRESS_MAX = 100;
 
 /* =========================================================
    MEMBER PALETTE

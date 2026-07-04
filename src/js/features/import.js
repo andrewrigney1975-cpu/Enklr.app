@@ -1,7 +1,7 @@
 "use strict";
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility } from '../storage.js';
 import { PRIORITY_META } from '../config.js';
-import { clampTaskScore, memberColorForIndex, isValidISODateString } from '../date-utils.js';
+import { clampTaskScore, clampProgress, clampEffortHours, memberColorForIndex, isValidISODateString } from '../date-utils.js';
 import { getColumn, isValidTaskTypeIconName } from '../utils.js';
 import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue, buildWorkflowEdgeFields } from '../mutations.js';
 
@@ -59,6 +59,9 @@ export function flattenImportedHierarchy(nodes, out){
         endDate: isValidISODateString(n.endDate) ? n.endDate : null,
         businessValue: n.businessValue,
         taskCost: n.taskCost,
+        progress: n.progress,
+        estimatedEffort: n.estimatedEffort,
+        actualEffort: n.actualEffort,
         archived: n.archived === true,
         isPrivate: n.isPrivate === true,
         privateSalt: typeof n.privateSalt === 'string' ? n.privateSalt.slice(0,64) : null,
@@ -416,6 +419,9 @@ export function buildProjectFromExportDoc(doc){
       endDate: t.endDate || null,
       businessValue: clampTaskScore(t.businessValue),
       taskCost: clampTaskScore(t.taskCost),
+      progress: clampProgress(t.progress),
+      estimatedEffort: clampEffortHours(t.estimatedEffort),
+      actualEffort: clampEffortHours(t.actualEffort),
       archived: !!t.archived,
       isPrivate: t.isPrivate,
       privateSalt: t.privateSalt,

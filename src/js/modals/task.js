@@ -2,11 +2,12 @@
 import { ui, toast, getPriority } from '../ui.js';
 import { getCurrentProject } from '../store.js';
 import { getTasksArray, getDescendants, wouldCreateCycle } from '../utils.js';
-import { clampTaskScore, utcISOToLocalDateValue, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue } from '../date-utils.js';
+import { clampTaskScore, clampProgress, clampEffortHours, utcISOToLocalDateValue, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue } from '../date-utils.js';
 import { iconSvg } from '../icons.js';
 import { PRIORITY_ORDER } from '../config.js';
 import { escapeHTML, renderBoard } from '../views/board.js';
 import { addTask, updateTask, deleteTask, normalizeDocumentationUrl } from '../mutations.js';
+import { normalizeHeaderButtonVisibility } from '../storage.js';
 import { confirmDialog } from './confirm.js';
 import { getReachableColumnIds } from '../features/workflow-engine.js';
 import { encryptText } from '../features/crypto.js';
@@ -140,6 +141,13 @@ function populateFullForm(project, task, descriptionValue){
 
   document.getElementById('taskStartDateInput').value = task ? utcISOToLocalDateValue(task.startDate) : defaultStartDateValue();
   document.getElementById('taskEndDateInput').value = task ? utcISOToLocalDateValue(task.endDate) : defaultEndDateValue();
+  var progressValue = task ? clampProgress(task.progress) : 0;
+  document.getElementById('taskProgressInput').value = progressValue;
+  document.getElementById('taskProgressValueLabel').textContent = progressValue + '%';
+  document.getElementById('taskEstEffortInput').value = task ? clampEffortHours(task.estimatedEffort) : 0;
+  document.getElementById('taskActualEffortInput').value = task ? clampEffortHours(task.actualEffort) : 0;
+  var timeTrackingEnabled = normalizeHeaderButtonVisibility(project.headerButtonVisibility).timeTracking;
+  document.getElementById('taskTimeTrackingFields').classList.toggle('kf-vis-hidden', !timeTrackingEnabled);
   document.getElementById('taskBusinessValueInput').value = task ? clampTaskScore(task.businessValue) : 1;
   document.getElementById('taskCostInput').value = task ? clampTaskScore(task.taskCost) : 1;
   document.getElementById('taskArchivedCheckbox').checked = !!(task && task.archived);
@@ -279,6 +287,9 @@ export async function saveTaskFromModal(){
     endDate: endISO,
     businessValue: clampTaskScore(document.getElementById('taskBusinessValueInput').value),
     taskCost: clampTaskScore(document.getElementById('taskCostInput').value),
+    progress: clampProgress(document.getElementById('taskProgressInput').value),
+    estimatedEffort: clampEffortHours(document.getElementById('taskEstEffortInput').value),
+    actualEffort: clampEffortHours(document.getElementById('taskActualEffortInput').value),
     archived: document.getElementById('taskArchivedCheckbox').checked,
     dependencies: ui.taskModalDeps.slice()
   };

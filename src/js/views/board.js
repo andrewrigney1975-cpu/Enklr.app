@@ -91,6 +91,7 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowObjectivesBtn').checked = visibility.objectives;
   document.getElementById('settingsShowTeamsCommitteesBtn').checked = visibility.teamsCommittees;
   document.getElementById('settingsShowWorkflowBtn').checked = visibility.workflow;
+  document.getElementById('settingsShowTimeTrackingBtn').checked = visibility.timeTracking;
   document.getElementById('appSettingsOverlay').classList.remove('hidden');
 }
 export function closeAppSettingsOverlay(){

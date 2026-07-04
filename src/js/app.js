@@ -1010,6 +1010,9 @@ function wireEvents(){
   document.getElementById('settingsShowWorkflowBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('workflow', e.target.checked);
   });
+  document.getElementById('settingsShowTimeTrackingBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('timeTracking', e.target.checked);
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);
@@ -1055,6 +1058,9 @@ function wireEvents(){
   document.getElementById('taskSaveBtn').addEventListener('click', saveTaskFromModal);
   document.getElementById('taskDeleteBtn').addEventListener('click', deleteTaskFromModal);
   document.getElementById('taskPrioritySelect').addEventListener('change', updatePriorityIcon);
+  document.getElementById('taskProgressInput').addEventListener('input', function(e){
+    document.getElementById('taskProgressValueLabel').textContent = e.target.value + '%';
+  });
   document.getElementById('taskDocUrlInput').addEventListener('input', updateDocUrlOpenButtonVisibility);
   document.getElementById('taskDocUrlOpenBtn').addEventListener('click', openDocUrlInNewTab);
   document.getElementById('depSearchInput').addEventListener('input', function(e){

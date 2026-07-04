@@ -2,7 +2,7 @@
 import { APP_VERSION } from '../config.js';
 import { state, saveDB, normalizeHeaderButtonVisibility } from '../storage.js';
 import { getTasksArray, getMemberById, getReleaseById, getTaskTypeById, buildChildrenMap, columnNameById } from '../utils.js';
-import { clampTaskScore } from '../date-utils.js';
+import { clampTaskScore, clampProgress, clampEffortHours } from '../date-utils.js';
 
 var _toast = function(msg){ console.error(msg); };
 export function setExportToast(fn){ _toast = fn; }
@@ -43,6 +43,9 @@ export function buildHierarchy(project){
       endDate: t.endDate || null,
       businessValue: clampTaskScore(t.businessValue),
       taskCost: clampTaskScore(t.taskCost),
+      progress: clampProgress(t.progress),
+      estimatedEffort: clampEffortHours(t.estimatedEffort),
+      actualEffort: clampEffortHours(t.actualEffort),
       archived: !!t.archived,
       isPrivate: !!t.isPrivate,
       privateSalt: t.privateSalt || null,

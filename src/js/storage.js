@@ -113,6 +113,9 @@ export function migrateDB(){
       if(t.endDate === undefined){ t.endDate = null; changed = true; }
       if(t.businessValue === undefined){ t.businessValue = 1; changed = true; }
       if(t.taskCost === undefined){ t.taskCost = 1; changed = true; }
+      if(t.progress === undefined){ t.progress = 0; changed = true; }
+      if(t.estimatedEffort === undefined){ t.estimatedEffort = 0; changed = true; }
+      if(t.actualEffort === undefined){ t.actualEffort = 0; changed = true; }
       if(t.archived === undefined){ t.archived = false; changed = true; }
       if(t.isPrivate === undefined){ t.isPrivate = false; changed = true; }
       if(t.privateSalt === undefined){ t.privateSalt = null; changed = true; }
@@ -347,7 +350,8 @@ export function normalizeHeaderButtonVisibility(value){
        restricts drag-and-drop / Edit Task column choices, so a
        corrupted or missing value must never silently start enforcing
        transitions the user never configured. */
-    workflow: v.workflow === true
+    workflow: v.workflow === true,
+    timeTracking: v.timeTracking !== false
   };
 }
 
