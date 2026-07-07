@@ -39,8 +39,13 @@ export var DEPMAP_GAP_X = 100;
 export var DEPMAP_GAP_Y = 18;
 export var DEPMAP_MARGIN = 30;
 
+function depMapTaskVisible(t){
+  return (!t.archived || ui.depMapShowArchived) &&
+    (ui.depMapColumnFilter.size === 0 || ui.depMapColumnFilter.has(t.columnId));
+}
+
 export function computeDepGraphLayout(project){
-  var tasks = getTasksArray(project).filter(function(t){ return !t.archived || ui.depMapShowArchived; });
+  var tasks = getTasksArray(project).filter(depMapTaskVisible);
   var taskMap = {};
   tasks.forEach(function(t){ taskMap[t.id] = t; });
 
@@ -138,7 +143,7 @@ export function renderDependencyMap(){
     '<span class="kf-legend-item" style="color:var(--kf-overdue-fg);">' + iconSvg('clock',12) + ' Task is overdue</span>' +
     (ui.depMapShowArchived ? '<span class="kf-legend-item">' + iconSvg('archive',12) + ' Task is archived (greyed out)</span>' : '');
 
-  var hasVisibleTasks = project && getTasksArray(project).some(function(t){ return !t.archived || ui.depMapShowArchived; });
+  var hasVisibleTasks = project && getTasksArray(project).some(depMapTaskVisible);
   if(!hasVisibleTasks){
     inner.innerHTML = '';
     inner.appendChild(buildEl('div', 'kf-depmap-empty', iconHTML('inbox',36) + '<div>No tasks yet — add some tasks to see how they depend on each other.</div>'));
@@ -293,6 +298,70 @@ export function toggleDepMapShowArchived(){
   renderDependencyMap();
 }
 
+/* Column filter dropdown — mirrors the Assignee filter on the main
+   board toolbar (see renderAssigneeFilterChips() in views/board.js):
+   a button showing the current selection, a checkbox-list panel, and
+   a "Clear selection" row once something is checked. */
+export function renderDepMapColumnFilterPanel(){
+  var project = getCurrentProject();
+  var wrap = document.getElementById('depMapColumnFilterWrap');
+  var panel = document.getElementById('depMapColumnFilterPanel');
+  var label = document.getElementById('depMapColumnFilterLabel');
+  if(!wrap || !project) return;
+
+  var columns = project.columns || [];
+  var n = ui.depMapColumnFilter.size;
+  if(n === 0){
+    label.textContent = 'Column';
+  } else if(n === 1){
+    var onlyCol = getColumn(project, ui.depMapColumnFilter.values().next().value);
+    label.textContent = onlyCol ? onlyCol.name : 'Column';
+  } else {
+    label.textContent = n + ' columns';
+  }
+  wrap.classList.toggle('active', n > 0);
+
+  panel.innerHTML = '';
+  columns.forEach(function(c){
+    var row = document.createElement('label');
+    row.className = 'kf-dropdown-filter-row';
+    var checked = ui.depMapColumnFilter.has(c.id);
+    row.innerHTML =
+      '<input type="checkbox" ' + (checked ? 'checked' : '') + '>' +
+      '<span class="kf-dot" style="background:' + (c.color || '#c1c7d0') + '"></span>' +
+      '<span class="kf-dropdown-filter-name">' + escapeHTML(c.name) + '</span>';
+    row.querySelector('input').addEventListener('change', function(e){
+      if(e.target.checked) ui.depMapColumnFilter.add(c.id);
+      else ui.depMapColumnFilter.delete(c.id);
+      renderDepMapColumnFilterPanel();
+      renderDependencyMap();
+    });
+    panel.appendChild(row);
+  });
+
+  if(n > 0){
+    var divider = document.createElement('div');
+    divider.className = 'kf-dropdown-filter-divider';
+    panel.appendChild(divider);
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'kf-dropdown-filter-clear';
+    clearBtn.textContent = 'Clear selection';
+    clearBtn.addEventListener('click', function(){
+      ui.depMapColumnFilter.clear();
+      renderDepMapColumnFilterPanel();
+      renderDependencyMap();
+    });
+    panel.appendChild(clearBtn);
+  }
+}
+export function toggleDepMapColumnFilterPanel(){
+  document.getElementById('depMapColumnFilterPanel').classList.toggle('hidden');
+}
+export function closeDepMapColumnFilterPanel(){
+  document.getElementById('depMapColumnFilterPanel').classList.add('hidden');
+}
+
 export function openDepMapOverlay(){
   var project = getCurrentProject();
   if(!project){ _toast('No project selected.'); return; }
@@ -300,6 +369,7 @@ export function openDepMapOverlay(){
   depMapState.panActive = false;
   depMapState.panMoved = false;
   updateDepMapArchiveToggleButton();
+  renderDepMapColumnFilterPanel();
   renderDependencyMap();
   document.getElementById('depMapOverlay').classList.remove('hidden');
 }

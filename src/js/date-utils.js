@@ -85,6 +85,22 @@ export function memberColorForIndex(i){
   return MEMBER_PALETTE[i % MEMBER_PALETTE.length];
 }
 
+/* Blends a "#rrggbb" color 14/15 of the way to white, e.g. #ff0000 ->
+   #ffeeee, for use as a subtle background tint behind that color's
+   accent border. Invalid input returns null so callers can skip
+   applying a tint. */
+export function lightenHexColor(hex){
+  var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if(!m) return null;
+  var num = parseInt(m[1], 16);
+  var r = (num >> 16) & 255;
+  var g = (num >> 8) & 255;
+  var b = num & 255;
+  function towardWhite(c){ return Math.round(c + (255 - c) * (14/15)); }
+  function hex2(c){ var s = c.toString(16); return s.length < 2 ? '0' + s : s; }
+  return '#' + hex2(towardWhite(r)) + hex2(towardWhite(g)) + hex2(towardWhite(b));
+}
+
 export function memberInitials(name){
   var parts = String(name||'').trim().split(/\s+/).filter(Boolean);
   if(parts.length === 0) return '?';

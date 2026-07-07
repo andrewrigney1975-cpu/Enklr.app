@@ -779,17 +779,18 @@ export function buildTeamCommitteeTree(project){
 /* =========================================================
    COLUMNS
    ========================================================= */
-export function addColumn(project, name, done){
-  var col = makeColumn(name, done);
+export function addColumn(project, name, done, color){
+  var col = makeColumn(name, done, color);
   project.columns.push(col);
   saveDB();
   return col;
 }
-export function updateColumn(project, columnId, name, done){
+export function updateColumn(project, columnId, name, done, color){
   var col = getColumn(project, columnId);
   if(!col) return;
   col.name = name;
   col.done = !!done;
+  col.color = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : null;
   saveDB();
 }
 export function deleteColumn(project, columnId){

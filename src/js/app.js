@@ -14,12 +14,12 @@ import { deleteProject, closeAllTaskTypeIconPanels, setMutationsToast } from './
 /* ---- Views ---- */
 import { renderAll, renderBoard, setBoardDeps, closeTeamFilterPanel, closeAssigneeFilterPanel, closeTaskTypeFilterPanel, toggleTeamFilterPanel, toggleAssigneeFilterPanel, toggleTaskTypeFilterPanel, openAppSettingsOverlay, closeAppSettingsOverlay, isAppSettingsOverlayOpen, updateHeaderButtonVisibilitySetting } from './views/board.js';
 import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListOpen, renderTaskListBody, collapseAllTaskListGroups, expandAllTaskListGroups, exportTaskListAsCsv } from './views/task-list.js';
-import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, toggleDepMapShowArchived, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
+import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, toggleDepMapShowArchived, toggleDepMapColumnFilterPanel, closeDepMapColumnFilterPanel, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
 import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
 import { setGovMapDeps, govMapState, lastGovMapLayout, openGovMapOverlay, closeGovMapOverlay, isGovMapOpen, toggleGovMapShowRelationships, setGovMapZoom, resetGovMapZoom, zoomGovMapAtPoint } from './views/governance-map.js';
 import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, handleWorkflowReflow, updateWorkflowEdgePopoverMessageVisibility, refreshWorkflowEdgeConditionControls, handleWorkflowEdgeConditionFieldChange, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen } from './views/workflow-editor.js';
 import { setTimelineDeps, openTimelineOverlay, closeTimelineOverlay, isTimelineOverlayOpen, toggleTimelineShowArchived, renderTimeline } from './views/timeline.js';
-import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenefitOverlay, isCostBenefitOverlayOpen, toggleCostBenefitShowArchived, setCbZoom, resetCbZoom, zoomCbAtPoint } from './views/cost-benefit.js';
+import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenefitOverlay, isCostBenefitOverlayOpen, toggleCostBenefitShowArchived, toggleCbColumnFilterPanel, closeCbColumnFilterPanel, setCbZoom, resetCbZoom, zoomCbAtPoint } from './views/cost-benefit.js';
 
 /* ---- Features ---- */
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
@@ -592,6 +592,10 @@ function wireEvents(){
   document.getElementById('depMapBtn').addEventListener('click', openDepMapOverlay);
   document.getElementById('depMapClose').addEventListener('click', closeDepMapOverlay);
   document.getElementById('depMapArchiveToggle').addEventListener('click', toggleDepMapShowArchived);
+  document.getElementById('depMapColumnFilterBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    toggleDepMapColumnFilterPanel();
+  });
   document.getElementById('depMapZoomInBtn').addEventListener('click', function(){ setDepMapZoom(0.1); });
   document.getElementById('depMapZoomOutBtn').addEventListener('click', function(){ setDepMapZoom(-0.1); });
   document.getElementById('depMapResetBtn').addEventListener('click', resetDepMapZoom);
@@ -774,6 +778,10 @@ function wireEvents(){
   document.getElementById('costBenefitBtn').addEventListener('click', openCostBenefitOverlay);
   document.getElementById('costBenefitClose').addEventListener('click', closeCostBenefitOverlay);
   document.getElementById('costBenefitArchiveToggle').addEventListener('click', toggleCostBenefitShowArchived);
+  document.getElementById('costBenefitColumnFilterBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    toggleCbColumnFilterPanel();
+  });
   document.getElementById('costBenefitZoomInBtn').addEventListener('click', function(){ setCbZoom(0.1); });
   document.getElementById('costBenefitZoomOutBtn').addEventListener('click', function(){ setCbZoom(-0.1); });
   document.getElementById('costBenefitResetBtn').addEventListener('click', resetCbZoom);
@@ -1054,6 +1062,10 @@ function wireEvents(){
     if(wrap && !wrap.contains(e.target)) closeAssigneeFilterPanel();
     var typeWrap = document.getElementById('taskTypeFilterWrap');
     if(typeWrap && !typeWrap.contains(e.target)) closeTaskTypeFilterPanel();
+    var depMapColWrap = document.getElementById('depMapColumnFilterWrap');
+    if(depMapColWrap && !depMapColWrap.contains(e.target)) closeDepMapColumnFilterPanel();
+    var cbColWrap = document.getElementById('costBenefitColumnFilterWrap');
+    if(cbColWrap && !cbColWrap.contains(e.target)) closeCbColumnFilterPanel();
   });
 
   document.getElementById('taskModalClose').addEventListener('click', closeTaskModal);
@@ -1093,6 +1105,9 @@ function wireEvents(){
   document.getElementById('columnCancelBtn').addEventListener('click', closeColumnModal);
   document.getElementById('columnSaveBtn').addEventListener('click', saveColumnFromModal);
   document.getElementById('columnDeleteBtn').addEventListener('click', deleteColumnFromModal);
+  document.getElementById('columnColorEnabledCheckbox').addEventListener('change', function(e){
+    document.getElementById('columnColorInput').disabled = !e.target.checked;
+  });
   document.getElementById('columnOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'columnOverlay') closeColumnModal();
   });
@@ -1166,6 +1181,8 @@ function wireEvents(){
     else if(!document.getElementById('overdueAlertOverlay').classList.contains('hidden')) closeOverdueAlert();
     else if(!document.getElementById('defaultScoreAlertOverlay').classList.contains('hidden')) closeDefaultScoreAlert();
     else if(!document.getElementById('backupReminderOverlay').classList.contains('hidden')) dismissBackupReminder();
+    else if(!document.getElementById('depMapColumnFilterPanel').classList.contains('hidden')) closeDepMapColumnFilterPanel();
+    else if(!document.getElementById('costBenefitColumnFilterPanel').classList.contains('hidden')) closeCbColumnFilterPanel();
     else if(isDepMapOpen()) closeDepMapOverlay();
     else if(isOrgChartMemberPopoverOpen()) closeOrgChartMemberPopover();
     else if(isOrgChartOpen()) closeOrgChartOverlay();

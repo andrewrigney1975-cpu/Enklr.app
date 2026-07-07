@@ -4,7 +4,7 @@ import { normalizeHeaderButtonVisibility, saveDB } from '../storage.js';
 import { PRIORITY_META, PRIORITY_ORDER, PRIORITY_COLORS, MOBILE_BREAKPOINT } from '../config.js';
 import { iconSvg } from '../icons.js';
 import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getTeamCommitteeById, isTaskBlocked, isTaskOverdue, getDescendants, buildChildrenMap, wouldCreateCycle } from '../utils.js';
-import { memberInitials, utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, clampTaskScore, defaultStartDateValue, defaultEndDateValue } from '../date-utils.js';
+import { memberInitials, utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, clampTaskScore, defaultStartDateValue, defaultEndDateValue, lightenHexColor } from '../date-utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
@@ -566,6 +566,11 @@ export function renderColumn(project, col){
   var section = document.createElement('section');
   section.className = 'kf-column';
   section.setAttribute('data-column-id', col.id);
+  if(col.color){
+    section.style.setProperty('--kf-column-accent', col.color);
+    var tint = lightenHexColor(col.color);
+    if(tint) section.style.setProperty('--kf-column-tint', tint);
+  }
 
   var activeTaskCount = col.order.filter(function(taskId){
     var t = project.tasks[taskId];

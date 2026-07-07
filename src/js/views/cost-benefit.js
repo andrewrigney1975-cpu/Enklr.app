@@ -60,8 +60,13 @@ export function cbScaleY(value){
   return CB_MARGIN_TOP + plotHeight - (value - TASK_SCORE_MIN) / (TASK_SCORE_MAX - TASK_SCORE_MIN) * plotHeight;
 }
 
+function cbTaskVisible(t){
+  return (!t.archived || ui.cbShowArchived) &&
+    (ui.cbColumnFilter.size === 0 || ui.cbColumnFilter.has(t.columnId));
+}
+
 export function computeCostBenefitLayout(project){
-  var tasks = getTasksArray(project).filter(function(t){ return !t.archived || ui.cbShowArchived; });
+  var tasks = getTasksArray(project).filter(cbTaskVisible);
 
   /* Tasks sharing the exact same (cost, value) point — very common
      since both default to 1 — are spread in a small ring around their
@@ -117,7 +122,7 @@ export function renderCostBenefitChart(){
   '<span class="kf-legend-item" style="margin-left:auto;color:var(--kf-text-faint);">Quadrants split at the midpoint (500) of the 1–1000 scale</span>' +
   (ui.cbShowArchived ? '<span class="kf-legend-item">' + iconSvg('archive',12) + ' Archived task (greyed out)</span>' : '');
 
-  var hasTasks = project && getTasksArray(project).some(function(t){ return !t.archived || ui.cbShowArchived; });
+  var hasTasks = project && getTasksArray(project).some(cbTaskVisible);
   if(!hasTasks){
     inner.innerHTML = '';
     inner.appendChild(buildEl('div', 'kf-depmap-empty', iconHTML('inbox',36) + '<div>No tasks yet — set Business Value and Task Cost on a task to plot it here.</div>'));
@@ -253,6 +258,70 @@ export function toggleCostBenefitShowArchived(){
   renderCostBenefitChart();
 }
 
+/* Column filter dropdown — mirrors the Assignee filter on the main
+   board toolbar (see renderAssigneeFilterChips() in views/board.js):
+   a button showing the current selection, a checkbox-list panel, and
+   a "Clear selection" row once something is checked. */
+export function renderCbColumnFilterPanel(){
+  var project = getCurrentProject();
+  var wrap = document.getElementById('costBenefitColumnFilterWrap');
+  var panel = document.getElementById('costBenefitColumnFilterPanel');
+  var label = document.getElementById('costBenefitColumnFilterLabel');
+  if(!wrap || !project) return;
+
+  var columns = project.columns || [];
+  var n = ui.cbColumnFilter.size;
+  if(n === 0){
+    label.textContent = 'Column';
+  } else if(n === 1){
+    var onlyCol = getColumn(project, ui.cbColumnFilter.values().next().value);
+    label.textContent = onlyCol ? onlyCol.name : 'Column';
+  } else {
+    label.textContent = n + ' columns';
+  }
+  wrap.classList.toggle('active', n > 0);
+
+  panel.innerHTML = '';
+  columns.forEach(function(c){
+    var row = document.createElement('label');
+    row.className = 'kf-dropdown-filter-row';
+    var checked = ui.cbColumnFilter.has(c.id);
+    row.innerHTML =
+      '<input type="checkbox" ' + (checked ? 'checked' : '') + '>' +
+      '<span class="kf-dot" style="background:' + (c.color || '#c1c7d0') + '"></span>' +
+      '<span class="kf-dropdown-filter-name">' + escapeHTML(c.name) + '</span>';
+    row.querySelector('input').addEventListener('change', function(e){
+      if(e.target.checked) ui.cbColumnFilter.add(c.id);
+      else ui.cbColumnFilter.delete(c.id);
+      renderCbColumnFilterPanel();
+      renderCostBenefitChart();
+    });
+    panel.appendChild(row);
+  });
+
+  if(n > 0){
+    var divider = document.createElement('div');
+    divider.className = 'kf-dropdown-filter-divider';
+    panel.appendChild(divider);
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'kf-dropdown-filter-clear';
+    clearBtn.textContent = 'Clear selection';
+    clearBtn.addEventListener('click', function(){
+      ui.cbColumnFilter.clear();
+      renderCbColumnFilterPanel();
+      renderCostBenefitChart();
+    });
+    panel.appendChild(clearBtn);
+  }
+}
+export function toggleCbColumnFilterPanel(){
+  document.getElementById('costBenefitColumnFilterPanel').classList.toggle('hidden');
+}
+export function closeCbColumnFilterPanel(){
+  document.getElementById('costBenefitColumnFilterPanel').classList.add('hidden');
+}
+
 export function openCostBenefitOverlay(){
   var project = getCurrentProject();
   if(!project){ _toast('No project selected.'); return; }
@@ -260,6 +329,7 @@ export function openCostBenefitOverlay(){
   cbZoomState.panActive = false;
   cbZoomState.panMoved = false;
   updateCostBenefitArchiveToggleButton();
+  renderCbColumnFilterPanel();
   renderCostBenefitChart();
   document.getElementById('costBenefitOverlay').classList.remove('hidden');
 }

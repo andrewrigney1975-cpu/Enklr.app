@@ -124,6 +124,10 @@ export function migrateDB(){
       if(t.encryptionIv === undefined){ t.encryptionIv = null; changed = true; }
     });
 
+    p.columns.forEach(function(c){
+      if(c.color === undefined){ c.color = null; changed = true; }
+    });
+
     var validMemberIds = {};
     p.members.forEach(function(m){ validMemberIds[m.id] = true; });
     p.members.forEach(function(m){
@@ -320,8 +324,9 @@ export function migrateDB(){
   if(changed) saveDB();
 }
 
-export function makeColumn(name, done){
-  return {id: uid('col'), name: name, done: !!done, order: []};
+export function makeColumn(name, done, color){
+  var validColor = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : null;
+  return {id: uid('col'), name: name, done: !!done, order: [], color: validColor};
 }
 
 export function defaultTaskTypes(){

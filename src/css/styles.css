@@ -973,7 +973,7 @@
   }
 
   .kf-column {
-    background: var(--kf-column-bg);
+    background: var(--kf-column-tint, var(--kf-column-bg));
     border-radius: 6px;
     width: 280px;
     min-width: 280px;
@@ -981,6 +981,11 @@
     flex-direction: column;
     max-height: 100%;
     border: 2px solid transparent;
+    /* Declared after the shorthand above so a per-column accent (set
+       inline via --kf-column-accent) only thickens/colors the top
+       edge; the .kf-dragover* rules below have higher specificity and
+       still win over this during drag feedback. */
+    border-top: 3px solid var(--kf-column-accent, transparent);
   }
 
   .kf-column.kf-dragover {
@@ -2613,6 +2618,22 @@
     gap: 8px;
     font-size: 13px;
     color: var(--kf-text);
+  }
+
+  .kf-color-input {
+    margin-left: auto;
+    width: 44px;
+    height: 28px;
+    padding: 2px;
+    border: 2px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    background: var(--kf-input-bg);
+    cursor: pointer;
+  }
+
+  .kf-color-input:disabled {
+    opacity: .5;
+    cursor: not-allowed;
   }
 
   .kf-hint {

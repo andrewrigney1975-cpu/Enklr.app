@@ -178,7 +178,7 @@ export function buildProjectFromExportDoc(doc){
 
     if(validCols.length > 0){
       columns = validCols.map(function(c){
-        var newCol = makeColumn(c.name, c.done);
+        var newCol = makeColumn(c.name, c.done, c.color);
         if(c.oldId) columnOldIdToNewId[c.oldId] = newCol.id;
         return newCol;
       });

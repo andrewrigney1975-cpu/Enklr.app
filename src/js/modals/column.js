@@ -13,6 +13,9 @@ export function openColumnModal(columnId){
   document.getElementById('columnModalTitle').textContent = col ? 'Edit column' : 'New column';
   document.getElementById('columnNameInput').value = col ? col.name : '';
   document.getElementById('columnDoneCheckbox').checked = col ? col.done : false;
+  document.getElementById('columnColorEnabledCheckbox').checked = !!(col && col.color);
+  document.getElementById('columnColorInput').value = (col && col.color) || '#4f46e5';
+  document.getElementById('columnColorInput').disabled = !(col && col.color);
   document.getElementById('columnDeleteBtn').classList.toggle('kf-vis-hidden', !col);
   document.getElementById('columnOverlay').classList.remove('hidden');
   document.getElementById('columnNameInput').focus();
@@ -26,11 +29,13 @@ export function saveColumnFromModal(){
   var name = document.getElementById('columnNameInput').value.trim();
   if(!name){ toast('Please enter a column name.'); return; }
   var done = document.getElementById('columnDoneCheckbox').checked;
+  var colorEnabled = document.getElementById('columnColorEnabledCheckbox').checked;
+  var color = colorEnabled ? document.getElementById('columnColorInput').value : null;
   if(ui.editingColumnId){
-    updateColumn(project, ui.editingColumnId, name, done);
+    updateColumn(project, ui.editingColumnId, name, done, color);
     toast('Column updated.');
   } else {
-    addColumn(project, name, done);
+    addColumn(project, name, done, color);
     toast('Column added.');
   }
   closeColumnModal();

@@ -386,6 +386,11 @@
         <input type="checkbox" id="columnDoneCheckbox">
         <label for="columnDoneCheckbox" style="text-transform:none;font-weight:500;">Mark tasks in this column as "Done" (for dependency blocking)</label>
       </div>
+      <div class="kf-checkbox-row">
+        <input type="checkbox" id="columnColorEnabledCheckbox">
+        <label for="columnColorEnabledCheckbox" style="text-transform:none;font-weight:500;">Colour <span style="font-weight:400;color:var(--kf-text-faint);">(top border + tinted background)</span></label>
+        <input type="color" class="kf-color-input" id="columnColorInput" value="#4f46e5" disabled>
+      </div>
     </div>
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-danger kf-footer-left" id="columnDeleteBtn"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
@@ -454,6 +459,14 @@
       <h2 id="depMapTitle">Dependency Map</h2>
       <div class="kf-modal-header-actions">
         <button class="kf-btn kf-btn-ghost" id="depMapArchiveToggle" title="Show archived tasks"><span class="kf-icon" data-icon="archive" data-size="16"></span><span id="depMapArchiveToggleLabel">Show archived</span></button>
+        <div class="kf-dropdown-filter" id="depMapColumnFilterWrap">
+          <button type="button" class="kf-dropdown-filter-btn" id="depMapColumnFilterBtn">
+            <span class="kf-icon" data-icon="board" data-size="13"></span>
+            <span id="depMapColumnFilterLabel">Column</span>
+            <span class="kf-icon" data-icon="chevronDown" data-size="12"></span>
+          </button>
+          <div class="kf-dropdown-filter-panel hidden" id="depMapColumnFilterPanel"></div>
+        </div>
         <div class="kf-header-divider-light"></div>
         <button class="kf-btn kf-btn-ghost" id="depMapZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="16"></span></button>
         <span id="depMapZoomLabel" class="kf-zoom-label">100%</span>
@@ -659,6 +672,14 @@
       <h2 id="costBenefitTitle">Cost/Benefit Chart</h2>
       <div class="kf-modal-header-actions">
         <button class="kf-btn kf-btn-ghost" id="costBenefitArchiveToggle" title="Show archived tasks"><span class="kf-icon" data-icon="archive" data-size="16"></span><span id="costBenefitArchiveToggleLabel">Show archived</span></button>
+        <div class="kf-dropdown-filter" id="costBenefitColumnFilterWrap">
+          <button type="button" class="kf-dropdown-filter-btn" id="costBenefitColumnFilterBtn">
+            <span class="kf-icon" data-icon="board" data-size="13"></span>
+            <span id="costBenefitColumnFilterLabel">Column</span>
+            <span class="kf-icon" data-icon="chevronDown" data-size="12"></span>
+          </button>
+          <div class="kf-dropdown-filter-panel hidden" id="costBenefitColumnFilterPanel"></div>
+        </div>
         <div class="kf-header-divider-light"></div>
         <button class="kf-btn kf-btn-ghost" id="costBenefitZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="16"></span></button>
         <span id="costBenefitZoomLabel" class="kf-zoom-label">100%</span>

@@ -181,7 +181,9 @@ export var ui = {
   taskListExpanded: new Set(),
   archivedSelected: new Set(),
   depMapShowArchived: false,
+  depMapColumnFilter: new Set(),
   cbShowArchived: false,
+  cbColumnFilter: new Set(),
   bulkEdits: {},
   timelineScale: 'week',
   timelineShowArchived: false,
@@ -217,6 +219,8 @@ export function resetFilters(){
   ui.activeAssignees = new Set();
   ui.activeTeams = new Set();
   ui.activeTaskTypes = new Set();
+  ui.depMapColumnFilter = new Set();
+  ui.cbColumnFilter = new Set();
   var searchInput = document.getElementById('searchInput');
   if(searchInput) searchInput.value = '';
 }
