@@ -34,6 +34,17 @@ export function utcISOToLocalDisplayDate(iso){
   return d.toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'});
 }
 
+/* UTC ISO string -> a friendly local date+time display string, or ''.
+   Used for audit-trail timestamps, where the time of day (not just the
+   day) is the point. */
+export function utcISOToLocalDisplayDateTime(iso){
+  if(!iso) return '';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'}) +
+    ', ' + d.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+}
+
 export function defaultStartDateValue(){
   return localDateValueFromDate(new Date());
 }

@@ -68,7 +68,24 @@ export function flattenImportedHierarchy(nodes, out){
         privateVerifier: typeof n.privateVerifier === 'string' ? n.privateVerifier.slice(0,64) : null,
         encryptedDescription: typeof n.encryptedDescription === 'string' ? n.encryptedDescription.slice(0,6000) : null,
         encryptionIv: typeof n.encryptionIv === 'string' ? n.encryptionIv.slice(0,32) : null,
-        dependsOnKeys: dependsOnKeys
+        dependsOnKeys: dependsOnKeys,
+        /* Historical entries reference ids from the *source* project —
+           once tasks/members/etc. are re-created with fresh ids below,
+           an old id an entry points at (e.g. a past assigneeId or a
+           dependencies list) simply won't resolve to anything in this
+           project anymore. Rendering already falls back to an em dash
+           for an unresolvable id, so this is a graceful, non-crashing
+           loss of a little historical detail rather than a hard error. */
+        auditLog: Array.isArray(n.auditLog) ? n.auditLog.filter(function(e){
+          return e && typeof e === 'object' && typeof e.timestamp === 'string' && typeof e.field === 'string';
+        }).slice(0, 2000).map(function(e){
+          return {
+            timestamp: e.timestamp,
+            field: e.field.slice(0, 60),
+            oldValue: e.oldValue === undefined ? null : e.oldValue,
+            newValue: e.newValue === undefined ? null : e.newValue
+          };
+        }) : []
       };
     }
     if(Array.isArray(n.subtasks) && n.subtasks.length){
@@ -429,7 +446,8 @@ export function buildProjectFromExportDoc(doc){
       encryptedDescription: t.encryptedDescription,
       encryptionIv: t.encryptionIv,
       dateCreated: t.dateCreated || importedAt,
-      dateLastModified: t.dateLastModified || importedAt
+      dateLastModified: t.dateLastModified || importedAt,
+      auditLog: Array.isArray(t.auditLog) ? t.auditLog : []
     };
     project.tasks[newId] = task;
     col.order.push(newId);

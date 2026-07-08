@@ -31,7 +31,7 @@ import { closeAllExportAsPanels, toggleExportAsPanel, exportSvgElementAsSvgFile,
 
 /* ---- Modals ---- */
 import { confirmDialog, closeConfirmDialog, getPendingConfirmAction } from './modals/confirm.js';
-import { openTaskModal, closeTaskModal, saveTaskFromModal, deleteTaskFromModal, updatePriorityIcon, updateDocUrlOpenButtonVisibility, openDocUrlInNewTab, renderDependencyPicker } from './modals/task.js';
+import { openTaskModal, closeTaskModal, saveTaskFromModal, deleteTaskFromModal, updatePriorityIcon, updateDocUrlOpenButtonVisibility, openDocUrlInNewTab, renderDependencyPicker, toggleAuditTrail } from './modals/task.js';
 import { closeSetPrivateKeyModal, confirmSetPrivateKeyFromModal } from './modals/private-key-set.js';
 import { closeUnlockPrivateTaskModal, confirmUnlockFromModal, continueWithoutKeyFromModal } from './modals/private-key-unlock.js';
 import { openColumnModal, closeColumnModal, saveColumnFromModal, deleteColumnFromModal } from './modals/column.js';
@@ -1023,6 +1023,26 @@ function wireEvents(){
   document.getElementById('settingsShowTimeTrackingBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('timeTracking', e.target.checked);
   });
+  document.getElementById('settingsShowChangeAuditingBtn').addEventListener('change', function(e){
+    var checkbox = e.target;
+    if(!checkbox.checked){
+      updateHeaderButtonVisibilitySetting('changeAuditing', false);
+      return;
+    }
+    /* Revert immediately — the browser already ticked the box on
+       click — and only actually turn it on (re-checking it) once the
+       user confirms, since this is the one App Setting whose "on"
+       state keeps growing every task's stored data on every edit. */
+    checkbox.checked = false;
+    confirmDialog(
+      'Enable Change Auditing?',
+      'Every field change made to a task will be recorded — when, what changed, and its old and new value. Over time this can significantly increase the size of your project’s data file.',
+      function(){
+        checkbox.checked = true;
+        updateHeaderButtonVisibilitySetting('changeAuditing', true);
+      }
+    );
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);
@@ -1078,6 +1098,7 @@ function wireEvents(){
   });
   document.getElementById('taskDocUrlInput').addEventListener('input', updateDocUrlOpenButtonVisibility);
   document.getElementById('taskDocUrlOpenBtn').addEventListener('click', openDocUrlInNewTab);
+  document.getElementById('taskAuditToggleBtn').addEventListener('click', toggleAuditTrail);
   document.getElementById('depSearchInput').addEventListener('input', function(e){
     ui.depSearchTerm = e.target.value.trim();
     renderDependencyPicker();

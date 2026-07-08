@@ -4,7 +4,7 @@ import { getCurrentProject } from '../store.js';
 import { getTasksArray } from '../utils.js';
 import { PRIORITY_ORDER, TASK_SCORE_MIN, TASK_SCORE_MAX, TASK_PROGRESS_MIN, TASK_PROGRESS_MAX, PRIORITY_META } from '../config.js';
 import { clampTaskScore, clampProgress, utcISOToLocalDateValue, localDateValueToUTCISO } from '../date-utils.js';
-import { moveTaskToColumn } from '../mutations.js';
+import { moveTaskToColumn, pushTaskAuditEntry } from '../mutations.js';
 import { saveDB, isTimeTrackingEnabled } from "../storage.js";
 import { escapeHTML, renderBoard } from '../views/board.js';
 
@@ -294,40 +294,47 @@ function applyBulkEdits(project){
       touched = true;
     }
     if(edits.hasOwnProperty('releaseId') && edits.releaseId !== t.releaseId){
+      pushTaskAuditEntry(project, t, 'releaseId', t.releaseId, edits.releaseId || null);
       t.releaseId = edits.releaseId || null;
       touched = true;
     }
     if(edits.hasOwnProperty('priority') && edits.priority !== t.priority){
-      t.priority = normalizeOrFallback(edits.priority, t.priority);
+      var newPriority = normalizeOrFallback(edits.priority, t.priority);
+      pushTaskAuditEntry(project, t, 'priority', t.priority, newPriority);
+      t.priority = newPriority;
       touched = true;
     }
     if(edits.hasOwnProperty('typeId') && edits.typeId !== t.typeId){
+      pushTaskAuditEntry(project, t, 'typeId', t.typeId, edits.typeId || null);
       t.typeId = edits.typeId || null;
       touched = true;
     }
     if(edits.hasOwnProperty('assigneeId') && edits.assigneeId !== t.assigneeId){
+      pushTaskAuditEntry(project, t, 'assigneeId', t.assigneeId, edits.assigneeId || null);
       t.assigneeId = edits.assigneeId || null;
       touched = true;
     }
     if(edits.hasOwnProperty('startDate') && edits.startDate !== t.startDate){
+      pushTaskAuditEntry(project, t, 'startDate', t.startDate, edits.startDate || null);
       t.startDate = edits.startDate || null;
       touched = true;
     }
     if(edits.hasOwnProperty('endDate') && edits.endDate !== t.endDate){
+      pushTaskAuditEntry(project, t, 'endDate', t.endDate, edits.endDate || null);
       t.endDate = edits.endDate || null;
       touched = true;
     }
     if(edits.hasOwnProperty('businessValue')){
       var bv = clampTaskScore(edits.businessValue);
-      if(bv !== t.businessValue){ t.businessValue = bv; touched = true; }
+      if(bv !== t.businessValue){ pushTaskAuditEntry(project, t, 'businessValue', t.businessValue, bv); t.businessValue = bv; touched = true; }
     }
     if(edits.hasOwnProperty('taskCost')){
       var tc = clampTaskScore(edits.taskCost);
-      if(tc !== t.taskCost){ t.taskCost = tc; touched = true; }
+      if(tc !== t.taskCost){ pushTaskAuditEntry(project, t, 'taskCost', t.taskCost, tc); t.taskCost = tc; touched = true; }
     }
     if(edits.hasOwnProperty('progress')){
       var pr = clampProgress(edits.progress);
-      if(pr !== clampProgress(t.progress)){ t.progress = pr; touched = true; }
+      if(pr !== clampProgress(t.progress)){ pushTaskAuditEntry(project, t, 'progress', t.progress, pr); t.progress = pr; touched = true; }
     }
     if(touched){
       t.dateLastModified = new Date().toISOString();

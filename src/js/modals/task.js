@@ -1,12 +1,12 @@
 "use strict";
 import { ui, toast, getPriority } from '../ui.js';
 import { getCurrentProject } from '../store.js';
-import { getTasksArray, getDescendants, wouldCreateCycle } from '../utils.js';
-import { clampTaskScore, clampProgress, clampEffortHours, utcISOToLocalDateValue, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue } from '../date-utils.js';
+import { getTasksArray, getDescendants, wouldCreateCycle, getColumn, getMemberById, getReleaseById, getTaskTypeById } from '../utils.js';
+import { clampTaskScore, clampProgress, clampEffortHours, utcISOToLocalDateValue, utcISOToLocalDisplayDate, utcISOToLocalDisplayDateTime, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue } from '../date-utils.js';
 import { iconSvg } from '../icons.js';
 import { PRIORITY_ORDER } from '../config.js';
 import { escapeHTML, renderBoard } from '../views/board.js';
-import { addTask, updateTask, deleteTask, normalizeDocumentationUrl } from '../mutations.js';
+import { addTask, updateTask, deleteTask, normalizeDocumentationUrl, getAuditFieldLabel } from '../mutations.js';
 import { normalizeHeaderButtonVisibility } from '../storage.js';
 import { confirmDialog } from './confirm.js';
 import { getReachableColumnIds } from '../features/workflow-engine.js';
@@ -159,9 +159,79 @@ function populateFullForm(project, task, descriptionValue){
   document.getElementById('depSearchInput').value = '';
 
   renderDependencyPicker();
+  renderAuditTrail(project, task);
   document.getElementById('taskOverlay').classList.remove('hidden');
   document.getElementById('taskTitleInput').focus();
   if(task) setTaskHash(task.key);
+}
+
+/* Renders a single before/after value for the audit trail, resolving
+   ids to the human-readable names shown everywhere else in the app
+   (rather than the raw id an entry actually stores). A stale id (e.g.
+   a dependency or assignee deleted since the change was recorded, or
+   left dangling by an id-remapping import) falls back to an em dash
+   instead of showing "undefined" or a raw id. */
+function formatAuditValue(project, field, value){
+  if(value === null || value === undefined || value === '') return '—';
+  switch(field){
+    case 'columnId': return (getColumn(project, value) || {}).name || '—';
+    case 'assigneeId': return (getMemberById(project, value) || {}).name || '—';
+    case 'releaseId': return (getReleaseById(project, value) || {}).name || '—';
+    case 'typeId': return (getTaskTypeById(project, value) || {}).name || '—';
+    case 'priority': return getPriority(value).label;
+    case 'startDate':
+    case 'endDate':
+      return utcISOToLocalDisplayDate(value) || '—';
+    case 'archived':
+    case 'isPrivate':
+      return value ? 'Yes' : 'No';
+    case 'progress': return value + '%';
+    case 'dependencies':
+      var ids = Array.isArray(value) ? value : [];
+      if(ids.length === 0) return '—';
+      var keys = ids.map(function(id){ var t = project.tasks[id]; return t ? t.key : null; }).filter(Boolean);
+      return keys.length ? keys.join(', ') : '—';
+    default: return String(value);
+  }
+}
+
+/* Renders the Audit Trail section, gated entirely by the Change
+   Auditing App Setting — the section (and any entries already
+   recorded on this task) is hidden whenever the setting is off, same
+   as Time Tracking's fields above. Always starts collapsed; re-opening
+   the modal doesn't remember the previous expand state. */
+function renderAuditTrail(project, task){
+  var section = document.getElementById('taskAuditSection');
+  var enabled = normalizeHeaderButtonVisibility(project.headerButtonVisibility).changeAuditing;
+  section.classList.toggle('kf-vis-hidden', !enabled);
+  document.getElementById('taskAuditBody').classList.add('kf-vis-hidden');
+  document.getElementById('taskAuditChevron').classList.remove('expanded');
+  if(!enabled) return;
+
+  var entries = (task && Array.isArray(task.auditLog)) ? task.auditLog : [];
+  document.getElementById('taskAuditCount').textContent = entries.length > 0 ? '(' + entries.length + ')' : '';
+
+  var body = document.getElementById('taskAuditBody');
+  if(entries.length === 0){
+    body.innerHTML = '<div class="kf-audit-empty">No changes recorded yet.</div>';
+    return;
+  }
+  body.innerHTML = entries.map(function(entry){
+    return '<div class="kf-audit-entry">' +
+      '<div class="kf-audit-entry-time">' + escapeHTML(utcISOToLocalDisplayDateTime(entry.timestamp)) + '</div>' +
+      '<div class="kf-audit-entry-field">' + escapeHTML(getAuditFieldLabel(entry.field)) + '</div>' +
+      '<div class="kf-audit-entry-change">' +
+        escapeHTML(formatAuditValue(project, entry.field, entry.oldValue)) + ' → ' + escapeHTML(formatAuditValue(project, entry.field, entry.newValue)) +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+export function toggleAuditTrail(){
+  var body = document.getElementById('taskAuditBody');
+  var wasHidden = body.classList.contains('kf-vis-hidden');
+  body.classList.toggle('kf-vis-hidden', !wasHidden);
+  document.getElementById('taskAuditChevron').classList.toggle('expanded', wasHidden);
 }
 
 export function updatePriorityIcon(){

@@ -1,5 +1,5 @@
 "use strict";
-import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject } from './storage.js';
+import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject, isChangeAuditingEnabled } from './storage.js';
 import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY } from './utils.js';
 import { evaluateTransition, getWorkflowConditionField, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION, computeReflowedLayout } from './features/workflow-engine.js';
 import { clampTaskScore, clampProgress, clampEffortHours, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
@@ -907,6 +907,110 @@ export function reorderColumns(project, draggedId, targetId){
 }
 
 /* =========================================================
+   CHANGE AUDITING
+   Opt-in per project (see isChangeAuditingEnabled). Only edits to an
+   *existing* task are recorded — addTask() never calls into this, so
+   a task's own creation never shows up as a "change". Entries are
+   newest-first (unshift) so the Task modal can render them directly
+   without re-sorting.
+   ========================================================= */
+var AUDIT_FIELD_LABELS = {
+  title: 'Title',
+  description: 'Description',
+  priority: 'Priority',
+  columnId: 'Column',
+  assigneeId: 'Assignee',
+  releaseId: 'Release',
+  typeId: 'Type',
+  documentationUrl: 'Documentation',
+  startDate: 'Start date',
+  endDate: 'End date',
+  businessValue: 'Business Value',
+  taskCost: 'Task Cost',
+  progress: 'Progress',
+  estimatedEffort: 'Estimated effort',
+  actualEffort: 'Actual effort',
+  archived: 'Archived',
+  isPrivate: 'Private',
+  dependencies: 'Depends on'
+};
+export function getAuditFieldLabel(field){
+  return AUDIT_FIELD_LABELS[field] || field;
+}
+
+/* Every field diffed by updateTask's generic before/after comparison,
+   EXCEPT columnId — that one only ever changes via moveTaskToColumn
+   (called both from here and from drag-and-drop / bulk edit), so it
+   records its own single audit entry there instead of being diffed
+   twice. */
+var AUDIT_DIFFED_FIELDS = Object.keys(AUDIT_FIELD_LABELS).filter(function(f){ return f !== 'columnId'; });
+
+function auditValuesEqual(a, b){
+  if(Array.isArray(a) || Array.isArray(b)){
+    var aa = (Array.isArray(a) ? a.slice() : []).sort();
+    var bb = (Array.isArray(b) ? b.slice() : []).sort();
+    return JSON.stringify(aa) === JSON.stringify(bb);
+  }
+  var na = a === undefined ? null : a;
+  var nb = b === undefined ? null : b;
+  return na === nb;
+}
+
+/* Appends one audit entry for a single field change. Safe to call
+   unconditionally — it's a no-op whenever auditing is off for this
+   project, so call sites never need their own gating check. */
+export function pushTaskAuditEntry(project, task, field, oldValue, newValue){
+  if(!isChangeAuditingEnabled(project)) return;
+  if(!Array.isArray(task.auditLog)) task.auditLog = [];
+  task.auditLog.unshift({
+    timestamp: new Date().toISOString(),
+    field: field,
+    oldValue: oldValue === undefined ? null : oldValue,
+    newValue: newValue === undefined ? null : newValue
+  });
+}
+
+/* Mirrors the exact clamp/fallback each field goes through when
+   written (see updateTask/addTask below) so a "before" value pulled
+   from a legacy/pre-migration task — where a numeric field can be
+   genuinely `undefined` rather than its normalized default — compares
+   equal to a freshly-written, already-normalized "after" value instead
+   of showing a phantom change on the very first edit of an old task. */
+function normalizeAuditFieldValue(field, value){
+  switch(field){
+    case 'description': return value || '';
+    case 'priority': return value || 'medium';
+    case 'assigneeId': case 'releaseId': case 'typeId': case 'startDate': case 'endDate':
+      return value || null;
+    case 'documentationUrl': return normalizeDocumentationUrl(value);
+    case 'businessValue': case 'taskCost': return clampTaskScore(value);
+    case 'progress': return clampProgress(value);
+    case 'estimatedEffort': case 'actualEffort': return clampEffortHours(value);
+    case 'archived': case 'isPrivate': return !!value;
+    case 'dependencies': return Array.isArray(value) ? value : [];
+    default: return value;
+  }
+}
+
+/* Generic before/after diff for a full task edit (the Task modal's
+   Save path). Description is skipped entirely whenever privacy is (or
+   was) in play — for a private task its plaintext never touches the
+   `description` field at all (see saveTaskFromModal), but diffing it
+   unconditionally would still record the plaintext at the exact
+   moment a task *becomes* private, defeating the point of privacy. */
+function recordTaskFieldChanges(project, task, before, after){
+  if(!isChangeAuditingEnabled(project)) return;
+  var skipDescription = !!before.isPrivate || !!after.isPrivate;
+  AUDIT_DIFFED_FIELDS.forEach(function(field){
+    if(field === 'description' && skipDescription) return;
+    var oldVal = normalizeAuditFieldValue(field, before[field]);
+    var newVal = normalizeAuditFieldValue(field, after[field]);
+    if(auditValuesEqual(oldVal, newVal)) return;
+    pushTaskAuditEntry(project, task, field, oldVal, newVal);
+  });
+}
+
+/* =========================================================
    TASKS
    ========================================================= */
 export function addTask(project, data){
@@ -942,7 +1046,8 @@ export function addTask(project, data){
     encryptedDescription: data.encryptedDescription || null,
     encryptionIv: data.encryptionIv || null,
     dateCreated: now,
-    dateLastModified: now
+    dateLastModified: now,
+    auditLog: []
   };
   project.tasks[t.id] = t;
   col.order.push(t.id);
@@ -960,6 +1065,7 @@ export function addTask(project, data){
 export function updateTask(project, taskId, data){
   var t = project.tasks[taskId];
   if(!t) return null;
+  var before = Object.assign({}, t);
   t.title = data.title;
   t.description = data.description || '';
   t.priority = data.priority || 'medium';
@@ -988,6 +1094,7 @@ export function updateTask(project, taskId, data){
     if(result.allowed) moveTaskToColumn(project, taskId, data.columnId, -1);
     else blocked = result;
   }
+  recordTaskFieldChanges(project, t, before, t);
   saveDB();
   return blocked;
 }
@@ -1028,6 +1135,7 @@ export function reactivateTasks(project, taskIds){
 export function moveTaskToColumn(project, taskId, targetColumnId, index){
   var t = project.tasks[taskId];
   if(!t) return;
+  var oldColumnId = t.columnId;
   project.columns.forEach(function(c){ c.order = c.order.filter(function(id){ return id !== taskId; }); });
   var target = getColumn(project, targetColumnId);
   if(!target) return;
@@ -1037,6 +1145,7 @@ export function moveTaskToColumn(project, taskId, targetColumnId, index){
     target.order.splice(index, 0, taskId);
   }
   t.columnId = target.id;
+  if(oldColumnId !== target.id) pushTaskAuditEntry(project, t, 'columnId', oldColumnId, target.id);
   t.dateLastModified = new Date().toISOString();
 }
 

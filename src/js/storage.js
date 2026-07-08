@@ -122,6 +122,7 @@ export function migrateDB(){
       if(t.privateVerifier === undefined){ t.privateVerifier = null; changed = true; }
       if(t.encryptedDescription === undefined){ t.encryptedDescription = null; changed = true; }
       if(t.encryptionIv === undefined){ t.encryptionIv = null; changed = true; }
+      if(!Array.isArray(t.auditLog)){ t.auditLog = []; changed = true; }
     });
 
     p.columns.forEach(function(c){
@@ -356,13 +357,23 @@ export function normalizeHeaderButtonVisibility(value){
        corrupted or missing value must never silently start enforcing
        transitions the user never configured. */
     workflow: v.workflow === true,
-    timeTracking: v.timeTracking !== false
+    timeTracking: v.timeTracking !== false,
+    /* Opt-in, like workflow: turning this on starts growing every
+       task's stored data on every edit, so a corrupted or missing
+       value must never silently start recording history the user
+       never asked for. */
+    changeAuditing: v.changeAuditing === true
   };
 }
 
 export function isTimeTrackingEnabled(project){
   if(!project) return false;
   return normalizeHeaderButtonVisibility(project.headerButtonVisibility).timeTracking === true;
+}
+
+export function isChangeAuditingEnabled(project){
+  if(!project) return false;
+  return normalizeHeaderButtonVisibility(project.headerButtonVisibility).changeAuditing === true;
 }
 
 export function createDefaultProject(name, key){

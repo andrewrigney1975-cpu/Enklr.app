@@ -53,6 +53,9 @@ export function buildHierarchy(project){
       encryptedDescription: t.encryptedDescription || null,
       encryptionIv: t.encryptionIv || null,
       dependsOn: (t.dependencies||[]).map(function(d){ return taskMap[d] ? taskMap[d].key : d; }),
+      auditLog: (t.auditLog || []).map(function(e){
+        return {timestamp: e.timestamp, field: e.field, oldValue: e.oldValue, newValue: e.newValue};
+      }),
       subtasks: []
     };
     if(ancestry.has(taskId)){

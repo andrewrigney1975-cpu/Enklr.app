@@ -311,6 +311,16 @@
         <input type="checkbox" id="taskPrivateCheckbox">
         <label for="taskPrivateCheckbox" style="text-transform:none;font-weight:500;">Private <span style="color:var(--kf-text-faint);">(hides all details behind a key you set — cannot be recovered if forgotten)</span></label>
       </div>
+      <div id="taskAuditSection" class="kf-vis-hidden kf-audit-section">
+        <button type="button" class="kf-audit-toggle" id="taskAuditToggleBtn">
+          <span class="kf-tasklist-chevron" id="taskAuditChevron">
+            <span class="kf-icon" data-icon="chevronDown" data-size="14"></span>
+          </span>
+          <span>Audit Trail</span>
+          <span class="kf-audit-count" id="taskAuditCount"></span>
+        </button>
+        <div class="kf-audit-body kf-vis-hidden" id="taskAuditBody"></div>
+      </div>
       </div>
     </div>
     <div class="kf-modal-footer">
@@ -1263,6 +1273,11 @@
           <input type="checkbox" id="settingsShowTimeTrackingBtn">
           <span class="kf-icon" data-icon="stopwatch" data-size="14"></span>
           <span>Time Tracking and Progress</span>
+        </label>
+        <label class="kf-risk-doc-picker-row">
+          <input type="checkbox" id="settingsShowChangeAuditingBtn">
+          <span class="kf-icon" data-icon="ty_audit" data-size="14"></span>
+          <span>Change Auditing</span>
         </label>
       </div>
     </div>
