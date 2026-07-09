@@ -2,7 +2,7 @@
 import { ui, toast } from '../ui.js';
 import { getCurrentProject } from '../store.js';
 import { escapeHTML } from '../views/board.js';
-import { memberInitials, utcISOToLocalDateValue, localDateValueToUTCISO, utcISOToLocalDisplayDate } from '../date-utils.js';
+import { memberInitials, utcISOToLocalDateValue, localDateValueToUTCISO, utcISOToLocalDisplayDate, isoToServerDateOnly } from '../date-utils.js';
 import { getMemberById, getRiskById } from '../utils.js';
 import { RISK_LIKELIHOOD_META, RISK_IMPACT_META } from '../config.js';
 import { addRisk, updateRisk, deleteRisk, normalizeRiskStatus, getRiskStatusMeta, riskScore, riskScoreBand, clampRiskScoreValue, buildRiskMatrixSvg } from '../mutations.js';
@@ -11,8 +11,6 @@ import { populateOwnerSelect, populateTaskSelect } from './documents.js';
 import { confirmDialog } from './confirm.js';
 import { riskApi } from '../api.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
-
-function isoToDateOnly(iso){ return iso ? iso.slice(0, 10) : null; }
 
 export function populateRiskScoreSelect(selectEl, meta, currentValue){
   selectEl.innerHTML = '';
@@ -238,7 +236,7 @@ export async function saveRiskFromModal(){
       var editingId = ui.editingRiskId;
       var body = Object.assign({}, data, {
         likelihood: Number(data.likelihood), impact: Number(data.impact),
-        dateToClose: isoToDateOnly(data.dateToClose), dateClosed: isoToDateOnly(data.dateClosed)
+        dateToClose: isoToServerDateOnly(data.dateToClose), dateClosed: isoToServerDateOnly(data.dateClosed)
       });
       if(editingId) await riskApi.update(project.serverProjectId, editingId, body);
       else await riskApi.create(project.serverProjectId, body);

@@ -2,7 +2,7 @@
 import { ui, toast, getPriority } from '../ui.js';
 import { getCurrentProject } from '../store.js';
 import { getTasksArray, getDescendants, wouldCreateCycle, getColumn, getMemberById, getReleaseById, getTaskTypeById, getTaskAncestorIds, getSubtasksOf, getSubtaskDescendantIds, wouldCreateParentCycle } from '../utils.js';
-import { clampTaskScore, clampProgress, clampEffortHours, utcISOToLocalDateValue, utcISOToLocalDisplayDate, utcISOToLocalDisplayDateTime, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue } from '../date-utils.js';
+import { clampTaskScore, clampProgress, clampEffortHours, utcISOToLocalDateValue, utcISOToLocalDisplayDate, utcISOToLocalDisplayDateTime, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, isoToServerDateOnly } from '../date-utils.js';
 import { iconSvg } from '../icons.js';
 import { PRIORITY_ORDER } from '../config.js';
 import { escapeHTML, renderBoard } from '../views/board.js';
@@ -17,10 +17,6 @@ import { setTaskHash, clearTaskHash } from '../features/hash-router.js';
 import { taskApi } from '../api.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 
-/* Server DateOnly fields need "yyyy-MM-dd", not the full ISO datetime string startDate/endDate are
-   stored as locally. */
-function isoToDateOnly(iso){ return iso ? iso.slice(0, 10) : null; }
-
 function buildServerTaskBody(data){
   return {
     title: data.title, description: data.description, priority: data.priority,
@@ -28,7 +24,7 @@ function buildServerTaskBody(data){
     releaseId: data.releaseId || null, typeId: data.typeId || null,
     parentTaskId: data.parentTaskId || null, dependsOnTaskIds: data.dependencies || [],
     documentationUrl: data.documentationUrl || null,
-    startDate: isoToDateOnly(data.startDate), endDate: isoToDateOnly(data.endDate),
+    startDate: isoToServerDateOnly(data.startDate), endDate: isoToServerDateOnly(data.endDate),
     businessValue: data.businessValue, taskCost: data.taskCost, progress: data.progress,
     estimatedEffort: data.estimatedEffort, actualEffort: data.actualEffort, archived: data.archived
   };

@@ -2,6 +2,7 @@
 import { state, saveDB } from '../storage.js';
 import { buildExportDoc } from './export.js';
 import { migrateProjectApi, loginApi, changePasswordApi, getProjectsApi, getProjectDetailApi, taskApi, setToken, isLoggedIn } from '../api.js';
+import { isoToServerDateOnly, serverDateOnlyToIso } from '../date-utils.js';
 
 var _toast = function(msg){ console.error(msg); };
 export function setMigrationToast(fn){ _toast = fn; }
@@ -158,7 +159,7 @@ function taskToServerBody(t, overrides){
     releaseId: t.releaseId || null, typeId: t.typeId || null,
     parentTaskId: t.parentTaskId || null, dependsOnTaskIds: t.dependencies || [],
     documentationUrl: t.documentationUrl || null,
-    startDate: t.startDate ? t.startDate.slice(0, 10) : null, endDate: t.endDate ? t.endDate.slice(0, 10) : null,
+    startDate: isoToServerDateOnly(t.startDate), endDate: isoToServerDateOnly(t.endDate),
     businessValue: t.businessValue, taskCost: t.taskCost, progress: t.progress,
     estimatedEffort: t.estimatedEffort, actualEffort: t.actualEffort, archived: t.archived
   }, overrides || {});
@@ -210,7 +211,7 @@ export async function applyBulkEditsOnServer(project, edits){
     Object.keys(BULK_EDIT_FIELD_TO_TASK_FIELD).forEach(function(field){
       if(!rowEdits.hasOwnProperty(field)) return;
       var value = rowEdits[field];
-      if(field === 'startDate' || field === 'endDate') value = value ? value.slice(0, 10) : null;
+      if(field === 'startDate' || field === 'endDate') value = isoToServerDateOnly(value);
       overrides[field] = value;
     });
     if(Object.keys(overrides).length === 0) continue;
@@ -280,8 +281,8 @@ function buildLocalProjectFromServerDetail(detail, existingLocal){
       typeId: t.typeId || null,
       parentTaskId: t.parentTaskId || null,
       documentationUrl: t.documentationUrl || null,
-      startDate: t.startDate || null,
-      endDate: t.endDate || null,
+      startDate: serverDateOnlyToIso(t.startDate),
+      endDate: serverDateOnlyToIso(t.endDate),
       businessValue: t.businessValue,
       taskCost: t.taskCost,
       progress: t.progress,
@@ -303,7 +304,7 @@ function buildLocalProjectFromServerDetail(detail, existingLocal){
     return {id: m.id, name: m.displayName, color: m.color, role: m.role || null, reportsToId: m.reportsToId || null};
   });
   var releases = (detail.releases || []).map(function(r){
-    return {id: r.id, name: r.name, status: r.status, ownerId: r.ownerId || null, startDate: r.startDate || null, endDate: r.endDate || null, dateCreated: now, dateLastModified: now};
+    return {id: r.id, name: r.name, status: r.status, ownerId: r.ownerId || null, startDate: serverDateOnlyToIso(r.startDate), endDate: serverDateOnlyToIso(r.endDate), dateCreated: now, dateLastModified: now};
   });
   var taskTypes = (detail.taskTypes || []).map(function(t){
     return {id: t.id, name: t.name, iconName: t.iconName || null};
@@ -315,7 +316,7 @@ function buildLocalProjectFromServerDetail(detail, existingLocal){
     return {id: d.id, key: d.key, title: d.title, url: d.url || null, description: d.description || '', ownerId: d.ownerId || null, taskId: d.taskId || null, relatedDocumentIds: d.relatedDocumentIds || [], dateCreated: now, dateLastModified: now};
   });
   var risks = (detail.risks || []).map(function(r){
-    return {id: r.id, key: r.key, title: r.title, description: r.description || '', likelihood: r.likelihood, impact: r.impact, mitigations: r.mitigations || '', ownerId: r.ownerId || null, taskId: r.taskId || null, documentIds: r.documentIds || [], principleIds: r.principleIds || [], objectiveIds: r.objectiveIds || [], status: r.status, dateToClose: r.dateToClose || null, dateClosed: r.dateClosed || null, dateCreated: now, dateLastModified: now};
+    return {id: r.id, key: r.key, title: r.title, description: r.description || '', likelihood: r.likelihood, impact: r.impact, mitigations: r.mitigations || '', ownerId: r.ownerId || null, taskId: r.taskId || null, documentIds: r.documentIds || [], principleIds: r.principleIds || [], objectiveIds: r.objectiveIds || [], status: r.status, dateToClose: serverDateOnlyToIso(r.dateToClose), dateClosed: serverDateOnlyToIso(r.dateClosed), dateCreated: now, dateLastModified: now};
   });
   var objectives = (detail.objectives || []).map(function(o){
     return {id: o.id, key: o.key, title: o.title, description: o.description || '', principleIds: o.principleIds || [], dateCreated: now, dateLastModified: now};

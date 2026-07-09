@@ -26,6 +26,31 @@ export function utcISOToLocalDateValue(iso){
   return localDateValueFromDate(d);
 }
 
+/* This app's internal representation of a "date-only" field (task/release/risk start/end dates etc.)
+   is, perhaps surprisingly, a full UTC ISO datetime string — specifically, the UTC instant of LOCAL
+   midnight on the intended calendar date (see localDateValueToUTCISO above). The server's equivalent
+   fields are genuine DateOnly values, wire-formatted as a bare "YYYY-MM-DD" with no time or timezone
+   component at all.
+
+   Converting between the two must go through the LOCAL calendar date (utcISOToLocalDateValue —
+   exactly what the <input type="date"> already shows), never by slicing the first 10 characters off
+   the UTC ISO string directly. Slicing reads off the UTC calendar date instead, which only happens to
+   match the local one for timezones behind UTC (roughly the Americas) — anywhere ahead of UTC
+   (Australia included), local midnight has already rolled into the PREVIOUS UTC day, so the sliced
+   date is one day earlier than what was actually entered. This was the cause of a real bug: task
+   start/end dates silently shifting back a day for every server round-trip in AEST. */
+export function isoToServerDateOnly(iso){
+  if(!iso) return null;
+  return utcISOToLocalDateValue(iso) || null;
+}
+
+/* Inverse of isoToServerDateOnly — a bare "YYYY-MM-DD" DateOnly string from the server back into this
+   app's internal UTC-ISO-local-midnight representation. Same format as a date <input>'s value, so this
+   is just localDateValueToUTCISO under a name that documents which direction/purpose it's used for. */
+export function serverDateOnlyToIso(dateOnly){
+  return localDateValueToUTCISO(dateOnly);
+}
+
 /* UTC ISO string -> a friendly local display string, or '' */
 export function utcISOToLocalDisplayDate(iso){
   if(!iso) return '';

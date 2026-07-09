@@ -2,14 +2,12 @@
 import { ui, toast } from '../ui.js';
 import { getCurrentProject } from '../store.js';
 import { escapeHTML, renderBoard } from '../views/board.js';
-import { memberInitials, utcISOToLocalDateValue, localDateValueToUTCISO, utcISOToLocalDisplayDate } from '../date-utils.js';
+import { memberInitials, utcISOToLocalDateValue, localDateValueToUTCISO, utcISOToLocalDisplayDate, isoToServerDateOnly } from '../date-utils.js';
 import { getMemberById, getTasksArray, getReleaseById } from '../utils.js';
 import { addRelease, updateRelease, deleteRelease, normalizeReleaseStatus, getReleaseStatusMeta } from '../mutations.js';
 import { confirmDialog } from './confirm.js';
 import { releaseApi } from '../api.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
-
-function isoToDateOnly(iso){ return iso ? iso.slice(0, 10) : null; }
 
 export function openReleasesOverlay(){
   var project = getCurrentProject();
@@ -141,7 +139,7 @@ export async function saveReleaseFromModal(){
   if(isServerAuthoritative(project)){
     try {
       var editingId = ui.editingReleaseId;
-      var body = {name: data.name, status: data.status, ownerId: data.ownerId, startDate: isoToDateOnly(data.startDate), endDate: isoToDateOnly(data.endDate)};
+      var body = {name: data.name, status: data.status, ownerId: data.ownerId, startDate: isoToServerDateOnly(data.startDate), endDate: isoToServerDateOnly(data.endDate)};
       if(editingId) await releaseApi.update(project.serverProjectId, editingId, body);
       else await releaseApi.create(project.serverProjectId, body);
       await refreshProjectFromServer(project.id);
