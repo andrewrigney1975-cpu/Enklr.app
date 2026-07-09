@@ -673,6 +673,17 @@
     letter-spacing: .5px;
   }
 
+  /* Project is linked to the server (project.serverProjectId is set) — see renderToolbar() in
+     views/board.js. */
+  .kf-board-key-server {
+    color: var(--kf-good-fg);
+    border-color: var(--kf-good-fg);
+  }
+  .kf-board-key-server svg {
+    vertical-align: -1px;
+    margin-right: 3px;
+  }
+
   .kf-search {
     display: flex;
     align-items: center;

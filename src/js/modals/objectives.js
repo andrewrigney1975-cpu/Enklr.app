@@ -7,6 +7,8 @@ import { getObjectiveById } from '../utils.js';
 import { addObjective, updateObjective, deleteObjective } from '../mutations.js';
 import { renderItemPickerInto, getCheckedItemIdsFrom } from './pickers.js';
 import { confirmDialog } from './confirm.js';
+import { objectiveApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 
 export function openObjectivesOverlay(){
   var project = getCurrentProject();
@@ -110,7 +112,7 @@ export function renderObjectivesList(){
   });
 }
 
-export function saveObjectiveFromModal(){
+export async function saveObjectiveFromModal(){
   var project = getCurrentProject();
   if(!project) return;
   var title = document.getElementById('objectiveTitleInput').value.trim();
@@ -121,6 +123,20 @@ export function saveObjectiveFromModal(){
     description: document.getElementById('objectiveDescriptionInput').value,
     principleIds: getCheckedItemIdsFrom('objectivePrinciplePicker')
   };
+
+  if(isServerAuthoritative(project)){
+    try {
+      var editingId = ui.editingObjectiveId;
+      if(editingId) await objectiveApi.update(project.serverProjectId, editingId, data);
+      else await objectiveApi.create(project.serverProjectId, data);
+      await refreshProjectFromServer(project.id);
+      toast(editingId ? 'Objective updated.' : 'Objective created.');
+      showObjectivesListView();
+    } catch(e){
+      toast('Could not save objective on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
 
   if(ui.editingObjectiveId){
     updateObjective(project, ui.editingObjectiveId, data);
@@ -140,7 +156,18 @@ export function deleteObjectiveFromModal(){
   confirmDialog(
     'Delete ' + objective.key + '?',
     'Any risks or decisions linking to this objective will have the link removed.',
-    function(){
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await objectiveApi.remove(project.serverProjectId, objective.id);
+          await refreshProjectFromServer(project.id);
+          toast('Deleted ' + objective.key + '.');
+          showObjectivesListView();
+        } catch(e){
+          toast('Could not delete objective on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
       var unlinked = deleteObjective(project, objective.id);
       toast('Deleted ' + objective.key + (unlinked > 0 ? ' — removed ' + unlinked + ' link(s) from risks/decisions.' : '.'));
       showObjectivesListView();

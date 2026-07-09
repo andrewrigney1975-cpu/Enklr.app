@@ -90,12 +90,18 @@
         <button class="kf-header-btn kf-header-nav-projectaction" id="newProjectBtn" title="New Project"><span class="kf-icon" data-icon="plus" data-size="14"></span>New Project</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="importProjectBtn" title="Import a project from an Enkl export file"><span class="kf-icon" data-icon="upload" data-size="14"></span>Import Project</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="exportBtn" title="Export the current project"><span class="kf-icon" data-icon="download" data-size="14"></span>Export Project</button>
+        <button class="kf-header-btn kf-header-nav-projectaction" id="migrateToServerBtn" title="Migrate this project to the server database"><span class="kf-icon" data-icon="upload" data-size="14"></span>Migrate to Server</button>
+        <button class="kf-header-btn kf-header-nav-projectaction" id="serverLoginBtn" title="Log in to the server"><span class="kf-icon" data-icon="upload" data-size="14"></span>Server Login</button>
+        <button class="kf-header-btn kf-header-nav-projectaction" id="changePasswordBtn" title="Change your server password"><span class="kf-icon" data-icon="lock" data-size="14"></span>Change Password</button>
         <div class="kf-export-as-wrap kf-projects-menu-wrap" id="projectsMenuWrap">
           <button class="kf-header-btn" id="projectsMenuBtn" title="Projects"><span class="kf-icon" data-icon="chevronDown" data-size="14"></span>Projects...</button>
           <div class="kf-export-as-panel hidden kf-header-more-panel" id="projectsMenuPanel">
             <a href="#" class="kf-header-more-link" data-nav-target="newProjectBtn">New Project</a>
             <a href="#" class="kf-header-more-link" data-nav-target="importProjectBtn">Import Project</a>
             <a href="#" class="kf-header-more-link" data-nav-target="exportBtn">Export Project</a>
+            <a href="#" class="kf-header-more-link" data-nav-target="migrateToServerBtn">Migrate to Server</a>
+            <a href="#" class="kf-header-more-link" data-nav-target="serverLoginBtn">Server Login</a>
+            <a href="#" class="kf-header-more-link" data-nav-target="changePasswordBtn">Change Password</a>
           </div>
         </div>
       </div>
@@ -422,6 +428,60 @@
   </div>
 </div>
 
+<!-- Server Login Modal -->
+<div class="kf-overlay hidden" id="serverLoginOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Server Login</h2>
+      <button class="kf-btn kf-btn-ghost" id="serverLoginClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="serverLoginUsernameInput">Username</label>
+        <input type="text" id="serverLoginUsernameInput" autocomplete="username">
+      </div>
+      <div class="kf-field">
+        <label for="serverLoginPasswordInput">Password</label>
+        <input type="password" id="serverLoginPasswordInput" autocomplete="current-password">
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="serverLoginCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="serverLoginSubmitBtn">Log In</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal — opens automatically after a login where the account still has the
+     default migration password, or on demand via the header "Change Password" action. -->
+<div class="kf-overlay hidden" id="changePasswordOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="changePasswordTitle">Change Password</h2>
+      <button class="kf-btn kf-btn-ghost" id="changePasswordClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <p id="changePasswordIntro" class="kf-vis-hidden" style="margin:0 0 12px;color:var(--kf-text-faint);font-size:13px;">You're using the default migration password. Set your own before continuing.</p>
+      <div class="kf-field">
+        <label for="changePasswordCurrentInput">Current password</label>
+        <input type="password" id="changePasswordCurrentInput" autocomplete="current-password">
+      </div>
+      <div class="kf-field">
+        <label for="changePasswordNewInput">New password</label>
+        <input type="password" id="changePasswordNewInput" autocomplete="new-password">
+      </div>
+      <div class="kf-field">
+        <label for="changePasswordConfirmInput">Confirm new password</label>
+        <input type="password" id="changePasswordConfirmInput" autocomplete="new-password">
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="changePasswordSkipBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="changePasswordSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Project Modal -->
 <div class="kf-overlay hidden" id="projectOverlay">
   <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
@@ -607,6 +667,7 @@
             <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
           </div>
         </div>
+        <button class="kf-btn kf-btn-primary hidden" id="workflowSaveBtn" title="Push this workflow to the server" disabled>Save Workflow</button>
         <div class="kf-header-divider-light"></div>
         <button class="kf-btn kf-btn-ghost" id="workflowClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
       </div>

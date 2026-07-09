@@ -79,11 +79,9 @@ export function buildHierarchy(project){
   return roots.map(function(r){ return build(r.id, new Set()); });
 }
 
-export function exportProjectJSON(project){
-  var exportedAt = new Date().toISOString();
-  project.dateLastExported = exportedAt;
-  saveDB();
-
+/* Factored out of exportProjectJSON so the "Migrate to Server" action (features/migration.js) can
+   post the same document shape to the API without triggering a file download. */
+export function buildExportDoc(project, exportedAt){
   var hierarchy = buildHierarchy(project);
   var doc = {
     project: {
@@ -224,6 +222,15 @@ export function exportProjectJSON(project){
     workflow: project.workflow ? {nodes: project.workflow.nodes, edges: project.workflow.edges} : null,
     hierarchy: hierarchy
   };
+  return doc;
+}
+
+export function exportProjectJSON(project){
+  var exportedAt = new Date().toISOString();
+  project.dateLastExported = exportedAt;
+  saveDB();
+
+  var doc = buildExportDoc(project, exportedAt);
   var blob = new Blob([JSON.stringify(doc, null, 2)], {type:'application/json'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');

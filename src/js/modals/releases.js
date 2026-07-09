@@ -6,6 +6,10 @@ import { memberInitials, utcISOToLocalDateValue, localDateValueToUTCISO, utcISOT
 import { getMemberById, getTasksArray, getReleaseById } from '../utils.js';
 import { addRelease, updateRelease, deleteRelease, normalizeReleaseStatus, getReleaseStatusMeta } from '../mutations.js';
 import { confirmDialog } from './confirm.js';
+import { releaseApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+
+function isoToDateOnly(iso){ return iso ? iso.slice(0, 10) : null; }
 
 export function openReleasesOverlay(){
   var project = getCurrentProject();
@@ -113,7 +117,7 @@ function renderReleasesList(){
   });
 }
 
-export function saveReleaseFromModal(){
+export async function saveReleaseFromModal(){
   var project = getCurrentProject();
   if(!project) return;
   var name = document.getElementById('releaseNameInput').value.trim();
@@ -134,6 +138,22 @@ export function saveReleaseFromModal(){
     endDate: endISO
   };
 
+  if(isServerAuthoritative(project)){
+    try {
+      var editingId = ui.editingReleaseId;
+      var body = {name: data.name, status: data.status, ownerId: data.ownerId, startDate: isoToDateOnly(data.startDate), endDate: isoToDateOnly(data.endDate)};
+      if(editingId) await releaseApi.update(project.serverProjectId, editingId, body);
+      else await releaseApi.create(project.serverProjectId, body);
+      await refreshProjectFromServer(project.id);
+      renderBoard();
+      toast(editingId ? 'Release updated.' : 'Release created.');
+      showReleasesListView();
+    } catch(e){
+      toast('Could not save release on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
+
   if(ui.editingReleaseId){
     updateRelease(project, ui.editingReleaseId, data);
     toast('Release updated.');
@@ -153,7 +173,19 @@ export function deleteReleaseFromModal(){
   confirmDialog(
     'Delete ' + release.name + '?',
     'Any tasks currently assigned to this release will be unassigned.',
-    function(){
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await releaseApi.remove(project.serverProjectId, release.id);
+          await refreshProjectFromServer(project.id);
+          renderBoard();
+          toast('Deleted ' + release.name + '.');
+          showReleasesListView();
+        } catch(e){
+          toast('Could not delete release on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
       var unassigned = deleteRelease(project, release.id);
       renderBoard();
       toast('Deleted ' + release.name + (unassigned > 0 ? ' — unassigned from ' + unassigned + ' task(s).' : '.'));

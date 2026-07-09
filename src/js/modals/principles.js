@@ -8,6 +8,8 @@ import { getPrincipleById } from '../utils.js';
 import { addPrinciple, updatePrinciple, deletePrinciple } from '../mutations.js';
 import { updateDocUrlOpenButtonVisibilityFor, openUrlInputInNewTab } from './documents.js';
 import { confirmDialog } from './confirm.js';
+import { principleApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 
 export function openPrinciplesOverlay(){
   var project = getCurrentProject();
@@ -116,7 +118,7 @@ export function renderPrinciplesList(){
   });
 }
 
-export function savePrincipleFromModal(){
+export async function savePrincipleFromModal(){
   var project = getCurrentProject();
   if(!project) return;
   var title = document.getElementById('principleTitleInput').value.trim();
@@ -127,6 +129,20 @@ export function savePrincipleFromModal(){
     description: document.getElementById('principleDescriptionInput').value,
     documentUrl: document.getElementById('principleDocUrlInput').value
   };
+
+  if(isServerAuthoritative(project)){
+    try {
+      var editingId = ui.editingPrincipleId;
+      if(editingId) await principleApi.update(project.serverProjectId, editingId, data);
+      else await principleApi.create(project.serverProjectId, data);
+      await refreshProjectFromServer(project.id);
+      toast(editingId ? 'Principle updated.' : 'Principle created.');
+      showPrinciplesListView();
+    } catch(e){
+      toast('Could not save principle on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
 
   if(ui.editingPrincipleId){
     updatePrinciple(project, ui.editingPrincipleId, data);
@@ -146,7 +162,18 @@ export function deletePrincipleFromModal(){
   confirmDialog(
     'Delete ' + principle.key + '?',
     'Any objectives, risks, or decisions linking to this principle will have the link removed.',
-    function(){
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await principleApi.remove(project.serverProjectId, principle.id);
+          await refreshProjectFromServer(project.id);
+          toast('Deleted ' + principle.key + '.');
+          showPrinciplesListView();
+        } catch(e){
+          toast('Could not delete principle on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
       var unlinked = deletePrinciple(project, principle.id);
       toast('Deleted ' + principle.key + (unlinked > 0 ? ' — removed ' + unlinked + ' link(s) from objectives/risks/decisions.' : '.'));
       showPrinciplesListView();

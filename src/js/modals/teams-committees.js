@@ -9,6 +9,8 @@ import { TEAM_COMMITTEE_TYPES } from '../config.js';
 import { addTeamCommittee, updateTeamCommittee, deleteTeamCommittee, buildTeamCommitteeTree, getTeamCommitteeChildren, isTeamCommitteeAncestor } from '../mutations.js';
 import { renderMemberPickerInto, getCheckedItemIdsFrom } from './pickers.js';
 import { confirmDialog } from './confirm.js';
+import { teamCommitteeApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 
 export function openTeamsCommitteesOverlay(){
   var project = getCurrentProject();
@@ -171,7 +173,7 @@ export function showTeamCommitteeFormView(id){
   document.getElementById('tcNameInput').focus();
 }
 
-export function saveTeamCommitteeFromModal(){
+export async function saveTeamCommitteeFromModal(){
   var project = getCurrentProject();
   if(!project) return;
   var name = document.getElementById('tcNameInput').value.trim();
@@ -184,6 +186,20 @@ export function saveTeamCommitteeFromModal(){
     parentId: document.getElementById('tcParentSelect').value || null,
     memberIds: getCheckedItemIdsFrom('tcMemberPicker')
   };
+
+  if(isServerAuthoritative(project)){
+    try {
+      var editingId = ui.editingTeamCommitteeId;
+      if(editingId) await teamCommitteeApi.update(project.serverProjectId, editingId, data);
+      else await teamCommitteeApi.create(project.serverProjectId, data);
+      await refreshProjectFromServer(project.id);
+      toast(editingId ? 'Saved.' : 'Created.');
+      showTeamsCommitteesListView();
+    } catch(e){
+      toast('Could not save on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
 
   if(ui.editingTeamCommitteeId){
     var result = updateTeamCommittee(project, ui.editingTeamCommitteeId, data);
@@ -207,7 +223,18 @@ export function deleteTeamCommitteeFromModal(){
   confirmDialog(
     'Delete ' + tc.name + '?',
     'Any child teams/committees will be promoted to top level rather than deleted.',
-    function(){
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await teamCommitteeApi.remove(project.serverProjectId, tc.id);
+          await refreshProjectFromServer(project.id);
+          toast('Deleted ' + tc.name + '.');
+          showTeamsCommitteesListView();
+        } catch(e){
+          toast('Could not delete on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
       var result = deleteTeamCommittee(project, tc.id);
       toast('Deleted ' + tc.name + (result.orphanedCount > 0 ? ' — ' + result.orphanedCount + ' child team(s) moved to top level.' : '.'));
       showTeamsCommitteesListView();

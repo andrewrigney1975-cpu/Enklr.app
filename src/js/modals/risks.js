@@ -9,6 +9,10 @@ import { addRisk, updateRisk, deleteRisk, normalizeRiskStatus, getRiskStatusMeta
 import { renderDocumentPickerInto, renderItemPickerInto, getCheckedDocumentIdsFrom, getCheckedItemIdsFrom } from './pickers.js';
 import { populateOwnerSelect, populateTaskSelect } from './documents.js';
 import { confirmDialog } from './confirm.js';
+import { riskApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+
+function isoToDateOnly(iso){ return iso ? iso.slice(0, 10) : null; }
 
 export function populateRiskScoreSelect(selectEl, meta, currentValue){
   selectEl.innerHTML = '';
@@ -203,7 +207,7 @@ function renderRisksMatrix(allRisks){
     '<span class="kf-health-legend-item kf-risk-matrix-point-faded" style="opacity:0.55;"><span class="kf-health-legend-swatch" style="background:#1b2a4a;border-radius:50%;width:8px;height:8px;"></span>Faded marker = closed risk</span>';
 }
 
-export function saveRiskFromModal(){
+export async function saveRiskFromModal(){
   var project = getCurrentProject();
   if(!project) return;
   var title = document.getElementById('riskTitleInput').value.trim();
@@ -229,6 +233,24 @@ export function saveRiskFromModal(){
     dateClosed: dateClosed
   };
 
+  if(isServerAuthoritative(project)){
+    try {
+      var editingId = ui.editingRiskId;
+      var body = Object.assign({}, data, {
+        likelihood: Number(data.likelihood), impact: Number(data.impact),
+        dateToClose: isoToDateOnly(data.dateToClose), dateClosed: isoToDateOnly(data.dateClosed)
+      });
+      if(editingId) await riskApi.update(project.serverProjectId, editingId, body);
+      else await riskApi.create(project.serverProjectId, body);
+      await refreshProjectFromServer(project.id);
+      toast(editingId ? 'Risk updated.' : 'Risk created.');
+      showRisksListView();
+    } catch(e){
+      toast('Could not save risk on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
+
   if(ui.editingRiskId){
     updateRisk(project, ui.editingRiskId, data);
     toast('Risk updated.');
@@ -247,7 +269,18 @@ export function deleteRiskFromModal(){
   confirmDialog(
     'Delete ' + risk.key + '?',
     'This cannot be undone.',
-    function(){
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await riskApi.remove(project.serverProjectId, risk.id);
+          await refreshProjectFromServer(project.id);
+          toast('Deleted ' + risk.key + '.');
+          showRisksListView();
+        } catch(e){
+          toast('Could not delete risk on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
       deleteRisk(project, risk.id);
       toast('Deleted ' + risk.key + '.');
       showRisksListView();

@@ -9,6 +9,8 @@ import { renderDocumentPickerInto, renderRiskPickerInto, renderItemPickerInto, g
 import { populateOwnerSelect, populateTaskSelect } from './documents.js';
 import { populateVocabularyDatalist } from './team.js';
 import { confirmDialog } from './confirm.js';
+import { decisionApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 
 export function populateApproverOptions(project){
   var committeeNames = (project.teamsCommittees || [])
@@ -175,7 +177,7 @@ export function renderDecisionsList(){
   });
 }
 
-export function saveDecisionFromModal(){
+export async function saveDecisionFromModal(){
   var project = getCurrentProject();
   if(!project) return;
   var title = document.getElementById('decisionTitleInput').value.trim();
@@ -196,6 +198,20 @@ export function saveDecisionFromModal(){
     objectiveIds: getCheckedItemIdsFrom('decisionObjectivePicker')
   };
 
+  if(isServerAuthoritative(project)){
+    try {
+      var editingId = ui.editingDecisionId;
+      if(editingId) await decisionApi.update(project.serverProjectId, editingId, data);
+      else await decisionApi.create(project.serverProjectId, data);
+      await refreshProjectFromServer(project.id);
+      toast(editingId ? 'Decision updated.' : 'Decision created.');
+      showDecisionsListView();
+    } catch(e){
+      toast('Could not save decision on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
+
   if(ui.editingDecisionId){
     updateDecision(project, ui.editingDecisionId, data);
     toast('Decision updated.');
@@ -214,7 +230,18 @@ export function deleteDecisionFromModal(){
   confirmDialog(
     'Delete ' + decision.key + '?',
     'This cannot be undone.',
-    function(){
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await decisionApi.remove(project.serverProjectId, decision.id);
+          await refreshProjectFromServer(project.id);
+          toast('Deleted ' + decision.key + '.');
+          showDecisionsListView();
+        } catch(e){
+          toast('Could not delete decision on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
       deleteDecision(project, decision.id);
       toast('Deleted ' + decision.key + '.');
       showDecisionsListView();

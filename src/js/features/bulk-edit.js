@@ -7,6 +7,7 @@ import { clampTaskScore, clampProgress, utcISOToLocalDateValue, localDateValueTo
 import { moveTaskToColumn, pushTaskAuditEntry } from '../mutations.js';
 import { saveDB, isTimeTrackingEnabled } from "../storage.js";
 import { escapeHTML, renderBoard } from '../views/board.js';
+import { isServerAuthoritative, applyBulkEditsOnServer } from './migration.js';
 
 function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
 
@@ -345,7 +346,7 @@ function applyBulkEdits(project){
   return changedCount;
 }
 
-export function saveBulkEditChanges(){
+export async function saveBulkEditChanges(){
   var project = getCurrentProject();
   if(!project) return;
   if(Object.keys(ui.bulkEdits).length === 0){ toast('No changes to save.'); return; }
@@ -353,6 +354,18 @@ export function saveBulkEditChanges(){
   var invalidTask = findInvalidBulkEditDateRow(project);
   if(invalidTask){
     toast(invalidTask.key + ': end date cannot be before the start date. Fix it before saving.');
+    return;
+  }
+
+  if(isServerAuthoritative(project)){
+    try {
+      var serverChangedCount = await applyBulkEditsOnServer(project, ui.bulkEdits);
+      closeBulkEditOverlay();
+      renderBoard();
+      toast('Updated ' + serverChangedCount + ' task' + (serverChangedCount === 1 ? '' : 's') + '.');
+    } catch(e){
+      toast('Could not save bulk edits on the server: ' + (e.message || 'unknown error'));
+    }
     return;
   }
 

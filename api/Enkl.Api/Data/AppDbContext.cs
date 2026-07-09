@@ -1,0 +1,31 @@
+using Enkl.Api.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace Enkl.Api.Data;
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public DbSet<Organisation> Organisations => Set<Organisation>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
+    public DbSet<Column> Columns => Set<Column>();
+    public DbSet<TaskItem> Tasks => Set<TaskItem>();
+    public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
+    public DbSet<TaskAuditLogEntry> TaskAuditLogEntries => Set<TaskAuditLogEntry>();
+    public DbSet<Release> Releases => Set<Release>();
+    public DbSet<TaskType> TaskTypes => Set<TaskType>();
+    public DbSet<Document> Documents => Set<Document>();
+    public DbSet<Principle> Principles => Set<Principle>();
+    public DbSet<Risk> Risks => Set<Risk>();
+    public DbSet<Objective> Objectives => Set<Objective>();
+    public DbSet<TeamCommittee> TeamsCommittees => Set<TeamCommittee>();
+    public DbSet<Decision> Decisions => Set<Decision>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+    }
+}

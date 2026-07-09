@@ -5,6 +5,7 @@ import { getTasksArray } from '../utils.js';
 import { iconSvg } from '../icons.js';
 import { escapeHTML, renderBoard } from '../views/board.js';
 import { reactivateTasks } from '../mutations.js';
+import { isServerAuthoritative, setTasksArchivedOnServer } from './migration.js';
 
 export function getArchivedTasks(project){
   return getTasksArray(project).filter(function(t){ return t.archived; });
@@ -88,7 +89,22 @@ export function renderArchivedTasksList(){
 export function reactivateSelectedArchivedTasks(){
   var project = getCurrentProject();
   if(!project || ui.archivedSelected.size === 0) return;
-  var count = reactivateTasks(project, Array.from(ui.archivedSelected));
+  var ids = Array.from(ui.archivedSelected);
+
+  if(isServerAuthoritative(project)){
+    setTasksArchivedOnServer(project, ids, false).then(function(){
+      ui.archivedSelected = new Set();
+      renderArchivedTasksList();
+      renderBoard();
+      refreshArchivedCountBadge();
+      toast('Reactivated ' + ids.length + ' task' + (ids.length === 1 ? '' : 's') + '.');
+    }, function(err){
+      toast('Could not reactivate on the server: ' + (err.message || 'unknown error'));
+    });
+    return;
+  }
+
+  var count = reactivateTasks(project, ids);
   ui.archivedSelected = new Set();
   renderArchivedTasksList();
   renderBoard();

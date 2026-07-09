@@ -5,6 +5,8 @@ import { iconSvg } from '../icons.js';
 import { escapeHTML, renderBoard, renderTaskTypeFilterChips } from '../views/board.js';
 import { addTaskType, renameTaskType, removeTaskType, setTaskTypeIcon, buildTaskTypeIconGridHTML, closeAllTaskTypeIconPanels, positionTaskTypeIconPanel, getTaskTypeIconLabel } from '../mutations.js';
 import { confirmDialog } from './confirm.js';
+import { taskTypeApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 
 export function openTaskTypesModal(){
   var project = getCurrentProject();
@@ -56,22 +58,58 @@ export function renderTaskTypeList(){
       }
     });
     iconPanel.querySelectorAll('.kf-tasktype-icon-option').forEach(function(optBtn){
-      optBtn.addEventListener('click', function(e){
+      optBtn.addEventListener('click', async function(e){
         e.stopPropagation();
-        setTaskTypeIcon(project, tt.id, optBtn.getAttribute('data-icon-name'));
+        var iconName = optBtn.getAttribute('data-icon-name');
+        if(isServerAuthoritative(project)){
+          try {
+            await taskTypeApi.update(project.serverProjectId, tt.id, {name: tt.name, iconName: iconName});
+            await refreshProjectFromServer(project.id);
+            renderTaskTypeList();
+            renderBoard();
+          } catch(err){
+            toast('Could not update task type on the server: ' + (err.message || 'unknown error'));
+          }
+          return;
+        }
+        setTaskTypeIcon(project, tt.id, iconName);
         renderTaskTypeList();
         renderBoard();
       });
     });
-    iconPanel.querySelector('.kf-tasktype-icon-clear').addEventListener('click', function(e){
+    iconPanel.querySelector('.kf-tasktype-icon-clear').addEventListener('click', async function(e){
       e.stopPropagation();
+      if(isServerAuthoritative(project)){
+        try {
+          await taskTypeApi.update(project.serverProjectId, tt.id, {name: tt.name, iconName: null});
+          await refreshProjectFromServer(project.id);
+          renderTaskTypeList();
+          renderBoard();
+        } catch(err){
+          toast('Could not update task type on the server: ' + (err.message || 'unknown error'));
+        }
+        return;
+      }
       setTaskTypeIcon(project, tt.id, null);
       renderTaskTypeList();
       renderBoard();
     });
 
     var nameInput = row.querySelector('.kf-member-name-input');
-    nameInput.addEventListener('change', function(){
+    nameInput.addEventListener('change', async function(){
+      if(isServerAuthoritative(project)){
+        var newName = (nameInput.value || '').trim().slice(0, 40) || tt.name;
+        try {
+          await taskTypeApi.update(project.serverProjectId, tt.id, {name: newName, iconName: tt.iconName});
+          await refreshProjectFromServer(project.id);
+          renderTaskTypeList();
+          renderTaskTypeFilterChips();
+          renderBoard();
+        } catch(err){
+          toast('Could not rename task type on the server: ' + (err.message || 'unknown error'));
+        }
+        return;
+      }
       renameTaskType(project, tt.id, nameInput.value);
       renderTaskTypeList();
       renderTaskTypeFilterChips();
@@ -81,7 +119,20 @@ export function renderTaskTypeList(){
       confirmDialog(
         'Remove ' + tt.name + '?',
         'Any tasks currently set to this type will have their type cleared.',
-        function(){
+        async function(){
+          if(isServerAuthoritative(project)){
+            try {
+              await taskTypeApi.remove(project.serverProjectId, tt.id);
+              await refreshProjectFromServer(project.id);
+              renderTaskTypeList();
+              renderTaskTypeFilterChips();
+              renderBoard();
+              toast('Removed ' + tt.name + '.');
+            } catch(err){
+              toast('Could not remove task type on the server: ' + (err.message || 'unknown error'));
+            }
+            return;
+          }
           var unassigned = removeTaskType(project, tt.id);
           renderTaskTypeList();
           renderTaskTypeFilterChips();
@@ -94,12 +145,27 @@ export function renderTaskTypeList(){
   });
 }
 
-export function addTaskTypeFromModal(){
+export async function addTaskTypeFromModal(){
   var project = getCurrentProject();
   if(!project) return;
   var input = document.getElementById('newTaskTypeNameInput');
   var name = input.value.trim();
   if(!name){ toast('Please enter a name.'); return; }
+
+  if(isServerAuthoritative(project)){
+    try {
+      await taskTypeApi.create(project.serverProjectId, {name: name.slice(0, 40), iconName: null});
+      await refreshProjectFromServer(project.id);
+      input.value = '';
+      renderTaskTypeList();
+      renderTaskTypeFilterChips();
+      input.focus();
+    } catch(e){
+      toast('Could not create task type on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
+
   addTaskType(project, name);
   input.value = '';
   renderTaskTypeList();

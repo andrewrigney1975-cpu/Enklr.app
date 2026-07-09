@@ -9,6 +9,8 @@ import { addDocument, updateDocument, deleteDocument, normalizeDocumentationUrl 
 import { renderDocumentPickerInto, getCheckedDocumentIdsFrom } from './pickers.js';
 import { confirmDialog } from './confirm.js';
 import { scheduleDocumentSuggestions, disposeDocumentSuggestionWorker } from '../features/document-suggestions.js';
+import { documentApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 
 /* =========================================================
    DOCUMENT RELATIONSHIP MAP
@@ -403,7 +405,7 @@ export function renderDocumentsList(){
   renderDocumentMap();
 }
 
-export function saveDocumentFromModal(){
+export async function saveDocumentFromModal(){
   var project = getCurrentProject();
   if(!project) return;
   var title = document.getElementById('documentTitleInput').value.trim();
@@ -417,6 +419,21 @@ export function saveDocumentFromModal(){
     taskId: document.getElementById('documentTaskSelect').value || null,
     relatedDocumentIds: getCheckedDocumentIdsFrom('documentRelatedPicker')
   };
+
+  if(isServerAuthoritative(project)){
+    try {
+      var editingId = ui.editingDocumentId;
+      var body = Object.assign({}, data, {url: normalizeDocumentationUrl(data.url)});
+      if(editingId) await documentApi.update(project.serverProjectId, editingId, body);
+      else await documentApi.create(project.serverProjectId, body);
+      await refreshProjectFromServer(project.id);
+      toast(editingId ? 'Document updated.' : 'Document created.');
+      showDocumentsListView();
+    } catch(e){
+      toast('Could not save document on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
 
   if(ui.editingDocumentId){
     updateDocument(project, ui.editingDocumentId, data);
@@ -436,7 +453,18 @@ export function deleteDocumentFromModal(){
   confirmDialog(
     'Delete ' + doc.key + '?',
     'Any risks or decisions linking to this document will have the link removed.',
-    function(){
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await documentApi.remove(project.serverProjectId, doc.id);
+          await refreshProjectFromServer(project.id);
+          toast('Deleted ' + doc.key + '.');
+          showDocumentsListView();
+        } catch(e){
+          toast('Could not delete document on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
       var unlinked = deleteDocument(project, doc.id);
       toast('Deleted ' + doc.key + (unlinked > 0 ? ' — removed ' + unlinked + ' link(s) from risks/decisions.' : '.'));
       showDocumentsListView();

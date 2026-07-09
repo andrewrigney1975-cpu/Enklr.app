@@ -9,11 +9,58 @@ import { escapeHTML, renderBoard } from '../views/board.js';
 import { addTask, updateTask, deleteTask, normalizeDocumentationUrl, getAuditFieldLabel, setTaskSubtasks } from '../mutations.js';
 import { normalizeHeaderButtonVisibility, isSubTasksEnabled } from '../storage.js';
 import { confirmDialog } from './confirm.js';
-import { getReachableColumnIds } from '../features/workflow-engine.js';
+import { getReachableColumnIds, evaluateTransition } from '../features/workflow-engine.js';
 import { encryptText } from '../features/crypto.js';
 import { openSetPrivateKeyModal } from './private-key-set.js';
 import { openUnlockPrivateTaskModal } from './private-key-unlock.js';
 import { setTaskHash, clearTaskHash } from '../features/hash-router.js';
+import { taskApi } from '../api.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+
+/* Server DateOnly fields need "yyyy-MM-dd", not the full ISO datetime string startDate/endDate are
+   stored as locally. */
+function isoToDateOnly(iso){ return iso ? iso.slice(0, 10) : null; }
+
+function buildServerTaskBody(data){
+  return {
+    title: data.title, description: data.description, priority: data.priority,
+    columnId: data.columnId, assigneeId: data.assigneeId || null,
+    releaseId: data.releaseId || null, typeId: data.typeId || null,
+    parentTaskId: data.parentTaskId || null, dependsOnTaskIds: data.dependencies || [],
+    documentationUrl: data.documentationUrl || null,
+    startDate: isoToDateOnly(data.startDate), endDate: isoToDateOnly(data.endDate),
+    businessValue: data.businessValue, taskCost: data.taskCost, progress: data.progress,
+    estimatedEffort: data.estimatedEffort, actualEffort: data.actualEffort, archived: data.archived
+  };
+}
+
+/* Mirrors setTaskSubtasks (mutations.js) for the server-authoritative path: there's no dedicated
+   "set children" endpoint, so each task whose desired child-of-taskId membership actually changed
+   gets a normal full task update with just parentTaskId changed — its other fields come from this
+   browser's current (just-refreshed) local copy. */
+async function syncSubtasksToServer(project, taskId, desiredSubtaskIds){
+  var desired = new Set(desiredSubtaskIds || []);
+  var updates = [];
+  Object.keys(project.tasks).forEach(function(id){
+    if(id === taskId) return;
+    var t = project.tasks[id];
+    var shouldBeChild = desired.has(id);
+    var isChild = t.parentTaskId === taskId;
+    if(shouldBeChild === isChild) return;
+    updates.push({id: id, task: t, newParentId: shouldBeChild ? taskId : null});
+  });
+  for(var i = 0; i < updates.length; i++){
+    var u = updates[i];
+    await taskApi.update(project.serverProjectId, u.id, buildServerTaskBody({
+      title: u.task.title, description: u.task.description, priority: u.task.priority,
+      columnId: u.task.columnId, assigneeId: u.task.assigneeId, releaseId: u.task.releaseId,
+      typeId: u.task.typeId, parentTaskId: u.newParentId, dependencies: u.task.dependencies,
+      documentationUrl: u.task.documentationUrl, startDate: u.task.startDate, endDate: u.task.endDate,
+      businessValue: u.task.businessValue, taskCost: u.task.taskCost, progress: u.task.progress,
+      estimatedEffort: u.task.estimatedEffort, actualEffort: u.task.actualEffort, archived: u.task.archived
+    }));
+  }
+}
 
 /* Toggles between the full editable form and the "private, no key
    given" reduced view (title only, read-only, no Save/Delete). */
@@ -568,7 +615,40 @@ export async function saveTaskFromModal(){
   finishSave(project, data);
 }
 
-function finishSave(project, data){
+async function finishSave(project, data){
+  var existingTask = ui.editingTaskId ? project.tasks[ui.editingTaskId] : null;
+  // Private-task encryption isn't modeled server-side yet (see features/crypto.js — the API has no
+  // fields for privateSalt/privateVerifier/encryptedDescription/encryptionIv), so any task that IS
+  // or WAS private stays on the local-only path even for a server-authoritative project, rather
+  // than silently losing its encrypted content on the next server refresh.
+  var isPrivateInvolved = !!data.isPrivate || !!(existingTask && existingTask.isPrivate);
+
+  if(isServerAuthoritative(project) && !isPrivateInvolved){
+    if(existingTask && data.columnId !== existingTask.columnId){
+      var transition = evaluateTransition(project, existingTask, data.columnId);
+      if(!transition.allowed){ toast(transition.message); return; }
+    }
+    try {
+      var editingId = ui.editingTaskId;
+      var resultTaskId;
+      if(editingId){
+        await taskApi.update(project.serverProjectId, editingId, buildServerTaskBody(data));
+        resultTaskId = editingId;
+      } else {
+        var created = await taskApi.create(project.serverProjectId, buildServerTaskBody(data));
+        resultTaskId = created.id;
+      }
+      await syncSubtasksToServer(project, resultTaskId, ui.taskModalSubtaskIds);
+      await refreshProjectFromServer(project.id);
+      closeTaskModal();
+      renderBoard();
+      toast(editingId ? 'Task updated.' : 'Task created.');
+    } catch(e){
+      toast('Could not save task on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
+
   if(ui.editingTaskId){
     var blocked = updateTask(project, ui.editingTaskId, data);
     /* Sub-task reconciliation is independent of the column move — it
@@ -576,11 +656,11 @@ function finishSave(project, data){
        every other field on this task already did. */
     setTaskSubtasks(project, ui.editingTaskId, ui.taskModalSubtaskIds);
     if(blocked){ toast(blocked.message); return; }
-    toast('Task updated.');
+    toast('Task updated.' + (isPrivateInvolved && isServerAuthoritative(project) ? ' (Private tasks are not synced to the server.)' : ''));
   } else {
     var newId = addTask(project, data);
     setTaskSubtasks(project, newId, ui.taskModalSubtaskIds);
-    toast('Task created.');
+    toast('Task created.' + (isPrivateInvolved && isServerAuthoritative(project) ? ' (Private tasks are not synced to the server.)' : ''));
   }
   closeTaskModal();
   renderBoard();
@@ -593,7 +673,19 @@ export function deleteTaskFromModal(){
   confirmDialog(
     'Delete ' + task.key + '?',
     'This will permanently remove "' + task.title + '" and unlink it from any dependent tasks.',
-    function(){
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await taskApi.remove(project.serverProjectId, ui.editingTaskId);
+          await refreshProjectFromServer(project.id);
+          closeTaskModal();
+          renderBoard();
+          toast('Task deleted.');
+        } catch(e){
+          toast('Could not delete task on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
       deleteTask(project, ui.editingTaskId);
       closeTaskModal();
       renderBoard();

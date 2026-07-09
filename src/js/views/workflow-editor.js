@@ -3,6 +3,8 @@ import { getCurrentProject } from '../store.js';
 import { iconSvg } from '../icons.js';
 import { ensureProjectWorkflow, WORKFLOW_NODE_W, WORKFLOW_NODE_H, WORKFLOW_MARGIN, WORKFLOW_CONDITION_FIELDS, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION, getWorkflowConditionField } from '../features/workflow-engine.js';
 import { setWorkflowNodePosition, addWorkflowEdge, updateWorkflowEdge, deleteWorkflowEdge, reflowWorkflowLayout } from '../mutations.js';
+import { isServerAuthoritative, pullWorkflowFromServer } from '../features/migration.js';
+import { updateProjectWorkflowApi } from '../api.js';
 
 function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
@@ -29,7 +31,13 @@ export var workflowEditorState = {
   mode: 'select',                 // 'select' | 'allowed' | 'disallowed' | 'conditional'
   draggingColumnId: null, dragMoved: false, dragPointerStartX: 0, dragPointerStartY: 0, dragNodeStartX: 0, dragNodeStartY: 0,
   drawingFromColumnId: null,
-  popoverEdgeId: null
+  popoverEdgeId: null,
+  /* True once a local mutation has happened that "Save Workflow" hasn't pushed to the server yet —
+     see updateHeaderButtonVisibilitySetting-style save flow, but batched: unlike every other entity,
+     workflow edits (drag-heavy, many events/sec) stay local-only until this browser explicitly saves,
+     rather than round-tripping the server on every mutation. Guards both openWorkflowOverlay's
+     "pull fresh from server" step and the Save button's enabled state. */
+  dirty: false
 };
 var WORKFLOW_EDGE_COLOR = {allowed: 'var(--kf-good-fg)', disallowed: 'var(--kf-danger)', conditional: 'var(--kf-overdue-fg)'};
 
@@ -253,12 +261,13 @@ export function handleWorkflowReflow(){
     'Nodes will be rearranged into a clean grid to reduce connector overlap. Any custom positions you’ve dragged will be replaced.',
     function(){
       reflowWorkflowLayout(project);
+      workflowEditorState.dirty = true;
       renderWorkflowEditor();
     }
   );
 }
 
-export function openWorkflowOverlay(){
+export async function openWorkflowOverlay(){
   var project = getCurrentProject();
   if(!project){ _toast('No project selected.'); return; }
   workflowEditorState.scale = 1;
@@ -269,7 +278,19 @@ export function openWorkflowOverlay(){
   workflowEditorState.drawingFromColumnId = null;
   closeWorkflowEdgePopover();
   updateWorkflowModeButtons();
+
+  // Start each session from the server's current workflow — but only when this browser has no
+  // unsaved local draft (see workflowEditorState.dirty's comment above) to avoid clobbering it.
+  if(isServerAuthoritative(project) && !workflowEditorState.dirty){
+    try {
+      await pullWorkflowFromServer(project);
+    } catch(e){
+      _toast('Could not load the latest workflow from the server — showing the local copy.');
+    }
+  }
+
   renderWorkflowEditor();
+  updateWorkflowSaveButton();
   document.getElementById('workflowOverlay').classList.remove('hidden');
 }
 export function closeWorkflowOverlay(){
@@ -283,6 +304,33 @@ export function closeWorkflowOverlay(){
 }
 export function isWorkflowOverlayOpen(){
   return !document.getElementById('workflowOverlay').classList.contains('hidden');
+}
+
+/* Reflects workflowEditorState.dirty on the Save button — only meaningful for a server-authoritative
+   project (a local-only project has nothing to push, since every edit already lands in local
+   storage the normal way — see mutations.js). */
+export function updateWorkflowSaveButton(){
+  var project = getCurrentProject();
+  var btn = document.getElementById('workflowSaveBtn');
+  if(!btn) return;
+  var applicable = isServerAuthoritative(project);
+  btn.classList.toggle('hidden', !applicable);
+  btn.classList.toggle('kf-workflow-save-dirty', applicable && workflowEditorState.dirty);
+  btn.disabled = !applicable || !workflowEditorState.dirty;
+  btn.textContent = workflowEditorState.dirty ? 'Save Workflow*' : 'Save Workflow';
+}
+
+export async function saveWorkflowToServer(){
+  var project = getCurrentProject();
+  if(!project || !isServerAuthoritative(project)) return;
+  try {
+    await updateProjectWorkflowApi(project.serverProjectId, project.workflow);
+    workflowEditorState.dirty = false;
+    updateWorkflowSaveButton();
+    _toast('Workflow saved.');
+  } catch(e){
+    _toast('Could not save workflow on the server: ' + (e.message || 'unknown error'));
+  }
 }
 
 function clientPointToSvgPoint(clientX, clientY){
@@ -420,6 +468,8 @@ export function handleWorkflowPointerUp(e){
     if(project && project.workflow && project.workflow.nodes[columnId]){
       var node = project.workflow.nodes[columnId];
       setWorkflowNodePosition(project, columnId, node.x, node.y);
+      workflowEditorState.dirty = true;
+      updateWorkflowSaveButton();
     }
     renderWorkflowEditor();
     /* dragMoved stays true through the synthetic 'click' this mouseup
@@ -446,6 +496,8 @@ export function handleWorkflowPointerUp(e){
       var project2 = getCurrentProject();
       var condition = workflowEditorState.mode === 'conditional' ? WORKFLOW_DEFAULT_CONDITION : null;
       var edge = addWorkflowEdge(project2, fromColumnId, toColumnId, workflowEditorState.mode, null, condition);
+      workflowEditorState.dirty = true;
+      updateWorkflowSaveButton();
       renderWorkflowEditor();
       if(edge && (workflowEditorState.mode === 'disallowed' || workflowEditorState.mode === 'conditional')){
         openWorkflowEdgePopover(edge.id, e.clientX, e.clientY);
@@ -601,6 +653,8 @@ export function saveWorkflowEdgePopover(){
     condition = {field: fieldKey, operator: operator, value: valueEl.classList.contains('hidden') ? null : valueEl.value};
   }
   updateWorkflowEdge(project, workflowEditorState.popoverEdgeId, type, message, condition);
+  workflowEditorState.dirty = true;
+  updateWorkflowSaveButton();
   closeWorkflowEdgePopover();
   renderWorkflowEditor();
 }
@@ -608,6 +662,8 @@ export function deleteWorkflowEdgeFromPopover(){
   var project = getCurrentProject();
   if(!project || !workflowEditorState.popoverEdgeId) return;
   deleteWorkflowEdge(project, workflowEditorState.popoverEdgeId);
+  workflowEditorState.dirty = true;
+  updateWorkflowSaveButton();
   closeWorkflowEdgePopover();
   renderWorkflowEditor();
 }

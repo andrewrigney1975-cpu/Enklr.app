@@ -13,6 +13,8 @@ import { reorderColumns, deleteColumn, moveTaskToColumn, updateTask, addTask, de
 import { getReleaseById } from '../utils.js';
 import { isWorkflowEnabled, evaluateTransition } from '../features/workflow-engine.js';
 import { isGovernanceMapEnabled } from './governance-map.js';
+import { isServerAuthoritative, moveTaskToColumnOnServer, refreshProjectFromServer } from '../features/migration.js';
+import { updateProjectSettingsApi } from '../api.js';
 
 export function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
@@ -102,11 +104,24 @@ export function closeAppSettingsOverlay(){
 export function isAppSettingsOverlayOpen(){
   return !document.getElementById('appSettingsOverlay').classList.contains('hidden');
 }
-export function updateHeaderButtonVisibilitySetting(field, isVisible){
+export async function updateHeaderButtonVisibilitySetting(field, isVisible){
   var project = getCurrentProject();
   if(!project) return;
   var visibility = normalizeHeaderButtonVisibility(project.headerButtonVisibility);
   visibility[field] = isVisible;
+
+  if(isServerAuthoritative(project)){
+    try {
+      await updateProjectSettingsApi(project.serverProjectId, visibility);
+      await refreshProjectFromServer(project.id);
+      applyHeaderButtonVisibility();
+      renderBoard();
+    } catch(e){
+      _toast('Could not save settings on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
+
   project.headerButtonVisibility = visibility;
   saveDB();
   applyHeaderButtonVisibility();
@@ -140,7 +155,10 @@ export function renderProjectSelect(){
 
 export function renderToolbar(){
   var p = getCurrentProject();
-  document.getElementById('toolbarKey').textContent = p ? p.key : '—';
+  var keyEl = document.getElementById('toolbarKey');
+  var isServerLinked = !!(p && p.serverProjectId);
+  keyEl.classList.toggle('kf-board-key-server', isServerLinked);
+  keyEl.innerHTML = (isServerLinked ? iconSvg('cloud', 11) : '') + (p ? p.key : '—');
   document.getElementById('toolbarTitle').textContent = p ? p.name : 'No project';
 }
 
@@ -694,6 +712,16 @@ export function renderColumn(project, col){
       var result = evaluateTransition(project, draggedTask, col.id);
       if(!result.allowed){ _toast(result.message); return; }
     }
+
+    // Private tasks aren't modeled server-side (see modals/task.js) — a private task in a
+    // server-authoritative project only ever exists locally, so its moves stay local-only too.
+    if(isServerAuthoritative(project) && !(draggedTask && draggedTask.isPrivate)){
+      moveTaskToColumnOnServer(project, taskId, col.id).then(renderBoard, function(err){
+        _toast('Could not move task on the server: ' + (err.message || 'unknown error'));
+      });
+      return;
+    }
+
     var cards = Array.prototype.slice.call(tasksWrap.querySelectorAll('.kf-card'));
     var dropIndex = cards.length;
     for(var i=0;i<cards.length;i++){

@@ -15,13 +15,14 @@ import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListO
 import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, toggleDepMapShowArchived, toggleDepMapColumnFilterPanel, closeDepMapColumnFilterPanel, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
 import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
 import { setGovMapDeps, govMapState, lastGovMapLayout, openGovMapOverlay, closeGovMapOverlay, isGovMapOpen, toggleGovMapShowRelationships, setGovMapZoom, resetGovMapZoom, zoomGovMapAtPoint } from './views/governance-map.js';
-import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, handleWorkflowReflow, updateWorkflowEdgePopoverMessageVisibility, refreshWorkflowEdgeConditionControls, handleWorkflowEdgeConditionFieldChange, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen } from './views/workflow-editor.js';
+import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, handleWorkflowReflow, updateWorkflowEdgePopoverMessageVisibility, refreshWorkflowEdgeConditionControls, handleWorkflowEdgeConditionFieldChange, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen, saveWorkflowToServer } from './views/workflow-editor.js';
 import { setTimelineDeps, openTimelineOverlay, closeTimelineOverlay, isTimelineOverlayOpen, toggleTimelineShowArchived, renderTimeline } from './views/timeline.js';
 import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenefitOverlay, isCostBenefitOverlayOpen, toggleCostBenefitShowArchived, toggleCbColumnFilterPanel, closeCbColumnFilterPanel, setCbZoom, resetCbZoom, zoomCbAtPoint } from './views/cost-benefit.js';
 
 /* ---- Features ---- */
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
 import { exportProjectJSON } from './features/export.js';
+import { migrateProjectToServer, loginToServer, changePasswordOnServer, isServerLoggedIn, pullServerProjectsIntoLocal, setMigrationToast } from './features/migration.js';
 import { importProjectFromFile, pendingImport, closeImportConflictModal, overwriteProjectFromResult, finaliseImport, uniqueProjectKey, setImportSessionAlertsCheck } from './features/import.js';
 import { checkProjectAlerts, closeOverdueAlert, closeOverrunAlert, closeDefaultScoreAlert, closeBackupReminderModal, dismissBackupReminder, runBackupForReminder } from './features/session-alerts.js';
 import { setBulkEditDeps, openBulkEditOverlay, closeBulkEditOverlay, isBulkEditOverlayOpen, saveBulkEditChanges } from './features/bulk-edit.js';
@@ -62,6 +63,7 @@ setTimelineDeps({ toast, openTaskModal });
 setCostBenefitDeps({ toast, openTaskModal });
 setBulkEditDeps({ confirmDialog, exportProjectJSON });
 setMutationsToast(toast);
+setMigrationToast(toast);
 setImportSessionAlertsCheck(checkProjectAlerts);
 
 /* ---- Console-exposed debug helpers ---- */
@@ -547,6 +549,7 @@ function wireEvents(){
   document.getElementById('workflowZoomOutBtn').addEventListener('click', function(){ setWorkflowZoom(-0.1); });
   document.getElementById('workflowResetBtn').addEventListener('click', resetWorkflowZoom);
   document.getElementById('workflowReflowBtn').addEventListener('click', handleWorkflowReflow);
+  document.getElementById('workflowSaveBtn').addEventListener('click', saveWorkflowToServer);
   document.getElementById('workflowExportAsBtn').addEventListener('click', function(e){
     e.stopPropagation();
     toggleExportAsPanel('workflowExportAsPanel');
@@ -815,6 +818,82 @@ function wireEvents(){
     if(!p){ toast('No project to export.'); return; }
     if(Object.keys(p.tasks).length === 0){ toast('This project has no tasks to export.'); return; }
     exportProjectJSON(p);
+  });
+
+  document.getElementById('migrateToServerBtn').addEventListener('click', function(){
+    var p = getCurrentProject();
+    if(!p){ toast('No project to migrate.'); return; }
+    var lastOrgName = '';
+    try { lastOrgName = localStorage.getItem('kanbanflow_last_org_name') || ''; } catch(e){ /* storage unavailable */ }
+    var organisationName = window.prompt('Organisation name (existing name reuses it, a new name creates it):', lastOrgName);
+    if(!organisationName || !organisationName.trim()){ return; }
+    organisationName = organisationName.trim();
+    try { localStorage.setItem('kanbanflow_last_org_name', organisationName); } catch(e){ /* storage unavailable */ }
+    confirmDialog(
+      p.serverProjectId ? 'Re-migrate "' + p.name + '" to "' + organisationName + '"?' : 'Migrate "' + p.name + '" to "' + organisationName + '"?',
+      p.serverProjectId
+        ? 'This project was already migrated. Migrating again creates a second copy on the server.'
+        : 'This creates the project (and any new team member accounts) under Organisation "' + organisationName + '". Existing accounts in that Organisation are matched by name.',
+      function(){ migrateProjectToServer(p, organisationName).then(renderAll, function(){ /* toast already shown by migrateProjectToServer */ }); }
+    );
+  });
+
+  document.getElementById('serverLoginBtn').addEventListener('click', function(){
+    document.getElementById('serverLoginOverlay').classList.remove('hidden');
+    document.getElementById('serverLoginUsernameInput').focus();
+  });
+  function closeServerLoginModal(){ document.getElementById('serverLoginOverlay').classList.add('hidden'); }
+  document.getElementById('serverLoginClose').addEventListener('click', closeServerLoginModal);
+  document.getElementById('serverLoginCancelBtn').addEventListener('click', closeServerLoginModal);
+  document.getElementById('serverLoginOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'serverLoginOverlay') closeServerLoginModal();
+  });
+  document.getElementById('serverLoginSubmitBtn').addEventListener('click', function(){
+    var username = document.getElementById('serverLoginUsernameInput').value.trim();
+    var password = document.getElementById('serverLoginPasswordInput').value;
+    if(!username || !password){ toast('Please enter a username and password.'); return; }
+    loginToServer(username, password).then(function(result){
+      document.getElementById('serverLoginPasswordInput').value = '';
+      closeServerLoginModal();
+      pullServerProjectsIntoLocal().then(function(count){
+        renderAll();
+        if(count > 0) toast('Loaded ' + count + ' project(s) from the server.');
+        if(result.user.mustChangePassword) openChangePasswordModal(password);
+      });
+    }, function(){ /* toast already shown by loginToServer */ });
+  });
+
+  document.getElementById('changePasswordBtn').addEventListener('click', function(){
+    if(!isServerLoggedIn()){ toast('Log in to the server first.'); return; }
+    openChangePasswordModal('');
+  });
+  function openChangePasswordModal(prefilledCurrentPassword){
+    document.getElementById('changePasswordIntro').classList.toggle('kf-vis-hidden', !prefilledCurrentPassword);
+    document.getElementById('changePasswordCurrentInput').value = prefilledCurrentPassword || '';
+    document.getElementById('changePasswordNewInput').value = '';
+    document.getElementById('changePasswordConfirmInput').value = '';
+    document.getElementById('changePasswordOverlay').classList.remove('hidden');
+    (prefilledCurrentPassword ? document.getElementById('changePasswordNewInput') : document.getElementById('changePasswordCurrentInput')).focus();
+  }
+  function closeChangePasswordModal(){
+    document.getElementById('changePasswordOverlay').classList.add('hidden');
+    document.getElementById('changePasswordCurrentInput').value = '';
+  }
+  document.getElementById('changePasswordClose').addEventListener('click', closeChangePasswordModal);
+  document.getElementById('changePasswordSkipBtn').addEventListener('click', closeChangePasswordModal);
+  document.getElementById('changePasswordOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'changePasswordOverlay') closeChangePasswordModal();
+  });
+  document.getElementById('changePasswordSaveBtn').addEventListener('click', function(){
+    var currentPassword = document.getElementById('changePasswordCurrentInput').value;
+    var newPassword = document.getElementById('changePasswordNewInput').value;
+    var confirmPassword = document.getElementById('changePasswordConfirmInput').value;
+    if(!currentPassword){ toast('Please enter your current password.'); return; }
+    if(!newPassword || newPassword.length < 8){ toast('New password must be at least 8 characters.'); return; }
+    if(newPassword !== confirmPassword){ toast('Passwords do not match.'); return; }
+    changePasswordOnServer(currentPassword, newPassword).then(function(){
+      closeChangePasswordModal();
+    }, function(){ /* toast already shown by changePasswordOnServer */ });
   });
 
   document.getElementById('refreshBtn').addEventListener('click', function(){ window.location.reload(); });
@@ -1105,6 +1184,17 @@ function init(){
   renderAll();
   checkProjectAlerts();
   openTaskFromHashIfPresent();
+
+  // Reconciles a still-logged-in returning browser the same way the interactive login flow does
+  // (see the serverLoginSubmitBtn handler above) — previously this only ran right after an
+  // interactive login, so a browser that stayed logged in across a reload never retired a stale
+  // pre-login-swap local copy of a project it had migrated anonymously, and kept silently editing
+  // that dead-end copy forever. See pullServerProjectsIntoLocal's comment in features/migration.js.
+  if(isServerLoggedIn()){
+    pullServerProjectsIntoLocal().then(function(count){
+      if(count > 0) renderAll();
+    });
+  }
 }
 
 if(document.readyState === 'loading'){
