@@ -70,6 +70,26 @@ export function utcISOToLocalDisplayDateTime(iso){
     ', ' + d.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
 }
 
+/* "YYYY-MM-DDTHH:mm" (local, from a datetime-local input) -> ISO string, or null.
+   Unlike localDateValueToUTCISO above, no local-midnight workaround is needed here: a bare (no
+   timezone suffix) "YYYY-MM-DD" string is spec'd to parse as UTC, which is what that workaround
+   exists to correct for — but a bare "YYYY-MM-DDTHH:mm" string is spec'd to parse as LOCAL time, so
+   new Date(value) already does the right thing and toISOString() round-trips it losslessly. */
+export function localDateTimeValueToISO(value){
+  if(!value) return null;
+  var d = new Date(value);
+  if(isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+/* ISO string -> "YYYY-MM-DDTHH:mm" (local, for a datetime-local input), or '' */
+export function isoToLocalDateTimeValue(iso){
+  if(!iso) return '';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  return localDateValueFromDate(d) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
 export function defaultStartDateValue(){
   return localDateValueFromDate(new Date());
 }

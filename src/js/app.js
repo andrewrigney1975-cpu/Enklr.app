@@ -41,6 +41,7 @@ import { openProjectModal, closeProjectModal, saveProjectFromModal } from './mod
 import { openTeamModal, closeTeamModal, addMemberFromModal } from './modals/team.js';
 import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal } from './modals/organisation.js';
 import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromModal, openTemplatesModal, closeTemplatesModal } from './modals/templates.js';
+import { openTodoOverlay, closeTodoOverlay, isTodoOverlayOpen, addTodoListFromModal } from './modals/todo.js';
 import { openTaskTypesModal, closeTaskTypesModal, addTaskTypeFromModal } from './modals/task-types.js';
 import { openReleasesOverlay, closeReleasesOverlay, isReleasesOverlayOpen, showReleasesFormView, showReleasesListView, saveReleaseFromModal, deleteReleaseFromModal } from './modals/releases.js';
 import { openDocumentsOverlay, closeDocumentsOverlay, isDocumentsOverlayOpen, showDocumentsFormView, showDocumentsListView, renderDocumentsList, saveDocumentFromModal, deleteDocumentFromModal, updateDocUrlOpenButtonVisibilityFor, openUrlInputInNewTab } from './modals/documents.js';
@@ -101,6 +102,7 @@ function wireEvents(){
   document.getElementById('navOrgChartBtn').addEventListener('click', openOrgChartOverlay);
   document.getElementById('navGovernanceMapBtn').addEventListener('click', openGovMapOverlay);
   document.getElementById('navBulkEditBtn').addEventListener('click', openBulkEditOverlay);
+  document.getElementById('navTodoBtn').addEventListener('click', openTodoOverlay);
   document.getElementById('navArchivedBtn').addEventListener('click', openArchivedTasksOverlay);
   document.getElementById('navTaskTypesBtn').addEventListener('click', openTaskTypesModal);
   document.getElementById('navReleasesBtn').addEventListener('click', openReleasesOverlay);
@@ -439,6 +441,13 @@ function wireEvents(){
     if(e.target.id === 'bulkEditOverlay') closeBulkEditOverlay();
   });
   document.getElementById('bulkEditSaveBtn').addEventListener('click', saveBulkEditChanges);
+
+  document.getElementById('todoBtn').addEventListener('click', openTodoOverlay);
+  document.getElementById('todoClose').addEventListener('click', closeTodoOverlay);
+  document.getElementById('todoOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'todoOverlay') closeTodoOverlay();
+  });
+  document.getElementById('todoAddListBtn').addEventListener('click', addTodoListFromModal);
 
   document.getElementById('archivedTasksBtn').addEventListener('click', openArchivedTasksOverlay);
   document.getElementById('archivedTasksClose').addEventListener('click', closeArchivedTasksOverlay);
@@ -1230,6 +1239,7 @@ function wireEvents(){
     else if(isCostBenefitOverlayOpen()) closeCostBenefitOverlay();
     else if(isTaskListOpen()) closeTaskListOverlay();
     else if(isBulkEditOverlayOpen()) closeBulkEditOverlay();
+    else if(isTodoOverlayOpen()) closeTodoOverlay();
     else if(isArchivedTasksOverlayOpen()) closeArchivedTasksOverlay();
     else if(!document.getElementById('teamFilterPanel').classList.contains('hidden')) closeTeamFilterPanel();
     else if(!document.getElementById('assigneeFilterPanel').classList.contains('hidden')) closeAssigneeFilterPanel();

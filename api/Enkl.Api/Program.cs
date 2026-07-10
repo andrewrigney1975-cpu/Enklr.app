@@ -33,6 +33,7 @@ builder.Services.AddScoped<TeamCommitteeService>();
 builder.Services.AddScoped<DecisionService>();
 builder.Services.AddScoped<MemberService>();
 builder.Services.AddScoped<TemplateService>();
+builder.Services.AddScoped<ToDoService>();
 builder.Services.AddSingleton<SseBroadcaster>();
 
 builder.Services

@@ -8,7 +8,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-export var APP_VERSION = '2.16.20260710.1904';
+export var APP_VERSION = '2.18.20260710.1956';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -42,6 +42,7 @@ export var ICON_PATHS = {
   inbox:       '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/>',
   list:        '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><circle cx="3.5" cy="6" r="1.3"/><circle cx="3.5" cy="12" r="1.3"/><circle cx="3.5" cy="18" r="1.3"/>',
   grid:        '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+  checkSquare: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 12 2 2 4-4"/>',
   timeline:    '<circle cx="4" cy="6" r="1.6"/><path d="M8 6h12"/><circle cx="9" cy="12" r="1.6"/><path d="M13 12h7"/><circle cx="6" cy="18" r="1.6"/><path d="M10 18h10"/>',
   rocket:      '<path d="M12 2c2.5 2 4 5.5 4 9 0 2-.5 4-1.5 5.5L12 19l-2.5-2.5C8.5 15 8 13 8 11c0-3.5 1.5-7 4-9Z"/><path d="M9.5 14.5 6 16l1.5-3.5"/><path d="M14.5 14.5 18 16l-1.5-3.5"/><circle cx="12" cy="9" r="1.5"/><path d="M10 19l-1 3"/><path d="M14 19l1 3"/>',
   tag:         '<path d="M12.59 2.41 21 10.83a2 2 0 0 1 0 2.83l-7.34 7.34a2 2 0 0 1-2.83 0L2.41 12.59a2 2 0 0 1-.41-2.18L4.5 4.5a2 2 0 0 1 1.79-1.21L10.41 3a2 2 0 0 1 2.18.41Z"/><circle cx="8.5" cy="8.5" r="1.5"/>',

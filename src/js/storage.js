@@ -56,6 +56,7 @@ export function migrateDB(){
   var changed = false;
   var epoch = new Date(0).toISOString();
   if(!Array.isArray(state.db.templates)){ state.db.templates = []; changed = true; }
+  if(!Array.isArray(state.db.todoLists)){ state.db.todoLists = []; changed = true; }
   Object.keys(state.db.projects).forEach(function(pid){
     var p = state.db.projects[pid];
     if(!Array.isArray(p.members)){ p.members = []; changed = true; }
@@ -493,7 +494,8 @@ export function createSeedDB(){
     projects: makeMap(p),
     projectOrder: [p.id],
     currentProjectId: p.id,
-    templates: []
+    templates: [],
+    todoLists: []
   };
 }
 

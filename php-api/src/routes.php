@@ -23,6 +23,7 @@ use Enkl\Api\Controllers\TasksController;
 use Enkl\Api\Controllers\TaskTypesController;
 use Enkl\Api\Controllers\TeamsCommitteesController;
 use Enkl\Api\Controllers\TemplatesController;
+use Enkl\Api\Controllers\ToDoController;
 use Slim\App;
 
 /**
@@ -70,6 +71,18 @@ function registerRoutes(App $app): void
         $group->put('/{id}', [TemplatesController::class, 'rename']);
         $group->delete('/{id}', [TemplatesController::class, 'delete']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
+
+    // ---- To-Do Lists (per-User, not per-Project/per-Organisation — same "just needs to be signed in
+    // as yourself" gating as /api/auth/change-password above, no ProjectMemberMiddleware/OrgAdminMiddleware) ----
+    $app->group('/api/todo-lists', function ($group) {
+        $group->get('', [ToDoController::class, 'list']);
+        $group->post('', [ToDoController::class, 'create']);
+        $group->put('/{listId}', [ToDoController::class, 'rename']);
+        $group->delete('/{listId}', [ToDoController::class, 'delete']);
+        $group->post('/{listId}/items', [ToDoController::class, 'createItem']);
+        $group->put('/{listId}/items/{itemId}', [ToDoController::class, 'updateItem']);
+        $group->delete('/{listId}/items/{itemId}', [ToDoController::class, 'deleteItem']);
+    })->add(RequireAuthMiddleware::class);
 
     // ---- Projects (list/detail/create need only auth; everything under {projectId} needs membership) ----
     $app->get('/api/projects', [ProjectsController::class, 'listMine'])->add(RequireAuthMiddleware::class);

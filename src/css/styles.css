@@ -3399,6 +3399,134 @@
     color: var(--kf-text-faint);
   }
 
+  /* To-Do — a Google-Keep-style masonry board. CSS multi-column (not a JS-measured/balanced grid) is
+     the simplest, zero-dependency way to get "as many different-height cards as fit" — column-width
+     auto-computes however many columns the modal's current width allows. It fills top-to-bottom per
+     column (newspaper-style) rather than perfectly height-balancing across columns, the standard
+     trade-off for CSS-only masonry; visually very close to Google Keep either way. */
+  .kf-todo-board {
+    flex: 1;
+    overflow-y: auto;
+    columns: 260px;
+    column-gap: 16px;
+    padding: 16px;
+  }
+
+  .kf-todo-card {
+    break-inside: avoid;
+    display: inline-block;
+    width: 100%;
+    margin-bottom: 16px;
+    background: var(--kf-surface);
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    padding: 12px;
+  }
+
+  .kf-todo-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .kf-todo-card-title {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--kf-text);
+    padding: 4px 2px;
+  }
+
+  .kf-todo-card-title:focus {
+    outline: none;
+    background: var(--kf-bg);
+    border-radius: 3px;
+  }
+
+  .kf-todo-item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .kf-todo-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .kf-todo-item textarea {
+    flex: 1;
+    resize: vertical;
+    min-height: 32px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--kf-text);
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 4px;
+    background: transparent;
+  }
+
+  .kf-todo-item textarea:focus {
+    outline: none;
+    background: var(--kf-bg);
+    border-color: var(--kf-border);
+  }
+
+  .kf-todo-item-completed textarea {
+    color: var(--kf-text-faint);
+    text-decoration: line-through;
+  }
+
+  .kf-todo-item-due {
+    margin-left: 22px;
+    margin-top: -2px;
+  }
+
+  .kf-todo-item-due input[type=datetime-local] {
+    font-size: 11px;
+    color: var(--kf-text-faint);
+    border: none;
+    background: transparent;
+    padding: 2px 0;
+  }
+
+  .kf-todo-item-due input[type=datetime-local]:focus {
+    outline: none;
+    color: var(--kf-text);
+  }
+
+  .kf-todo-add-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-top: 1px solid var(--kf-border);
+    padding-top: 8px;
+  }
+
+  .kf-todo-add-row textarea {
+    font-size: 13px;
+    font-family: inherit;
+    min-height: 32px;
+    resize: vertical;
+  }
+
+  .kf-todo-add-row-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .kf-todo-add-row-controls input[type=datetime-local] {
+    flex: 1;
+    font-size: 12px;
+  }
+
   /* Dependency Map */
   .kf-depmap-legend {
     display: flex;

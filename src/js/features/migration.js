@@ -1,7 +1,7 @@
 "use strict";
 import { state, saveDB, createDefaultProject } from '../storage.js';
 import { buildExportDoc } from './export.js';
-import { migrateProjectApi, loginApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, updateColumnApi, deleteColumnApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi } from '../api.js';
+import { migrateProjectApi, loginApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, updateColumnApi, deleteColumnApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi, getTodoListsApi, createTodoListApi, renameTodoListApi, deleteTodoListApi, createTodoItemApi, updateTodoItemApi, deleteTodoItemApi } from '../api.js';
 import { isoToServerDateOnly, serverDateOnlyToIso } from '../date-utils.js';
 
 var _toast = function(msg){ console.error(msg); };
@@ -334,6 +334,30 @@ export async function createTemplateOnServer(name, snapshot){
 }
 export async function fetchTemplatesFromServer(){
   return getTemplatesApi();
+}
+
+/* Used by modals/todo.js. To-Do Lists are per-User, not per-project, so — like the Templates helpers
+   above — these take no `project` at all; the server derives "which user" from the caller's own token. */
+export async function fetchTodoListsFromServer(){
+  return getTodoListsApi();
+}
+export async function createTodoListOnServer(title){
+  return createTodoListApi(title);
+}
+export async function renameTodoListOnServer(id, title){
+  return renameTodoListApi(id, title);
+}
+export async function deleteTodoListOnServer(id){
+  return deleteTodoListApi(id);
+}
+export async function createTodoItemOnServer(listId, note, dueDate){
+  return createTodoItemApi(listId, note, dueDate);
+}
+export async function updateTodoItemOnServer(listId, itemId, note, completed, dueDate){
+  return updateTodoItemApi(listId, itemId, note, completed, dueDate);
+}
+export async function deleteTodoItemOnServer(listId, itemId){
+  return deleteTodoItemApi(listId, itemId);
 }
 
 function maxTaskCounterFrom(tasks){

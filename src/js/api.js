@@ -188,6 +188,31 @@ export function deleteTemplateApi(id){
   return apiFetch('/organisations/me/templates/' + id, {method: 'DELETE'});
 }
 
+/* To-Do Lists are per-User, not per-project/per-org, so — like the two blocks above — these are
+   bespoke functions rather than makeEntityApi. Every route just needs a valid session (same gating
+   as /auth/change-password); the server derives "which user" entirely from the caller's own token. */
+export function getTodoListsApi(){
+  return apiFetch('/todo-lists', {method: 'GET'});
+}
+export function createTodoListApi(title){
+  return apiFetch('/todo-lists', {method: 'POST', body: JSON.stringify({title: title})});
+}
+export function renameTodoListApi(id, title){
+  return apiFetch('/todo-lists/' + id, {method: 'PUT', body: JSON.stringify({title: title})});
+}
+export function deleteTodoListApi(id){
+  return apiFetch('/todo-lists/' + id, {method: 'DELETE'});
+}
+export function createTodoItemApi(listId, note, dueDate){
+  return apiFetch('/todo-lists/' + listId + '/items', {method: 'POST', body: JSON.stringify({note: note, dueDate: dueDate})});
+}
+export function updateTodoItemApi(listId, itemId, note, completed, dueDate){
+  return apiFetch('/todo-lists/' + listId + '/items/' + itemId, {method: 'PUT', body: JSON.stringify({note: note, completed: completed, dueDate: dueDate})});
+}
+export function deleteTodoItemApi(listId, itemId){
+  return apiFetch('/todo-lists/' + listId + '/items/' + itemId, {method: 'DELETE'});
+}
+
 export function getProjectsApi(){
   return apiFetch('/projects', {method: 'GET'});
 }

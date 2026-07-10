@@ -238,6 +238,60 @@ export function deleteTemplate(templateId){
   saveDB();
 }
 
+/* ---- To-Do Lists (local/offline fallback — signed-in users' lists live server-side, see
+   features/migration.js's fetchTodoListsFromServer/createTodoListOnServer/etc.). The app's first
+   per-USER (not per-project) resource — state.db.todoLists sits at the top level of state.db, a
+   sibling of `templates`/`projects`, not nested inside any one project. ---- */
+export function addTodoList(title){
+  var trimmed = (title || '').trim().slice(0, 200);
+  if(!trimmed) return null;
+  var now = new Date().toISOString();
+  var list = {id: uid('todo'), title: trimmed, items: [], dateCreated: now, dateLastModified: now};
+  state.db.todoLists.push(list);
+  saveDB();
+  return list;
+}
+export function renameTodoList(listId, title){
+  var list = state.db.todoLists.filter(function(l){ return l.id === listId; })[0];
+  if(!list) return;
+  var trimmed = (title || '').trim().slice(0, 200);
+  if(!trimmed) return;
+  list.title = trimmed;
+  list.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deleteTodoList(listId){
+  state.db.todoLists = state.db.todoLists.filter(function(l){ return l.id !== listId; });
+  saveDB();
+}
+export function addTodoItem(listId, note, dueDate){
+  var list = state.db.todoLists.filter(function(l){ return l.id === listId; })[0];
+  if(!list) return null;
+  var now = new Date().toISOString();
+  var item = {id: uid('titem'), note: note || '', completed: false, dueDate: dueDate || null, dateCreated: now, dateLastModified: now};
+  list.items.push(item);
+  list.dateLastModified = now;
+  saveDB();
+  return item;
+}
+export function updateTodoItem(listId, itemId, note, completed, dueDate){
+  var list = state.db.todoLists.filter(function(l){ return l.id === listId; })[0];
+  if(!list) return;
+  var item = list.items.filter(function(i){ return i.id === itemId; })[0];
+  if(!item) return;
+  item.note = note || '';
+  item.completed = !!completed;
+  item.dueDate = dueDate || null;
+  item.dateLastModified = new Date().toISOString();
+  saveDB();
+}
+export function deleteTodoItem(listId, itemId){
+  var list = state.db.todoLists.filter(function(l){ return l.id === listId; })[0];
+  if(!list) return;
+  list.items = list.items.filter(function(i){ return i.id !== itemId; });
+  saveDB();
+}
+
 /* =========================================================
    RELEASES
    A Project can have many Releases; a Task can belong to at most one.
