@@ -52,6 +52,14 @@ public class TeamCommitteeMember
     public ProjectMember ProjectMember { get; set; } = null!;
 }
 
+public class OrgTeamMember
+{
+    public Guid OrgTeamId { get; set; }
+    public OrgTeam OrgTeam { get; set; } = null!;
+    public Guid UserId { get; set; }
+    public User User { get; set; } = null!;
+}
+
 public class DecisionDocument
 {
     public Guid DecisionId { get; set; }

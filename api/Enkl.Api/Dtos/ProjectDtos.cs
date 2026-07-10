@@ -107,6 +107,10 @@ public record UpdateObjectiveRequest(string Title, string? Description, List<Gui
 public record CreateTeamCommitteeRequest(string Name, string? Description, string Type, Guid? ParentId, List<Guid>? MemberIds);
 public record UpdateTeamCommitteeRequest(string Name, string? Description, string Type, Guid? ParentId, List<Guid>? MemberIds);
 
+/// <summary>Result of TeamCommitteeService.ApplyOrgTeamAsync ("apply to project") — Warnings uses
+/// the same list-of-strings pattern as MigrationResultDto for anything skipped.</summary>
+public record ApplyOrgTeamResultDto(TeamCommitteeDto TeamCommittee, List<string> Warnings);
+
 public record CreateDecisionRequest(
     string Title, string? Description, string Type, string Status, string? Outcome,
     Guid? OwnerId, string? Approver, Guid? TaskId,

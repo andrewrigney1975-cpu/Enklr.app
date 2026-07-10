@@ -157,6 +157,19 @@ export function changePasswordApi(currentPassword, newPassword){
   return apiFetch('/auth/change-password', {method: 'POST', body: JSON.stringify({currentPassword: currentPassword, newPassword: newPassword})});
 }
 
+/* Called as the login form's identifier field is filled in — see modals/login.js (or wherever the
+   "Continue with SSO" affordance lives). Deliberately unauthenticated; the server only ever answers
+   with whether SSO is available and which org, never anything about whether the identifier itself
+   matched a real account (see AuthController.SsoLookup's own comment). */
+export function ssoLookupApi(identifier){
+  return apiFetch('/auth/sso-lookup?identifier=' + encodeURIComponent(identifier), {method: 'GET'});
+}
+/* Trades the single-use ?ssoCode= the SAML ACS redirect left in the URL for the real login
+   response — see SsoExchangeCodeStore.cs for why the token never rides in that URL directly. */
+export function ssoExchangeApi(code){
+  return apiFetch('/auth/sso-exchange', {method: 'POST', body: JSON.stringify({code: code})});
+}
+
 export function getMyOrganisationApi(){
   return apiFetch('/organisations/me', {method: 'GET'});
 }
@@ -168,6 +181,25 @@ export function setOrgUserAdminApi(userId, isOrgAdmin){
 }
 export function setOrgUserEmailApi(userId, emailAddress){
   return apiFetch('/organisations/me/users/' + userId + '/email', {method: 'PUT', body: JSON.stringify({emailAddress: emailAddress})});
+}
+
+export function getSsoConfigApi(){
+  return apiFetch('/organisations/me/sso-config', {method: 'GET'});
+}
+export function updateSsoConfigApi(body){
+  return apiFetch('/organisations/me/sso-config', {method: 'PUT', body: JSON.stringify(body)});
+}
+export function generateScimTokenApi(){
+  return apiFetch('/organisations/me/sso-config/scim-token', {method: 'POST'});
+}
+
+/* Read-only — SCIM/the IdP owns Org Team membership (see OrgTeam's own server-side doc comment).
+   The only mutating action available here is applyOrgTeamToProjectApi below. */
+export function getOrgTeamsApi(){
+  return apiFetch('/organisations/me/org-teams', {method: 'GET'});
+}
+export function applyOrgTeamToProjectApi(projectId, orgTeamId){
+  return apiFetch('/projects/' + projectId + '/teams-committees/from-org-team/' + orgTeamId, {method: 'POST'});
 }
 
 /* Project Templates are Organisation-owned, not per-project, so these don't fit makeEntityApi's

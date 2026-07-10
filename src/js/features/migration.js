@@ -1,7 +1,7 @@
 "use strict";
 import { state, saveDB, createDefaultProject } from '../storage.js';
 import { buildExportDoc } from './export.js';
-import { migrateProjectApi, loginApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, updateColumnApi, deleteColumnApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi, getTodoListsApi, createTodoListApi, renameTodoListApi, deleteTodoListApi, createTodoItemApi, updateTodoItemApi, deleteTodoItemApi } from '../api.js';
+import { migrateProjectApi, loginApi, ssoExchangeApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, updateColumnApi, deleteColumnApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi, getTodoListsApi, createTodoListApi, renameTodoListApi, deleteTodoListApi, createTodoItemApi, updateTodoItemApi, deleteTodoItemApi } from '../api.js';
 import { isoToServerDateOnly, serverDateOnlyToIso } from '../date-utils.js';
 
 var _toast = function(msg){ console.error(msg); };
@@ -64,6 +64,22 @@ export async function loginToServer(username, password){
     return result;
   } catch(e){
     _toast(e.message || 'Login failed.');
+    throw e;
+  }
+}
+
+/* Same shape as loginToServer (same setToken + toast + returned {token, expiresAt, user}), just
+   fed from the SAML callback's exchange code instead of a username/password submit — see
+   app.js's handling of the ?ssoCode=/?ssoError= query params SamlController's ACS action redirects
+   the browser back with. */
+export async function completeSsoLogin(code){
+  try {
+    var result = await ssoExchangeApi(code);
+    setToken(result.token);
+    _toast('Logged in as ' + result.user.displayName + '.');
+    return result;
+  } catch(e){
+    _toast(e.message || 'SSO sign-in failed.');
     throw e;
   }
 }

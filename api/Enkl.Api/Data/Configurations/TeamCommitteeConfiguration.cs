@@ -23,6 +23,11 @@ public class TeamCommitteeConfiguration : IEntityTypeConfiguration<TeamCommittee
             .HasForeignKey(t => t.ParentId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        b.HasOne(t => t.SourceOrgTeam)
+            .WithMany()
+            .HasForeignKey(t => t.SourceOrgTeamId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         b.HasIndex(t => new { t.ProjectId, t.Key }).IsUnique();
     }
 }

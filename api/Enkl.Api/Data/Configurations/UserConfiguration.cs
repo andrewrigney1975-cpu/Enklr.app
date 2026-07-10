@@ -14,7 +14,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(u => u.EmailAddress).HasMaxLength(320);
         b.Property(u => u.NormalizedEmailAddress).HasMaxLength(320);
         b.Property(u => u.DisplayName).HasMaxLength(200).IsRequired();
-        b.Property(u => u.PasswordHash).IsRequired();
+        // Not .IsRequired() — an SSO-only user (SAML JIT or SCIM-created) never gets a local hash.
+        // Explicit default so the migration backfills every pre-existing row as active, not the
+        // bool CLR default of false EF would otherwise infer for the added column.
+        b.Property(u => u.IsActive).HasDefaultValue(true);
         b.HasIndex(u => u.NormalizedUsername).IsUnique();
         // Nullable + unique: Postgres treats multiple NULLs as distinct, so users without an email
         // (local-only team members, pre-existing accounts from before this field existed) never

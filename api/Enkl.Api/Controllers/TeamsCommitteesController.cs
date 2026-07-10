@@ -36,4 +36,11 @@ public class TeamsCommitteesController : ControllerBase
     {
         return await _teamsCommittees.DeleteAsync(projectId, id) ? NoContent() : NotFound();
     }
+
+    [HttpPost("from-org-team/{orgTeamId:guid}")]
+    public async Task<IActionResult> ApplyOrgTeam(Guid projectId, Guid orgTeamId)
+    {
+        var result = await _teamsCommittees.ApplyOrgTeamAsync(projectId, orgTeamId);
+        return result is null ? NotFound() : Ok(result);
+    }
 }

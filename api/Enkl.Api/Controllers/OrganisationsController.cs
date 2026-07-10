@@ -46,5 +46,11 @@ public class OrganisationsController : ControllerBase
         return ok ? NoContent() : NotFound();
     }
 
+    [HttpGet("org-teams")]
+    public async Task<IActionResult> GetOrgTeams()
+    {
+        return Ok(await _organisations.GetOrgTeamsAsync(CallerOrgId()));
+    }
+
     private Guid CallerOrgId() => Guid.Parse(User.FindFirstValue("orgId")!);
 }

@@ -1452,6 +1452,44 @@
     flex: 1;
   }
 
+  /* Higher specificity than the base ".kf-field label" rule (class+element) is needed here since
+     these are both <label> elements inside a .kf-field and need to override its uppercase/
+     letter-spacing/font-weight defaults, not just add to them. */
+  .kf-field label.kf-sso-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .kf-sso-hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-sso-warning {
+    color: var(--kf-danger);
+  }
+
+  .kf-field label.kf-sso-sublabel {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--kf-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    margin: 10px 0 4px;
+  }
+
+  .kf-sso-token-reveal {
+    margin-top: 8px;
+  }
+
   .kf-member-list {
     display: flex;
     flex-direction: column;

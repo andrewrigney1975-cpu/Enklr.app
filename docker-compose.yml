@@ -22,6 +22,7 @@ services:
     environment:
       ConnectionStrings__Default: "Host=db;Database=enkl;Username=enkl;Password=${DB_PASSWORD:-enkl_dev_password}"
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-please-32chars-min}
+      App__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost}
       RunMigrationsOnStartup: "true"
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}

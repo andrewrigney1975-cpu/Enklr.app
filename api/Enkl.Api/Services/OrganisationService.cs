@@ -108,4 +108,20 @@ public class OrganisationService
         await _db.SaveChangesAsync();
         return true;
     }
+
+    /// <summary>Read-only listing for the SSO & Provisioning modal's Org Teams section — see
+    /// OrgTeamSummaryDto's own comment for why there's no corresponding write method here.</summary>
+    public async Task<List<OrgTeamSummaryDto>> GetOrgTeamsAsync(Guid organisationId)
+    {
+        var teams = await _db.OrgTeams
+            .Include(t => t.Members).ThenInclude(m => m.User)
+            .Where(t => t.OrganisationId == organisationId)
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+
+        return teams.Select(t => new OrgTeamSummaryDto(
+            t.Id, t.Name,
+            t.Members.Select(m => new OrgTeamMemberSummaryDto(m.UserId, m.User.DisplayName)).ToList()
+        )).ToList();
+    }
 }

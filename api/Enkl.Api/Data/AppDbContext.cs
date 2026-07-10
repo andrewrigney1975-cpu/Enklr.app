@@ -26,6 +26,8 @@ public class AppDbContext : DbContext
     public DbSet<Objective> Objectives => Set<Objective>();
     public DbSet<TeamCommittee> TeamsCommittees => Set<TeamCommittee>();
     public DbSet<Decision> Decisions => Set<Decision>();
+    public DbSet<OrganisationSsoConfig> OrganisationSsoConfigs => Set<OrganisationSsoConfig>();
+    public DbSet<OrgTeam> OrgTeams => Set<OrgTeam>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

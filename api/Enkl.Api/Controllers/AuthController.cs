@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Enkl.Api.Auth;
 using Enkl.Api.Data;
 using Enkl.Api.Domain;
@@ -15,19 +16,37 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly JwtTokenService _jwt;
+    private readonly SsoExchangeCodeStore _exchange;
 
-    public AuthController(AppDbContext db, JwtTokenService jwt)
+    public AuthController(AppDbContext db, JwtTokenService jwt, SsoExchangeCodeStore exchange)
     {
         _db = db;
         _jwt = jwt;
+        _exchange = exchange;
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
         var normalized = UsernameNormalizer.Normalize(request.Username);
-        var user = await _db.Users.Include(u => u.Organisation).FirstOrDefaultAsync(u => u.NormalizedUsername == normalized);
-        if (user is null || !PasswordHasher.Verify(request.Password, user.PasswordHash))
+        var user = await _db.Users.Include(u => u.Organisation).ThenInclude(o => o.SsoConfig)
+            .FirstOrDefaultAsync(u => u.NormalizedUsername == normalized);
+        if (user is null || !user.IsActive)
+        {
+            return Unauthorized(new { message = "Invalid username or password." });
+        }
+        if (user.Organisation.SsoConfig?.RequireSso == true)
+        {
+            return Unauthorized(new { message = "This organisation requires SSO sign-in. Use the \"Sign in with SSO\" option." });
+        }
+        // An SSO-only user (SAML JIT-provisioned or SCIM-created) never gets a local password hash —
+        // tell them where to actually sign in rather than a generic "invalid password" that implies
+        // retrying with a different password would help.
+        if (user.PasswordHash is null)
+        {
+            return Unauthorized(new { message = "This account signs in via your organisation's SSO. Use the \"Sign in with SSO\" option." });
+        }
+        if (!PasswordHasher.Verify(request.Password, user.PasswordHash))
         {
             return Unauthorized(new { message = "Invalid username or password." });
         }
@@ -36,6 +55,47 @@ public class AuthController : ControllerBase
         var (token, expiresAt) = _jwt.GenerateToken(user, memberships);
 
         return Ok(new LoginResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword)));
+    }
+
+    /// <summary>
+    /// Anonymous, minimal-disclosure org discovery for the login screen's "Sign in with SSO"
+    /// affordance: the caller could have typed either a username or an email into that one field
+    /// (the client can't tell which), so this tries both normalizations and returns only whether
+    /// SSO is available — never anything about whether the identifier matched a real account, to
+    /// avoid leaking account existence to an anonymous request.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("sso-lookup")]
+    public async Task<ActionResult<SsoLookupResponse>> SsoLookup([FromQuery] string identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier)) return Ok(new SsoLookupResponse(false, null));
+
+        var normalizedUsername = UsernameNormalizer.Normalize(identifier);
+        var normalizedEmail = EmailAddressNormalizer.Normalize(identifier);
+        var user = await _db.Users.Include(u => u.Organisation).ThenInclude(o => o.SsoConfig)
+            .FirstOrDefaultAsync(u => u.NormalizedUsername == normalizedUsername || u.NormalizedEmailAddress == normalizedEmail);
+
+        if (user?.Organisation.SsoConfig?.SamlEnabled == true)
+        {
+            return Ok(new SsoLookupResponse(true, user.OrganisationId));
+        }
+        return Ok(new SsoLookupResponse(false, null));
+    }
+
+    /// <summary>
+    /// Trades the single-use code SamlController's ACS action redirected the browser with for the
+    /// actual login response — see SsoExchangeCodeStore's own doc comment for why the token never
+    /// rides in the redirect URL itself.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("sso-exchange")]
+    public ActionResult<SsoExchangeResponse> SsoExchange(SsoExchangeRequest request)
+    {
+        if (!_exchange.TryRedeem(request.Code, out var payload) || payload is null)
+        {
+            return Unauthorized(new { message = "This sign-in link has expired or was already used. Please sign in again." });
+        }
+        return Ok(JsonSerializer.Deserialize<SsoExchangeResponse>(payload));
     }
 
     [Authorize]
@@ -49,7 +109,7 @@ public class AuthController : ControllerBase
 
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub")!);
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
-        if (user is null || !PasswordHasher.Verify(request.CurrentPassword, user.PasswordHash))
+        if (user is null || user.PasswordHash is null || !PasswordHasher.Verify(request.CurrentPassword, user.PasswordHash))
         {
             return Unauthorized(new { message = "Current password is incorrect." });
         }

@@ -8,6 +8,15 @@ namespace Enkl.Api.Services;
 
 public class TeamCommitteeService
 {
+    // Mirrors MEMBER_PALETTE in src/js/config.js / MemberService's own copy exactly, so a
+    // ProjectMember created here as a side effect of "apply to project" lands on the same color a
+    // manually-added one would.
+    private static readonly string[] MemberPalette =
+    {
+        "#0052CC", "#00875A", "#FF8B00", "#974DE2", "#DE350B",
+        "#006644", "#5243AA", "#B04632", "#1B5E20", "#8777D9"
+    };
+
     private readonly AppDbContext _db;
 
     public TeamCommitteeService(AppDbContext db)
@@ -61,6 +70,79 @@ public class TeamCommitteeService
 
         await _db.SaveChangesAsync();
         return await ToDtoAsync(tc.Id);
+    }
+
+    /// <summary>
+    /// The manual, non-SCIM half of the "SCIM groups translate to teams" design: projects an
+    /// Organisation-scoped OrgTeam's current membership into this project's TeamCommittee, creating
+    /// ProjectMember rows for anyone not already on the project. Deliberately an apply/snapshot, not
+    /// a live sync — re-running it is safe to do repeatedly (e.g. after the OrgTeam's membership
+    /// changes at the IdP): it only ever adds people who are missing, and never removes someone from
+    /// the TeamCommittee who was added manually or whose OrgTeam membership was later revoked. The
+    /// link to re-find the same TeamCommittee across runs is TeamCommittee.SourceOrgTeamId, not name
+    /// matching (see that field's own doc comment for why).
+    /// </summary>
+    public async Task<ApplyOrgTeamResultDto?> ApplyOrgTeamAsync(Guid projectId, Guid orgTeamId)
+    {
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        if (project is null) return null;
+
+        var orgTeam = await _db.OrgTeams.Include(t => t.Members).ThenInclude(m => m.User)
+            .FirstOrDefaultAsync(t => t.Id == orgTeamId && t.OrganisationId == project.OrganisationId);
+        if (orgTeam is null) return null;
+
+        var warnings = new List<string>();
+        if (orgTeam.Members.Count == 0)
+        {
+            warnings.Add($"\"{orgTeam.Name}\" has no members yet — nothing to apply.");
+        }
+
+        var tc = await _db.TeamsCommittees.FirstOrDefaultAsync(t => t.ProjectId == projectId && t.SourceOrgTeamId == orgTeamId);
+        if (tc is null)
+        {
+            tc = new TeamCommittee
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = projectId,
+                Key = await NextKeyAsync(projectId, project.Key, "team"),
+                Name = orgTeam.Name,
+                Type = "team",
+                SourceOrgTeamId = orgTeam.Id,
+                DateCreated = DateTime.UtcNow,
+                DateLastModified = DateTime.UtcNow
+            };
+            _db.TeamsCommittees.Add(tc);
+        }
+        else
+        {
+            tc.DateLastModified = DateTime.UtcNow;
+        }
+
+        var memberCount = await _db.ProjectMembers.CountAsync(m => m.ProjectId == projectId);
+        foreach (var orgTeamMember in orgTeam.Members)
+        {
+            var projectMember = await _db.ProjectMembers.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == orgTeamMember.UserId);
+            if (projectMember is null)
+            {
+                projectMember = new ProjectMember
+                {
+                    Id = Guid.NewGuid(),
+                    ProjectId = projectId,
+                    UserId = orgTeamMember.UserId,
+                    Color = MemberPalette[memberCount % MemberPalette.Length]
+                };
+                _db.ProjectMembers.Add(projectMember);
+                memberCount++;
+            }
+
+            if (!await _db.Set<TeamCommitteeMember>().AnyAsync(m => m.TeamCommitteeId == tc.Id && m.ProjectMemberId == projectMember.Id))
+            {
+                _db.Set<TeamCommitteeMember>().Add(new TeamCommitteeMember { TeamCommitteeId = tc.Id, ProjectMemberId = projectMember.Id });
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return new ApplyOrgTeamResultDto(await ToDtoAsync(tc.Id), warnings);
     }
 
     public async Task<bool> DeleteAsync(Guid projectId, Guid id)

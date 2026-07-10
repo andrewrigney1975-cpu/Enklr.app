@@ -34,7 +34,12 @@ builder.Services.AddScoped<DecisionService>();
 builder.Services.AddScoped<MemberService>();
 builder.Services.AddScoped<TemplateService>();
 builder.Services.AddScoped<ToDoService>();
+builder.Services.AddScoped<SamlService>();
+builder.Services.AddScoped<OrganisationSsoConfigService>();
+builder.Services.AddScoped<ScimUserService>();
+builder.Services.AddScoped<ScimGroupService>();
 builder.Services.AddSingleton<SseBroadcaster>();
+builder.Services.AddSingleton<SsoExchangeCodeStore>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

@@ -115,6 +115,7 @@
             <a href="#" class="kf-header-more-link kf-vis-hidden" data-nav-target="serverLogoutBtn">Logout</a>
             <a href="#" class="kf-header-more-link" data-nav-target="changePasswordBtn">Change Password</a>
             <a href="#" class="kf-header-more-link kf-vis-hidden" id="manageUsersLink">Manage Users</a>
+            <a href="#" class="kf-header-more-link kf-vis-hidden" id="ssoConfigLink">SSO &amp; Provisioning</a>
             <a href="#" class="kf-header-more-link kf-vis-hidden" id="manageTemplatesLink">Manage Templates</a>
           </div>
         </div>
@@ -454,6 +455,7 @@
         <label for="serverLoginUsernameInput">Username</label>
         <input type="text" id="serverLoginUsernameInput" autocomplete="username">
       </div>
+      <button class="kf-btn kf-btn-secondary hidden" id="serverLoginSsoBtn" style="width:100%;margin-bottom:14px;">Continue with SSO</button>
       <div class="kf-field">
         <label for="serverLoginPasswordInput">Password</label>
         <input type="password" id="serverLoginPasswordInput" autocomplete="current-password">
@@ -519,6 +521,75 @@
     </div>
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-secondary" id="orgUsersDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- SSO & Provisioning Modal (Org Admin only) -->
+<div class="kf-overlay hidden" id="ssoConfigOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>SSO &amp; Provisioning</h2>
+      <button class="kf-btn kf-btn-ghost" id="ssoConfigClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label class="kf-sso-checkbox-label"><input type="checkbox" id="ssoSamlEnabledInput"> Enable SAML sign-in for this organisation</label>
+      </div>
+      <div class="kf-field">
+        <label for="ssoIdpEntityIdInput">Identity provider entity ID</label>
+        <input type="text" id="ssoIdpEntityIdInput" autocomplete="off">
+      </div>
+      <div class="kf-field">
+        <label for="ssoIdpSsoUrlInput">Identity provider SSO URL</label>
+        <input type="text" id="ssoIdpSsoUrlInput" autocomplete="off" placeholder="https://...">
+      </div>
+      <div class="kf-field">
+        <label for="ssoIdpCertificateInput">Identity provider signing certificate</label>
+        <textarea id="ssoIdpCertificateInput" rows="4" placeholder="Paste the PEM or base64 certificate your identity provider gave you"></textarea>
+        <p id="ssoCertificateStatus" class="kf-sso-hint"></p>
+      </div>
+      <div class="kf-field">
+        <label class="kf-sso-checkbox-label"><input type="checkbox" id="ssoJitProvisioningInput"> Automatically create an account on first SSO sign-in</label>
+        <p class="kf-sso-hint">If off, a user must already exist (created manually or via SCIM) before they can sign in with SSO.</p>
+      </div>
+      <div class="kf-field">
+        <label class="kf-sso-checkbox-label"><input type="checkbox" id="ssoRequireSsoInput"> Require SSO — disable username/password sign-in for this organisation</label>
+        <p class="kf-sso-hint kf-sso-warning">Only enable this once you've confirmed SSO actually works — a misconfigured identity provider combined with this setting can lock out every user in this organisation, including admins.</p>
+      </div>
+      <div class="kf-field">
+        <label>Your service provider details</label>
+        <p class="kf-sso-hint">Give these to your identity provider admin when setting up the connection.</p>
+        <label class="kf-sso-sublabel" for="ssoSpEntityIdOutput">Entity ID / metadata URL</label>
+        <input type="text" id="ssoSpEntityIdOutput" readonly>
+        <label class="kf-sso-sublabel" for="ssoSpAcsUrlOutput">ACS (reply) URL</label>
+        <input type="text" id="ssoSpAcsUrlOutput" readonly>
+      </div>
+
+      <div class="kf-field">
+        <label class="kf-sso-checkbox-label"><input type="checkbox" id="ssoScimEnabledInput"> Enable SCIM provisioning for this organisation</label>
+        <p class="kf-sso-hint">Lets your identity provider create, update, and deactivate accounts here automatically. Requires a bearer token below.</p>
+      </div>
+      <div class="kf-field">
+        <label class="kf-sso-sublabel" for="ssoScimBaseUrlOutput">SCIM base URL</label>
+        <input type="text" id="ssoScimBaseUrlOutput" readonly>
+        <button class="kf-btn kf-btn-secondary" id="ssoGenerateScimTokenBtn" style="margin-top:8px;">Generate new bearer token</button>
+        <p id="ssoScimTokenStatus" class="kf-sso-hint"></p>
+        <div id="ssoScimTokenReveal" class="kf-sso-token-reveal hidden">
+          <input type="text" id="ssoScimTokenOutput" readonly>
+          <p class="kf-sso-hint kf-sso-warning">Copy this now — it won't be shown again. Generating a new token immediately invalidates this one.</p>
+        </div>
+      </div>
+
+      <div class="kf-field">
+        <label>Org Teams</label>
+        <p class="kf-sso-hint">Groups synced in from your identity provider via SCIM. Your identity provider owns this membership — apply a team to the currently open project to add its members there and set up an org chart team from it.</p>
+        <div id="ssoOrgTeamsList" class="kf-member-list"></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="ssoConfigDoneBtn">Close</button>
+      <button class="kf-btn kf-btn-primary" id="ssoConfigSaveBtn">Save</button>
     </div>
   </div>
 </div>

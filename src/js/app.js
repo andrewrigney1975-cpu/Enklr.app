@@ -5,7 +5,7 @@ import { state, loadDB, saveDB } from './storage.js';
 import { getCurrentProject } from './store.js';
 import { ui, toast, resetFilters, renderThemeToggleIcon, toggleTheme, setThemeDeps, relocateViewButtonsForViewport, toggleSideNav, toggleMobileDrawer, closeMobileDrawer, isMobileDrawerOpen } from './ui.js';
 import { hydrateIcons } from './icons.js';
-import { setOnAuthExpired, clearToken } from './api.js';
+import { setOnAuthExpired, clearToken, ssoLookupApi } from './api.js';
 
 /* ---- Mutations ---- */
 import { deleteProject, closeAllTaskTypeIconPanels, setMutationsToast } from './mutations.js';
@@ -23,7 +23,7 @@ import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenef
 /* ---- Features ---- */
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
 import { exportProjectJSON } from './features/export.js';
-import { migrateProjectToServer, loginToServer, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast } from './features/migration.js';
+import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast } from './features/migration.js';
 import { connectEventStream, disconnectEventStream } from './features/live-updates.js';
 import { importProjectFromFile, pendingImport, closeImportConflictModal, overwriteProjectFromResult, finaliseImport, uniqueProjectKey, setImportSessionAlertsCheck } from './features/import.js';
 import { checkProjectAlerts, closeOverdueAlert, closeOverrunAlert, closeDefaultScoreAlert, closeBackupReminderModal, dismissBackupReminder, runBackupForReminder } from './features/session-alerts.js';
@@ -40,6 +40,7 @@ import { openColumnModal, closeColumnModal, saveColumnFromModal, deleteColumnFro
 import { openProjectModal, closeProjectModal, saveProjectFromModal } from './modals/project.js';
 import { openTeamModal, closeTeamModal, addMemberFromModal } from './modals/team.js';
 import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal } from './modals/organisation.js';
+import { openSsoConfigModal, closeSsoConfigModal, saveSsoConfigFromModal, generateScimTokenFromModal } from './modals/sso.js';
 import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromModal, openTemplatesModal, closeTemplatesModal } from './modals/templates.js';
 import { openTodoOverlay, closeTodoOverlay, isTodoOverlayOpen, addTodoListFromModal } from './modals/todo.js';
 import { openTaskTypesModal, closeTaskTypesModal, addTaskTypeFromModal } from './modals/task-types.js';
@@ -882,6 +883,8 @@ function wireEvents(){
 
   function openServerLoginModal(){
     document.getElementById('serverLoginOverlay').classList.remove('hidden');
+    document.getElementById('serverLoginSsoBtn').classList.add('hidden');
+    _ssoLookupOrgId = null;
     document.getElementById('serverLoginUsernameInput').focus();
   }
   document.getElementById('serverLoginBtn').addEventListener('click', openServerLoginModal);
@@ -895,6 +898,30 @@ function wireEvents(){
   document.getElementById('serverLoginCancelBtn').addEventListener('click', closeServerLoginModal);
   document.getElementById('serverLoginOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'serverLoginOverlay') closeServerLoginModal();
+  });
+
+  // Debounced org discovery as the identifier field is typed — see api.js's ssoLookupApi for why
+  // this is safe to call unauthenticated (it never reveals whether the identifier itself matched a
+  // real account, only whether SSO is available). Password login stays available underneath
+  // regardless of the result — SSO coexists by default (OrganisationSsoConfig.RequireSso is what
+  // actually enforces SSO-only, server-side, if an OrgAdmin turns it on).
+  var _ssoLookupOrgId = null;
+  var _ssoLookupTimer = null;
+  document.getElementById('serverLoginUsernameInput').addEventListener('input', function(){
+    var identifier = this.value.trim();
+    var ssoBtn = document.getElementById('serverLoginSsoBtn');
+    clearTimeout(_ssoLookupTimer);
+    if(!identifier){ ssoBtn.classList.add('hidden'); _ssoLookupOrgId = null; return; }
+    _ssoLookupTimer = setTimeout(function(){
+      ssoLookupApi(identifier).then(function(result){
+        _ssoLookupOrgId = result.ssoAvailable ? result.organisationId : null;
+        ssoBtn.classList.toggle('hidden', !result.ssoAvailable);
+      }, function(){ /* lookup failure just leaves the SSO button hidden — password login still works */ });
+    }, 400);
+  });
+  document.getElementById('serverLoginSsoBtn').addEventListener('click', function(){
+    if(!_ssoLookupOrgId) return;
+    window.location.href = '/api/saml/' + _ssoLookupOrgId + '/login';
   });
   document.getElementById('serverLoginSubmitBtn').addEventListener('click', function(){
     var username = document.getElementById('serverLoginUsernameInput').value.trim();
@@ -964,6 +991,18 @@ function wireEvents(){
   document.getElementById('orgUsersOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'orgUsersOverlay') closeOrgUsersModal();
   });
+
+  document.getElementById('ssoConfigLink').addEventListener('click', function(e){
+    e.preventDefault();
+    openSsoConfigModal();
+  });
+  document.getElementById('ssoConfigClose').addEventListener('click', closeSsoConfigModal);
+  document.getElementById('ssoConfigDoneBtn').addEventListener('click', closeSsoConfigModal);
+  document.getElementById('ssoConfigOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'ssoConfigOverlay') closeSsoConfigModal();
+  });
+  document.getElementById('ssoConfigSaveBtn').addEventListener('click', saveSsoConfigFromModal);
+  document.getElementById('ssoGenerateScimTokenBtn').addEventListener('click', generateScimTokenFromModal);
 
   document.getElementById('saveAsTemplateLink').addEventListener('click', function(e){
     e.preventDefault();
@@ -1273,6 +1312,33 @@ function openTaskFromHashIfPresent(){
   openTaskModal(found.task.id, found.task.columnId);
 }
 
+/* Handles the ?ssoCode=/?ssoError= this page was reloaded with after a round trip through the
+   IdP and SamlController's ACS action (see SamlService.SuccessRedirectUrl/ErrorRedirectUrl on the
+   server). Either way the query param is stripped via history.replaceState once handled, so a
+   page refresh afterward doesn't try to redeem an already-used code or re-show a stale error. */
+function handleSsoCallbackIfPresent(){
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('ssoCode');
+  var error = params.get('ssoError');
+  if(!code && !error) return;
+
+  params.delete('ssoCode');
+  params.delete('ssoError');
+  var newSearch = params.toString();
+  var newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+  window.history.replaceState({}, '', newUrl);
+
+  if(error){ toast(error); return; }
+
+  completeSsoLogin(code).then(function(){
+    connectEventStream();
+    pullServerProjectsIntoLocal().then(function(count){
+      renderAll();
+      if(count > 0) toast('Loaded ' + count + ' project(s) from the server.');
+    });
+  }, function(){ /* toast already shown by completeSsoLogin */ });
+}
+
 /* =========================================================
    INIT
    ========================================================= */
@@ -1282,6 +1348,7 @@ function init(){
   renderAll();
   checkProjectAlerts();
   openTaskFromHashIfPresent();
+  handleSsoCallbackIfPresent();
 
   // Reconciles a still-logged-in returning browser the same way the interactive login flow does
   // (see the serverLoginSubmitBtn handler above) — previously this only ran right after an

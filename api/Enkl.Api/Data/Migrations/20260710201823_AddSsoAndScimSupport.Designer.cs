@@ -3,6 +3,7 @@ using System;
 using Enkl.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Enkl.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260710201823_AddSsoAndScimSupport")]
+    partial class AddSsoAndScimSupport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -934,9 +937,6 @@ namespace Enkl.Api.Data.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("SourceOrgTeamId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -945,8 +945,6 @@ namespace Enkl.Api.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ParentId");
-
-                    b.HasIndex("SourceOrgTeamId");
 
                     b.HasIndex("ProjectId", "Key")
                         .IsUnique();
@@ -1577,16 +1575,9 @@ namespace Enkl.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Enkl.Api.Domain.Entities.OrgTeam", "SourceOrgTeam")
-                        .WithMany()
-                        .HasForeignKey("SourceOrgTeamId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Parent");
 
                     b.Navigation("Project");
-
-                    b.Navigation("SourceOrgTeam");
                 });
 
             modelBuilder.Entity("Enkl.Api.Domain.Entities.TeamCommitteeMember", b =>

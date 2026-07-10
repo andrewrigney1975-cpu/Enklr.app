@@ -195,6 +195,9 @@ export function renderToolbar(){
   var manageUsersLink = document.getElementById('manageUsersLink');
   if(manageUsersLink) manageUsersLink.classList.toggle('kf-vis-hidden', !isOrgAdmin());
 
+  var ssoConfigLink = document.getElementById('ssoConfigLink');
+  if(ssoConfigLink) ssoConfigLink.classList.toggle('kf-vis-hidden', !isOrgAdmin());
+
   // Unlike Manage Users, Manage Templates has real value signed-out too (local-only templates, no
   // Organisation concept to gate on) — only hidden in the one case where opening it would just show
   // an error toast: signed in as a non-admin (its rename/delete actions are OrgAdmin-only server-side).
