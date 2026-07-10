@@ -59,6 +59,16 @@ export function isOrgAdmin(){
   return !!(payload && payload.orgAdmin === 'true');
 }
 
+/* The logged-in user's Organisation display name (see JwtTokenService.cs's orgName claim), used to
+   append " - <org name>" to the header logo once logged in. Null when logged out or the token predates
+   this claim (an old token still cached in localStorage from before this was added). */
+export function getOrgName(){
+  var token = getToken();
+  if(!token) return null;
+  var payload = decodeTokenPayload(token);
+  return (payload && payload.orgName) || null;
+}
+
 export class ApiError extends Error {
   constructor(status, body){
     super((body && body.message) || ('Request failed with status ' + status));

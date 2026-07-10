@@ -84,7 +84,7 @@ public class ProjectService
     /// </summary>
     public async Task<CreateProjectResponseDto?> CreateAsync(Guid callerUserId, CreateProjectRequest request)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == callerUserId);
+        var user = await _db.Users.Include(u => u.Organisation).FirstOrDefaultAsync(u => u.Id == callerUserId);
         if (user is null) return null;
 
         var name = string.IsNullOrWhiteSpace(request.Name) ? "Untitled Project" : request.Name.Trim();

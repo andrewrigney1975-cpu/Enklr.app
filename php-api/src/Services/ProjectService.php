@@ -77,7 +77,11 @@ final class ProjectService
      */
     public function create(string $callerUserId, array $request): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM "Users" WHERE "Id" = :id');
+        $stmt = $this->db->prepare(<<<SQL
+            SELECT u.*, o."Name" AS "OrganisationName" FROM "Users" u
+            JOIN "Organisations" o ON o."Id" = u."OrganisationId"
+            WHERE u."Id" = :id
+        SQL);
         $stmt->execute(['id' => $callerUserId]);
         $user = $stmt->fetch();
         if ($user === false) {

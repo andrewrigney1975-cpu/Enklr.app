@@ -19,6 +19,7 @@ use stdClass;
  *   username     login username
  *   displayName  display name
  *   orgId        organisation id
+ *   orgName      organisation display name (display-only, e.g. the header logo — never used for auth)
  *   orgAdmin     the STRING "true"/"false" (not a JSON bool — see the .NET comment this mirrors)
  *   projects     a JSON-encoded STRING (double-encoded) of [{"ProjectId":"...","Role":null}, ...],
  *                deliberately PascalCase inside to match System.Text.Json.Serialize's default output
@@ -27,7 +28,7 @@ use stdClass;
 final class JwtService
 {
     /**
-     * @param array{Id:string,Username:string,DisplayName:string,OrganisationId:string,IsOrgAdmin:bool} $user
+     * @param array{Id:string,Username:string,DisplayName:string,OrganisationId:string,OrganisationName:string,IsOrgAdmin:bool} $user
      * @param array<array{ProjectId:string,Role:?string}> $memberships
      * @return array{token:string, expiresAt:string} expiresAt as an ISO-8601 UTC string, matching how
      *   the .NET DateTime gets JSON-serialized in LoginResponse/CreateProjectResponseDto
@@ -48,6 +49,9 @@ final class JwtService
             'username' => $user['Username'],
             'displayName' => $user['DisplayName'],
             'orgId' => $user['OrganisationId'],
+            // Display-only (the header logo shows "<app title> - <org name>" once logged in — see
+            // api.js's getOrgName()); never used for authorization.
+            'orgName' => $user['OrganisationName'],
             'orgAdmin' => $user['IsOrgAdmin'] ? 'true' : 'false',
             'projects' => $projectsClaim,
             'iat' => $now->getTimestamp(),

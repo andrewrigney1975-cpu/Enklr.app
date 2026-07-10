@@ -26,7 +26,7 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
         var normalized = UsernameNormalizer.Normalize(request.Username);
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.NormalizedUsername == normalized);
+        var user = await _db.Users.Include(u => u.Organisation).FirstOrDefaultAsync(u => u.NormalizedUsername == normalized);
         if (user is null || !PasswordHasher.Verify(request.Password, user.PasswordHash))
         {
             return Unauthorized(new { message = "Invalid username or password." });

@@ -30,6 +30,10 @@ public class JwtTokenService
             new("username", user.Username),
             new("displayName", user.DisplayName),
             new("orgId", user.OrganisationId.ToString()),
+            // Display-only (the header logo shows "<app title> - <org name>" once logged in — see
+            // api.js's getOrgName()); never used for authorization, so it's fine that a rename after
+            // token issuance shows stale until the next login/reissue.
+            new("orgName", user.Organisation.Name),
             // String "true"/"false", not a bool ClaimValueType — ClaimsPrincipal.HasClaim/FindFirst
             // comparisons are simplest against plain string claim values.
             new("orgAdmin", user.IsOrgAdmin ? "true" : "false"),

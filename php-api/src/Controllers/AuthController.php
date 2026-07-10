@@ -22,7 +22,11 @@ final class AuthController extends BaseController
         $normalized = UsernameNormalizer::normalize($username);
 
         $db = Database::connection();
-        $stmt = $db->prepare('SELECT * FROM "Users" WHERE "NormalizedUsername" = :n LIMIT 1');
+        $stmt = $db->prepare(<<<SQL
+            SELECT u.*, o."Name" AS "OrganisationName" FROM "Users" u
+            JOIN "Organisations" o ON o."Id" = u."OrganisationId"
+            WHERE u."NormalizedUsername" = :n LIMIT 1
+        SQL);
         $stmt->execute(['n' => $normalized]);
         $user = $stmt->fetch();
 

@@ -4,17 +4,17 @@ import { normalizeHeaderButtonVisibility, isTimeTrackingEnabled, saveDB } from '
 import { PRIORITY_META, PRIORITY_ORDER, PRIORITY_COLORS, MOBILE_BREAKPOINT } from '../config.js';
 import { iconSvg } from '../icons.js';
 import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getTeamCommitteeById, isTaskBlocked, isTaskOverdue, getTaskOverrunStatus, getDescendants, buildChildrenMap, wouldCreateCycle } from '../utils.js';
-import { memberInitials, utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, clampTaskScore, clampProgress, defaultStartDateValue, defaultEndDateValue, lightenHexColor } from '../date-utils.js';
+import { memberInitials, utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, clampTaskScore, clampProgress, defaultStartDateValue, defaultEndDateValue, lightenHexColor, darkenHexColor } from '../date-utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
-import { getPriority } from '../ui.js';
+import { getPriority, currentTheme } from '../ui.js';
 import { getTeamsCommitteesForMember } from '../mutations.js';
 import { reorderColumns, deleteColumn, moveTaskToColumn, updateTask, addTask, deleteTask } from '../mutations.js';
 import { getReleaseById } from '../utils.js';
 import { isWorkflowEnabled, evaluateTransition } from '../features/workflow-engine.js';
 import { isGovernanceMapEnabled } from './governance-map.js';
 import { isServerAuthoritative, isServerLoggedIn, moveTaskToColumnOnServer, refreshProjectFromServer, reorderColumnsOnServer, deleteColumnOnServer } from '../features/migration.js';
-import { updateProjectSettingsApi, isOrgAdmin } from '../api.js';
+import { updateProjectSettingsApi, isOrgAdmin, getOrgName } from '../api.js';
 
 export function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
@@ -153,6 +153,10 @@ export function renderProjectSelect(){
   });
 }
 
+// Captured once from the DOM the first time renderToolbar runs, rather than hardcoded here, so the
+// header text (currently "Enkl Task") only has to be changed in index.html to stay in sync.
+var _baseLogoText = null;
+
 export function renderToolbar(){
   var p = getCurrentProject();
   var keyEl = document.getElementById('toolbarKey');
@@ -172,6 +176,13 @@ export function renderToolbar(){
   var loggedIn = isServerLoggedIn();
   toggleHeaderActionButton('serverLoginBtn', !loggedIn);
   toggleHeaderActionButton('serverLogoutBtn', loggedIn);
+
+  var logoTextEl = document.getElementById('kfLogoText');
+  if(logoTextEl){
+    if(_baseLogoText === null) _baseLogoText = logoTextEl.textContent;
+    var orgName = loggedIn ? getOrgName() : null;
+    logoTextEl.textContent = orgName ? (_baseLogoText + ' - ' + orgName) : _baseLogoText;
+  }
 
   // Manage Users has no corresponding hidden "target" button to reuse toggleHeaderActionButton's
   // dual-element lookup with — it's a plain link with its own click handler (see app.js) — so it's
@@ -615,7 +626,9 @@ export function renderColumn(project, col){
   section.setAttribute('data-column-id', col.id);
   if(col.color){
     section.style.setProperty('--kf-column-accent', col.color);
-    var tint = lightenHexColor(col.color);
+    // Dark theme blends toward black instead of white — a near-white tint (lightenHexColor's default)
+    // would clash with the rest of the dark palette, so colored columns stay a subtle dark shade there.
+    var tint = currentTheme() === 'dark' ? darkenHexColor(col.color) : lightenHexColor(col.color);
     if(tint) section.style.setProperty('--kf-column-tint', tint);
   }
 

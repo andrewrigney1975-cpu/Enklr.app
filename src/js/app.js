@@ -3,7 +3,7 @@
 /* ---- Core ---- */
 import { state, loadDB, saveDB } from './storage.js';
 import { getCurrentProject } from './store.js';
-import { ui, toast, resetFilters, renderThemeToggleIcon, toggleTheme, relocateViewButtonsForViewport, toggleSideNav, toggleMobileDrawer, closeMobileDrawer, isMobileDrawerOpen } from './ui.js';
+import { ui, toast, resetFilters, renderThemeToggleIcon, toggleTheme, setThemeDeps, relocateViewButtonsForViewport, toggleSideNav, toggleMobileDrawer, closeMobileDrawer, isMobileDrawerOpen } from './ui.js';
 import { hydrateIcons } from './icons.js';
 import { setOnAuthExpired, clearToken } from './api.js';
 
@@ -11,9 +11,9 @@ import { setOnAuthExpired, clearToken } from './api.js';
 import { deleteProject, closeAllTaskTypeIconPanels, setMutationsToast } from './mutations.js';
 
 /* ---- Views ---- */
-import { renderAll, renderBoard, setBoardDeps, closeTeamFilterPanel, closeAssigneeFilterPanel, closeTaskTypeFilterPanel, toggleTeamFilterPanel, toggleAssigneeFilterPanel, toggleTaskTypeFilterPanel, openAppSettingsOverlay, closeAppSettingsOverlay, isAppSettingsOverlayOpen, updateHeaderButtonVisibilitySetting } from './views/board.js';
+import { renderAll, renderBoard, setBoardDeps, closeTeamFilterPanel, closeAssigneeFilterPanel, closeTaskTypeFilterPanel, toggleTeamFilterPanel, toggleAssigneeFilterPanel, toggleTaskTypeFilterPanel, openAppSettingsOverlay, closeAppSettingsOverlay, isAppSettingsOverlayOpen, updateHeaderButtonVisibilitySetting, renderPriorityFilterChips } from './views/board.js';
 import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListOpen, renderTaskListBody, collapseAllTaskListGroups, expandAllTaskListGroups, exportTaskListAsCsv } from './views/task-list.js';
-import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, toggleDepMapShowArchived, toggleDepMapColumnFilterPanel, closeDepMapColumnFilterPanel, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
+import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, renderDependencyMap, toggleDepMapShowArchived, toggleDepMapColumnFilterPanel, closeDepMapColumnFilterPanel, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
 import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
 import { setGovMapDeps, govMapState, lastGovMapLayout, openGovMapOverlay, closeGovMapOverlay, isGovMapOpen, toggleGovMapShowRelationships, setGovMapZoom, resetGovMapZoom, zoomGovMapAtPoint } from './views/governance-map.js';
 import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, handleWorkflowReflow, updateWorkflowEdgePopoverMessageVisibility, refreshWorkflowEdgeConditionControls, handleWorkflowEdgeConditionFieldChange, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen, saveWorkflowToServer } from './views/workflow-editor.js';
@@ -65,6 +65,11 @@ setWorkflowEditorDeps({ toast, confirmDialog });
 setTimelineDeps({ toast, openTaskModal });
 setCostBenefitDeps({ toast, openTaskModal });
 setBulkEditDeps({ confirmDialog, exportProjectJSON });
+// Wires toggleTheme's post-flip re-render (ui.js) — without this, switching theme only updates the
+// data-theme attribute/toggle icon; every already-rendered view (board columns, dependency map,
+// priority filter chips, the task modal's priority icon) keeps showing colors computed for the OLD
+// theme until something else happens to trigger its own re-render (e.g. a hard refresh).
+setThemeDeps({ renderBoard, renderDependencyMap, isDepMapOpen, updatePriorityIcon, renderPriorityFilterChips });
 setMutationsToast(toast);
 setMigrationToast(toast);
 setImportSessionAlertsCheck(checkProjectAlerts);

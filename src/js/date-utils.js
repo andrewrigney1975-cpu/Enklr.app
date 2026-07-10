@@ -137,6 +137,22 @@ export function lightenHexColor(hex){
   return '#' + hex2(towardWhite(r)) + hex2(towardWhite(g)) + hex2(towardWhite(b));
 }
 
+/* Same 14/15 blend as lightenHexColor, but toward black instead of white — the dark-theme
+   counterpart, e.g. #ff0000 -> #1a0000, so a colored column's background tint stays a subtle dark
+   shade instead of the near-white tint lightenHexColor would produce, which clashes with the rest of
+   the dark theme's palette. Invalid input returns null so callers can skip applying a tint. */
+export function darkenHexColor(hex){
+  var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if(!m) return null;
+  var num = parseInt(m[1], 16);
+  var r = (num >> 16) & 255;
+  var g = (num >> 8) & 255;
+  var b = num & 255;
+  function towardBlack(c){ return Math.round(c * (1/15)); }
+  function hex2(c){ var s = c.toString(16); return s.length < 2 ? '0' + s : s; }
+  return '#' + hex2(towardBlack(r)) + hex2(towardBlack(g)) + hex2(towardBlack(b));
+}
+
 export function memberInitials(name){
   var parts = String(name||'').trim().split(/\s+/).filter(Boolean);
   if(parts.length === 0) return '?';
