@@ -69,6 +69,45 @@ export function getOrgName(){
   return (payload && payload.orgName) || null;
 }
 
+/* Whether the API tier behind /health is currently reachable — used to hide "Migrate to Server" (see
+   views/board.js's renderToolbar) when there's no backend to migrate to, whichever tier (.NET or PHP,
+   both expose the identical GET /health at their own root — see web/nginx.conf) happens to be
+   deployed. Starts true (optimistic) so the menu item isn't hidden for the brief moment before the
+   first probe completes. */
+var _apiReachable = true;
+var _lastApiProbeAt = 0;
+var API_PROBE_INTERVAL_MS = 30000;
+
+export function isApiReachable(){
+  return _apiReachable;
+}
+
+/* Throttled, fire-and-forget: callers (renderToolbar can run very frequently, e.g. after every task
+   edit) read the possibly-stale-by-up-to-API_PROBE_INTERVAL_MS cached value via isApiReachable()
+   synchronously; this only actually re-probes /health at most once per interval, and invokes
+   onChange() to let the caller re-render once a probe resolves with a different result than before. */
+export function pollApiReachability(onChange){
+  var now = Date.now();
+  if(now - _lastApiProbeAt < API_PROBE_INTERVAL_MS) return;
+  _lastApiProbeAt = now;
+
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function(){ controller.abort(); }, 4000);
+  fetch('/health', {cache: 'no-store', signal: controller.signal}).then(function(res){
+    clearTimeout(timeoutId);
+    applyReachability(res.ok);
+  }, function(){
+    clearTimeout(timeoutId);
+    applyReachability(false);
+  });
+
+  function applyReachability(reachable){
+    var changed = reachable !== _apiReachable;
+    _apiReachable = reachable;
+    if(changed && onChange) onChange();
+  }
+}
+
 export class ApiError extends Error {
   constructor(status, body){
     super((body && body.message) || ('Request failed with status ' + status));

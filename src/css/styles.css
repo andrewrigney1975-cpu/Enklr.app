@@ -2526,6 +2526,15 @@
     max-height: 86vh;
   }
 
+  /* Task modal only, 25% wider than the base .kf-modal (560px -> 700px), desktop only — below the
+     app's MOBILE_BREAKPOINT (config.js) the base rule's max-width:100% already governs, and 700px
+     would just get clamped there anyway, but scoping to desktop keeps the intent explicit. */
+  @media (min-width: 1025px) {
+    #taskOverlay .kf-modal {
+      width: 700px;
+    }
+  }
+
   .kf-modal-header {
     display: flex;
     align-items: center;

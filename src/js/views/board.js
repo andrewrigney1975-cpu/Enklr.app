@@ -14,7 +14,7 @@ import { getReleaseById } from '../utils.js';
 import { isWorkflowEnabled, evaluateTransition } from '../features/workflow-engine.js';
 import { isGovernanceMapEnabled } from './governance-map.js';
 import { isServerAuthoritative, isServerLoggedIn, moveTaskToColumnOnServer, refreshProjectFromServer, reorderColumnsOnServer, deleteColumnOnServer } from '../features/migration.js';
-import { updateProjectSettingsApi, isOrgAdmin, getOrgName } from '../api.js';
+import { updateProjectSettingsApi, isOrgAdmin, getOrgName, isApiReachable, pollApiReachability } from '../api.js';
 
 export function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
@@ -169,13 +169,18 @@ export function renderToolbar(){
   // would just create a duplicate copy on the server (see the migrateToServerBtn handler's own
   // "Re-migrate" confirm-dialog warning in app.js, kept as a manual fallback for the narrow window
   // between an anonymous migration and this browser's next login/reconciliation swap).
-  toggleHeaderActionButton('migrateToServerBtn', !isServerAuthoritative(p));
+  // Throttled fire-and-forget re-probe of /health (see api.js) — re-renders the toolbar itself if
+  // reachability flips, so this stays eventually-consistent without polling on a timer.
+  pollApiReachability(renderToolbar);
+  toggleHeaderActionButton('migrateToServerBtn', !isServerAuthoritative(p) && isApiReachable());
 
   // Login/Logout are session-level, not tied to whichever project happens to be open — Login shows
   // whenever there's no active session, Logout once there is one.
   var loggedIn = isServerLoggedIn();
   toggleHeaderActionButton('serverLoginBtn', !loggedIn);
   toggleHeaderActionButton('serverLogoutBtn', loggedIn);
+  // There's no password to change until there's a server session to change it on.
+  toggleHeaderActionButton('changePasswordBtn', loggedIn);
 
   var logoTextEl = document.getElementById('kfLogoText');
   if(logoTextEl){
@@ -189,6 +194,11 @@ export function renderToolbar(){
   // just toggled directly here.
   var manageUsersLink = document.getElementById('manageUsersLink');
   if(manageUsersLink) manageUsersLink.classList.toggle('kf-vis-hidden', !isOrgAdmin());
+
+  // The whole Account menu (Login/Logout/Change Password/Manage Users) is meaningless with no API
+  // to talk to — hide the trigger itself rather than leaving an empty/broken-looking dropdown.
+  var accountMenuWrap = document.getElementById('accountMenuWrap');
+  if(accountMenuWrap) accountMenuWrap.classList.toggle('kf-vis-hidden', !isApiReachable());
 }
 
 /* Hides/shows one of the header's project-action buttons together with its corresponding link in the
