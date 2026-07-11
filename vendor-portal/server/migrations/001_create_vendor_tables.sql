@@ -1,7 +1,7 @@
 -- Enkl Portal's own tables. Deliberately named with a vendor_ prefix and tracked in
 -- vendor_schema_migrations (see migrate.js) so this can never collide with the main app's
--- EF Core migrations / __EFMigrationsHistory table. The portal only ever reads "Organisations"
--- and "Users" (owned by the main app's schema) — it never writes to them.
+-- EF Core migrations / __EFMigrationsHistory table. The portal only ever reads "Organisations",
+-- "Users", "Tasks" and "Columns" (all owned by the main app's schema) — it never writes to them.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

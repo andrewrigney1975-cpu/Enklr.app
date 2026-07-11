@@ -12,6 +12,7 @@ export async function renderOrganisations(root){
     return '<tr>' +
       '<td>' + escapeHtml(o.name) + '</td>' +
       '<td>' + o.active_user_count + ' active / ' + o.total_user_count + ' total</td>' +
+      '<td>' + escapeHtml(o.org_admins || '') + '</td>' +
       '<td>' + o.active_contract_count + '</td>' +
       '<td>' + formatDate(o.created_at) + '</td>' +
       '</tr>';
@@ -22,7 +23,7 @@ export async function renderOrganisations(root){
       '<div class="kf-view-header"><h1 class="kf-view-title">Organisations</h1></div>' +
       '<div class="kf-panel">' +
         (rows
-          ? '<table class="kf-table"><thead><tr><th>Name</th><th>Users</th><th>Active contracts</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table>'
+          ? '<table class="kf-table"><thead><tr><th>Name</th><th>Users</th><th>Organisation Admins</th><th>Active contracts</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table>'
           : '<div class="kf-table-empty">No organisations found.</div>') +
       '</div>' +
     '</div>';

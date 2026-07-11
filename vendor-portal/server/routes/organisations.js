@@ -14,7 +14,10 @@ organisationsRouter.get('/organisations', async (_req, res) => {
       l.seat_cost_cents,
       l.currency,
       l.discount_percent,
-      (SELECT COUNT(*) FROM vendor_contracts c WHERE c.org_id = o."Id" AND c.status = 'active')::int AS active_contract_count
+      (SELECT COUNT(*) FROM vendor_contracts c WHERE c.org_id = o."Id" AND c.status = 'active')::int AS active_contract_count,
+      (SELECT string_agg(u2."DisplayName", ', ' ORDER BY u2."DisplayName")
+       FROM "Users" u2
+       WHERE u2."OrganisationId" = o."Id" AND u2."IsOrgAdmin" = true) AS org_admins
     FROM "Organisations" o
     LEFT JOIN "Users" u ON u."OrganisationId" = o."Id"
     LEFT JOIN vendor_licenses l ON l.org_id = o."Id"

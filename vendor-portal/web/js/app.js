@@ -7,6 +7,7 @@ import { renderDashboard } from './views/dashboard.js';
 import { renderOrganisations } from './views/organisations.js';
 import { renderLicenses } from './views/licenses.js';
 import { renderContracts } from './views/contracts.js';
+import { closeAllExportAsPanels } from './features/svg-export.js';
 
 var loginWrap = document.getElementById('loginWrap');
 var viewRoot = document.getElementById('viewRoot');
@@ -61,6 +62,10 @@ Object.keys(VIEWS).forEach(function(key){
 });
 
 document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.kf-export-as-wrap')) closeAllExportAsPanels();
+});
 
 logoutBtn.addEventListener('click', async function(){
   await api.post('/logout').catch(function(){});
