@@ -118,6 +118,13 @@ export class ApiError extends Error {
 
 var _onAuthExpired = function(){};
 export function setOnAuthExpired(fn){ _onAuthExpired = fn; }
+
+/* Fired when the server rejects a mutating request with the must_change_password code (see
+   Program.cs's MustChangePassword-enforcement middleware) — lets app.js pop the Change Password
+   modal right when an edit actually gets blocked, instead of just leaving the caller's generic
+   error toast to explain a 403 the user has no other way to understand. */
+var _onMustChangePassword = function(){};
+export function setOnMustChangePassword(fn){ _onMustChangePassword = fn; }
 /* Exported so a caller with its own reason to know the session is dead — currently just
    features/live-updates.js, whose long-lived SSE stream can be the first thing to notice an expired
    token during an otherwise idle session — can trigger the same "please log in again" handling
@@ -144,6 +151,7 @@ async function apiFetch(path, options){
   if(!res.ok){
     var body = null;
     try { body = await res.json(); } catch(e){ /* no JSON body */ }
+    if(res.status === 403 && body && body.code === 'must_change_password') _onMustChangePassword();
     throw new ApiError(res.status, body);
   }
   return res.status === 204 ? null : res.json();

@@ -5,7 +5,7 @@ import { state, loadDB, saveDB } from './storage.js';
 import { getCurrentProject } from './store.js';
 import { ui, toast, resetFilters, renderThemeToggleIcon, toggleTheme, setThemeDeps, relocateViewButtonsForViewport, toggleSideNav, toggleMobileDrawer, closeMobileDrawer, isMobileDrawerOpen } from './ui.js';
 import { hydrateIcons } from './icons.js';
-import { setOnAuthExpired, clearToken, ssoLookupApi } from './api.js';
+import { setOnAuthExpired, setOnMustChangePassword, clearToken, ssoLookupApi } from './api.js';
 
 /* ---- Mutations ---- */
 import { deleteProject, closeAllTaskTypeIconPanels, setMutationsToast } from './mutations.js';
@@ -917,6 +917,10 @@ function wireEvents(){
   // apiFetch). Surfacing the login modal immediately means the user can just re-enter their
   // password right there, rather than having to notice a toast and go hunt for the Login button.
   setOnAuthExpired(openServerLoginModal);
+  // Fires when the server blocks a mutating request because User.MustChangePassword is still set
+  // (see Program.cs's enforcement middleware) — pop the modal right then so the user understands
+  // why their edit didn't save, instead of just a generic error toast.
+  setOnMustChangePassword(function(){ openChangePasswordModal(''); });
   function closeServerLoginModal(){ document.getElementById('serverLoginOverlay').classList.add('hidden'); }
   document.getElementById('serverLoginClose').addEventListener('click', closeServerLoginModal);
   document.getElementById('serverLoginCancelBtn').addEventListener('click', closeServerLoginModal);

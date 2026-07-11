@@ -1,6 +1,6 @@
 "use strict";
 import { state, isTimeTrackingEnabled, isSubTasksEnabled } from '../storage.js';
-import { getTasksArray, getColumn, getMemberById, getTaskTypeById, isTaskBlocked, isTaskOverdue, buildChildrenMap } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, getTaskTypeById, isTaskBlocked, isTaskOverdue, buildChildrenMap, escapeHTML } from '../utils.js';
 import { getCurrentProject } from '../store.js';
 import { PRIORITY_COLORS } from '../config.js';
 import { iconSvg } from '../icons.js';
@@ -8,7 +8,6 @@ import { memberInitials, utcISOToLocalDisplayDate, clampProgress } from '../date
 import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
 
-function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 export function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 

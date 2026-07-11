@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: enkl
       POSTGRES_USER: enkl
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-enkl_dev_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -20,8 +20,8 @@ services:
     build:
       context: ./api/Enkl.Api
     environment:
-      ConnectionStrings__Default: "Host=db;Database=enkl;Username=enkl;Password=${DB_PASSWORD:-enkl_dev_password}"
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-please-32chars-min}
+      ConnectionStrings__Default: "Host=db;Database=enkl;Username=enkl;Password=${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?JWT_SIGNING_KEY must be set in .env}
       App__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost}
       RunMigrationsOnStartup: "true"
       ASPNETCORE_URLS: "http://+:8080"

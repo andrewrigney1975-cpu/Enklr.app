@@ -2,7 +2,7 @@
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility } from '../storage.js';
 import { PRIORITY_META } from '../config.js';
 import { clampTaskScore, clampProgress, clampEffortHours, memberColorForIndex, isValidISODateString } from '../date-utils.js';
-import { getColumn, isValidTaskTypeIconName } from '../utils.js';
+import { getColumn, isValidTaskTypeIconName, escapeHTML } from '../utils.js';
 import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue, buildWorkflowEdgeFields } from '../mutations.js';
 
 var _toast = function(msg){ console.error(msg); };
@@ -13,14 +13,6 @@ var _resetFilters = function(){ };
 export function setImportResetFilters(fn){ _resetFilters = fn; }
 var _checkSessionAlerts = function(){ };
 export function setImportSessionAlertsCheck(fn){ _checkSessionAlerts = fn; }
-
-function escapeHTML(str){
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 /* =========================================================
    IMPORT (reads the same hierarchical schema exportProjectJSON

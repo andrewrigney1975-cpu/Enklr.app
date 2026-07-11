@@ -16,6 +16,8 @@ use Slim\Psr7\Response;
  */
 function buildApp(): \Slim\App
 {
+    assertProductionSecretsAreSet();
+
     $app = AppFactory::create();
     $app->addBodyParsingMiddleware();
 
@@ -59,6 +61,38 @@ function buildApp(): \Slim\App
     });
 
     return $app;
+}
+
+/**
+ * Defense-in-depth against the checked-in .env.example placeholders ever reaching a real
+ * deployment — mirrors api/Enkl.Api/Program.cs's equivalent startup guard exactly. Config::get()
+ * already silently falls back to '' for an unset JWT_SIGNING_KEY (see Config::get's own doc
+ * comment), which would otherwise let firebase/php-jwt sign/verify tokens with an empty key.
+ * Skipped entirely in APP_ENV=development, the same "zero-setup local run" exemption as the
+ * .NET side's IsDevelopment() check.
+ */
+function assertProductionSecretsAreSet(): void
+{
+    if (Config::get('APP_ENV', 'production') === 'development') {
+        return;
+    }
+
+    $signingKey = Config::get('JWT_SIGNING_KEY', '') ?? '';
+    $placeholderSigningKey = 'change-me-to-a-random-32-plus-character-string';
+    if ($signingKey === '' || $signingKey === $placeholderSigningKey || strlen($signingKey) < 32) {
+        throw new \RuntimeException(
+            'JWT_SIGNING_KEY is missing, is the checked-in .env.example placeholder, or is shorter ' .
+            'than 32 characters. Set a real, random JWT_SIGNING_KEY before starting outside APP_ENV=development.'
+        );
+    }
+
+    $dbPassword = Config::get('DB_PASSWORD', '') ?? '';
+    if ($dbPassword === '' || $dbPassword === 'change-me') {
+        throw new \RuntimeException(
+            'DB_PASSWORD is missing or is the checked-in .env.example placeholder. Set a real ' .
+            'DB_PASSWORD before starting outside APP_ENV=development.'
+        );
+    }
 }
 
 function isConstraintViolation(PDOException $e): bool

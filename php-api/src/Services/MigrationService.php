@@ -25,13 +25,13 @@ final class MigrationService
     {
     }
 
-    public function migrate(array $request): array
+    public function migrate(array $request, ?string $callerOrgId = null): array
     {
         $warnings = [];
         $this->db->beginTransaction();
 
         try {
-            [$organisationId, $organisationCreated] = $this->resolveOrganisation((string) ($request['organisationName'] ?? ''));
+            [$organisationId, $organisationCreated] = $this->resolveOrganisation((string) ($request['organisationName'] ?? ''), $callerOrgId);
 
             // Project keys are globally unique server-side, but every fresh local install seeds a
             // project with the same "DEMO" key — so a key collision on migration is an expected,
@@ -114,14 +114,36 @@ final class MigrationService
     }
 
     /** @return array{0: string, 1: bool} */
-    private function resolveOrganisation(string $name): array
+    private function resolveOrganisation(string $name, ?string $callerOrgId): array
     {
+        if ($callerOrgId !== null) {
+            // Authenticated caller: always migrate into their own Organisation regardless of what
+            // name the export document carries. This is the "add another local project to my
+            // existing org" flow — never let a submitted name redirect it into someone else's org.
+            $stmt = $this->db->prepare('SELECT "Id" FROM "Organisations" WHERE "Id" = :id');
+            $stmt->execute(['id' => $callerOrgId]);
+            $callerOrg = $stmt->fetchColumn();
+            if ($callerOrg !== false) {
+                return [$callerOrg, false];
+            }
+            // Falls through to name-based resolution only if the token's org somehow no longer
+            // exists; the existing-org check below still protects that path.
+        }
+
         $normalized = UsernameNormalizer::normalize($name);
         $stmt = $this->db->prepare('SELECT "Id" FROM "Organisations" WHERE "NormalizedName" = :n');
         $stmt->execute(['n' => $normalized]);
         $existing = $stmt->fetchColumn();
         if ($existing !== false) {
-            return [$existing, false];
+            // An unauthenticated caller matching an existing Organisation purely by name was the
+            // cross-tenant account-injection vector from the security review (finding C3): anyone
+            // who knew/guessed an org's display name could get a login-capable user account
+            // silently created inside it. Only an authenticated member of that org (handled above)
+            // may add users to it via migration — everyone else must go through the bootstrap
+            // (brand-new org) path below.
+            throw new ApiValidationException(
+                "An organisation named \"{$name}\" already exists. Sign in as a member of that organisation to migrate additional projects into it."
+            );
         }
 
         $id = Uuid::v4();

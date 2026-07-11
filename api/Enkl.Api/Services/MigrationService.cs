@@ -27,12 +27,12 @@ public class MigrationService
         _db = db;
     }
 
-    public async Task<MigrationResultDto> MigrateAsync(MigrationImportRequest request)
+    public async Task<MigrationResultDto> MigrateAsync(MigrationImportRequest request, Guid? callerOrgId = null)
     {
         var warnings = new List<string>();
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
-        var (organisation, organisationCreated) = await ResolveOrganisationAsync(request.OrganisationName);
+        var (organisation, organisationCreated) = await ResolveOrganisationAsync(request.OrganisationName, callerOrgId);
 
         // Project keys are globally unique server-side, but every fresh local install seeds a
         // project with the same "DEMO" key (createSeedDB in src/js/storage.js) — so a key collision
@@ -103,11 +103,32 @@ public class MigrationService
         return new MigrationResultDto(project.Id, organisation.Id, organisationCreated, usersCreated, usersMatched, warnings);
     }
 
-    private async Task<(Organisation Organisation, bool Created)> ResolveOrganisationAsync(string name)
+    private async Task<(Organisation Organisation, bool Created)> ResolveOrganisationAsync(string name, Guid? callerOrgId)
     {
+        if (callerOrgId is not null)
+        {
+            // Authenticated caller: always migrate into their own Organisation regardless of what
+            // name the export document carries. This is the "add another local project to my
+            // existing org" flow — never let a submitted name redirect it into someone else's org.
+            var callerOrg = await _db.Organisations.FirstOrDefaultAsync(o => o.Id == callerOrgId.Value);
+            if (callerOrg is not null) return (callerOrg, false);
+            // Falls through to name-based resolution only if the token's org somehow no longer
+            // exists; the existing-org check below still protects that path.
+        }
+
         var normalized = UsernameNormalizer.Normalize(name);
         var existing = await _db.Organisations.FirstOrDefaultAsync(o => o.NormalizedName == normalized);
-        if (existing is not null) return (existing, false);
+        if (existing is not null)
+        {
+            // An unauthenticated caller matching an existing Organisation purely by name was the
+            // cross-tenant account-injection vector from the security review (finding C3): anyone
+            // who knew/guessed an org's display name could get a login-capable user account
+            // silently created inside it. Only an authenticated member of that org (handled above)
+            // may add users to it via migration — everyone else must go through the bootstrap
+            // (brand-new org) path below.
+            throw new ApiValidationException(
+                $"An organisation named \"{name}\" already exists. Sign in as a member of that organisation to migrate additional projects into it.");
+        }
 
         var organisation = new Organisation { Id = Guid.NewGuid(), Name = name, NormalizedName = normalized, CreatedAt = DateTime.UtcNow };
         _db.Organisations.Add(organisation);

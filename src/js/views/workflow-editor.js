@@ -5,8 +5,8 @@ import { ensureProjectWorkflow, WORKFLOW_NODE_W, WORKFLOW_NODE_H, WORKFLOW_MARGI
 import { setWorkflowNodePosition, addWorkflowEdge, updateWorkflowEdge, deleteWorkflowEdge, reflowWorkflowLayout } from '../mutations.js';
 import { isServerAuthoritative, pullWorkflowFromServer } from '../features/migration.js';
 import { updateProjectWorkflowApi } from '../api.js';
+import { escapeHTML } from '../utils.js';
 
-function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 
 var _toast = function(msg){ console.error(msg); };

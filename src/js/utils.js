@@ -2,6 +2,22 @@
 
 import { clampProgress, clampEffortHours, utcISOToLocalDisplayDate } from './date-utils.js';
 
+/* The one shared HTML-escaping helper — every view/modal must route free-text/server-sourced
+   strings through this before concatenating them into an innerHTML string. Escapes the full set
+   ( & < > " ' ) rather than just the first three: a value landing inside a quoted HTML attribute
+   (title="...", value="...", href="...") can break out of the attribute with an unescaped quote
+   even though the same value would be safe as plain text-node content — see the security review
+   that found this gap in the previous per-file DOM-round-trip copies of this helper (which used
+   div.textContent -> div.innerHTML, correct for text nodes but silent on quotes). */
+export function escapeHTML(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /* Pure project-scoped helpers — these take a `project` object as a
    parameter and never access the db state directly. */
 

@@ -1,12 +1,11 @@
 "use strict";
-import { getTeamCommitteeById, getMemberById } from '../utils.js';
+import { getTeamCommitteeById, getMemberById, escapeHTML } from '../utils.js';
 import { getCurrentProject } from '../store.js';
 import { TEAM_COMMITTEE_TYPES } from '../config.js';
 import { iconSvg } from '../icons.js';
 import { memberInitials } from '../date-utils.js';
 import { ui } from '../ui.js';
 
-function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 
 var _toast = function(msg){ console.error(msg); };

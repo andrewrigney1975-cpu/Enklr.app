@@ -1,5 +1,5 @@
 "use strict";
-import { getTasksArray, getColumn, getMemberById, getTaskTypeById, isTaskOverdue } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, getTaskTypeById, isTaskOverdue, escapeHTML } from '../utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
@@ -7,7 +7,6 @@ import { iconSvg } from '../icons.js';
 import { utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, memberInitials, clampProgress } from '../date-utils.js';
 import { isTimeTrackingEnabled } from '../storage.js';
 
-function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
 

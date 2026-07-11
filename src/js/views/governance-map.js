@@ -3,8 +3,8 @@ import { getCurrentProject } from '../store.js';
 import { normalizeHeaderButtonVisibility } from '../storage.js';
 import { iconSvg } from '../icons.js';
 import { ui } from '../ui.js';
+import { escapeHTML } from '../utils.js';
 
-function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 

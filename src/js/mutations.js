@@ -1,12 +1,10 @@
 "use strict";
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject, createProjectFromTemplate, isChangeAuditingEnabled, isSubTasksEnabled } from './storage.js';
-import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, getRetrospectiveById, getRetrospectiveItemById, getRetrospectiveActionItemById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY } from './utils.js';
+import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, getRetrospectiveById, getRetrospectiveItemById, getRetrospectiveActionItemById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY, escapeHTML } from './utils.js';
 import { evaluateTransition, getWorkflowConditionField, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION, computeReflowedLayout } from './features/workflow-engine.js';
 import { clampTaskScore, clampProgress, clampEffortHours, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
 import { PRIORITY_META, RISK_STATUS_META, DECISION_TYPE_META, DECISION_STATUS_META, TEAM_COMMITTEE_TYPES } from './config.js';
 import { iconSvg } from './icons.js';
-
-function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
 var _toast = function(msg){ console.error(msg); };
 export function setMutationsToast(fn){ _toast = fn; }

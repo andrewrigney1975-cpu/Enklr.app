@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Enkl\Api\Auth\JwtAuthMiddleware;
+use Enkl\Api\Auth\MustChangePasswordMiddleware;
 use Enkl\Api\Auth\OrgAdminMiddleware;
 use Enkl\Api\Auth\ProjectMemberMiddleware;
 use Enkl\Api\Auth\RequireAuthMiddleware;
@@ -44,6 +45,10 @@ use Slim\App;
  */
 function registerRoutes(App $app): void
 {
+    // MustChangePasswordMiddleware is added BEFORE JwtAuthMiddleware so it runs AFTER it — Slim's
+    // middleware stack is LIFO, so the last ->add() call here (JwtAuthMiddleware) is outermost and
+    // runs first, populating the jwtClaims attribute this middleware reads.
+    $app->add(MustChangePasswordMiddleware::class);
     $app->add(JwtAuthMiddleware::class);
 
     $app->get('/health', function ($request, $response) {

@@ -1,5 +1,5 @@
 "use strict";
-import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getReleaseById, isTaskOverdue, isTaskBlocked, getTaskOverrunStatus } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getReleaseById, isTaskOverdue, isTaskBlocked, getTaskOverrunStatus, escapeHTML } from '../utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
@@ -8,7 +8,6 @@ import { utcISOToLocalDisplayDate, utcISOToLocalDateValue, clampTaskScore, clamp
 import { PRIORITY_ORDER, PRIORITY_META } from '../config.js';
 import { isTimeTrackingEnabled } from '../storage.js';
 
-function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 var _toast = function(msg){ console.error(msg); };
 var _openTaskModal = function(){};
 export function setTaskListDeps(deps){

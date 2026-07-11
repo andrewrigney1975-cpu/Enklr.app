@@ -1,5 +1,5 @@
 "use strict";
-import { getTasksArray, getColumn, getMemberById, getTaskTypeById } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, getTaskTypeById, escapeHTML } from '../utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
@@ -7,7 +7,6 @@ import { PRIORITY_COLORS, PRIORITY_ORDER, TASK_SCORE_MIN, TASK_SCORE_MAX } from 
 import { iconSvg } from '../icons.js';
 import { clampTaskScore } from '../date-utils.js';
 
-function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
 var _toast = function(msg){ console.error(msg); };

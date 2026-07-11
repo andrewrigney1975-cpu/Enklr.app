@@ -3,7 +3,7 @@ import { state } from '../storage.js';
 import { normalizeHeaderButtonVisibility, isTimeTrackingEnabled, saveDB } from '../storage.js';
 import { PRIORITY_META, PRIORITY_ORDER, PRIORITY_COLORS, MOBILE_BREAKPOINT } from '../config.js';
 import { iconSvg } from '../icons.js';
-import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getTeamCommitteeById, isTaskBlocked, isTaskOverdue, getTaskOverrunStatus, getDescendants, buildChildrenMap, wouldCreateCycle } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getTeamCommitteeById, isTaskBlocked, isTaskOverdue, getTaskOverrunStatus, getDescendants, buildChildrenMap, wouldCreateCycle, escapeHTML } from '../utils.js';
 import { memberInitials, utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, clampTaskScore, clampProgress, defaultStartDateValue, defaultEndDateValue, lightenHexColor, darkenHexColor } from '../date-utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
@@ -16,7 +16,10 @@ import { isGovernanceMapEnabled } from './governance-map.js';
 import { isServerAuthoritative, isServerLoggedIn, moveTaskToColumnOnServer, refreshProjectFromServer, reorderColumnsOnServer, deleteColumnOnServer } from '../features/migration.js';
 import { updateProjectSettingsApi, isOrgAdmin, getOrgName, isApiReachable, pollApiReachability } from '../api.js';
 
-export function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+// Re-exported for the many modals that already do `import { escapeHTML } from '../views/board.js'`
+// — the actual implementation now lives in utils.js (the shared, quote-escaping version) so it
+// only needs to be correct in one place.
+export { escapeHTML };
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 
 var _toast = function(msg){ console.error(msg); };
