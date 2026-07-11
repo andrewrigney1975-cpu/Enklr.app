@@ -21,6 +21,9 @@ use stdClass;
  *   orgId        organisation id
  *   orgName      organisation display name (display-only, e.g. the header logo — never used for auth)
  *   orgAdmin     the STRING "true"/"false" (not a JSON bool — see the .NET comment this mirrors)
+ *   securityStamp the live User.SecurityStamp value at mint time (security review finding H2) —
+ *                 re-checked against the DB on every authenticated request (SecurityStampMiddleware)
+ *                 so password/role/deactivation changes invalidate already-issued tokens
  *   projects     a JSON-encoded STRING (double-encoded) of [{"ProjectId":"...","Role":null}, ...],
  *                deliberately PascalCase inside to match System.Text.Json.Serialize's default output
  *                for the C# ProjectClaim record (no camelCase policy applied to that call site)
@@ -28,7 +31,7 @@ use stdClass;
 final class JwtService
 {
     /**
-     * @param array{Id:string,Username:string,DisplayName:string,OrganisationId:string,OrganisationName:string,IsOrgAdmin:bool} $user
+     * @param array{Id:string,Username:string,DisplayName:string,OrganisationId:string,OrganisationName:string,IsOrgAdmin:bool,SecurityStamp:string} $user
      * @param array<array{ProjectId:string,Role:?string}> $memberships
      * @return array{token:string, expiresAt:string} expiresAt as an ISO-8601 UTC string, matching how
      *   the .NET DateTime gets JSON-serialized in LoginResponse/CreateProjectResponseDto
@@ -53,6 +56,7 @@ final class JwtService
             // api.js's getOrgName()); never used for authorization.
             'orgName' => $user['OrganisationName'],
             'orgAdmin' => $user['IsOrgAdmin'] ? 'true' : 'false',
+            'securityStamp' => $user['SecurityStamp'],
             'projects' => $projectsClaim,
             'iat' => $now->getTimestamp(),
             'exp' => $expiresAt->getTimestamp(),

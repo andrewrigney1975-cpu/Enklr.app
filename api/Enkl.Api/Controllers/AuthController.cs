@@ -6,10 +6,15 @@ using Enkl.Api.Domain;
 using Enkl.Api.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Enkl.Api.Controllers;
 
+// Security review finding H1: every action here is either unauthenticated (login, sso-lookup,
+// sso-exchange) or the one thing an attacker with a stolen/default password would hit repeatedly
+// (change-password) — see Program.cs's "auth" rate-limiting policy for the actual limit.
+[EnableRateLimiting("auth")]
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase
@@ -100,7 +105,7 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpPost("change-password")]
-    public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
+    public async Task<ActionResult<LoginResponse>> ChangePassword(ChangePasswordRequest request)
     {
         if (string.IsNullOrEmpty(request.NewPassword) || request.NewPassword.Length < 8)
         {
@@ -108,7 +113,7 @@ public class AuthController : ControllerBase
         }
 
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub")!);
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await _db.Users.Include(u => u.Organisation).FirstOrDefaultAsync(u => u.Id == userId);
         if (user is null || user.PasswordHash is null || !PasswordHasher.Verify(request.CurrentPassword, user.PasswordHash))
         {
             return Unauthorized(new { message = "Current password is incorrect." });
@@ -116,8 +121,18 @@ public class AuthController : ControllerBase
 
         user.PasswordHash = PasswordHasher.Hash(request.NewPassword);
         user.MustChangePassword = false;
+        // Security review finding H2: invalidates every OTHER token issued before this change (e.g.
+        // an attacker who was using a leaked/default password loses access the instant the real user
+        // changes it, rather than keeping a fully valid token until it naturally expires). This
+        // caller's own current token is invalidated too — since it carries the now-stale stamp — so
+        // a fresh one is minted and returned below rather than NoContent(), same shape as Login,
+        // so this browser doesn't immediately get logged out by its own password change.
+        user.SecurityStamp = Guid.NewGuid();
         await _db.SaveChangesAsync();
 
-        return NoContent();
+        var memberships = await _db.ProjectMembers.Where(m => m.UserId == user.Id).ToListAsync();
+        var (token, expiresAt) = _jwt.GenerateToken(user, memberships);
+
+        return Ok(new LoginResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword)));
     }
 }

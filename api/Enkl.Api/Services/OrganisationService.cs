@@ -37,6 +37,10 @@ public class OrganisationService
         if (user is null || user.OrganisationId != callerOrganisationId) return false;
 
         user.IsOrgAdmin = isOrgAdmin;
+        // Security review finding H2: without this, a demoted org-admin (or a newly-promoted one
+        // whose token still carries the OLD orgAdmin=false claim) keeps using their existing token,
+        // with its now-stale orgAdmin claim, until it naturally expires — up to 8 hours.
+        user.SecurityStamp = Guid.NewGuid();
         await _db.SaveChangesAsync();
         return true;
     }

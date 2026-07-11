@@ -37,6 +37,11 @@ public class JwtTokenService
             // String "true"/"false", not a bool ClaimValueType — ClaimsPrincipal.HasClaim/FindFirst
             // comparisons are simplest against plain string claim values.
             new("orgAdmin", user.IsOrgAdmin ? "true" : "false"),
+            // Security review finding H2 — re-checked against the live User.SecurityStamp column on
+            // every authenticated request (see Program.cs's revocation middleware); lets
+            // deactivation/role changes/password changes invalidate already-issued tokens instead of
+            // only ever checking signature/lifetime.
+            new("securityStamp", user.SecurityStamp.ToString()),
             // Deliberately a plain string claim (not JsonClaimValueTypes.JsonArray) — that value type
             // makes the JWT handler expand the JSON array into multiple separate "projects" claims on
             // validation, so a single FindFirst/deserialize on read-back only ever sees one element.

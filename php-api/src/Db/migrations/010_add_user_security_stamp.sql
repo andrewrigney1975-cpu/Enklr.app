@@ -1,0 +1,12 @@
+-- Ported from api/Enkl.Api's AddUserSecurityStamp migration (security review finding H2): a JWT's
+-- signature/issuer/audience/lifetime were the only things ever checked, so deactivating a user
+-- (SCIM) or changing their password/org-admin role kept their already-issued token(s) fully valid
+-- for up to the full 8-hour expiry. Minted into the token as the "securityStamp" claim
+-- (JwtService::generateToken) and re-checked against this live column on every authenticated
+-- request (SecurityStampMiddleware). DEFAULT gen_random_uuid() (native in Postgres 13+, no
+-- pgcrypto extension needed) means every existing row gets its own distinct random stamp from this
+-- ALTER TABLE alone, and every INSERT INTO "Users" across the codebase (OrganisationService,
+-- ScimUserService, SamlService, MigrationService, MemberService) gets one automatically without
+-- needing to list the column explicitly — the .NET side achieves the same "every row gets its own
+-- value" outcome via the C# entity's Guid.NewGuid() property default instead.
+ALTER TABLE "Users" ADD COLUMN "SecurityStamp" uuid NOT NULL DEFAULT gen_random_uuid();

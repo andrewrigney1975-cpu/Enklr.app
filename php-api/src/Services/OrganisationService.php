@@ -52,7 +52,10 @@ final class OrganisationService
             return false;
         }
 
-        $stmt = $this->db->prepare('UPDATE "Users" SET "IsOrgAdmin" = :admin WHERE "Id" = :id');
+        // Security review finding H2: rotating SecurityStamp here invalidates the target's
+        // already-issued token(s), whose orgAdmin claim would otherwise stay stale (still
+        // false/true from before this change) for up to the token's full 8-hour lifetime.
+        $stmt = $this->db->prepare('UPDATE "Users" SET "IsOrgAdmin" = :admin, "SecurityStamp" = gen_random_uuid() WHERE "Id" = :id');
         // (int), not the raw PHP bool — PDO's array-form execute() would bind false as '' otherwise,
         // which Postgres's boolean parser rejects.
         $stmt->execute(['admin' => (int) $isOrgAdmin, 'id' => $targetUserId]);

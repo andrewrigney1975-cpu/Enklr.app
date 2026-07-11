@@ -134,10 +134,15 @@ final class ScimUserService
             [$emailToSave, $normalizedEmail] = EmailValidation::validateAndNormalize($this->db, $email, true, $userId);
         }
         $displayName = self::extractDisplayName($request, (string) ($emailToSave ?? $user['Username']));
-        $active = array_key_exists('active', $request) && $request['active'] !== null ? (bool) $request['active'] : (bool) $user['IsActive'];
+        $wasActive = (bool) $user['IsActive'];
+        $active = array_key_exists('active', $request) && $request['active'] !== null ? (bool) $request['active'] : $wasActive;
 
+        // Security review finding H2: an already-issued token is otherwise still fully valid for up
+        // to 8 hours after this exact deprovisioning event — only rotate when the value actually
+        // changes, not on every no-op PUT that just re-sends the same active:true/false.
+        $securityStampSql = $active !== $wasActive ? ', "SecurityStamp" = gen_random_uuid()' : '';
         $this->db->prepare(
-            'UPDATE "Users" SET "EmailAddress" = :email, "NormalizedEmailAddress" = :normalizedEmail, "DisplayName" = :displayName, "IsActive" = :active WHERE "Id" = :id'
+            'UPDATE "Users" SET "EmailAddress" = :email, "NormalizedEmailAddress" = :normalizedEmail, "DisplayName" = :displayName, "IsActive" = :active' . $securityStampSql . ' WHERE "Id" = :id'
         )->execute([
             'email' => $emailToSave, 'normalizedEmail' => $normalizedEmail, 'displayName' => $displayName,
             'active' => (int) $active, 'id' => $userId,
@@ -162,6 +167,7 @@ final class ScimUserService
         // use it inconsistently with the rest of the spec's camelCase) — real IdPs send either, so
         // both are accepted here the same way ASP.NET Core's case-insensitive JSON binding already
         // makes the .NET side tolerant of both without any special-casing there.
+        $wasActive = (bool) $user['IsActive'];
         $operations = $request['Operations'] ?? $request['operations'] ?? [];
         foreach ($operations as $op) {
             if (!is_array($op)) {
@@ -189,11 +195,17 @@ final class ScimUserService
             }
         }
 
+        // Security review finding H2: an already-issued token is otherwise still fully valid for up
+        // to 8 hours after this exact deprovisioning event (PATCH active:false is the real-world
+        // IdP deprovisioning path — see delete()'s own note) — only rotate when the value actually
+        // changed, not on every no-op PATCH that just re-sends the same active:true/false.
+        $isActiveNow = (bool) $user['IsActive'];
+        $securityStampSql = $isActiveNow !== $wasActive ? ', "SecurityStamp" = gen_random_uuid()' : '';
         $this->db->prepare(
-            'UPDATE "Users" SET "EmailAddress" = :email, "NormalizedEmailAddress" = :normalizedEmail, "DisplayName" = :displayName, "IsActive" = :active WHERE "Id" = :id'
+            'UPDATE "Users" SET "EmailAddress" = :email, "NormalizedEmailAddress" = :normalizedEmail, "DisplayName" = :displayName, "IsActive" = :active' . $securityStampSql . ' WHERE "Id" = :id'
         )->execute([
             'email' => $user['EmailAddress'], 'normalizedEmail' => $user['NormalizedEmailAddress'],
-            'displayName' => $user['DisplayName'], 'active' => (int) (bool) $user['IsActive'], 'id' => $userId,
+            'displayName' => $user['DisplayName'], 'active' => (int) $isActiveNow, 'id' => $userId,
         ]);
 
         return $this->toResponse($user);

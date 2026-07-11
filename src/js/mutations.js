@@ -365,8 +365,22 @@ export function nextDocKey(project){
 export function normalizeDocumentationUrl(value){
   var trimmed = (value || '').trim();
   if(!trimmed) return null;
-  if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) trimmed = 'https://' + trimmed;
-  return trimmed.slice(0, 500);
+  // Only a bare host/path (no scheme) gets https:// prepended, same as before — mailto: is
+  // detected separately since it has no "//" authority part to match the first regex.
+  var hasSchemeAndAuthority = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed);
+  var isMailto = /^mailto:/i.test(trimmed);
+  var candidate = (hasSchemeAndAuthority || isMailto) ? trimmed : 'https://' + trimmed;
+  var parsed;
+  try {
+    parsed = new URL(candidate);
+  } catch(e){
+    return null;
+  }
+  // Explicit allowlist — closes the javascript:/data:/vbscript: URL-scheme bypass (security review
+  // finding H3): those values used to pass through unmodified into href=/window.open() call sites
+  // (modals/documents.js, modals/principles.js, modals/task.js) and execute on click.
+  if(['http:', 'https:', 'mailto:'].indexOf(parsed.protocol) === -1) return null;
+  return candidate.slice(0, 500);
 }
 export function addDocument(project, data){
   var now = new Date().toISOString();

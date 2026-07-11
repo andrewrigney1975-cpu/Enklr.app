@@ -90,7 +90,13 @@ export function isServerLoggedIn(){
 
 export async function changePasswordOnServer(currentPassword, newPassword){
   try {
-    await changePasswordApi(currentPassword, newPassword);
+    // The server rotates User.SecurityStamp on every password change (security review finding H2)
+    // so leaked/attacker-held tokens issued before this change stop working — but that also
+    // invalidates THIS browser's own current token, since it carries the now-stale stamp. The
+    // response is a fresh login-shaped token for exactly that reason; without storing it here, this
+    // tab would immediately start failing its own next request as if the session had expired.
+    var result = await changePasswordApi(currentPassword, newPassword);
+    setToken(result.token);
     _toast('Password changed.');
   } catch(e){
     _toast(e.message || 'Could not change password.');

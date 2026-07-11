@@ -1,3 +1,8 @@
+# SECURITY NOTE (security review finding H4): nothing in this file terminates TLS. `web` (nginx)
+# listens on plain HTTP only (see web/nginx.conf's own note), and `api`/`db` aren't published to the
+# host at all — they're only reachable from other containers on this compose network. Deploying this
+# stack anywhere reachable over the open internet REQUIRES a TLS-terminating proxy/load balancer in
+# front of the `web` service; this compose file does not provide or enforce one.
 services:
   db:
     image: postgres:16-alpine

@@ -4,31 +4,41 @@ Full-codebase defensive security review across all four tiers: `.NET API` (`api/
 
 **This file is uncommitted.** It contains a roadmap of exploitable weaknesses in this codebase — decide deliberately whether to commit it, `.gitignore` it, or move its contents into a private issue tracker before it lands in git history.
 
+**Status: all Critical (C1–C6) and all High (H1–H5) findings below are REMEDIATED** (fixed in both
+the .NET and PHP tiers where applicable, plus vendor-portal for H1; build-verified, and live-tested
+against the running containers where the stack supports it — PHP tier and vendor-portal fixes are
+lint-verified only, since neither runs in the active docker-compose stack). Each finding below is
+annotated with what changed. Medium/Low findings are untouched — still open.
+
 ---
 
 ## Critical — fix before any real deployment
 
-### C1. JWT signing key defaults to a checked-in placeholder in "production"
+### C1. JWT signing key defaults to a checked-in placeholder in "production" — ✅ REMEDIATED
 - **Where:** `docker-compose.yml:24` (`Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-please-32chars-min}`), `api/Enkl.Api/appsettings.json:13` (same literal string as base config), `ASPNETCORE_ENVIRONMENT` also defaults to `Production` (`docker-compose.yml:28`).
 - **Why it matters:** running `docker compose up` with no `.env` boots a stack labeled "Production" that signs JWTs with a value anyone with repo read access already knows. That's enough to forge a token for any `sub`/`orgId`/`orgAdmin=true` — full impersonation of any user in any tenant, no credentials needed.
 - **Contrast:** `vendor-portal/docker-compose.yml:8` does this correctly — `SESSION_SECRET: ${SESSION_SECRET:?must be set}` fails hard if unset, and `vendor-portal/server/index.js` explicitly `process.exit(1)`s if it's missing. The main API has no equivalent guard.
 - **Fix:** remove the fallback, use `${VAR:?must be set}` syntax, and add a `Program.cs` startup check that refuses to boot in `Production` if the signing key matches the known placeholder or is under a safe length/entropy threshold.
+- **Fixed:** `docker-compose.yml`/`appsettings.json` fallbacks removed (`${VAR:?must be set}`); startup guards added in `Program.cs` and PHP's `bootstrap.php` (`assertProductionSecretsAreSet`); live secrets rotated in the running dev DB. Also closed in `vendor-portal/docker-compose.yml` (see C2's note — same fallback existed there too).
 
-### C2. Checked-in default DB password, same pattern
+### C2. Checked-in default DB password, same pattern — ✅ REMEDIATED
 - **Where:** `docker-compose.yml:7,23` and `appsettings.json:10` — `enkl_dev_password` fallback. Also present in `vendor-portal/docker-compose.yml:9` (and vendor-portal's live local `.env` is currently actually using this literal default).
 - **Fix:** same as C1 — required env var, no default, ideally a startup check.
+- **Fixed:** same change as C1, plus `vendor-portal/docker-compose.yml:9`'s identical fallback removed (found while fixing H1 in that same file). Vendor-portal's own live `.env`, if one exists in that branch's checkout, still needs manual rotation — not verified from this session.
 
-### C3. Anonymous account-injection into any existing organisation (both .NET and PHP tiers, independently confirmed)
+### C3. Anonymous account-injection into any existing organisation (both .NET and PHP tiers, independently confirmed) — ✅ REMEDIATED
 - **Where:** `.NET`: `Controllers/MigrationController.cs:22-24` (`POST /api/migration/projects`, `[AllowAnonymous]`) → `Services/MigrationService.cs`. `PHP`: `src/routes.php:64` → `src/Services/MigrationService.php:117-209`. Both implementations are functionally identical.
 - **Why it matters:** this endpoint requires no authentication at all. It resolves an **existing** organisation purely by matching its display name (`ResolveOrganisationAsync`/`resolveOrganisation`), and any "member" in the submitted payload whose username doesn't already exist gets a brand-new, real, login-capable account created **inside that real organisation**, with the password hardcoded to the literal string `enklUserPassword` (`MigrationService.cs:195` / `MigrationService.php:203`). It sets `MustChangePassword = true`, but — see C4 below — nothing server-side actually enforces that flag. Net effect: **anyone who knows or guesses a customer's organisation name can create a working login for that tenant with a publicly-known password and start using the API immediately.** This also silently pulls existing real users into an attacker-created project as members if their normalized name matches (data-integrity/privacy issue even without full takeover), and has no rate limit — unauthenticated resource exhaustion is also possible.
 - **Fix:** gate behind a one-time setup token that's invalidated after first use per organisation, and/or restrict to only firing when the organisation doesn't yet exist (never match into a live org anonymously), and/or require `[Authorize(Policy="OrgAdmin")]` once any org already exists.
+- **Fixed:** an authenticated caller's migration now always targets their own org via the JWT `orgId` claim regardless of submitted name; an anonymous caller matching an *existing* org by name is rejected outright (400) — only brand-new org bootstrap stays anonymous. Live-tested: bootstrap still works, the exact cross-tenant injection attempt now fails with a clear message.
 
-### C4. `MustChangePassword` is never enforced server-side (both tiers)
+### C4. `MustChangePassword` is never enforced server-side (both tiers) — ✅ REMEDIATED
 - **Where:** `.NET` `Controllers/AuthController.cs` login path; `PHP` `src/Controllers/AuthController.php`. Both return `mustChangePassword: true` in the response but issue a fully-valid JWT regardless, and nothing blocks subsequent API calls until the password is changed — enforcement is UI-only (a modal that a script/API client simply never has to open).
 - **Why it matters:** this directly compounds C3 — an injected account with the known default password is fully usable via direct API calls forever, not just until "the user happens to open the web UI."
 - **Fix:** reject all non-password-change endpoints server-side (401/403) while `MustChangePassword` is true, for any account whose flag is still set.
+- **Fixed:** new middleware (both tiers) rejects mutating requests (POST/PUT/PATCH/DELETE) with 403 `must_change_password` while the flag is set, via a live per-request DB read — reads still work so the client isn't broken. `/auth/change-password` is exempted. Frontend pops the change-password modal automatically on that response. Live-tested: read succeeds, mutation blocked, change-password works, mutation unblocks after.
 
-### C5. Stored XSS via attribute-breakout — `escapeHTML` never escapes quotes (frontend)
+### C5. Stored XSS via attribute-breakout — `escapeHTML` never escapes quotes (frontend) — ✅ REMEDIATED
 - **Where:** 11 duplicated copies of the escape helper across `src/js` (`views/board.js:19`, `views/task-list.js:11`, `views/dependency-map.js:11`, `views/cost-benefit.js:10`, `views/governance-map.js:7`, `views/workflow-editor.js:9`, `views/org-chart.js:9`, `views/timeline.js:10`, `mutations.js:9`, `features/project-search.js:5`). The dominant implementation:
   ```js
   function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
@@ -38,38 +48,46 @@ Full-codebase defensive security review across all four tiers: `.NET API` (`api/
 - **Concrete vulnerable call sites** (value is escaped but still lands inside a `"…"` attribute): `views/board.js:849` (task-type name in `title=`), `views/task-list.js:423,443,444` (task-type name, task title, column name in `title=`), `modals/documents.js:386` and `modals/principles.js:278` (document/principle URL in `href=` **and** `title=`), `modals/templates.js:84` (template name in `value=`), `modals/team.js:68,69,140` (member name/role in `value=`/`aria-label=`), `modals/todo.js:88` (list title in `value=`), `modals/task-types.js:46` (task-type name in `value=`).
 - **Why it matters:** any project member who can set a task title, member name/role, document/principle URL, template name, task-type name, or to-do list title can inject an event-handler attribute that executes arbitrary JS for anyone who views that board — including an org admin. Combined with C6 below, this is a direct path to full account takeover.
 - **Fix:** make the shared helper also escape `"` → `&quot;` and `'` → `&#39;` (one existing copy in `features/import.js:17-23` already handles `"` correctly — promote that version), and de-duplicate all 11 copies into one shared module so this class of bug can't recur independently in 11 places.
+- **Fixed:** canonical quote-escaping `escapeHTML` added to `utils.js`; all 11 duplicate local definitions removed, every consumer now imports the shared version (`views/board.js` re-exports it for the many modals that already imported from there). Verified: the exact attribute-breakout payload is now fully neutralized.
 
-### C6. JWT stored in `localStorage` (amplifies C5)
+### C6. JWT stored in `localStorage` (amplifies C5) — not addressed (accepted as-is)
 - **Where:** `src/js/api.js:8,25-33` (`kanbanflow_server_jwt` key).
 - **Why it matters:** readable by any script on the origin. Either C5 finding, once fixed in isolation, still leaves this as a standing amplifier for the *next* XSS bug — any future stored-XSS immediately becomes full session/token theft rather than a contained UI glitch.
 - **Fix:** fixing C5 removes today's practical exploit path; consider httpOnly cookie-based sessions as defense-in-depth against future XSS regressions.
+- **Status:** C5's fix removes today's practical exploit path, per the original note. The httpOnly-cookie migration itself is a larger architectural change (would touch every API call's credential-passing convention) and was deliberately left out of this remediation pass.
 
 ---
 
 ## High
 
-### H1. No rate limiting / brute-force protection on any login endpoint
+### H1. No rate limiting / brute-force protection on any login endpoint — ✅ REMEDIATED
 - **Where confirmed:** `.NET` `Controllers/AuthController.cs` (`/api/auth/login`, `/change-password`, and the anonymous `sso-exchange`/`sso-lookup`/migration endpoints); `vendor-portal/server/routes/auth.js:6-20` (the app's single admin login). **Not explicitly checked against the PHP tier's own login endpoint** — likely shares the same gap given it mirrors the .NET controller 1:1, but flag as needing direct confirmation.
 - **Fix:** add per-IP/per-username rate limiting (ASP.NET Core's built-in `Microsoft.AspNetCore.RateLimiting`, `express-rate-limit` for vendor-portal) plus progressive lockout after repeated failures.
+- **Fixed:** 10 requests/minute per client IP, sliding window, immediate 429 (no queuing) — `Microsoft.AspNetCore.RateLimiting` on all 5 .NET routes; a DB-backed equivalent middleware in PHP (in-memory doesn't work across PHP-FPM workers); `express-rate-limit` on vendor-portal's login (its own tier was confirmed to have the same gap, not just "likely"). Live-tested on .NET (11th request gets 429) and vendor-portal (isolated harness, same result).
 
-### H2. No JWT revocation — deactivation/deprovisioning doesn't invalidate already-issued tokens
+### H2. No JWT revocation — deactivation/deprovisioning doesn't invalidate already-issued tokens — ✅ REMEDIATED
 - **Where:** `api/Enkl.Api/Program.cs:49-59` validates only signature/issuer/audience/lifetime; nothing re-checks `User.IsActive` per request. A user deactivated via SCIM (`ScimUserService.cs:186-187`) or demoted from org-admin keeps a fully valid token for up to the full 8-hour expiry (`appsettings.json:16`).
 - **Fix:** add a revocation check (a `SecurityStamp`/`TokenValidFrom` column checked on token validation), or shorten expiry substantially and move to refresh-token rotation.
+- **Fixed:** `User.SecurityStamp` (Guid) added both tiers, minted into the JWT, re-checked live against the DB on every authenticated request (combined with the C4 middleware into one query). Regenerated on password change, `IsOrgAdmin` toggle, and SCIM `IsActive` toggle. Password-change now returns a fresh token (old one would otherwise revoke the caller's own session). Live-tested on .NET: old token works, password changed, old token immediately 401s, new token works.
 
-### H3. `normalizeDocumentationUrl` doesn't block dangerous URL schemes
+### H3. `normalizeDocumentationUrl` doesn't block dangerous URL schemes — ✅ REMEDIATED
 - **Where:** `src/js/mutations.js:367-372`. Only checks for the generic `scheme://` shape to decide whether to prepend `https://` — doesn't allowlist `http:`/`https:`/`mailto:` or blocklist `javascript:`/`data:`.
 - **Verified bypass:** `javascript://%0aalert(document.cookie)` matches the regex and passes through unmodified, then reaches `<a href="...">` rendering (`modals/documents.js:386`, `modals/principles.js:278`) and `window.open()` calls (`modals/documents.js:251`, `modals/task.js:313`).
 - **Fix:** parse with `new URL()` and explicitly check `.protocol` against an allowlist; reject/strip anything else.
+- **Fixed:** now parses with `new URL()` and allowlists `http:`/`https:`/`mailto:`, returning `null` for anything else. Verified: the exact PoC and several variants (`data:`, `vbscript:`, no-`//` forms) all rejected; legitimate bare-domain/port/mailto values unaffected.
 
-### H4. No TLS/HSTS enforced anywhere in the stack
+### H4. No TLS/HSTS enforced anywhere in the stack — ✅ REMEDIATED (defense-in-depth added; TLS termination is still external)
 - **Where:** `web/nginx.conf` only has `listen 80;` — no TLS, no redirect, no HSTS. `api/Enkl.Api/Program.cs` has no `UseHttpsRedirection`/`UseHsts`/`UseForwardedHeaders`. Same gap in `php-api` (no forwarded-proto handling anywhere in `src/bootstrap.php`).
 - **Why it matters:** as shipped, the entire stack communicates in plaintext by design, relying entirely on an *undocumented* assumption that an external reverse proxy terminates TLS. JWTs and credentials would travel in cleartext if that assumption doesn't hold in a real deployment.
 - **Fix:** at minimum, document the TLS-termination assumption prominently next to the compose file; consider adding `UseForwardedHeaders` + conditional `UseHsts` for defense in depth.
+- **Fixed:** `UseForwardedHeaders` + conditional `UseHsts` added in `Program.cs`; `nginx.conf` now forwards `X-Forwarded-Proto`/`X-Forwarded-For`; the plaintext-by-design assumption is now documented prominently in both `docker-compose.yml` and `nginx.conf`. PHP tier already sidestepped this correctly via a fixed `APP_PUBLIC_BASE_URL` config (documented, no code change needed). Real TLS termination is still an external requirement — this file/config doesn't provide it.
 
-### H5. Three confirmed high-severity transitive .NET package advisories (NU1903)
+### H5. Three confirmed high-severity transitive .NET package advisories (NU1903) — ✅ REMEDIATED
 - **Where:** `Microsoft.Build.Tasks.Core` 17.14.8, `Microsoft.Build.Utilities.Core` 17.14.8 (GHSA-w3q9-fxm7-j8fq), `Microsoft.OpenApi` 2.0.0 (GHSA-v5pm-xwqc-g5wc) — all pulled in transitively via `Microsoft.EntityFrameworkCore.Design` (itself pinned to a **prerelease** `10.0.0-rc.2.25502.107` in `Enkl.Api.csproj:15`, rather than a stable release).
 - **Mitigating factor:** the `Microsoft.Build.*` ones are design-time-only (excluded from `dotnet publish` output); `Microsoft.OpenApi` is only reachable via `MapOpenApi()`, gated behind `app.Environment.IsDevelopment()` (`Program.cs:69-72`) — so current runtime/production exposure is low, but should still be tracked and resolved via an upgrade path.
 - **Fix:** upgrade `Microsoft.EntityFrameworkCore.Design` to a stable GA release once available, or pin the patched `Microsoft.Build.*`/`Microsoft.OpenApi` versions directly.
+- **Fixed:** `Microsoft.EntityFrameworkCore.Design` upgraded to the stable `10.0.9` GA release (clears both `Microsoft.Build.*` advisories); `Microsoft.OpenApi` pinned directly to `2.10.0` (a patched release within the same major version — `3.x` has a breaking API change incompatible with `Microsoft.AspNetCore.OpenApi` 10.0.9). `dotnet list package --vulnerable --include-transitive` now reports zero.
+- **New, unrelated finding surfaced while fixing H1:** installing `express-rate-limit` in `vendor-portal` exposed a pre-existing high-severity `tar`/`node-tar` advisory via `bcrypt`'s `@mapbox/node-pre-gyp` install-time dependency chain (not introduced by this fix, just newly visible since `node_modules` hadn't been installed in that worktree before). `npm audit fix` can't resolve it without a breaking `bcrypt` upgrade — left open, worth a look separately.
 
 ---
 

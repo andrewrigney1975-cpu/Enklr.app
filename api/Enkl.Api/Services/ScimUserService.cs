@@ -116,7 +116,11 @@ public class ScimUserService
             user.NormalizedEmailAddress = normalizedEmail;
         }
         user.DisplayName = ExtractDisplayName(request, user.EmailAddress ?? user.Username);
+        var wasActive = user.IsActive;
         user.IsActive = request.Active ?? user.IsActive;
+        // Security review finding H2: an already-issued token is otherwise still fully valid for up
+        // to 8 hours after this exact deprovisioning event.
+        if (user.IsActive != wasActive) user.SecurityStamp = Guid.NewGuid();
 
         await _db.SaveChangesAsync();
         return ToResponse(user);
@@ -183,8 +187,13 @@ public class ScimUserService
         switch (key)
         {
             case "active":
+                var wasActive = user.IsActive;
                 if (value.ValueKind is JsonValueKind.True or JsonValueKind.False) user.IsActive = value.GetBoolean();
                 else if (value.ValueKind == JsonValueKind.String && bool.TryParse(value.GetString(), out var parsedActive)) user.IsActive = parsedActive;
+                // Security review finding H2: an already-issued token is otherwise still fully valid
+                // for up to 8 hours after this exact deprovisioning event (the IdP's PATCH
+                // active:false is the real-world deprovisioning path — see DeleteAsync's own note).
+                if (user.IsActive != wasActive) user.SecurityStamp = Guid.NewGuid();
                 break;
             case "displayname":
             case "name.formatted":

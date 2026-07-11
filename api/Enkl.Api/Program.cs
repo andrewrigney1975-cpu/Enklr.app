@@ -6,8 +6,11 @@ using Enkl.Api.Services;
 using Enkl.Api.Validation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +43,22 @@ if (!builder.Environment.IsDevelopment())
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
+
+// Defense-in-depth (security review finding H4): this API is never exposed directly — nginx
+// (web/nginx.conf) is the only thing that can reach it (see docker-compose.yml: the api service
+// publishes no host port), so trusting forwarded headers from any caller is safe here. Nothing
+// today actually depends on the recovered scheme/IP being correct (SamlService/
+// OrganisationSsoConfigService deliberately use the fixed App:PublicBaseUrl config instead — see
+// appsettings.json's own comment on why), but this still needs to be wired up so
+// HttpContext.Connection.RemoteIpAddress is correct for logging/rate-limiting (see the
+// rate-limiting middleware below, which partitions by client IP) instead of always seeing nginx's
+// own container IP.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
@@ -91,7 +110,41 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("OrgAdmin", policy => policy.RequireClaim("orgAdmin", "true"));
 builder.Services.AddSingleton<IAuthorizationHandler, ProjectMemberAuthorizationHandler>();
 
+// Security review finding H1: none of login/change-password/sso-exchange/sso-lookup/migration had
+// any brute-force protection at all. Partitioned per client IP (see ForwardedHeadersOptions above —
+// this API is only ever reached through nginx, so RemoteIpAddress is the real caller once that's
+// wired up), a sliding window rejects outright (QueueLimit 0 -> immediate 429) rather than queuing,
+// since queuing login attempts would just let an attacker's requests sit and retry automatically.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { message = "Too many attempts. Please wait a moment and try again." },
+            cancellationToken);
+    };
+    options.AddPolicy("auth", httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow = 4,
+            QueueLimit = 0
+        }));
+});
+
 var app = builder.Build();
+
+// Must run before anything that reads scheme/remote IP. HSTS is skipped in Development so a plain
+// `dotnet run` over http://localhost isn't told by its own response to only ever use https next time.
+app.UseForwardedHeaders();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -133,30 +186,55 @@ app.UseExceptionHandler(errApp => errApp.Run(async context =>
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Server-side enforcement of User.MustChangePassword (security review finding C4): the flag was
-// being set at account creation (e.g. MigrationService's default "enklUserPassword" accounts) and
-// returned in the login response, but nothing previously stopped an account from being used
-// indefinitely without ever actually changing it. Only mutating requests (POST/PUT/PATCH/DELETE)
-// are blocked — reads still work so a signed-in client isn't broken while the change-password
-// prompt is up — and it's a live DB read, not a JWT claim, since the token never carries this flag
-// and would go stale the instant it's cleared anyway. /api/auth/change-password is the one
-// exempted mutating route — it's the only way to ever clear the flag.
+// Combines two live, per-request DB-backed checks (one query) for every authenticated request:
+//
+// 1. Token revocation (security review finding H2): signature/issuer/audience/lifetime were
+//    previously the only things ever checked, so deactivating a user (SCIM) or changing their
+//    password/org-admin role kept their already-issued token(s) fully valid for up to the full
+//    8-hour expiry. User.SecurityStamp is regenerated at each of those points (AuthController.
+//    ChangePassword, OrganisationService.SetUserAdminAsync, ScimUserService) and minted into the
+//    token as the "securityStamp" claim (JwtTokenService.GenerateToken) — a mismatch against the
+//    live DB value (or a token from before this claim existed, which has none) means the token was
+//    issued under a state that's since changed, so it's rejected outright.
+//
+// 2. MustChangePassword enforcement (security review finding C4): the flag was being set at account
+//    creation (e.g. MigrationService's default "enklUserPassword" accounts) and returned in the
+//    login response, but nothing previously stopped the account from being used indefinitely
+//    without ever actually changing it. Only mutating requests (POST/PUT/PATCH/DELETE) are blocked
+//    — reads still work so a signed-in client isn't broken while the change-password prompt is up.
+//    /api/auth/change-password is the one exempted mutating route — it's the only way to ever clear
+//    the flag (and, since it also rotates SecurityStamp, the one route that must keep working under
+//    check 1 too using the caller's own current, about-to-be-superseded token).
 var mutatingHttpMethods = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "POST", "PUT", "PATCH", "DELETE" };
 app.Use(async (context, next) =>
 {
-    var isMutating = mutatingHttpMethods.Contains(context.Request.Method);
-    var isChangePasswordRoute = context.Request.Path.StartsWithSegments("/api/auth/change-password");
-    if (isMutating && !isChangePasswordRoute && context.User.Identity?.IsAuthenticated == true)
+    if (context.User.Identity?.IsAuthenticated == true)
     {
         var userIdClaim = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.User.FindFirstValue("sub");
         if (userIdClaim is not null && Guid.TryParse(userIdClaim, out var userId))
         {
             var db = context.RequestServices.GetRequiredService<AppDbContext>();
-            var mustChangePassword = await db.Users.Where(u => u.Id == userId).Select(u => u.MustChangePassword).FirstOrDefaultAsync();
-            if (mustChangePassword)
+            var current = await db.Users.Where(u => u.Id == userId)
+                .Select(u => new { u.IsActive, u.SecurityStamp, u.MustChangePassword })
+                .FirstOrDefaultAsync();
+
+            var tokenStampClaim = context.User.FindFirstValue("securityStamp");
+            var stampMatches = current is not null && Guid.TryParse(tokenStampClaim, out var tokenStamp) && tokenStamp == current.SecurityStamp;
+            if (current is null || !current.IsActive || !stampMatches)
+            {
+                context.Response.ContentType = "application/json";
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { message = "Session expired. Please log in again." });
+                return;
+            }
+
+            var isMutating = mutatingHttpMethods.Contains(context.Request.Method);
+            var isChangePasswordRoute = context.Request.Path.StartsWithSegments("/api/auth/change-password");
+            if (isMutating && !isChangePasswordRoute && current.MustChangePassword)
             {
                 context.Response.ContentType = "application/json";
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;

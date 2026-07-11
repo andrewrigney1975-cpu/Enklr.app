@@ -3,9 +3,14 @@ using Enkl.Api.Dtos;
 using Enkl.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Enkl.Api.Controllers;
 
+// Security review finding H1: anonymous + no prior rate limiting made this a plausible
+// unauthenticated resource-exhaustion / brute-force-org-name-guessing target (see MigrationService's
+// ResolveOrganisationAsync, C3's fix) — see Program.cs's "auth" rate-limiting policy.
+[EnableRateLimiting("auth")]
 [ApiController]
 [Route("api/migration")]
 public class MigrationController : ControllerBase

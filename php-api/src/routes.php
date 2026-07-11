@@ -3,11 +3,12 @@
 declare(strict_types=1);
 
 use Enkl\Api\Auth\JwtAuthMiddleware;
-use Enkl\Api\Auth\MustChangePasswordMiddleware;
 use Enkl\Api\Auth\OrgAdminMiddleware;
 use Enkl\Api\Auth\ProjectMemberMiddleware;
+use Enkl\Api\Auth\RateLimitMiddleware;
 use Enkl\Api\Auth\RequireAuthMiddleware;
 use Enkl\Api\Auth\ScimAuthMiddleware;
+use Enkl\Api\Auth\SessionValidationMiddleware;
 use Enkl\Api\Controllers\AuthController;
 use Enkl\Api\Controllers\ColumnsController;
 use Enkl\Api\Controllers\DecisionsController;
@@ -45,10 +46,10 @@ use Slim\App;
  */
 function registerRoutes(App $app): void
 {
-    // MustChangePasswordMiddleware is added BEFORE JwtAuthMiddleware so it runs AFTER it — Slim's
+    // SessionValidationMiddleware is added BEFORE JwtAuthMiddleware so it runs AFTER it — Slim's
     // middleware stack is LIFO, so the last ->add() call here (JwtAuthMiddleware) is outermost and
     // runs first, populating the jwtClaims attribute this middleware reads.
-    $app->add(MustChangePasswordMiddleware::class);
+    $app->add(SessionValidationMiddleware::class);
     $app->add(JwtAuthMiddleware::class);
 
     $app->get('/health', function ($request, $response) {
@@ -56,17 +57,19 @@ function registerRoutes(App $app): void
         return $response->withHeader('Content-Type', 'application/json');
     });
 
-    // ---- Auth ----
-    $app->post('/api/auth/login', [AuthController::class, 'login']);
+    // ---- Auth (all rate-limited — security review finding H1 — mirroring exactly which .NET
+    // actions carry [EnableRateLimiting("auth")], see Program.cs's "auth" policy) ----
+    $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
     // sso-lookup/sso-exchange are anonymous like login itself — see AuthController.php's own notes
     // on each (minimal-disclosure org discovery; single-use SAML exchange-code redemption).
-    $app->get('/api/auth/sso-lookup', [AuthController::class, 'ssoLookup']);
-    $app->post('/api/auth/sso-exchange', [AuthController::class, 'ssoExchange']);
+    $app->get('/api/auth/sso-lookup', [AuthController::class, 'ssoLookup'])->add(RateLimitMiddleware::class);
+    $app->post('/api/auth/sso-exchange', [AuthController::class, 'ssoExchange'])->add(RateLimitMiddleware::class);
     $app->post('/api/auth/change-password', [AuthController::class, 'changePassword'])
-        ->add(RequireAuthMiddleware::class);
+        ->add(RequireAuthMiddleware::class)->add(RateLimitMiddleware::class);
 
-    // ---- Migration (deliberately anonymous — bootstrapping, see MigrationController.cs's own note) ----
-    $app->post('/api/migration/projects', [MigrationController::class, 'migrate']);
+    // ---- Migration (deliberately anonymous — bootstrapping, see MigrationController.cs's own note;
+    // rate-limited — H1 — since it was also a plausible unauthenticated resource-exhaustion target) ----
+    $app->post('/api/migration/projects', [MigrationController::class, 'migrate'])->add(RateLimitMiddleware::class);
 
     // ---- SAML SSO (deliberately anonymous — nothing here can be gated behind a JWT, since the
     // whole point is to ISSUE one; see SamlController.php's own note) ----

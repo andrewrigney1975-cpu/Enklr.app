@@ -131,7 +131,7 @@ final class AuthController extends BaseController
 
         $userId = $this->callerUserId($request);
         $db = Database::connection();
-        $stmt = $db->prepare('SELECT * FROM "Users" WHERE "Id" = :id');
+        $stmt = $db->prepare('SELECT u.*, o."Name" AS "OrganisationName" FROM "Users" u JOIN "Organisations" o ON o."Id" = u."OrganisationId" WHERE u."Id" = :id');
         $stmt->execute(['id' => $userId]);
         $user = $stmt->fetch();
 
@@ -140,9 +140,33 @@ final class AuthController extends BaseController
             return $this->json($response, ['message' => 'Current password is incorrect.'], 401);
         }
 
-        $stmt = $db->prepare('UPDATE "Users" SET "PasswordHash" = :hash, "MustChangePassword" = false WHERE "Id" = :id');
-        $stmt->execute(['hash' => PasswordHasher::hash($newPassword), 'id' => $userId]);
+        // Security review finding H2: rotating SecurityStamp invalidates every OTHER token issued
+        // before this change (e.g. an attacker who was using a leaked/default password loses access
+        // the instant the real user changes it) — but that also invalidates THIS caller's own
+        // current token, since it carries the now-stale stamp, so a fresh one is minted and returned
+        // below (same shape as login) rather than noContent(), mirroring AuthController.cs exactly.
+        $db->prepare('UPDATE "Users" SET "PasswordHash" = :hash, "MustChangePassword" = false, "SecurityStamp" = gen_random_uuid() WHERE "Id" = :id')
+            ->execute(['hash' => PasswordHasher::hash($newPassword), 'id' => $userId]);
 
-        return $this->noContent($response);
+        $stmt = $db->prepare('SELECT u.*, o."Name" AS "OrganisationName" FROM "Users" u JOIN "Organisations" o ON o."Id" = u."OrganisationId" WHERE u."Id" = :id');
+        $stmt->execute(['id' => $userId]);
+        $user = $stmt->fetch();
+
+        $stmt = $db->prepare('SELECT "ProjectId", "Role" FROM "ProjectMembers" WHERE "UserId" = :uid');
+        $stmt->execute(['uid' => $userId]);
+        $memberships = $stmt->fetchAll();
+
+        $tokenInfo = JwtService::generateToken($user, $memberships);
+
+        return $this->json($response, [
+            'token' => $tokenInfo['token'],
+            'expiresAt' => $tokenInfo['expiresAt'],
+            'user' => [
+                'id' => $user['Id'],
+                'username' => $user['Username'],
+                'displayName' => $user['DisplayName'],
+                'mustChangePassword' => $user['MustChangePassword'],
+            ],
+        ]);
     }
 }
