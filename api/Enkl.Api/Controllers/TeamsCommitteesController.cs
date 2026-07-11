@@ -5,8 +5,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Enkl.Api.Controllers;
 
+// Team/committee CRUD (including applying a synced Org Team's membership onto one) is OrgAdmin-only
+// — per product decision, a project member without that flag should neither see nor be able to use
+// the Teams & Committees feature to change membership. Both [Authorize] policies must independently
+// succeed (ASP.NET Core combines multiple attributes with AND), so this stays gated to members of
+// this specific project who are ALSO their organisation's admin — see board.js's
+// applyHeaderButtonVisibility for the matching frontend button-visibility gate.
 [ApiController]
 [Authorize(Policy = "ProjectMember")]
+[Authorize(Policy = "OrgAdmin")]
 [Route("api/projects/{projectId:guid}/teams-committees")]
 public class TeamsCommitteesController : ControllerBase
 {

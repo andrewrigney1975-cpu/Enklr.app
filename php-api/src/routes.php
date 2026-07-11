@@ -166,8 +166,17 @@ function registerRoutes(App $app): void
         registerEntityRoutes($group, '/documents', DocumentsController::class, 'id');
         registerEntityRoutes($group, '/risks', RisksController::class, 'id');
         registerEntityRoutes($group, '/objectives', ObjectivesController::class, 'id');
-        registerEntityRoutes($group, '/teams-committees', TeamsCommitteesController::class, 'id');
-        $group->post('/teams-committees/from-org-team/{orgTeamId}', [TeamsCommitteesController::class, 'applyOrgTeam']);
+        // Team/committee CRUD (including applying a synced Org Team's membership onto one) is
+        // OrgAdmin-only — per product decision, a project member without that flag should neither
+        // see nor be able to use the Teams & Committees feature to change membership. Nested in its
+        // own sub-group (rather than adding OrgAdminMiddleware to the outer {projectId} group,
+        // which every other entity route also shares) so only these routes get the extra check —
+        // see TeamsCommitteesController.cs's matching [Authorize(Policy = "OrgAdmin")] and
+        // board.js's applyHeaderButtonVisibility for the frontend button-visibility gate.
+        $group->group('/teams-committees', function ($teamsCommitteesGroup) {
+            registerEntityRoutes($teamsCommitteesGroup, '', TeamsCommitteesController::class, 'id');
+            $teamsCommitteesGroup->post('/from-org-team/{orgTeamId}', [TeamsCommitteesController::class, 'applyOrgTeam']);
+        })->add(OrgAdminMiddleware::class);
         registerEntityRoutes($group, '/decisions', DecisionsController::class, 'id');
         registerEntityRoutes($group, '/retrospectives', RetrospectivesController::class, 'id');
         $group->post('/retrospectives/{id}/items', [RetrospectivesController::class, 'createItem']);

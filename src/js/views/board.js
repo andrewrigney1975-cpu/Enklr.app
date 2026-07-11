@@ -49,7 +49,19 @@ export function applyHeaderButtonVisibility(){
   var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true, health:true, principles:true, objectives:true, teamsCommittees:true, workflow:false, retrospective:false};
   document.getElementById('healthBtn').classList.toggle('hidden', !visibility.health);
 
-  var enabledItems = HEADER_MOVABLE_NAV_ITEMS.filter(function(item){ return visibility[item.key]; });
+  /* Teams & Committees CRUD is OrgAdmin-only once a project is server-authoritative (matching
+     TeamsCommitteesController's server-side [Authorize(Policy="OrgAdmin")]) — a non-admin member
+     never sees the entry point rather than clicking through to a 403. Local-only projects have no
+     admin/auth concept at all, so stay unrestricted. This is a permissions gate layered on top of
+     the project's own on/off setting below (visibility.teamsCommittees), not a replacement for it —
+     Org Chart, further down, shares that same setting flag but is read-only, so it's deliberately
+     NOT gated the same way. */
+  var isEffectivelyVisible = function(item){
+    if(item.key === 'teamsCommittees' && isServerAuthoritative(project) && !isOrgAdmin()) return false;
+    return !!visibility[item.key];
+  };
+
+  var enabledItems = HEADER_MOVABLE_NAV_ITEMS.filter(isEffectivelyVisible);
   var useMoreMenu = enabledItems.length >= 3;
 
   /* Desktop: either the 6 show individually (per their own App Settings
@@ -59,7 +71,7 @@ export function applyHeaderButtonVisibility(){
   document.getElementById('headerMoreWrap').classList.toggle('hidden', !useMoreMenu);
   HEADER_MOVABLE_NAV_ITEMS.forEach(function(item){
     var btn = document.getElementById(item.id);
-    btn.classList.toggle('hidden', !visibility[item.key]);
+    btn.classList.toggle('hidden', !isEffectivelyVisible(item));
     /* Desktop-only: once 3+ are enabled, the 6 are visually tucked
        into the "More..." dropdown via this dedicated class (not
        .hidden, which mobile also respects) — mobile CSS overrides it
