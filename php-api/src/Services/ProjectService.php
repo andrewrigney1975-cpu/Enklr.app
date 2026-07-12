@@ -109,7 +109,7 @@ final class ProjectService
             $name = 'Untitled Project';
         }
         $requestedKey = $this->deriveProjectKey($request['key'] ?? null, $name);
-        $uniqueKey = $this->resolveUniqueProjectKey($requestedKey);
+        $uniqueKey = $this->resolveUniqueProjectKey($requestedKey, $user['OrganisationId']);
         $warning = $uniqueKey !== $requestedKey
             ? "Project key \"{$requestedKey}\" was already in use; created as \"{$uniqueKey}\" instead."
             : null;
@@ -213,7 +213,7 @@ final class ProjectService
             $name = $project['Name'];
         }
         $requestedKey = $this->deriveProjectKey($request['key'] ?? null, $name);
-        $key = $requestedKey === $project['Key'] ? $project['Key'] : $this->resolveUniqueProjectKey($requestedKey, $projectId);
+        $key = $requestedKey === $project['Key'] ? $project['Key'] : $this->resolveUniqueProjectKey($requestedKey, $project['OrganisationId'], $projectId);
 
         $stmt = $this->db->prepare(<<<SQL
             UPDATE "Projects"
@@ -323,13 +323,16 @@ final class ProjectService
         return $fromName !== '' ? $fromName : 'PROJ';
     }
 
-    private function resolveUniqueProjectKey(string $baseKey, ?string $excludeProjectId = null): string
+    // Scoped to the target Organisation, not global — a project key is only ever displayed/used
+    // within its own org's context, so two unrelated organisations both having a "DEMO" project is
+    // fine and should never force one of them into a "DEMO2"-style rename.
+    private function resolveUniqueProjectKey(string $baseKey, string $organisationId, ?string $excludeProjectId = null): string
     {
         $candidate = $baseKey;
         $suffix = 1;
         while (true) {
-            $sql = 'SELECT 1 FROM "Projects" WHERE "Key" = :key';
-            $params = ['key' => $candidate];
+            $sql = 'SELECT 1 FROM "Projects" WHERE "Key" = :key AND "OrganisationId" = :orgId';
+            $params = ['key' => $candidate, 'orgId' => $organisationId];
             if ($excludeProjectId !== null) {
                 $sql .= ' AND "Id" != :exclude';
                 $params['exclude'] = $excludeProjectId;

@@ -1200,6 +1200,21 @@ function auditValuesEqual(a, b){
   return na === nb;
 }
 
+/* An audit entry's oldValue/newValue must always end up a plain string (or null) — every DTO that
+   ever carries one, on both the .NET and PHP tiers (server-recorded edits already go through this
+   exact same string/null-only convention via TaskService.cs's FormatAuditValue), types it as a bare
+   string. Several AUDIT_DIFFED_FIELDS are NOT strings before this point though (businessValue/
+   taskCost/progress/estimatedEffort/actualEffort are numbers, archived/isPrivate are booleans,
+   dependencies is an array) — storing/exporting one of those raw caused a real bug: migrating a
+   project whose audit history included one of these fields failed with a 400 (JSON number/boolean/
+   array couldn't bind to ImportAuditLogEntryDto's string OldValue/NewValue). Mirrors FormatAuditValue's
+   own array convention (comma-joined, "[]" for empty) for consistency with server-recorded entries. */
+export function formatAuditValue(value){
+  if(value === undefined || value === null) return null;
+  if(Array.isArray(value)) return value.length === 0 ? '[]' : value.join(',');
+  return String(value);
+}
+
 /* Appends one audit entry for a single field change. Safe to call
    unconditionally — it's a no-op whenever auditing is off for this
    project, so call sites never need their own gating check. */
@@ -1209,8 +1224,8 @@ export function pushTaskAuditEntry(project, task, field, oldValue, newValue){
   task.auditLog.unshift({
     timestamp: new Date().toISOString(),
     field: field,
-    oldValue: oldValue === undefined ? null : oldValue,
-    newValue: newValue === undefined ? null : newValue
+    oldValue: formatAuditValue(oldValue),
+    newValue: formatAuditValue(newValue)
   });
 }
 

@@ -34,13 +34,16 @@ public class MigrationService
 
         var (organisation, organisationCreated) = await ResolveOrganisationAsync(request.OrganisationName, callerOrgId);
 
-        // Project keys are globally unique server-side, but every fresh local install seeds a
-        // project with the same "DEMO" key (createSeedDB in src/js/storage.js) — so a key collision
-        // on migration is an expected, common case, not just repeat-migrating the same project.
-        var uniqueKey = await ResolveUniqueProjectKeyAsync(request.Project.Key);
+        // Project keys are unique per-Organisation, not globally — a key is only ever used within its
+        // own org's context (task keys, the Portfolio Dashboard's picker, etc.), so two unrelated
+        // orgs both having a "DEMO" project is fine. But every fresh local install seeds a project
+        // with the same "DEMO" key (createSeedDB in src/js/storage.js), so a key collision WITHIN the
+        // target org is still an expected, common case (e.g. repeat-migrating into the same org, or
+        // that org already having its own same-keyed project) — not just a same-name accident.
+        var uniqueKey = await ResolveUniqueProjectKeyAsync(request.Project.Key, organisation.Id);
         if (uniqueKey != request.Project.Key)
         {
-            warnings.Add($"Project key \"{request.Project.Key}\" was already in use on the server; migrated as \"{uniqueKey}\" instead.");
+            warnings.Add($"Project key \"{request.Project.Key}\" was already in use in this organisation; migrated as \"{uniqueKey}\" instead.");
         }
 
         var project = new Project
@@ -638,11 +641,11 @@ public class MigrationService
         }
     }
 
-    private async Task<string> ResolveUniqueProjectKeyAsync(string baseKey)
+    private async Task<string> ResolveUniqueProjectKeyAsync(string baseKey, Guid organisationId)
     {
         var candidate = baseKey;
         var suffix = 1;
-        while (await _db.Projects.AnyAsync(p => p.Key == candidate))
+        while (await _db.Projects.AnyAsync(p => p.Key == candidate && p.OrganisationId == organisationId))
         {
             candidate = $"{baseKey}{++suffix}";
         }

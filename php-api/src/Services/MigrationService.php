@@ -33,13 +33,14 @@ final class MigrationService
         try {
             [$organisationId, $organisationCreated] = $this->resolveOrganisation((string) ($request['organisationName'] ?? ''), $callerOrgId);
 
-            // Project keys are globally unique server-side, but every fresh local install seeds a
-            // project with the same "DEMO" key — so a key collision on migration is an expected,
-            // common case, not just repeat-migrating the same project.
+            // Project keys are unique per-Organisation, not globally — see resolveUniqueProjectKey.
+            // Every fresh local install still seeds a project with the same "DEMO" key, so a key
+            // collision WITHIN the target org is an expected, common case (e.g. repeat-migrating into
+            // the same org), just no longer a false collision against some unrelated org's project.
             $requestedKey = (string) ($request['project']['key'] ?? '');
-            $uniqueKey = $this->resolveUniqueProjectKey($requestedKey);
+            $uniqueKey = $this->resolveUniqueProjectKey($requestedKey, $organisationId);
             if ($uniqueKey !== $requestedKey) {
-                $warnings[] = "Project key \"{$requestedKey}\" was already in use on the server; migrated as \"{$uniqueKey}\" instead.";
+                $warnings[] = "Project key \"{$requestedKey}\" was already in use in this organisation; migrated as \"{$uniqueKey}\" instead.";
             }
 
             $projectId = Uuid::v4();
@@ -688,13 +689,13 @@ final class MigrationService
         }
     }
 
-    private function resolveUniqueProjectKey(string $baseKey): string
+    private function resolveUniqueProjectKey(string $baseKey, string $organisationId): string
     {
         $candidate = $baseKey;
         $suffix = 1;
-        $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Key" = :key');
+        $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Key" = :key AND "OrganisationId" = :orgId');
         while (true) {
-            $stmt->execute(['key' => $candidate]);
+            $stmt->execute(['key' => $candidate, 'orgId' => $organisationId]);
             if ($stmt->fetch() === false) {
                 return $candidate;
             }

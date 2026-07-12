@@ -35,7 +35,15 @@ public class ProjectService
 
     public async Task<ProjectDetailDto?> GetProjectDetailAsync(Guid projectId)
     {
+        // AsSplitQuery is required here, not optional: 18 Include/ThenInclude chains on one root
+        // query means EF Core's default single-query behavior LEFT JOINs every one of these
+        // one-to-many collections together, so the result set size is their ROW COUNTS MULTIPLIED
+        // (members * tasks * columns * releases * risks * decisions * ...) — a genuine "cartesian
+        // explosion". For a project with real data (confirmed: 11 members) this took 30+ seconds and
+        // got cancelled by Npgsql's command timeout, returning a 500 — AsSplitQuery makes EF Core
+        // issue one query per collection instead, so row counts add rather than multiply.
         var project = await _db.Projects
+            .AsSplitQuery()
             .Include(p => p.Members).ThenInclude(m => m.User)
             .Include(p => p.Columns)
             .Include(p => p.Tasks).ThenInclude(t => t.Dependencies)
@@ -106,7 +114,7 @@ public class ProjectService
 
         var name = string.IsNullOrWhiteSpace(request.Name) ? "Untitled Project" : request.Name.Trim();
         var requestedKey = DeriveProjectKey(request.Key, name);
-        var uniqueKey = await ResolveUniqueProjectKeyAsync(requestedKey);
+        var uniqueKey = await ResolveUniqueProjectKeyAsync(requestedKey, user.OrganisationId);
         var warning = uniqueKey != requestedKey
             ? $"Project key \"{requestedKey}\" was already in use; created as \"{uniqueKey}\" instead."
             : null;
@@ -179,7 +187,7 @@ public class ProjectService
 
         var name = string.IsNullOrWhiteSpace(request.Name) ? project.Name : request.Name.Trim();
         var requestedKey = DeriveProjectKey(request.Key, name);
-        project.Key = requestedKey == project.Key ? project.Key : await ResolveUniqueProjectKeyAsync(requestedKey, projectId);
+        project.Key = requestedKey == project.Key ? project.Key : await ResolveUniqueProjectKeyAsync(requestedKey, project.OrganisationId, projectId);
         project.Name = name;
         project.StartDate = request.StartDate;
         project.EndDate = request.EndDate;
@@ -213,11 +221,16 @@ public class ProjectService
         return fromName.Length > 0 ? fromName : "PROJ";
     }
 
-    private async Task<string> ResolveUniqueProjectKeyAsync(string baseKey, Guid? excludeProjectId = null)
+    // Scoped to the target Organisation, not global — a project key is only ever displayed/used
+    // within its own org's context (task keys, URLs, the picker in the Portfolio Dashboard, etc.), so
+    // two unrelated organisations both having a "DEMO" project is completely fine and should never
+    // force one of them into a "DEMO2"-style rename. (Confirmed bug: an unrelated org's own "DEMO2"
+    // project was forcing a same-named project in a DIFFERENT org to become "DEMO22" for no reason.)
+    private async Task<string> ResolveUniqueProjectKeyAsync(string baseKey, Guid organisationId, Guid? excludeProjectId = null)
     {
         var candidate = baseKey;
         var suffix = 1;
-        while (await _db.Projects.AnyAsync(p => p.Key == candidate && p.Id != excludeProjectId))
+        while (await _db.Projects.AnyAsync(p => p.Key == candidate && p.OrganisationId == organisationId && p.Id != excludeProjectId))
         {
             candidate = $"{baseKey}{++suffix}";
         }

@@ -3,7 +3,7 @@ import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButton
 import { PRIORITY_META } from '../config.js';
 import { clampTaskScore, clampProgress, clampEffortHours, memberColorForIndex, isValidISODateString } from '../date-utils.js';
 import { getColumn, isValidTaskTypeIconName, escapeHTML } from '../utils.js';
-import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue, buildWorkflowEdgeFields } from '../mutations.js';
+import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue, buildWorkflowEdgeFields, formatAuditValue } from '../mutations.js';
 
 var _toast = function(msg){ console.error(msg); };
 export function setImportToast(fn){ _toast = fn; }
@@ -77,8 +77,12 @@ export function flattenImportedHierarchy(nodes, out){
           return {
             timestamp: e.timestamp,
             field: e.field.slice(0, 60),
-            oldValue: e.oldValue === undefined ? null : e.oldValue,
-            newValue: e.newValue === undefined ? null : e.newValue
+            /* Coerced to string/null (not trusted as-is) — an imported JSON file is untrusted input,
+               and a raw number/boolean/array here would otherwise re-surface the exact 400 this fixed
+               on the migrate-to-server path once this project is later migrated (ImportAuditLogEntryDto
+               is string-only). See mutations.js's formatAuditValue for the shared convention. */
+            oldValue: formatAuditValue(e.oldValue),
+            newValue: formatAuditValue(e.newValue)
           };
         }) : [],
         /* Parent is referenced by key (like dependsOn above), resolved

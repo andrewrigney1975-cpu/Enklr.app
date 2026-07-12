@@ -3,6 +3,7 @@ import { APP_VERSION } from '../config.js';
 import { state, saveDB, normalizeHeaderButtonVisibility } from '../storage.js';
 import { getTasksArray, getMemberById, getReleaseById, getTaskTypeById, getPrincipleById, buildChildrenMap, columnNameById } from '../utils.js';
 import { clampTaskScore, clampProgress, clampEffortHours } from '../date-utils.js';
+import { formatAuditValue } from '../mutations.js';
 
 var _toast = function(msg){ console.error(msg); };
 export function setExportToast(fn){ _toast = fn; }
@@ -54,8 +55,12 @@ export function buildHierarchy(project){
       encryptedDescription: t.encryptedDescription || null,
       encryptionIv: t.encryptionIv || null,
       dependsOn: (t.dependencies||[]).map(function(d){ return taskMap[d] ? taskMap[d].key : d; }),
+      /* oldValue/newValue are defensively re-coerced to string/null here (not just trusted from
+         storage) — a task edited before formatAuditValue existed (mutations.js's pushTaskAuditEntry)
+         can still have a raw number/boolean/array sitting in its stored auditLog, which the server's
+         ImportAuditLogEntryDto (string-only) will otherwise reject with a 400 on migration. */
       auditLog: (t.auditLog || []).map(function(e){
-        return {timestamp: e.timestamp, field: e.field, oldValue: e.oldValue, newValue: e.newValue};
+        return {timestamp: e.timestamp, field: e.field, oldValue: formatAuditValue(e.oldValue), newValue: formatAuditValue(e.newValue)};
       }),
       /* The Sub-Tasks feature's parent link, keyed the same way
          dependsOn is above (by task key, not id — ids get regenerated
