@@ -8,6 +8,7 @@ import { computeOverallHealth, computeTopTeamMembers } from '../features/health.
 import { buildGaugeBlock, startHealthGaugeAnimation, cancelHealthGaugeAnimation } from './health.js';
 import { buildRiskMatrixSvg } from '../mutations.js';
 import { buildTimelineColumns, tlDateToPixel, tlPixelToDate } from '../views/timeline.js';
+import { projectBarSVG, noDatesPatternDefsSVG } from '../portfolio-bars.js';
 
 /* =========================================================
    PORTFOLIO DASHBOARD — Org-Admin-only, cross-project reporting across 1+ of the caller's
@@ -417,11 +418,7 @@ function renderTimelineChart(){
 
   _timelineLayout = {nameColWidth: nameColWidth, rowHeight: rowHeight, marginTop: marginTop, scaledColumns: scaledColumns, scaledTrackWidth: scaledTrackWidth};
 
-  var defsHTML =
-    '<defs><pattern id="portfolioNoDatesPattern" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">' +
-      '<rect width="6" height="6" fill="var(--kf-column-bg)"></rect>' +
-      '<line x1="0" y1="0" x2="0" y2="6" stroke="var(--kf-text-faint)" stroke-width="1.5" opacity="0.6"></line>' +
-    '</pattern></defs>';
+  var defsHTML = noDatesPatternDefsSVG();
 
   var headerHTML = '';
   var x = nameColWidth;
@@ -447,31 +444,17 @@ function renderTimelineChart(){
     if(!p.startDate || !p.endDate){
       // Click-only (nothing to drag from) — always opens the dates modal, same as clicking a dated
       // bar without moving it does.
-      return nameHTML +
-        '<rect class="kf-portfolio-timeline-nodatesbar" data-project-id="' + p.id + '" data-role="click-only" ' +
-        'x="' + nameColWidth + '" y="' + barY + '" width="' + scaledTrackWidth + '" height="' + barHeight + '" rx="4" ' +
-        'fill="url(#portfolioNoDatesPattern)" stroke="var(--kf-text-faint)" stroke-width="1" stroke-dasharray="5,3">' +
-        '<title>' + escapeHTML(p.name) + ' — click to set a start/end date</title></rect>';
+      return nameHTML + projectBarSVG(p, nameColWidth, barY, scaledTrackWidth, barHeight, null, TIMELINE_HANDLE_WIDTH);
     }
     var barStartX = nameColWidth + tlDateToPixel(new Date(p.startDate), scaledColumns);
     var barEndX = nameColWidth + tlDateToPixel(new Date(p.endDate), scaledColumns);
     var barWidth = Math.max(4, barEndX - barStartX);
     var color = projectColorFor(p.id);
-    var hw = TIMELINE_HANDLE_WIDTH;
     // Grouped in a <g> (not flat siblings) so the handle-reveal-on-hover CSS can scope to just this
     // row's own handles — a plain CSS sibling combinator can't tell "this row's handles" apart from
     // every other row's, since every row's shapes would otherwise sit as flat siblings of each other
     // under the same <svg>.
-    return nameHTML +
-      '<g class="kf-portfolio-timeline-row">' +
-      '<rect class="kf-portfolio-timeline-bar" data-project-id="' + p.id + '" data-role="move" ' +
-      'x="' + barStartX + '" y="' + barY + '" width="' + barWidth + '" height="' + barHeight + '" rx="4" fill="' + color + '">' +
-      '<title>' + escapeHTML(p.name) + ' — drag to reschedule, drag an edge to resize, click to edit dates</title></rect>' +
-      '<rect class="kf-portfolio-timeline-handle" data-project-id="' + p.id + '" data-role="resize-start" ' +
-      'x="' + (barStartX - hw / 2) + '" y="' + barY + '" width="' + hw + '" height="' + barHeight + '" rx="2"></rect>' +
-      '<rect class="kf-portfolio-timeline-handle" data-project-id="' + p.id + '" data-role="resize-end" ' +
-      'x="' + (barEndX - hw / 2) + '" y="' + barY + '" width="' + hw + '" height="' + barHeight + '" rx="2"></rect>' +
-      '</g>';
+    return nameHTML + projectBarSVG(p, barStartX, barY, barWidth, barHeight, color, TIMELINE_HANDLE_WIDTH);
   }).join('');
 
   chartEl.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" class="kf-portfolio-timeline-svg">' + defsHTML + headerHTML + rowsHTML + '</svg>';

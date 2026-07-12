@@ -6,7 +6,28 @@ namespace Enkl.Api.Dtos;
 /// these relies on — none of this is ever populated from a project outside the caller's own
 /// Organisation, regardless of what the client asked for.
 /// </summary>
-public record PortfolioProjectDto(Guid Id, string Name, string Key, DateOnly? StartDate, DateOnly? EndDate);
+public record PortfolioProjectDto(Guid Id, string Name, string Key, DateOnly? StartDate, DateOnly? EndDate, string Priority, bool IsActive, Guid? CategoryId);
+
+/// <summary>
+/// Backs the Portfolio Planner's "Add Project" form — creates a placeholder Project with IsActive
+/// false (see PortfolioService.CreateProjectAsync's doc comment for why this is its own lightweight
+/// path rather than reusing ProjectService.CreateAsync).
+/// </summary>
+public record CreatePortfolioProjectRequest(string Name, string? Key, string? Priority, Guid? CategoryId, DateOnly? StartDate, DateOnly? EndDate);
+
+/// <summary>
+/// The only request shape that may ever set Project.IsActive — see
+/// PortfolioService.UpdateProjectActiveAsync for the server-side date-completeness check this
+/// triggers whenever IsActive is true.
+/// </summary>
+public record UpdatePortfolioProjectActiveRequest(bool IsActive);
+
+public record UpdatePortfolioProjectCategoryRequest(Guid? CategoryId);
+
+public record PortfolioCategoryDto(Guid Id, string Name, int SortOrder);
+public record CreatePortfolioCategoryRequest(string Name);
+public record UpdatePortfolioCategoryRequest(string Name);
+public record UpdatePortfolioCategorySortOrderRequest(int SortOrder);
 
 /// <summary>
 /// Backs the Portfolio Dashboard's Timeline chart (click-to-edit modal + drag-to-schedule bars).

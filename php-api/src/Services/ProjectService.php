@@ -27,11 +27,13 @@ final class ProjectService
 
     public function getProjectsForUser(string $userId): array
     {
+        // Inactive (Portfolio-Planner placeholder) projects never appear in this switcher list — see
+        // PortfolioService::updateProjectActive for the only place IsActive is ever flipped.
         $stmt = $this->db->prepare(<<<SQL
             SELECT p."Id", p."Name", p."Key"
             FROM "ProjectMembers" m
             JOIN "Projects" p ON p."Id" = m."ProjectId"
-            WHERE m."UserId" = :uid
+            WHERE m."UserId" = :uid AND p."IsActive" = true
         SQL);
         $stmt->execute(['uid' => $userId]);
         return array_map(static fn(array $p): array => [

@@ -48,8 +48,14 @@ export function resolveCssVarsInString(str){
 
 export function serializeResolvedSvg(svgEl){
   var clone = cloneSvgWithBakedStyles(svgEl);
-  var w = parseFloat(svgEl.getAttribute('width')) || (svgEl.viewBox && svgEl.viewBox.baseVal && svgEl.viewBox.baseVal.width) || svgEl.clientWidth || 800;
-  var h = parseFloat(svgEl.getAttribute('height')) || (svgEl.viewBox && svgEl.viewBox.baseVal && svgEl.viewBox.baseVal.height) || svgEl.clientHeight || 600;
+  // viewBox first, not the width/height attribute — every hand-rolled chart in this app sets
+  // width="100%" for responsive layout, and parseFloat("100%") happily returns 100 (truthy), which
+  // would otherwise short-circuit past the viewBox's real, much larger intrinsic pixel dimensions and
+  // export a tiny, wrongly-cropped-looking PNG. viewBox is always the chart's authored "real" size
+  // regardless of how it's laid out responsively in the DOM.
+  var vb = svgEl.viewBox && svgEl.viewBox.baseVal;
+  var w = (vb && vb.width) || parseFloat(svgEl.getAttribute('width')) || svgEl.clientWidth || 800;
+  var h = (vb && vb.height) || parseFloat(svgEl.getAttribute('height')) || svgEl.clientHeight || 600;
   clone.setAttribute('width', w);
   clone.setAttribute('height', h);
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');

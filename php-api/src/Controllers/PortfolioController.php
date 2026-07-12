@@ -28,6 +28,14 @@ final class PortfolioController extends BaseController
         return $this->json($response, $this->service()->listProjects($this->callerOrgId($request)));
     }
 
+    // A genuine mutation (creates a row), so this stays POST — unlike listProjects/getAggregate/
+    // getActivity above, there's no read-with-side-effects tension here to work around.
+    public function createProject(Request $request, Response $response): Response
+    {
+        $body = $this->body($request);
+        return $this->json($response, $this->service()->createProject($this->callerOrgId($request), $body));
+    }
+
     // GET (not POST) even though this returns a computed, possibly-large payload: it's a pure read
     // with no side effects, and POST here would have tripped SessionValidationMiddleware's global
     // MustChangePassword gate, which blocks every mutating (POST/PUT/PATCH/DELETE) request — wrongly
@@ -59,6 +67,55 @@ final class PortfolioController extends BaseController
             $this->callerOrgId($request), $args['projectId'],
             $body['startDate'] ?? null, $body['endDate'] ?? null
         );
+        return $updated ? $this->noContent($response) : $this->notFound($response);
+    }
+
+    public function updateProjectActive(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $result = $this->service()->updateProjectActive($this->callerOrgId($request), $args['projectId'], (bool) ($body['isActive'] ?? false));
+        return match ($result) {
+            'not_found' => $this->notFound($response),
+            'missing_dates' => $this->json($response, ['message' => 'A project must have both a start and end date before it can be activated.'], 400),
+            default => $this->noContent($response),
+        };
+    }
+
+    public function updateProjectCategory(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $updated = $this->service()->updateProjectCategory($this->callerOrgId($request), $args['projectId'], $body['categoryId'] ?? null);
+        return $updated ? $this->noContent($response) : $this->notFound($response);
+    }
+
+    public function listCategories(Request $request, Response $response): Response
+    {
+        return $this->json($response, $this->service()->listCategories($this->callerOrgId($request)));
+    }
+
+    public function createCategory(Request $request, Response $response): Response
+    {
+        $body = $this->body($request);
+        return $this->json($response, $this->service()->createCategory($this->callerOrgId($request), (string) ($body['name'] ?? '')));
+    }
+
+    public function updateCategory(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $updated = $this->service()->updateCategory($this->callerOrgId($request), $args['categoryId'], (string) ($body['name'] ?? ''));
+        return $updated !== null ? $this->json($response, $updated) : $this->notFound($response);
+    }
+
+    public function deleteCategory(Request $request, Response $response, array $args): Response
+    {
+        $deleted = $this->service()->deleteCategory($this->callerOrgId($request), $args['categoryId']);
+        return $deleted ? $this->noContent($response) : $this->notFound($response);
+    }
+
+    public function updateCategorySortOrder(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $updated = $this->service()->updateCategorySortOrder($this->callerOrgId($request), $args['categoryId'], (int) ($body['sortOrder'] ?? 0));
         return $updated ? $this->noContent($response) : $this->notFound($response);
     }
 

@@ -31,6 +31,14 @@ public class PortfolioController : ControllerBase
         return Ok(await _portfolio.ListProjectsAsync(CallerOrgId()));
     }
 
+    // A genuine mutation (creates a row), so this stays POST — unlike ListProjects/GetAggregate/
+    // GetActivity above, there's no read-with-side-effects tension here to work around.
+    [HttpPost("projects")]
+    public async Task<IActionResult> CreateProject(CreatePortfolioProjectRequest request)
+    {
+        return Ok(await _portfolio.CreateProjectAsync(CallerOrgId(), request));
+    }
+
     // GET (not POST) even though this returns a computed, possibly-large payload: it's a pure read
     // with no side effects, and using POST here would have tripped the global MustChangePassword gate
     // in Program.cs, which blocks every mutating (POST/PUT/PATCH/DELETE) request — wrongly barring a
@@ -60,6 +68,62 @@ public class PortfolioController : ControllerBase
     public async Task<IActionResult> UpdateProjectDates(Guid projectId, UpdatePortfolioProjectDatesRequest request)
     {
         var updated = await _portfolio.UpdateProjectDatesAsync(CallerOrgId(), projectId, request.StartDate, request.EndDate);
+        if (!updated) return NotFound();
+        return NoContent();
+    }
+
+    [HttpPut("projects/{projectId:guid}/active")]
+    public async Task<IActionResult> UpdateProjectActive(Guid projectId, UpdatePortfolioProjectActiveRequest request)
+    {
+        var result = await _portfolio.UpdateProjectActiveAsync(CallerOrgId(), projectId, request.IsActive);
+        return result switch
+        {
+            PortfolioActivationResult.NotFound => NotFound(),
+            PortfolioActivationResult.MissingDates => BadRequest(new { message = "A project must have both a start and end date before it can be activated." }),
+            _ => NoContent()
+        };
+    }
+
+    [HttpPut("projects/{projectId:guid}/category")]
+    public async Task<IActionResult> UpdateProjectCategory(Guid projectId, UpdatePortfolioProjectCategoryRequest request)
+    {
+        var updated = await _portfolio.UpdateProjectCategoryAsync(CallerOrgId(), projectId, request.CategoryId);
+        if (!updated) return NotFound();
+        return NoContent();
+    }
+
+    [HttpGet("categories")]
+    public async Task<IActionResult> ListCategories()
+    {
+        return Ok(await _portfolio.ListCategoriesAsync(CallerOrgId()));
+    }
+
+    [HttpPost("categories")]
+    public async Task<IActionResult> CreateCategory(CreatePortfolioCategoryRequest request)
+    {
+        return Ok(await _portfolio.CreateCategoryAsync(CallerOrgId(), request.Name));
+    }
+
+    [HttpPut("categories/{categoryId:guid}")]
+    public async Task<IActionResult> UpdateCategory(Guid categoryId, UpdatePortfolioCategoryRequest request)
+    {
+        var updated = await _portfolio.UpdateCategoryAsync(CallerOrgId(), categoryId, request.Name);
+        if (updated is null) return NotFound();
+        return Ok(updated);
+    }
+
+    [HttpDelete("categories/{categoryId:guid}")]
+    public async Task<IActionResult> DeleteCategory(Guid categoryId)
+    {
+        var deleted = await _portfolio.DeleteCategoryAsync(CallerOrgId(), categoryId);
+        if (!deleted) return NotFound();
+        return NoContent();
+    }
+
+    [HttpPut("categories/{categoryId:guid}/sort-order")]
+    public async Task<IActionResult> UpdateCategorySortOrder(Guid categoryId, UpdatePortfolioCategorySortOrderRequest request)
+    {
+        var updated = await _portfolio.UpdateCategorySortOrderAsync(CallerOrgId(), categoryId, request.SortOrder);
         if (!updated) return NotFound();
         return NoContent();
     }

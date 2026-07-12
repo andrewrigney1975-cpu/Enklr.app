@@ -32,6 +32,7 @@ public class AppDbContext : DbContext
     public DbSet<RetrospectiveParticipant> RetrospectiveParticipants => Set<RetrospectiveParticipant>();
     public DbSet<RetrospectiveItem> RetrospectiveItems => Set<RetrospectiveItem>();
     public DbSet<RetrospectiveActionItem> RetrospectiveActionItems => Set<RetrospectiveActionItem>();
+    public DbSet<PortfolioCategory> PortfolioCategories => Set<PortfolioCategory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

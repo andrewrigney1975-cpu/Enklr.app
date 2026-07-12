@@ -9,6 +9,20 @@ public class Project
     public string Key { get; set; } = "";
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
+
+    /// <summary>True for normal working projects (default for Projects &gt; New Project). False for
+    /// placeholder projects created via the Portfolio Planner, until an Org Admin explicitly activates
+    /// them (which requires both StartDate and EndDate to be set — see PortfolioService.UpdateProjectActiveAsync,
+    /// the only place this flag is ever written).</summary>
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>trivial|low|medium|high|critical — same unconstrained-string convention as TaskItem.Priority.</summary>
+    public string Priority { get; set; } = "medium";
+
+    /// <summary>Org-scoped Portfolio Planner grouping ("Must Have", "Nice to Have", etc.) — null means Uncategorized.</summary>
+    public Guid? CategoryId { get; set; }
+    public PortfolioCategory? Category { get; set; }
+
     public DateTime DateCreated { get; set; }
     public DateTime DateLastModified { get; set; }
     public DateTime? DateLastExported { get; set; }

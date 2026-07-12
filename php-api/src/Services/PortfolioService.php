@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Enkl\Api\Services;
 
+use Enkl\Api\Support\Uuid;
 use PDO;
 
 /**
@@ -24,12 +25,88 @@ final class PortfolioService
 
     public function listProjects(string $organisationId): array
     {
-        $stmt = $this->db->prepare('SELECT "Id", "Name", "Key", "StartDate", "EndDate" FROM "Projects" WHERE "OrganisationId" = :orgId ORDER BY "Name"');
+        $stmt = $this->db->prepare('SELECT "Id", "Name", "Key", "StartDate", "EndDate", "Priority", "IsActive", "CategoryId" FROM "Projects" WHERE "OrganisationId" = :orgId ORDER BY "Name"');
         $stmt->execute(['orgId' => $organisationId]);
         return array_map(static fn(array $p): array => [
             'id' => $p['Id'], 'name' => $p['Name'], 'key' => $p['Key'],
             'startDate' => $p['StartDate'], 'endDate' => $p['EndDate'],
+            'priority' => $p['Priority'], 'isActive' => (bool) $p['IsActive'], 'categoryId' => $p['CategoryId'],
         ], $stmt->fetchAll());
+    }
+
+    /**
+     * Creates a Portfolio-Planner placeholder project. Deliberately does NOT add a ProjectMember row
+     * and does NOT mint/return a fresh JWT, unlike ProjectService::create — an Org Admin sketching out
+     * a portfolio of activities isn't necessarily a member of every one of them, mirroring why
+     * updateProjectDates below already bypasses ProjectsController's ProjectMemberMiddleware-gated
+     * PUT. IsActive is always false here; it can only ever become true via updateProjectActive, once
+     * both dates are set.
+     */
+    public function createProject(string $organisationId, array $request): array
+    {
+        $name = trim((string) ($request['name'] ?? ''));
+        if ($name === '') {
+            $name = 'Untitled Project';
+        }
+        $requestedKey = $this->deriveProjectKey($request['key'] ?? null, $name);
+        $uniqueKey = $this->resolveUniqueProjectKey($requestedKey, $organisationId);
+        $priority = trim((string) ($request['priority'] ?? '')) !== '' ? $request['priority'] : 'medium';
+
+        // A supplied categoryId must belong to the caller's own org, same re-validation stance as
+        // every other id this class ever accepts from a client — a foreign-org id is silently dropped
+        // to null rather than rejected with a distinguishable error.
+        $categoryId = null;
+        if (!empty($request['categoryId'])) {
+            $catStmt = $this->db->prepare('SELECT 1 FROM "PortfolioCategories" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+            $catStmt->execute(['id' => $request['categoryId'], 'orgId' => $organisationId]);
+            if ($catStmt->fetch() !== false) {
+                $categoryId = $request['categoryId'];
+            }
+        }
+
+        $projectId = Uuid::v4();
+        $stmt = $this->db->prepare(<<<SQL
+            INSERT INTO "Projects" ("Id", "OrganisationId", "Name", "Key", "Priority", "IsActive", "CategoryId", "StartDate", "EndDate", "DateCreated", "DateLastModified", "TaskCounter", "HeaderButtonVisibilityJson")
+            VALUES (:id, :orgId, :name, :key, :priority, false, :categoryId, :start, :end, now(), now(), 1, '{}')
+        SQL);
+        $stmt->execute([
+            'id' => $projectId, 'orgId' => $organisationId, 'name' => $name, 'key' => $uniqueKey,
+            'priority' => $priority, 'categoryId' => $categoryId,
+            'start' => $request['startDate'] ?? null, 'end' => $request['endDate'] ?? null,
+        ]);
+
+        return [
+            'id' => $projectId, 'name' => $name, 'key' => $uniqueKey,
+            'startDate' => $request['startDate'] ?? null, 'endDate' => $request['endDate'] ?? null,
+            'priority' => $priority, 'isActive' => false, 'categoryId' => $categoryId,
+        ];
+    }
+
+    private function deriveProjectKey(?string $requestedKey, string $name): string
+    {
+        $trimmed = strtoupper(trim((string) $requestedKey));
+        if ($trimmed !== '') {
+            return mb_substr($trimmed, 0, 20);
+        }
+        $fromName = strtoupper(preg_replace('/[^A-Za-z]/', '', $name) ?? '');
+        $fromName = mb_substr($fromName, 0, 4);
+        return $fromName !== '' ? $fromName : 'PROJ';
+    }
+
+    // Scoped to the target Organisation, not global — same rule as ProjectService::resolveUniqueProjectKey.
+    private function resolveUniqueProjectKey(string $baseKey, string $organisationId): string
+    {
+        $candidate = $baseKey;
+        $suffix = 1;
+        while (true) {
+            $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Key" = :key AND "OrganisationId" = :orgId');
+            $stmt->execute(['key' => $candidate, 'orgId' => $organisationId]);
+            if ($stmt->fetch() === false) {
+                return $candidate;
+            }
+            $suffix++;
+            $candidate = $baseKey . $suffix;
+        }
     }
 
     public function getAggregate(string $organisationId, array $requestedProjectIds): array
@@ -221,6 +298,113 @@ final class PortfolioService
     {
         $stmt = $this->db->prepare('UPDATE "Projects" SET "StartDate" = :start, "EndDate" = :end, "DateLastModified" = now() WHERE "Id" = :id AND "OrganisationId" = :orgId');
         $stmt->execute(['start' => $startDate, 'end' => $endDate, 'id' => $projectId, 'orgId' => $organisationId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * The only place Project.IsActive is ever written. Deactivating (true -> false) never needs
+     * dates; activating (false -> true) is rejected unless the row's CURRENTLY PERSISTED StartDate
+     * and EndDate are both already set — never trusting a client-supplied dates+active combo in the
+     * same request. Returns 'ok'|'not_found'|'missing_dates', matching PortfolioController.cs's
+     * PortfolioActivationResult 3-way result.
+     */
+    public function updateProjectActive(string $organisationId, string $projectId, bool $isActive): string
+    {
+        $stmt = $this->db->prepare('SELECT "StartDate", "EndDate" FROM "Projects" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $projectId, 'orgId' => $organisationId]);
+        $project = $stmt->fetch();
+        if ($project === false) {
+            return 'not_found';
+        }
+
+        if ($isActive && ($project['StartDate'] === null || $project['EndDate'] === null)) {
+            return 'missing_dates';
+        }
+
+        $updateStmt = $this->db->prepare('UPDATE "Projects" SET "IsActive" = :active, "DateLastModified" = now() WHERE "Id" = :id');
+        $updateStmt->execute(['active' => $isActive, 'id' => $projectId]);
+        return 'ok';
+    }
+
+    /**
+     * Re-validates BOTH the project id and the category id against the caller's org before linking
+     * them — a request pairing a legitimate own-org project with another org's category id fails
+     * closed (treated as not-found), never silently cross-linked.
+     */
+    public function updateProjectCategory(string $organisationId, string $projectId, ?string $categoryId): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $projectId, 'orgId' => $organisationId]);
+        if ($stmt->fetch() === false) {
+            return false;
+        }
+
+        if ($categoryId !== null) {
+            $catStmt = $this->db->prepare('SELECT 1 FROM "PortfolioCategories" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+            $catStmt->execute(['id' => $categoryId, 'orgId' => $organisationId]);
+            if ($catStmt->fetch() === false) {
+                return false;
+            }
+        }
+
+        $updateStmt = $this->db->prepare('UPDATE "Projects" SET "CategoryId" = :categoryId, "DateLastModified" = now() WHERE "Id" = :id');
+        $updateStmt->execute(['categoryId' => $categoryId, 'id' => $projectId]);
+        return true;
+    }
+
+    public function listCategories(string $organisationId): array
+    {
+        $stmt = $this->db->prepare('SELECT "Id", "Name", "SortOrder" FROM "PortfolioCategories" WHERE "OrganisationId" = :orgId ORDER BY "SortOrder"');
+        $stmt->execute(['orgId' => $organisationId]);
+        return array_map(static fn(array $c): array => [
+            'id' => $c['Id'], 'name' => $c['Name'], 'sortOrder' => (int) $c['SortOrder'],
+        ], $stmt->fetchAll());
+    }
+
+    public function createCategory(string $organisationId, string $name): array
+    {
+        $trimmedName = trim($name) !== '' ? trim($name) : 'Untitled Category';
+        $maxStmt = $this->db->prepare('SELECT MAX("SortOrder") FROM "PortfolioCategories" WHERE "OrganisationId" = :orgId');
+        $maxStmt->execute(['orgId' => $organisationId]);
+        $maxSortOrder = $maxStmt->fetchColumn();
+        $sortOrder = ($maxSortOrder !== false && $maxSortOrder !== null) ? ((int) $maxSortOrder) + 1 : 0;
+
+        $categoryId = Uuid::v4();
+        $stmt = $this->db->prepare('INSERT INTO "PortfolioCategories" ("Id", "OrganisationId", "Name", "SortOrder") VALUES (:id, :orgId, :name, :sortOrder)');
+        $stmt->execute(['id' => $categoryId, 'orgId' => $organisationId, 'name' => $trimmedName, 'sortOrder' => $sortOrder]);
+
+        return ['id' => $categoryId, 'name' => $trimmedName, 'sortOrder' => $sortOrder];
+    }
+
+    public function updateCategory(string $organisationId, string $categoryId, string $name): ?array
+    {
+        $stmt = $this->db->prepare('SELECT "Name", "SortOrder" FROM "PortfolioCategories" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $categoryId, 'orgId' => $organisationId]);
+        $category = $stmt->fetch();
+        if ($category === false) {
+            return null;
+        }
+
+        $newName = trim($name) !== '' ? trim($name) : $category['Name'];
+        $updateStmt = $this->db->prepare('UPDATE "PortfolioCategories" SET "Name" = :name WHERE "Id" = :id');
+        $updateStmt->execute(['name' => $newName, 'id' => $categoryId]);
+
+        return ['id' => $categoryId, 'name' => $newName, 'sortOrder' => (int) $category['SortOrder']];
+    }
+
+    /** Deleting a category is a pure DB-level SetNull cascade (see migration 013) — no
+     * application-side fan-out needed to un-categorize its projects. */
+    public function deleteCategory(string $organisationId, string $categoryId): bool
+    {
+        $stmt = $this->db->prepare('DELETE FROM "PortfolioCategories" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $categoryId, 'orgId' => $organisationId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function updateCategorySortOrder(string $organisationId, string $categoryId, int $sortOrder): bool
+    {
+        $stmt = $this->db->prepare('UPDATE "PortfolioCategories" SET "SortOrder" = :sortOrder WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['sortOrder' => $sortOrder, 'id' => $categoryId, 'orgId' => $organisationId]);
         return $stmt->rowCount() > 0;
     }
 

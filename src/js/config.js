@@ -8,7 +8,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-export var APP_VERSION = '2.63.20260712.1409';
+export var APP_VERSION = '2.74.20260712.1553';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -38,6 +38,9 @@ export var ICON_PATHS = {
      horizontal line near the top, so it reads as swimlanes (a header lane + body) rather than a
      plain kanban board. */
   retrospective: '<rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="16" rx="1"/><rect x="16" y="4" width="5" height="16" rx="1"/><path d="M3 8h18"/>',
+  /* Three horizontal swimlanes — the Portfolio Planner groups a whole org's project suite into
+     rows/lanes (categories), so this is `retrospective`'s three-column layout transposed 90°. */
+  portfolioPlanner: '<rect x="3" y="4" width="18" height="5" rx="1"/><rect x="3" y="9.5" width="18" height="5" rx="1"/><rect x="3" y="15" width="18" height="5" rx="1"/>',
   p_critical:  '<path d="M6 16l6-6 6 6"/><path d="M6 10l6-6 6 6"/>',
   p_high:      '<path d="M6 15l6-6 6 6"/>',
   p_medium:    '<path d="M5 9h14"/><path d="M5 15h14"/>',

@@ -1,8 +1,13 @@
 using Enkl.Api.Data;
+using Enkl.Api.Domain.Entities;
 using Enkl.Api.Dtos;
 using Microsoft.EntityFrameworkCore;
 
 namespace Enkl.Api.Services;
+
+/// <summary>Result of UpdateProjectActiveAsync — a nullable/tri-state bool would be less
+/// self-documenting at every call site.</summary>
+public enum PortfolioActivationResult { Ok, NotFound, MissingDates }
 
 /// <summary>
 /// Backs the Org-Admin-only Portfolio Dashboard — the first feature in this API where an Org Admin
@@ -28,8 +33,55 @@ public class PortfolioService
         return await _db.Projects
             .Where(p => p.OrganisationId == organisationId)
             .OrderBy(p => p.Name)
-            .Select(p => new PortfolioProjectDto(p.Id, p.Name, p.Key, p.StartDate, p.EndDate))
+            .Select(p => new PortfolioProjectDto(p.Id, p.Name, p.Key, p.StartDate, p.EndDate, p.Priority, p.IsActive, p.CategoryId))
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// Creates a Portfolio-Planner placeholder project. Deliberately does NOT add a ProjectMember row
+    /// and does NOT mint/return a fresh JWT, unlike ProjectService.CreateAsync — an Org Admin sketching
+    /// out a portfolio of activities isn't necessarily a member of every one of them, mirroring why
+    /// UpdateProjectDatesAsync below already bypasses ProjectsController's ProjectMember-gated PUT.
+    /// IsActive is always false here; it can only ever become true via UpdateProjectActiveAsync, once
+    /// both dates are set.
+    /// </summary>
+    public async Task<PortfolioProjectDto> CreateProjectAsync(Guid organisationId, CreatePortfolioProjectRequest request)
+    {
+        var name = string.IsNullOrWhiteSpace(request.Name) ? "Untitled Project" : request.Name.Trim();
+        var requestedKey = ProjectKeyResolver.DeriveKey(request.Key, name);
+        var uniqueKey = await ProjectKeyResolver.ResolveUniqueKeyAsync(_db, requestedKey, organisationId);
+
+        // A supplied categoryId must belong to the caller's own org, same re-validation stance as
+        // every other id this class ever accepts from a client — a foreign-org id is silently dropped
+        // to null rather than rejected with a distinguishable error.
+        Guid? categoryId = null;
+        if (request.CategoryId is Guid catId && await _db.PortfolioCategories.AnyAsync(c => c.Id == catId && c.OrganisationId == organisationId))
+        {
+            categoryId = catId;
+        }
+
+        var priority = string.IsNullOrWhiteSpace(request.Priority) ? "medium" : request.Priority;
+
+        var now = DateTime.UtcNow;
+        var project = new Project
+        {
+            Id = Guid.NewGuid(),
+            OrganisationId = organisationId,
+            Name = name,
+            Key = uniqueKey,
+            Priority = priority,
+            IsActive = false,
+            CategoryId = categoryId,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            DateCreated = now,
+            DateLastModified = now,
+            TaskCounter = 1
+        };
+        _db.Projects.Add(project);
+        await _db.SaveChangesAsync();
+
+        return new PortfolioProjectDto(project.Id, project.Name, project.Key, project.StartDate, project.EndDate, project.Priority, project.IsActive, project.CategoryId);
     }
 
     public async Task<PortfolioAggregateDto> GetAggregateAsync(Guid organisationId, List<Guid> requestedProjectIds)
@@ -161,6 +213,109 @@ public class PortfolioService
         project.StartDate = startDate;
         project.EndDate = endDate;
         project.DateLastModified = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// The only place Project.IsActive is ever written. Deactivating (true -> false) never needs
+    /// dates; activating (false -> true) is rejected unless the row's CURRENTLY PERSISTED StartDate
+    /// and EndDate are both already set — never trusting a client-supplied dates+active combo in the
+    /// same request, since that would let a hand-crafted request activate a dateless project.
+    /// </summary>
+    public async Task<PortfolioActivationResult> UpdateProjectActiveAsync(Guid organisationId, Guid projectId, bool isActive)
+    {
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId && p.OrganisationId == organisationId);
+        if (project is null) return PortfolioActivationResult.NotFound;
+
+        if (isActive && (project.StartDate is null || project.EndDate is null))
+        {
+            return PortfolioActivationResult.MissingDates;
+        }
+
+        project.IsActive = isActive;
+        project.DateLastModified = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return PortfolioActivationResult.Ok;
+    }
+
+    /// <summary>
+    /// Re-validates BOTH the project id and the category id against the caller's org before linking
+    /// them — a request pairing a legitimate own-org project with another org's category id fails
+    /// closed (treated as not-found), never silently cross-linked.
+    /// </summary>
+    public async Task<bool> UpdateProjectCategoryAsync(Guid organisationId, Guid projectId, Guid? categoryId)
+    {
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId && p.OrganisationId == organisationId);
+        if (project is null) return false;
+
+        if (categoryId is Guid catId)
+        {
+            var categoryExists = await _db.PortfolioCategories.AnyAsync(c => c.Id == catId && c.OrganisationId == organisationId);
+            if (!categoryExists) return false;
+        }
+
+        project.CategoryId = categoryId;
+        project.DateLastModified = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<List<PortfolioCategoryDto>> ListCategoriesAsync(Guid organisationId)
+    {
+        return await _db.PortfolioCategories
+            .Where(c => c.OrganisationId == organisationId)
+            .OrderBy(c => c.SortOrder)
+            .Select(c => new PortfolioCategoryDto(c.Id, c.Name, c.SortOrder))
+            .ToListAsync();
+    }
+
+    public async Task<PortfolioCategoryDto> CreateCategoryAsync(Guid organisationId, string name)
+    {
+        var trimmedName = string.IsNullOrWhiteSpace(name) ? "Untitled Category" : name.Trim();
+        var maxSortOrder = await _db.PortfolioCategories.Where(c => c.OrganisationId == organisationId)
+            .Select(c => (int?)c.SortOrder).MaxAsync() ?? -1;
+
+        var category = new PortfolioCategory
+        {
+            Id = Guid.NewGuid(),
+            OrganisationId = organisationId,
+            Name = trimmedName,
+            SortOrder = maxSortOrder + 1
+        };
+        _db.PortfolioCategories.Add(category);
+        await _db.SaveChangesAsync();
+        return new PortfolioCategoryDto(category.Id, category.Name, category.SortOrder);
+    }
+
+    public async Task<PortfolioCategoryDto?> UpdateCategoryAsync(Guid organisationId, Guid categoryId, string name)
+    {
+        var category = await _db.PortfolioCategories.FirstOrDefaultAsync(c => c.Id == categoryId && c.OrganisationId == organisationId);
+        if (category is null) return null;
+
+        category.Name = string.IsNullOrWhiteSpace(name) ? category.Name : name.Trim();
+        await _db.SaveChangesAsync();
+        return new PortfolioCategoryDto(category.Id, category.Name, category.SortOrder);
+    }
+
+    /// <summary>Deleting a category is a pure DB-level SetNull cascade (see ProjectConfiguration) —
+    /// no application-side fan-out needed to un-categorize its projects.</summary>
+    public async Task<bool> DeleteCategoryAsync(Guid organisationId, Guid categoryId)
+    {
+        var category = await _db.PortfolioCategories.FirstOrDefaultAsync(c => c.Id == categoryId && c.OrganisationId == organisationId);
+        if (category is null) return false;
+
+        _db.PortfolioCategories.Remove(category);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> UpdateCategorySortOrderAsync(Guid organisationId, Guid categoryId, int sortOrder)
+    {
+        var category = await _db.PortfolioCategories.FirstOrDefaultAsync(c => c.Id == categoryId && c.OrganisationId == organisationId);
+        if (category is null) return false;
+
+        category.SortOrder = sortOrder;
         await _db.SaveChangesAsync();
         return true;
     }

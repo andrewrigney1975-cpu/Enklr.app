@@ -151,6 +151,7 @@
         <button type="button" class="kf-side-nav-item" id="navTaskTypesBtn" title="Task Types"><span class="kf-icon" data-icon="tag" data-size="18"></span><span class="kf-side-nav-text">Task Types</span></button>
         <button type="button" class="kf-side-nav-item" id="navReleasesBtn" title="Releases"><span class="kf-icon" data-icon="rocket" data-size="18"></span><span class="kf-side-nav-text">Releases</span></button>
         <button type="button" class="kf-side-nav-item" id="navWorkflowBtn" title="Workflow"><span class="kf-icon" data-icon="workflow" data-size="18"></span><span class="kf-side-nav-text">Workflow</span></button>
+        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navPortfolioPlannerBtn" title="Portfolio Planner"><span class="kf-icon" data-icon="portfolioPlanner" data-size="18"></span><span class="kf-side-nav-text">Portfolio Planner</span></button>
         <button type="button" class="kf-side-nav-item" id="navRetrospectiveBtn" title="Retrospectives"><span class="kf-icon" data-icon="retrospective" data-size="18"></span><span class="kf-side-nav-text">Retrospectives</span></button>
       </div>
     </nav>
@@ -1957,6 +1958,126 @@
       <button class="kf-btn kf-btn-secondary" id="portfolioProjectDatesClearBtn">Clear dates</button>
       <button class="kf-btn kf-btn-secondary" id="portfolioProjectDatesCancelBtn">Cancel</button>
       <button class="kf-btn kf-btn-primary" id="portfolioProjectDatesSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Portfolio Planner (Org Admin only): plan the start/end dates and priority of an org's suite of
+     activities, grouped into user-definable categories. -->
+<div class="kf-overlay hidden" id="portfolioPlannerOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="portfolioPlannerTitle">Portfolio Planner</h2>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="portfolioPlannerClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-modal-body" id="portfolioPlannerBody">
+      <div class="kf-health-section">
+        <div class="kf-health-section-header-row">
+          <h3 class="kf-health-section-title">Categories</h3>
+          <div class="kf-portfolio-planner-new-category">
+            <input type="text" id="portfolioPlannerNewCategoryInput" placeholder="New category name…" maxlength="100">
+            <button class="kf-btn kf-btn-secondary" id="portfolioPlannerNewCategoryBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Add category</button>
+          </div>
+        </div>
+        <div class="kf-tc-expand-row">
+          <a href="#" id="portfolioPlannerExpandAllLink">Expand all</a>
+          <span>&middot;</span>
+          <a href="#" id="portfolioPlannerCollapseAllLink">Collapse all</a>
+        </div>
+        <div id="portfolioPlannerGroups"></div>
+      </div>
+
+      <div class="kf-health-section">
+        <div class="kf-health-section-header-row">
+          <h3 class="kf-health-section-title">Timeline</h3>
+          <div class="kf-chart-controls">
+            <select id="portfolioPlannerScaleSelect" class="kf-timeline-scale-select" aria-label="Planner timeline granularity">
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="fortnight">Fortnight</option>
+              <option value="month">Month</option>
+              <option value="quarter">Quarter</option>
+            </select>
+            <input type="date" id="portfolioPlannerStartInput" aria-label="Planner timeline start date">
+            <input type="date" id="portfolioPlannerEndInput" aria-label="Planner timeline end date">
+            <button class="kf-btn kf-btn-ghost" id="portfolioPlannerFitToProjectsBtn" title="Set the date range to 3 months before the earliest scheduled project and 3 months after the latest"><span class="kf-icon" data-icon="fit" data-size="14"></span>Fit to projects</button>
+            <div class="kf-export-as-wrap">
+              <button class="kf-btn kf-btn-ghost" id="portfolioPlannerExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+              <div class="kf-export-as-panel hidden" id="portfolioPlannerExportAsPanel">
+                <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+                <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="portfolioPlannerChart"></div>
+        <div id="portfolioPlannerNoData" class="kf-health-no-data hidden"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Portfolio Planner: Add Project modal -->
+<div class="kf-overlay hidden" id="portfolioPlannerAddProjectOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Add project</h2>
+      <button class="kf-btn kf-btn-ghost" id="portfolioPlannerAddProjectClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="portfolioPlannerAddProjectNameInput">Name</label>
+        <input type="text" id="portfolioPlannerAddProjectNameInput" maxlength="200">
+      </div>
+      <div class="kf-field">
+        <label for="portfolioPlannerAddProjectKeyInput">Key (optional)</label>
+        <input type="text" id="portfolioPlannerAddProjectKeyInput" maxlength="20">
+      </div>
+      <div class="kf-field">
+        <label for="portfolioPlannerAddProjectPrioritySelect">Priority</label>
+        <select id="portfolioPlannerAddProjectPrioritySelect"></select>
+      </div>
+      <div class="kf-field">
+        <label for="portfolioPlannerAddProjectStartInput">Start date (optional)</label>
+        <input type="date" id="portfolioPlannerAddProjectStartInput">
+      </div>
+      <div class="kf-field">
+        <label for="portfolioPlannerAddProjectEndInput">End date (optional)</label>
+        <input type="date" id="portfolioPlannerAddProjectEndInput">
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="portfolioPlannerAddProjectCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="portfolioPlannerAddProjectSaveBtn">Add project</button>
+    </div>
+  </div>
+</div>
+
+<!-- Portfolio Planner: Timeline click-to-edit / drag-to-schedule dates modal (same interaction
+     model as the Portfolio Dashboard's own portfolioProjectDatesOverlay, kept as its own overlay/ids
+     since both can be reached independently and shouldn't fight over the same DOM elements). -->
+<div class="kf-overlay hidden" id="portfolioPlannerProjectDatesOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="portfolioPlannerProjectDatesTitle">Project dates</h2>
+      <button class="kf-btn kf-btn-ghost" id="portfolioPlannerProjectDatesClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="portfolioPlannerProjectDatesStartInput">Start date</label>
+        <input type="date" id="portfolioPlannerProjectDatesStartInput">
+      </div>
+      <div class="kf-field">
+        <label for="portfolioPlannerProjectDatesEndInput">End date</label>
+        <input type="date" id="portfolioPlannerProjectDatesEndInput">
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="portfolioPlannerProjectDatesClearBtn">Clear dates</button>
+      <button class="kf-btn kf-btn-secondary" id="portfolioPlannerProjectDatesCancelBtn">Cancel</button>
+      <button class="kf-btn kf-btn-primary" id="portfolioPlannerProjectDatesSaveBtn">Save</button>
     </div>
   </div>
 </div>

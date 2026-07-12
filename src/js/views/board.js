@@ -91,6 +91,10 @@ export function applyHeaderButtonVisibility(){
      handled here alongside Org Chart/Workflow rather than folded into isEffectivelyVisible. */
   document.getElementById('portfolioDashboardBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin()));
 
+  // Portfolio Planner is the same Org-Admin-only, server-authoritative-project gate as Portfolio
+  // Dashboard above — a pure permissions gate, not a per-project App Setting.
+  document.getElementById('navPortfolioPlannerBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin()));
+
   document.getElementById('orgChartBtn').classList.toggle('kf-vis-hidden', !visibility.teamsCommittees);
   document.getElementById('navOrgChartBtn').classList.toggle('kf-vis-hidden', !visibility.teamsCommittees);
   document.getElementById('workflowBtn').classList.toggle('kf-vis-hidden', !visibility.workflow);

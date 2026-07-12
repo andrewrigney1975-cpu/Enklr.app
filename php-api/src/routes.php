@@ -117,9 +117,17 @@ function registerRoutes(App $app): void
     // PortfolioService.php's own doc comment for the cross-org isolation guarantee this relies on) ----
     $app->group('/api/organisations/me/portfolio', function ($group) {
         $group->get('/projects', [PortfolioController::class, 'listProjects']);
+        $group->post('/projects', [PortfolioController::class, 'createProject']);
         $group->get('/aggregate', [PortfolioController::class, 'getAggregate']);
         $group->get('/activity', [PortfolioController::class, 'getActivity']);
         $group->put('/projects/{projectId}/dates', [PortfolioController::class, 'updateProjectDates']);
+        $group->put('/projects/{projectId}/active', [PortfolioController::class, 'updateProjectActive']);
+        $group->put('/projects/{projectId}/category', [PortfolioController::class, 'updateProjectCategory']);
+        $group->get('/categories', [PortfolioController::class, 'listCategories']);
+        $group->post('/categories', [PortfolioController::class, 'createCategory']);
+        $group->put('/categories/{categoryId}', [PortfolioController::class, 'updateCategory']);
+        $group->delete('/categories/{categoryId}', [PortfolioController::class, 'deleteCategory']);
+        $group->put('/categories/{categoryId}/sort-order', [PortfolioController::class, 'updateCategorySortOrder']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Project Templates (Organisation-owned) — list/detail/create need only auth (any signed-in

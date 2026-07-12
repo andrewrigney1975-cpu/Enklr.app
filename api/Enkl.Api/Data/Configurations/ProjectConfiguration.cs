@@ -11,6 +11,8 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         b.HasKey(p => p.Id);
         b.Property(p => p.Name).HasMaxLength(200).IsRequired();
         b.Property(p => p.Key).HasMaxLength(20).IsRequired();
+        b.Property(p => p.Priority).HasMaxLength(20).IsRequired().HasDefaultValue("medium");
+        b.Property(p => p.IsActive).HasDefaultValue(true);
         b.Property(p => p.HeaderButtonVisibilityJson).HasColumnType("jsonb");
         b.Property(p => p.WorkflowJson).HasColumnType("jsonb");
         // Composite, not single-column — a project Key is only ever meaningful within its own
@@ -24,5 +26,10 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
             .WithMany(o => o.Projects)
             .HasForeignKey(p => p.OrganisationId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        b.HasOne(p => p.Category)
+            .WithMany()
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

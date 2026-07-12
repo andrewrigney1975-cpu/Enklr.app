@@ -418,5 +418,36 @@ export var portfolioApi = {
      UpdateProjectDates for why. start/end are 'YYYY-MM-DD' strings or null to clear a date. */
   updateProjectDates: function(projectId, start, end){
     return apiFetch('/organisations/me/portfolio/projects/' + projectId + '/dates', {method: 'PUT', body: JSON.stringify({startDate: start, endDate: end})});
+  },
+  /* Backs the Portfolio Planner's "Add Project" form — creates a placeholder project with
+     isActive=false, no ProjectMember row, no token mint (see PortfolioService.CreateProjectAsync). */
+  createProject: function(name, priority, categoryId, startDate, endDate, key){
+    return apiFetch('/organisations/me/portfolio/projects', {method: 'POST', body: JSON.stringify({
+      name: name, key: key || null, priority: priority || null, categoryId: categoryId || null,
+      startDate: startDate || null, endDate: endDate || null
+    })});
+  },
+  /* The only call that can ever flip IsActive — server re-validates dates are set before allowing
+     isActive:true (see PortfolioService.UpdateProjectActiveAsync); a 400 means dates are missing. */
+  updateProjectActive: function(projectId, isActive){
+    return apiFetch('/organisations/me/portfolio/projects/' + projectId + '/active', {method: 'PUT', body: JSON.stringify({isActive: isActive})});
+  },
+  updateProjectCategory: function(projectId, categoryId){
+    return apiFetch('/organisations/me/portfolio/projects/' + projectId + '/category', {method: 'PUT', body: JSON.stringify({categoryId: categoryId || null})});
+  },
+  listCategories: function(){
+    return apiFetch('/organisations/me/portfolio/categories', {method: 'GET'});
+  },
+  createCategory: function(name){
+    return apiFetch('/organisations/me/portfolio/categories', {method: 'POST', body: JSON.stringify({name: name})});
+  },
+  updateCategory: function(categoryId, name){
+    return apiFetch('/organisations/me/portfolio/categories/' + categoryId, {method: 'PUT', body: JSON.stringify({name: name})});
+  },
+  deleteCategory: function(categoryId){
+    return apiFetch('/organisations/me/portfolio/categories/' + categoryId, {method: 'DELETE'});
+  },
+  updateCategorySortOrder: function(categoryId, sortOrder){
+    return apiFetch('/organisations/me/portfolio/categories/' + categoryId + '/sort-order', {method: 'PUT', body: JSON.stringify({sortOrder: sortOrder})});
   }
 };

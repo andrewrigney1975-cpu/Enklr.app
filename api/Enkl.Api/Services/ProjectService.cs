@@ -27,8 +27,10 @@ public class ProjectService
 
     public async Task<List<ProjectSummaryDto>> GetProjectsForUserAsync(Guid userId)
     {
+        // Inactive (Portfolio-Planner placeholder) projects never appear in this switcher list — see
+        // PortfolioService.UpdateProjectActiveAsync for the only place IsActive is ever flipped.
         return await _db.ProjectMembers
-            .Where(m => m.UserId == userId)
+            .Where(m => m.UserId == userId && m.Project.IsActive)
             .Select(m => new ProjectSummaryDto(m.Project.Id, m.Project.Name, m.Project.Key))
             .ToListAsync();
     }
@@ -113,8 +115,8 @@ public class ProjectService
         }
 
         var name = string.IsNullOrWhiteSpace(request.Name) ? "Untitled Project" : request.Name.Trim();
-        var requestedKey = DeriveProjectKey(request.Key, name);
-        var uniqueKey = await ResolveUniqueProjectKeyAsync(requestedKey, user.OrganisationId);
+        var requestedKey = ProjectKeyResolver.DeriveKey(request.Key, name);
+        var uniqueKey = await ProjectKeyResolver.ResolveUniqueKeyAsync(_db, requestedKey, user.OrganisationId);
         var warning = uniqueKey != requestedKey
             ? $"Project key \"{requestedKey}\" was already in use; created as \"{uniqueKey}\" instead."
             : null;
@@ -186,8 +188,8 @@ public class ProjectService
         if (project is null) return null;
 
         var name = string.IsNullOrWhiteSpace(request.Name) ? project.Name : request.Name.Trim();
-        var requestedKey = DeriveProjectKey(request.Key, name);
-        project.Key = requestedKey == project.Key ? project.Key : await ResolveUniqueProjectKeyAsync(requestedKey, project.OrganisationId, projectId);
+        var requestedKey = ProjectKeyResolver.DeriveKey(request.Key, name);
+        project.Key = requestedKey == project.Key ? project.Key : await ProjectKeyResolver.ResolveUniqueKeyAsync(_db, requestedKey, project.OrganisationId, projectId);
         project.Name = name;
         project.StartDate = request.StartDate;
         project.EndDate = request.EndDate;
@@ -209,32 +211,6 @@ public class ProjectService
         _db.Projects.Remove(project);
         await _db.SaveChangesAsync();
         return true;
-    }
-
-    private static string DeriveProjectKey(string? requestedKey, string name)
-    {
-        var trimmed = (requestedKey ?? "").Trim().ToUpperInvariant();
-        if (trimmed.Length > 0) return trimmed.Length > 20 ? trimmed[..20] : trimmed;
-
-        var fromName = new string(name.Where(char.IsLetter).ToArray()).ToUpperInvariant();
-        if (fromName.Length > 4) fromName = fromName[..4];
-        return fromName.Length > 0 ? fromName : "PROJ";
-    }
-
-    // Scoped to the target Organisation, not global — a project key is only ever displayed/used
-    // within its own org's context (task keys, URLs, the picker in the Portfolio Dashboard, etc.), so
-    // two unrelated organisations both having a "DEMO" project is completely fine and should never
-    // force one of them into a "DEMO2"-style rename. (Confirmed bug: an unrelated org's own "DEMO2"
-    // project was forcing a same-named project in a DIFFERENT org to become "DEMO22" for no reason.)
-    private async Task<string> ResolveUniqueProjectKeyAsync(string baseKey, Guid organisationId, Guid? excludeProjectId = null)
-    {
-        var candidate = baseKey;
-        var suffix = 1;
-        while (await _db.Projects.AnyAsync(p => p.Key == candidate && p.OrganisationId == organisationId && p.Id != excludeProjectId))
-        {
-            candidate = $"{baseKey}{++suffix}";
-        }
-        return candidate;
     }
 
     public async Task<ProjectSettingsDto?> UpdateProjectSettingsAsync(Guid projectId, ProjectSettingsDto settings)
