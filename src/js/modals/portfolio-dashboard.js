@@ -418,9 +418,9 @@ function renderTimelineChart(){
   _timelineLayout = {nameColWidth: nameColWidth, rowHeight: rowHeight, marginTop: marginTop, scaledColumns: scaledColumns, scaledTrackWidth: scaledTrackWidth};
 
   var defsHTML =
-    '<defs><pattern id="portfolioNoDatesPattern" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">' +
-      '<rect width="8" height="8" fill="var(--kf-column-bg)"></rect>' +
-      '<line x1="0" y1="0" x2="0" y2="8" stroke="var(--kf-text-faint)" stroke-width="4"></line>' +
+    '<defs><pattern id="portfolioNoDatesPattern" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">' +
+      '<rect width="6" height="6" fill="var(--kf-column-bg)"></rect>' +
+      '<line x1="0" y1="0" x2="0" y2="6" stroke="var(--kf-text-faint)" stroke-width="1.5" opacity="0.6"></line>' +
     '</pattern></defs>';
 
   var headerHTML = '';
@@ -450,7 +450,7 @@ function renderTimelineChart(){
       return nameHTML +
         '<rect class="kf-portfolio-timeline-nodatesbar" data-project-id="' + p.id + '" data-role="click-only" ' +
         'x="' + nameColWidth + '" y="' + barY + '" width="' + scaledTrackWidth + '" height="' + barHeight + '" rx="4" ' +
-        'fill="url(#portfolioNoDatesPattern)" stroke="var(--kf-text-faint)" stroke-width="1.5" stroke-dasharray="5,3">' +
+        'fill="url(#portfolioNoDatesPattern)" stroke="var(--kf-text-faint)" stroke-width="1" stroke-dasharray="5,3">' +
         '<title>' + escapeHTML(p.name) + ' — click to set a start/end date</title></rect>';
     }
     var barStartX = nameColWidth + tlDateToPixel(new Date(p.startDate), scaledColumns);
@@ -474,7 +474,7 @@ function renderTimelineChart(){
       '</g>';
   }).join('');
 
-  chartEl.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="auto" class="kf-portfolio-timeline-svg">' + defsHTML + headerHTML + rowsHTML + '</svg>';
+  chartEl.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" class="kf-portfolio-timeline-svg">' + defsHTML + headerHTML + rowsHTML + '</svg>';
 }
 
 /* =========================================================
@@ -760,5 +760,5 @@ function renderActivityChart(){
 
   var width = marginLeft + plotWidth + marginRight;
   var height = marginTop + plotHeight + marginBottom;
-  chartEl.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="auto" class="kf-portfolio-activity-svg">' + gridHTML + barsHTML + labelsHTML + '</svg>';
+  chartEl.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" class="kf-portfolio-activity-svg">' + gridHTML + barsHTML + labelsHTML + '</svg>';
 }

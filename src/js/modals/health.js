@@ -184,7 +184,7 @@ function buildBurndownChartSvg(project, burndown, width, height){
     projPath = '<path d="' + pointsToPath(projPointsEarly) + '" fill="none" stroke="var(--kf-text-faint)" stroke-width="2" stroke-dasharray="6,3"/>';
   }
 
-  return '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="auto" class="kf-health-burndown-svg">' +
+  return '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" class="kf-health-burndown-svg">' +
     yGridHTML + xLabelsHTML +
     '<path d="' + idealPath + '" fill="none" stroke="var(--kf-border-strong)" stroke-width="2" stroke-dasharray="6,3"/>' +
     '<path d="' + actualPath + '" fill="none" stroke="#0c66e4" stroke-width="2.5"/>' +
