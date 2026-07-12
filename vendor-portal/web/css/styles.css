@@ -25,6 +25,10 @@
   --kf-good-bg: #dcfff1;
   --kf-overdue-fg: #974f0c;
   --kf-overdue-bg: #fff0b3;
+  /* Distinct from --kf-overdue-fg above — that one's an amber/brown "needs attention" tone; this is
+     a true orange, used specifically for the Database Latency chart's "above average" points so it
+     reads as visually distinct from both the amber overdue-pill color and the red danger color. */
+  --kf-orange-fg: #b65c02;
   --kf-input-bg: #fafbfc;
   --kf-input-bg-focus: #ffffff;
   --kf-overlay-backdrop: rgba(9, 30, 66, .54);
@@ -50,6 +54,7 @@
   --kf-good-bg: #163a2c;
   --kf-overdue-fg: #f5cd47;
   --kf-overdue-bg: #3d2f0a;
+  --kf-orange-fg: #ffa947;
   --kf-input-bg: #1a1e21;
   --kf-input-bg-focus: #282e33;
   --kf-overlay-backdrop: rgba(0, 0, 0, .65);
@@ -180,11 +185,29 @@ input, textarea, select { font-family: inherit; font-size: 14px; }
   margin-bottom: 28px;
 }
 .kf-stat-tile {
+  display: flex;
+  align-items: center;
+  gap: 18px;
   background: var(--kf-surface);
   border: 1px solid var(--kf-border);
   border-radius: 6px;
   padding: 16px 18px;
   box-shadow: var(--kf-shadow);
+}
+/* Fixed-size box (not just the SVG) so every tile's icon column is the same width regardless of
+   which icon it holds — that's what keeps the label/value text starting at the same x position on
+   every tile, not just the icons themselves being the same size. */
+.kf-stat-tile-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--kf-blue);
+}
+.kf-stat-tile-text {
+  min-width: 0;
 }
 .kf-stat-tile-label {
   font-size: 11px;
@@ -269,6 +292,31 @@ input, textarea, select { font-family: inherit; font-size: 14px; }
   flex-direction: column;
   box-shadow: var(--kf-modal-shadow);
 }
+/* Size variants, copied verbatim from the main app's src/css/styles.css so a modal here can ask for
+   the same "big view" treatment (kf-modal-lg) that app already uses — the base .kf-modal width
+   above is otherwise a fixed 480px with no size-variant classes actually wired up (kf-modal-sm was
+   already present in this portal's own License/Contract modal markup, but until now had no matching
+   CSS rule at all, so it was a no-op). */
+.kf-modal.kf-modal-sm { width: 420px; }
+.kf-modal.kf-modal-lg {
+  width: 98vw;
+  max-width: 98vw;
+  height: 86vh;
+  max-height: 86vh;
+}
+
+/* Scoped to this one modal (not a general .kf-modal-body change, which would disrupt the plain
+   scrolling-form layout the License/Contract modals rely on) — makes the chart stretch to fill the
+   modal's full available vertical space instead of sitting at its small inline fixed height. The
+   legend keeps its natural height; #dbLatencyModalChartInner takes whatever's left. */
+#dbLatencyModalOverlay .kf-modal-body {
+  display: flex;
+  flex-direction: column;
+}
+#dbLatencyModalChartInner {
+  flex: 1;
+  min-height: 0;
+}
 .kf-modal-header {
   display: flex;
   align-items: center;
@@ -278,6 +326,7 @@ input, textarea, select { font-family: inherit; font-size: 14px; }
   flex-shrink: 0;
 }
 .kf-modal-header h2 { font-size: 16px; margin: 0; font-weight: 500; }
+.kf-modal-header-actions { display: flex; align-items: center; gap: 8px; }
 .kf-modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
 .kf-modal-footer {
   padding: 14px 20px;

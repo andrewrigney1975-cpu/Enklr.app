@@ -4,6 +4,16 @@ import { asyncRoute } from '../asyncRoute.js';
 
 export const dashboardRouter = Router();
 
+// Backs the Dashboard's live "Database Latency" chart (web/js/features/db-latency-monitor.js) —
+// deliberately the cheapest possible round trip (no table access, no planning beyond a constant),
+// so the round-trip time this measures is dominated by network + connection-pool checkout, not
+// query cost. Polled client-side at a fixed 5s interval, paused while the tab/view isn't visible —
+// see that module for the full reasoning on why 5s (not something more aggressive) was chosen.
+dashboardRouter.get('/dashboard/db-ping', asyncRoute(async (_req, res) => {
+  await pool.query('SELECT 1');
+  res.json({ ok: true });
+}));
+
 dashboardRouter.get('/dashboard', asyncRoute(async (_req, res) => {
   const { rows } = await pool.query(`
     SELECT
@@ -15,7 +25,14 @@ dashboardRouter.get('/dashboard', asyncRoute(async (_req, res) => {
           WHEN 'monthly' THEN contract_value_cents * 12
           ELSE contract_value_cents
         END
-      ), 0) FROM vendor_contracts WHERE status = 'active')::bigint AS annualized_contract_value_cents
+      ), 0) FROM vendor_contracts WHERE status = 'active')::bigint AS annualized_contract_value_cents,
+      -- "Current" = has both a start and end date and now falls within that window. A project with
+      -- either date left unset has no defined window to be "current" within, so it's excluded here
+      -- (it still counts toward all_project_count below).
+      (SELECT COUNT(*) FROM "Projects"
+        WHERE "StartDate" IS NOT NULL AND "EndDate" IS NOT NULL
+          AND "StartDate" <= now()::date AND "EndDate" >= now()::date)::int AS current_project_count,
+      (SELECT COUNT(*) FROM "Projects")::int AS all_project_count
   `);
 
   const recentContracts = await pool.query(`

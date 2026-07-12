@@ -8,6 +8,7 @@ import { renderOrganisations } from './views/organisations.js';
 import { renderLicenses } from './views/licenses.js';
 import { renderContracts } from './views/contracts.js';
 import { closeAllExportAsPanels } from './features/svg-export.js';
+import { closeDbLatencyModal, isDbLatencyModalOpen } from './features/db-latency-monitor.js';
 
 var loginWrap = document.getElementById('loginWrap');
 var viewRoot = document.getElementById('viewRoot');
@@ -65,6 +66,19 @@ document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme)
 
 document.addEventListener('click', function(e){
   if(!e.target.closest('.kf-export-as-wrap')) closeAllExportAsPanels();
+});
+
+// Database Latency "big view" modal — static markup (always present in index.html, unlike the
+// Dashboard view's own dynamically-rendered content), so it's wired once here rather than per-render
+// in views/dashboard.js. Backdrop-click and Escape-to-close match the main Enkl App's own modal
+// convention (see e.g. its modals/health.js + app.js wiring) — neither existed yet for this
+// portal's older License/Contract modals, but this one gets the full treatment.
+document.getElementById('dbLatencyModalClose').addEventListener('click', closeDbLatencyModal);
+document.getElementById('dbLatencyModalOverlay').addEventListener('mousedown', function(e){
+  if(e.target.id === 'dbLatencyModalOverlay') closeDbLatencyModal();
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && isDbLatencyModalOpen()) closeDbLatencyModal();
 });
 
 logoutBtn.addEventListener('click', async function(){

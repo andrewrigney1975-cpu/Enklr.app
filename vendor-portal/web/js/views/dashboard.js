@@ -6,6 +6,7 @@ import { formatMoney, formatDate, escapeHtml } from '../format.js';
 import { parseISODateUTC, toISODateUTC, addDaysUTC, bucketDailySeries, GRANULARITY_CONFIG, GRANULARITY_ORDER } from '../features/time-buckets.js';
 import { renderBucketedChart } from '../charts/bucketed-chart.js';
 import { toggleExportAsPanel, exportSvgElementAsSvgFile, exportSvgElementAsPng } from '../features/svg-export.js';
+import { startDbLatencyMonitor, redrawDbLatencyMonitor, openDbLatencyModal } from '../features/db-latency-monitor.js';
 
 function defaultRangeForGranularity(granularity){
   var today = new Date();
@@ -25,6 +26,20 @@ function defaultRangeForGranularity(granularity){
 
 function activityCountFormatter(v){ return Math.round(v).toLocaleString(); }
 function revenueFormatter(v){ return formatMoney(v, 'AUD'); }
+
+// One fixed size for every stat-tile icon, on every tile in every row — iconSvg() always draws off
+// a 0-24 viewBox regardless of this value, so holding it constant here is what keeps every tile's
+// icon column (and therefore its label/value text) the same width and lined up with its neighbours.
+var STAT_TILE_ICON_SIZE = 28;
+function statTileHTML(t){
+  return '<div class="kf-stat-tile">' +
+    '<span class="kf-stat-tile-icon" data-icon="' + t.icon + '" data-size="' + STAT_TILE_ICON_SIZE + '"></span>' +
+    '<div class="kf-stat-tile-text">' +
+      '<div class="kf-stat-tile-label">' + escapeHtml(t.label) + '</div>' +
+      '<div class="kf-stat-tile-value">' + escapeHtml(t.value) + '</div>' +
+    '</div>' +
+  '</div>';
+}
 
 function granularityOptionsHTML(selected){
   return GRANULARITY_ORDER.map(function(key){
@@ -212,6 +227,7 @@ window.addEventListener('resize', function(){
   resizeRedrawTimer = setTimeout(function(){
     activityWidget.redraw();
     revenueWidget.redraw();
+    redrawDbLatencyMonitor();
   }, 150);
 });
 
@@ -219,11 +235,21 @@ export async function renderDashboard(root){
   root.innerHTML = '<div class="kf-view"><p style="color:var(--kf-text-faint);">Loading…</p></div>';
   var data = await api.get('/dashboard');
 
+  // icon: same data-icon/data-size on every tile (see the shared STAT_TILE_ICON_SIZE below) so every
+  // icon renders at an identical pixel size off the same 0-24 viewBox iconSvg() always uses — that's
+  // what keeps every tile's label/value text lining up regardless of which icon it carries.
   var tiles = [
-    { label: 'Organisations', value: data.org_count },
-    { label: 'Active Users', value: data.active_user_count },
-    { label: 'Active Contracts', value: data.active_contract_count },
-    { label: 'Annualised Contract Value', value: formatMoney(data.annualized_contract_value_cents, 'AUD') }
+    { label: 'Organisations', value: data.org_count, icon: 'orgChart' },
+    { label: 'Active Users', value: data.active_user_count, icon: 'team' },
+    { label: 'Active Contracts', value: data.active_contract_count, icon: 'ty_document' },
+    { label: 'Annualised Contract Value', value: formatMoney(data.annualized_contract_value_cents, 'AUD'), icon: 'ty_procure' }
+  ];
+  // Second row, kept in its own grid below the tiles above — "Projects" here means the Projects
+  // belonging to the Organisations this portal manages (the main Enkl Task app's own Projects table,
+  // joined by OrganisationId), not anything specific to vendor-portal's own schema.
+  var projectTiles = [
+    { label: 'Current Projects', value: data.current_project_count, icon: 'board' },
+    { label: 'All Projects', value: data.all_project_count, icon: 'board' }
   ];
 
   var rows = (data.recentContracts || []).map(function(c){
@@ -239,11 +265,8 @@ export async function renderDashboard(root){
   root.innerHTML =
     '<div class="kf-view">' +
       '<div class="kf-view-header"><h1 class="kf-view-title">Dashboard</h1></div>' +
-      '<div class="kf-stat-grid">' +
-        tiles.map(function(t){
-          return '<div class="kf-stat-tile"><div class="kf-stat-tile-label">' + escapeHtml(t.label) + '</div><div class="kf-stat-tile-value">' + escapeHtml(t.value) + '</div></div>';
-        }).join('') +
-      '</div>' +
+      '<div class="kf-stat-grid">' + tiles.map(statTileHTML).join('') + '</div>' +
+      '<div class="kf-stat-grid">' + projectTiles.map(statTileHTML).join('') + '</div>' +
       '<div class="kf-panel">' +
         '<div class="kf-panel-header">Recently updated contracts</div>' +
         (rows
@@ -254,12 +277,34 @@ export async function renderDashboard(root){
         activityWidget.panelHTML() +
         revenueWidget.panelHTML() +
       '</div>' +
+      '<div class="kf-panel kf-chart-panel" style="margin-top:20px;">' +
+        '<div class="kf-panel-header">' +
+          '<div class="kf-panel-header-row">' +
+            '<span>Database Latency (live)</span>' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<span id="dbLatencySummary" style="font-size:12px;color:var(--kf-text-secondary);font-weight:400;"></span>' +
+              '<button class="kf-btn kf-btn-ghost" id="dbLatencyExpandBtn" title="Open in a bigger view"><span class="kf-icon" data-icon="fit" data-size="14"></span></button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="kf-chart-inner">' +
+          '<div class="kf-legend">' +
+            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-blue);"></span>Normal</span>' +
+            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-orange-fg);"></span>Above average</span>' +
+            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-danger);"></span>Severely above average / failed</span>' +
+          '</div>' +
+          '<div id="dbLatencyChartInner"></div>' +
+        '</div>' +
+      '</div>' +
     '</div>';
 
   hydrateIcons(root);
 
   activityWidget.wire();
   revenueWidget.wire();
+  document.getElementById('dbLatencyExpandBtn').addEventListener('click', openDbLatencyModal);
 
   await Promise.all([activityWidget.fetchAndRender(), revenueWidget.fetchAndRender()]);
+
+  startDbLatencyMonitor(document.getElementById('dbLatencyChartInner'), document.getElementById('dbLatencySummary'));
 }
