@@ -9,6 +9,7 @@ import { renderLicenses } from './views/licenses.js';
 import { renderContracts } from './views/contracts.js';
 import { closeAllExportAsPanels } from './features/svg-export.js';
 import { closeDbLatencyModal, isDbLatencyModalOpen } from './features/db-latency-monitor.js';
+import { closeWebappLatencyModal, isWebappLatencyModalOpen } from './features/webapp-latency-monitor.js';
 
 var loginWrap = document.getElementById('loginWrap');
 var viewRoot = document.getElementById('viewRoot');
@@ -77,8 +78,15 @@ document.getElementById('dbLatencyModalClose').addEventListener('click', closeDb
 document.getElementById('dbLatencyModalOverlay').addEventListener('mousedown', function(e){
   if(e.target.id === 'dbLatencyModalOverlay') closeDbLatencyModal();
 });
+// Same big-view-modal wiring, for the sibling "APM - Web App Responsiveness" chart's own modal.
+document.getElementById('webappLatencyModalClose').addEventListener('click', closeWebappLatencyModal);
+document.getElementById('webappLatencyModalOverlay').addEventListener('mousedown', function(e){
+  if(e.target.id === 'webappLatencyModalOverlay') closeWebappLatencyModal();
+});
 document.addEventListener('keydown', function(e){
-  if(e.key === 'Escape' && isDbLatencyModalOpen()) closeDbLatencyModal();
+  if(e.key !== 'Escape') return;
+  if(isDbLatencyModalOpen()) closeDbLatencyModal();
+  else if(isWebappLatencyModalOpen()) closeWebappLatencyModal();
 });
 
 logoutBtn.addEventListener('click', async function(){

@@ -469,6 +469,30 @@ input, textarea, select { font-family: inherit; font-size: 14px; }
   flex-shrink: 0;
 }
 
+/* APM panel's DB Latency / Web App Responsiveness toggle — a simple two-button segmented control. */
+.kf-apm-toggle {
+  display: flex;
+  border: 1px solid var(--kf-border);
+  border-radius: var(--kf-radius);
+  overflow: hidden;
+}
+.kf-apm-toggle-btn {
+  background: var(--kf-surface);
+  border: none;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--kf-text-secondary);
+  cursor: pointer;
+}
+.kf-apm-toggle-btn + .kf-apm-toggle-btn {
+  border-left: 1px solid var(--kf-border);
+}
+.kf-apm-toggle-btn.active {
+  background: var(--kf-blue);
+  color: #fff;
+}
+
 /* ===== Export-as panel (ported from src/css/styles.css) ===== */
 .kf-export-as-wrap {
   position: relative;

@@ -12,9 +12,12 @@ function escapeHTML(s){ var d = document.createElement('div'); d.textContent = s
 function formatUTCTimestamp(ms){
   return new Date(ms).toISOString().replace('T', ' ').replace('Z', ' UTC');
 }
-function formatUTCTimeShort(ms){
+// Local time (the viewer's own timezone), not UTC — unlike the title's full millisecond-accurate
+// UTC timestamp above, this is the short label drawn beside a severe point, meant for someone
+// glancing at the chart to place it against their own clock rather than doing a UTC conversion.
+function formatLocalTimeShort(ms){
   var d = new Date(ms);
-  return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') + ':' + String(d.getUTCSeconds()).padStart(2, '0') + ' UTC';
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
 }
 
 function niceCeil(value){
@@ -151,7 +154,7 @@ export function renderLatencyLineChart(containerEl, config){
       var onRightHalf = x > plotLeft + plotWidth / 2;
       var labelX = onRightHalf ? x - (r + 8) : x + (r + 8);
       var anchor = onRightHalf ? 'end' : 'start';
-      var labelText = valueFormatter(p.rtt) + '  ' + formatUTCTimeShort(p.t);
+      var labelText = valueFormatter(p.rtt) + '  ' + formatLocalTimeShort(p.t);
       labelHTML = '<text x="' + labelX + '" y="' + (y + 4) + '" font-size="10" font-weight="600" text-anchor="' + anchor + '" style="fill:' + color + ';">' + escapeHTML(labelText) + '</text>';
     }
 

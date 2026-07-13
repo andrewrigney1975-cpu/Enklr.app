@@ -170,7 +170,7 @@
 <div class="kf-overlay hidden" id="dbLatencyModalOverlay">
   <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
     <div class="kf-modal-header">
-      <h2>Database Latency (live)</h2>
+      <h2>APM - Database Latency (live)</h2>
       <div class="kf-modal-header-actions">
         <span id="dbLatencyModalSummary" style="font-size:12px;color:var(--kf-text-secondary);margin-right:8px;"></span>
         <button class="kf-btn kf-btn-ghost" id="dbLatencyModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
@@ -183,6 +183,27 @@
         <span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-danger);"></span>Severely above average / failed</span>
       </div>
       <div id="dbLatencyModalChartInner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Web App Responsiveness (big view) -->
+<div class="kf-overlay hidden" id="webappLatencyModalOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>APM - Web App Responsiveness (live)</h2>
+      <div class="kf-modal-header-actions">
+        <span id="webappLatencyModalSummary" style="font-size:12px;color:var(--kf-text-secondary);margin-right:8px;"></span>
+        <button class="kf-btn kf-btn-ghost" id="webappLatencyModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-legend">
+        <span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-blue);"></span>Normal</span>
+        <span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-orange-fg);"></span>Above average</span>
+        <span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-danger);"></span>Severely above average</span>
+      </div>
+      <div id="webappLatencyModalChartInner"></div>
     </div>
   </div>
 </div>

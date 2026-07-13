@@ -14,6 +14,22 @@ dashboardRouter.get('/dashboard/db-ping', asyncRoute(async (_req, res) => {
   res.json({ ok: true });
 }));
 
+// Backs the Dashboard's live "APM - Web App Responsiveness" chart (web/js/features/
+// webapp-latency-monitor.js) — reads real Real User Monitoring samples the main Enkl app's own
+// frontend reports on every real page load (features/page-load-telemetry.js there, written via its
+// TelemetryController) directly out of the shared Postgres database, same cross-app read pattern
+// already used for the Projects/Contracts stat tiles above. Returns the whole rolling window every
+// call (matches the client's own MAX_HISTORY/WINDOW_MINUTES retention) rather than an incremental
+// diff — simplest, and cheap enough at this data volume/cadence.
+dashboardRouter.get('/dashboard/webapp-latency', asyncRoute(async (_req, res) => {
+  const { rows } = await pool.query(`
+    SELECT "RecordedAt" AS recorded_at, "DurationMs" AS duration_ms FROM "PageLoadTimings"
+    WHERE "RecordedAt" > now() - interval '25 minutes'
+    ORDER BY "RecordedAt"
+  `);
+  res.json({ samples: rows.map((r) => ({ t: new Date(r.recorded_at).getTime(), ms: Number(r.duration_ms) })) });
+}));
+
 dashboardRouter.get('/dashboard', asyncRoute(async (_req, res) => {
   const { rows } = await pool.query(`
     SELECT

@@ -6,7 +6,8 @@ import { formatMoney, formatDate, escapeHtml } from '../format.js';
 import { parseISODateUTC, toISODateUTC, addDaysUTC, bucketDailySeries, GRANULARITY_CONFIG, GRANULARITY_ORDER } from '../features/time-buckets.js';
 import { renderBucketedChart } from '../charts/bucketed-chart.js';
 import { toggleExportAsPanel, exportSvgElementAsSvgFile, exportSvgElementAsPng } from '../features/svg-export.js';
-import { startDbLatencyMonitor, redrawDbLatencyMonitor, openDbLatencyModal } from '../features/db-latency-monitor.js';
+import { startDbLatencyMonitor, stopDbLatencyMonitor, redrawDbLatencyMonitor, openDbLatencyModal } from '../features/db-latency-monitor.js';
+import { startWebappLatencyMonitor, stopWebappLatencyMonitor, redrawWebappLatencyMonitor, openWebappLatencyModal } from '../features/webapp-latency-monitor.js';
 
 function defaultRangeForGranularity(granularity){
   var today = new Date();
@@ -227,9 +228,47 @@ window.addEventListener('resize', function(){
   resizeRedrawTimer = setTimeout(function(){
     activityWidget.redraw();
     revenueWidget.redraw();
+    // Redrawing the inactive one is a harmless no-op (see render()'s zero-targets branch) — simpler
+    // than tracking which is active just for this.
     redrawDbLatencyMonitor();
+    redrawWebappLatencyMonitor();
   }, 150);
 });
+
+/* Single APM panel, one chart visible at a time — switching stops the outgoing monitor (so an
+   unwatched chart never keeps polling in the background) and starts the incoming one on the SAME
+   shared chart/summary elements. Module-level so the toggle position survives navigating away from
+   and back to the Dashboard view within the same page load (matching the monitors' own history,
+   which persists the same way) — only a full page reload resets it to the default. */
+var APM_CHARTS = {
+  db: {
+    title: 'APM - Database Latency (live)',
+    start: startDbLatencyMonitor,
+    stop: stopDbLatencyMonitor,
+    openModal: openDbLatencyModal
+  },
+  webapp: {
+    title: 'APM - Web App Responsiveness (live)',
+    start: startWebappLatencyMonitor,
+    stop: stopWebappLatencyMonitor,
+    openModal: openWebappLatencyModal
+  }
+};
+var activeApmKey = 'db';
+
+function reflectActiveApmChartInUI(){
+  document.getElementById('apmChartTitle').textContent = APM_CHARTS[activeApmKey].title;
+  document.getElementById('apmToggleDbBtn').classList.toggle('active', activeApmKey === 'db');
+  document.getElementById('apmToggleWebappBtn').classList.toggle('active', activeApmKey === 'webapp');
+}
+
+function switchApmChart(key){
+  if(key === activeApmKey) return;
+  APM_CHARTS[activeApmKey].stop();
+  activeApmKey = key;
+  reflectActiveApmChartInUI();
+  APM_CHARTS[key].start(document.getElementById('apmChartInner'), document.getElementById('apmSummary'));
+}
 
 export async function renderDashboard(root){
   root.innerHTML = '<div class="kf-view"><p style="color:var(--kf-text-faint);">Loading…</p></div>';
@@ -267,7 +306,30 @@ export async function renderDashboard(root){
       '<div class="kf-view-header"><h1 class="kf-view-title">Dashboard</h1></div>' +
       '<div class="kf-stat-grid">' + tiles.map(statTileHTML).join('') + '</div>' +
       '<div class="kf-stat-grid">' + projectTiles.map(statTileHTML).join('') + '</div>' +
-      '<div class="kf-panel">' +
+      '<div class="kf-panel kf-chart-panel">' +
+        '<div class="kf-panel-header">' +
+          '<div class="kf-panel-header-row">' +
+            '<span id="apmChartTitle">APM - Database Latency (live)</span>' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<div class="kf-apm-toggle">' +
+                '<button type="button" class="kf-apm-toggle-btn active" id="apmToggleDbBtn">DB Latency</button>' +
+                '<button type="button" class="kf-apm-toggle-btn" id="apmToggleWebappBtn">Web App Responsiveness</button>' +
+              '</div>' +
+              '<span id="apmSummary" style="font-size:12px;color:var(--kf-text-secondary);font-weight:400;"></span>' +
+              '<button class="kf-btn kf-btn-ghost" id="apmExpandBtn" title="Open in a bigger view"><span class="kf-icon" data-icon="fit" data-size="14"></span></button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="kf-chart-inner">' +
+          '<div class="kf-legend">' +
+            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-blue);"></span>Normal</span>' +
+            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-orange-fg);"></span>Above average</span>' +
+            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-danger);"></span>Severely above average</span>' +
+          '</div>' +
+          '<div id="apmChartInner"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="kf-panel" style="margin-top:20px;">' +
         '<div class="kf-panel-header">Recently updated contracts</div>' +
         (rows
           ? '<table class="kf-table"><thead><tr><th>Organisation</th><th>Contract</th><th>Status</th><th>Term</th><th>Value</th></tr></thead><tbody>' + rows + '</tbody></table>'
@@ -277,34 +339,20 @@ export async function renderDashboard(root){
         activityWidget.panelHTML() +
         revenueWidget.panelHTML() +
       '</div>' +
-      '<div class="kf-panel kf-chart-panel" style="margin-top:20px;">' +
-        '<div class="kf-panel-header">' +
-          '<div class="kf-panel-header-row">' +
-            '<span>Database Latency (live)</span>' +
-            '<div style="display:flex;align-items:center;gap:10px;">' +
-              '<span id="dbLatencySummary" style="font-size:12px;color:var(--kf-text-secondary);font-weight:400;"></span>' +
-              '<button class="kf-btn kf-btn-ghost" id="dbLatencyExpandBtn" title="Open in a bigger view"><span class="kf-icon" data-icon="fit" data-size="14"></span></button>' +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="kf-chart-inner">' +
-          '<div class="kf-legend">' +
-            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-blue);"></span>Normal</span>' +
-            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-orange-fg);"></span>Above average</span>' +
-            '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:var(--kf-danger);"></span>Severely above average / failed</span>' +
-          '</div>' +
-          '<div id="dbLatencyChartInner"></div>' +
-        '</div>' +
-      '</div>' +
     '</div>';
 
   hydrateIcons(root);
 
   activityWidget.wire();
   revenueWidget.wire();
-  document.getElementById('dbLatencyExpandBtn').addEventListener('click', openDbLatencyModal);
+  document.getElementById('apmToggleDbBtn').addEventListener('click', function(){ switchApmChart('db'); });
+  document.getElementById('apmToggleWebappBtn').addEventListener('click', function(){ switchApmChart('webapp'); });
+  document.getElementById('apmExpandBtn').addEventListener('click', function(){ APM_CHARTS[activeApmKey].openModal(); });
 
   await Promise.all([activityWidget.fetchAndRender(), revenueWidget.fetchAndRender()]);
 
-  startDbLatencyMonitor(document.getElementById('dbLatencyChartInner'), document.getElementById('dbLatencySummary'));
+  // Reflects whichever chart was active last time (module-level state — see APM_CHARTS's own
+  // comment), not always "db", so revisiting the Dashboard doesn't silently switch the chart back.
+  reflectActiveApmChartInUI();
+  APM_CHARTS[activeApmKey].start(document.getElementById('apmChartInner'), document.getElementById('apmSummary'));
 }
