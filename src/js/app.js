@@ -6,6 +6,7 @@ import { getCurrentProject } from './store.js';
 import { ui, toast, resetFilters, renderThemeToggleIcon, toggleTheme, setThemeDeps, relocateViewButtonsForViewport, toggleSideNav, toggleMobileDrawer, closeMobileDrawer, isMobileDrawerOpen } from './ui.js';
 import { hydrateIcons } from './icons.js';
 import { setOnAuthExpired, setOnMustChangePassword, clearToken, ssoLookupApi } from './api.js';
+import { reportPageLoadTiming } from './features/page-load-telemetry.js';
 
 /* ---- Mutations ---- */
 import { deleteProject, closeAllTaskTypeIconPanels, setMutationsToast } from './mutations.js';
@@ -1538,6 +1539,7 @@ function init(){
   openTaskFromHashIfPresent();
   handleSsoCallbackIfPresent();
   applyOpeningExperience();
+  reportPageLoadTiming(); // last step of init() — see page-load-telemetry.js for why here specifically
 
   // Reconciles a still-logged-in returning browser the same way the interactive login flow does
   // (see the serverLoginSubmitBtn handler above) — previously this only ran right after an

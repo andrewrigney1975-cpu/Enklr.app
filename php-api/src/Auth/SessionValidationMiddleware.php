@@ -60,7 +60,12 @@ final class SessionValidationMiddleware implements MiddlewareInterface
 
             $isMutating = in_array(strtoupper($request->getMethod()), self::MUTATING_METHODS, true);
             $isChangePasswordRoute = str_starts_with($request->getUri()->getPath(), '/api/auth/change-password');
-            if ($isMutating && !$isChangePasswordRoute && (bool) $current['MustChangePassword']) {
+            // TelemetryController is anonymous and never checks the caller's identity — but this
+            // middleware runs for ANY request whose attached token happens to decode successfully
+            // (regardless of whether the endpoint it's hitting requires auth), so a signed-in browser
+            // with MustChangePassword set would otherwise have its page-load beacon blocked here too.
+            $isTelemetryRoute = str_starts_with($request->getUri()->getPath(), '/api/telemetry');
+            if ($isMutating && !$isChangePasswordRoute && !$isTelemetryRoute && (bool) $current['MustChangePassword']) {
                 $response = new Response(403);
                 $response->getBody()->write(json_encode([
                     'code' => 'must_change_password',

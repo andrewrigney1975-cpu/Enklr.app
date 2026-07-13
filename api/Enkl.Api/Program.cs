@@ -86,6 +86,7 @@ builder.Services.AddScoped<SamlService>();
 builder.Services.AddScoped<OrganisationSsoConfigService>();
 builder.Services.AddScoped<ScimUserService>();
 builder.Services.AddScoped<ScimGroupService>();
+builder.Services.AddScoped<TelemetryService>();
 builder.Services.AddSingleton<SseBroadcaster>();
 builder.Services.AddSingleton<SsoExchangeCodeStore>();
 builder.Services.AddSingleton<SamlRequestIdStore>();
@@ -142,6 +143,19 @@ builder.Services.AddRateLimiter(options =>
         factory: _ => new SlidingWindowRateLimiterOptions
         {
             PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow = 4,
+            QueueLimit = 0
+        }));
+    // TelemetryController's anonymous page-load beacon: a real browser fires this at most once per
+    // page load, so a generous per-IP allowance (not "auth"'s brute-force-tuned 10/min) still leaves
+    // headroom for someone with several tabs/reloads open, while still bounding an unauthenticated
+    // write endpoint against being flooded.
+    options.AddPolicy("telemetry", httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
             Window = TimeSpan.FromMinutes(1),
             SegmentsPerWindow = 4,
             QueueLimit = 0
@@ -258,7 +272,13 @@ app.Use(async (context, next) =>
 
             var isMutating = mutatingHttpMethods.Contains(context.Request.Method);
             var isChangePasswordRoute = context.Request.Path.StartsWithSegments("/api/auth/change-password");
-            if (isMutating && !isChangePasswordRoute && current.MustChangePassword)
+            // TelemetryController is [AllowAnonymous] and never checks the caller's identity at all —
+            // but this middleware runs for ANY request whose attached token happens to authenticate
+            // (regardless of whether the endpoint it's hitting requires auth), so a signed-in browser
+            // with MustChangePassword set would otherwise have its page-load beacon blocked here even
+            // though the beacon has nothing to do with that account's password state.
+            var isTelemetryRoute = context.Request.Path.StartsWithSegments("/api/telemetry");
+            if (isMutating && !isChangePasswordRoute && !isTelemetryRoute && current.MustChangePassword)
             {
                 context.Response.ContentType = "application/json";
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;

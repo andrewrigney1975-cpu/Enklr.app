@@ -32,6 +32,7 @@ use Enkl\Api\Controllers\ScimUsersController;
 use Enkl\Api\Controllers\TasksController;
 use Enkl\Api\Controllers\TaskTypesController;
 use Enkl\Api\Controllers\TeamsCommitteesController;
+use Enkl\Api\Controllers\TelemetryController;
 use Enkl\Api\Controllers\TemplatesController;
 use Enkl\Api\Controllers\ToDoController;
 use Slim\App;
@@ -71,6 +72,12 @@ function registerRoutes(App $app): void
     // ---- Migration (deliberately anonymous — bootstrapping, see MigrationController.cs's own note;
     // rate-limited — H1 — since it was also a plausible unauthenticated resource-exhaustion target) ----
     $app->post('/api/migration/projects', [MigrationController::class, 'migrate'])->add(RateLimitMiddleware::class);
+
+    // ---- Telemetry (deliberately anonymous — a fire-and-forget RUM beacon from every page load,
+    // signed in or not; its own "telemetry" rate-limit policy, more generous than "auth"'s
+    // brute-force-tuned limit — see RateLimitMiddleware.php's own note) ----
+    $app->post('/api/telemetry/page-load', [TelemetryController::class, 'reportPageLoad'])
+        ->add(new RateLimitMiddleware('telemetry', 30));
 
     // ---- SAML SSO (deliberately anonymous — nothing here can be gated behind a JWT, since the
     // whole point is to ISSUE one; see SamlController.php's own note) ----

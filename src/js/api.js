@@ -178,6 +178,13 @@ export function ssoExchangeApi(code){
   return apiFetch('/auth/sso-exchange', {method: 'POST', body: JSON.stringify({code: code})});
 }
 
+/* Anonymous, unauthenticated real-user-monitoring beacon — see features/page-load-telemetry.js for
+   what durationMs measures and why. Works identically whether or not this browser happens to have a
+   token attached (TelemetryController never looks at it either way). */
+export function reportPageLoadTimingApi(durationMs){
+  return apiFetch('/telemetry/page-load', {method: 'POST', body: JSON.stringify({durationMs: durationMs})});
+}
+
 export function getMyOrganisationApi(){
   return apiFetch('/organisations/me', {method: 'GET'});
 }
