@@ -1243,6 +1243,13 @@ function wireEvents(){
       updateHeaderButtonVisibilitySetting('changeAuditing', false);
       return;
     }
+    /* The warning is about local storage growth — the audit log is stored in the server's own
+       database for a cloud project, not this browser's localStorage, so the concern doesn't apply
+       there and the confirmation is skipped entirely. */
+    if(isServerAuthoritative(getCurrentProject())){
+      updateHeaderButtonVisibilitySetting('changeAuditing', true);
+      return;
+    }
     /* Revert immediately — the browser already ticked the box on
        click — and only actually turn it on (re-checking it) once the
        user confirms, since this is the one App Setting whose "on"
