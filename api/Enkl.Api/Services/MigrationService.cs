@@ -230,7 +230,7 @@ public class MigrationService
                 userIdByNormalizedKey[normalized] = userId;
             }
 
-            var member = new ProjectMember { Id = Guid.NewGuid(), ProjectId = projectId, UserId = userId, Color = m.Color, Role = m.Role };
+            var member = new ProjectMember { Id = Guid.NewGuid(), ProjectId = projectId, UserId = userId, Color = m.Color, Role = m.Role, AllocatedFraction = m.AllocatedFraction is { } fraction ? Math.Clamp(fraction, 0, 100) : null };
             _db.ProjectMembers.Add(member);
             memberByOldId[m.Id] = member;
         }

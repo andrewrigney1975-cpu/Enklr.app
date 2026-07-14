@@ -76,6 +76,35 @@ public record PortfolioAggregateDto(
     int DocumentCount,
     int RetrospectiveCount);
 
+/// <summary>
+/// Draft resourcing (role + optional real person + allocated %) attached to a Portfolio Planner
+/// placeholder project — see ProjectResourcePlaceholder's own doc comment. Role is free-text, not
+/// constrained to ListDistinctRolesAsync's suggestions (that list only backs the frontend's
+/// autocomplete). UserId/UserDisplayName are both null for an unfilled role.
+/// </summary>
+public record ProjectResourcePlaceholderDto(Guid Id, Guid ProjectId, string Role, Guid? UserId, string? UserDisplayName, int AllocatedFraction);
+public record CreateProjectResourcePlaceholderRequest(string Role, Guid? UserId, int AllocatedFraction);
+public record UpdateProjectResourcePlaceholderRequest(string Role, Guid? UserId, int AllocatedFraction);
+
+/// <summary>
+/// Backs the Portfolio Dashboard's Resourcing section — org-wide (NOT scoped to the dashboard's
+/// selected-project picker, unlike every other DTO in this file), since placeholder resources only
+/// ever exist on inactive projects and the picker deliberately excludes those (see
+/// PortfolioService.GetResourcingSummaryAsync's doc comment for why this can't reuse
+/// PortfolioAggregateDto's project-id-scoped shape).
+/// </summary>
+public record UnfilledPlaceholderDto(Guid Id, Guid ProjectId, string ProjectName, string ProjectKey, string Role, int AllocatedFraction);
+
+/// <summary>
+/// One org member's combined workload: RealAllocationTotal sums their ProjectMember.AllocatedFraction
+/// across every real project they belong to; PlaceholderAllocationTotal sums every
+/// ProjectResourcePlaceholder row assigned to them across every draft project. Neither total is
+/// clamped to 100 — a sum over 100 IS the over-allocation signal this exists to surface.
+/// </summary>
+public record UserAllocationDto(Guid UserId, string DisplayName, int RealAllocationTotal, int PlaceholderAllocationTotal);
+
+public record PortfolioResourcingSummaryDto(List<UnfilledPlaceholderDto> UnfilledRoles, List<UserAllocationDto> UserAllocations);
+
 public record PortfolioActivityPointDto(DateOnly Date, int Count);
 
 /// <summary>Daily counts only (mirrors vendor-portal's own /dashboard/activity shape) — day/week/

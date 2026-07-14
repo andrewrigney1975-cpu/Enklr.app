@@ -26,7 +26,7 @@ public class OrganisationService
 
         return new OrganisationDetailDto(
             org.Id, org.Name,
-            org.Users.Select(u => new OrgUserDto(u.Id, u.Username, u.EmailAddress, u.DisplayName, u.IsOrgAdmin, u.CreatedAt)).ToList());
+            org.Users.Select(u => new OrgUserDto(u.Id, u.Username, u.EmailAddress, u.DisplayName, u.IsOrgAdmin, u.IsActive, u.CreatedAt)).ToList());
     }
 
     /// <summary>Returns false if the target user doesn't exist or belongs to a different Organisation
@@ -93,7 +93,7 @@ public class OrganisationService
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
-        return new OrgUserDto(user.Id, user.Username, user.EmailAddress, user.DisplayName, user.IsOrgAdmin, user.CreatedAt);
+        return new OrgUserDto(user.Id, user.Username, user.EmailAddress, user.DisplayName, user.IsOrgAdmin, user.IsActive, user.CreatedAt);
     }
 
     /// <summary>

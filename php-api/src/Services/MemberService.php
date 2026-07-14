@@ -108,7 +108,7 @@ final class MemberService
         $this->db->prepare('INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color") VALUES (:id, :pid, :uid, :color)')
             ->execute(['id' => $memberId, 'pid' => $projectId, 'uid' => $user['Id'], 'color' => $color]);
 
-        return ['id' => $memberId, 'userId' => $user['Id'], 'displayName' => $user['DisplayName'], 'email' => $user['EmailAddress'] ?? null, 'color' => $color, 'role' => null, 'reportsToId' => null];
+        return ['id' => $memberId, 'userId' => $user['Id'], 'displayName' => $user['DisplayName'], 'email' => $user['EmailAddress'] ?? null, 'color' => $color, 'role' => null, 'allocatedFraction' => null, 'reportsToId' => null];
     }
 
     public function update(string $projectId, string $memberId, array $request): ?array
@@ -135,6 +135,13 @@ final class MemberService
         $trimmedRole = trim((string) ($request['role'] ?? ''));
         $role = $trimmedRole === '' ? null : (strlen($trimmedRole) > 100 ? substr($trimmedRole, 0, 100) : $trimmedRole);
 
+        // Clamped the same way clampAllocatedFraction does client-side (date-utils.js) — null stays
+        // null (never assigned an allocation), anything else is rounded and clamped to [0, 100].
+        $allocatedFraction = $request['allocatedFraction'] ?? null;
+        if ($allocatedFraction !== null) {
+            $allocatedFraction = max(0, min(100, (int) round((float) $allocatedFraction)));
+        }
+
         // Same lenient fallback-to-null as mutations.js's setMemberReportsTo — a self-reference or a
         // target that isn't (or is no longer) a member of this project quietly clears the field rather
         // than erroring, since the dropdown driving this should never offer an invalid option anyway.
@@ -149,10 +156,10 @@ final class MemberService
             $reportsToId = null;
         }
 
-        $this->db->prepare('UPDATE "ProjectMembers" SET "Role" = :role, "ReportsToId" = :reportsToId WHERE "Id" = :id')
-            ->execute(['role' => $role, 'reportsToId' => $reportsToId, 'id' => $memberId]);
+        $this->db->prepare('UPDATE "ProjectMembers" SET "Role" = :role, "AllocatedFraction" = :allocatedFraction, "ReportsToId" = :reportsToId WHERE "Id" = :id')
+            ->execute(['role' => $role, 'allocatedFraction' => $allocatedFraction, 'reportsToId' => $reportsToId, 'id' => $memberId]);
 
-        return ['id' => $memberId, 'userId' => $member['UserId'], 'displayName' => $displayName, 'email' => $member['UserEmailAddress'], 'color' => $member['Color'], 'role' => $role, 'reportsToId' => $reportsToId];
+        return ['id' => $memberId, 'userId' => $member['UserId'], 'displayName' => $displayName, 'email' => $member['UserEmailAddress'], 'color' => $member['Color'], 'role' => $role, 'allocatedFraction' => $allocatedFraction, 'reportsToId' => $reportsToId];
     }
 
     public function delete(string $projectId, string $memberId): bool

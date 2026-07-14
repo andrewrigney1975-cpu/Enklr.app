@@ -119,6 +119,45 @@ final class PortfolioController extends BaseController
         return $updated ? $this->noContent($response) : $this->notFound($response);
     }
 
+    public function listResources(Request $request, Response $response, array $args): Response
+    {
+        $resources = $this->service()->listResources($this->callerOrgId($request), $args['projectId']);
+        return $resources !== null ? $this->json($response, $resources) : $this->notFound($response);
+    }
+
+    public function addResource(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $resource = $this->service()->addResource($this->callerOrgId($request), $args['projectId'], $body);
+        return $resource !== null ? $this->json($response, $resource) : $this->notFound($response);
+    }
+
+    public function updateResource(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $resource = $this->service()->updateResource($this->callerOrgId($request), $args['projectId'], $args['resourceId'], $body);
+        return $resource !== null ? $this->json($response, $resource) : $this->notFound($response);
+    }
+
+    public function removeResource(Request $request, Response $response, array $args): Response
+    {
+        $removed = $this->service()->removeResource($this->callerOrgId($request), $args['projectId'], $args['resourceId']);
+        return $removed ? $this->noContent($response) : $this->notFound($response);
+    }
+
+    public function listRoles(Request $request, Response $response): Response
+    {
+        return $this->json($response, $this->service()->listDistinctRoles($this->callerOrgId($request)));
+    }
+
+    // GET, not POST — a pure read with no side effects, same MustChangePassword-gate-avoidance
+    // reasoning as getAggregate/getActivity above. Deliberately takes no project ids at all — see
+    // PortfolioService::getResourcingSummary's doc comment for why this is org-wide.
+    public function getResourcingSummary(Request $request, Response $response): Response
+    {
+        return $this->json($response, $this->service()->getResourcingSummary($this->callerOrgId($request)));
+    }
+
     // A single comma-joined string, not a repeated/bracketed array query param — see
     // PortfolioController.cs's matching GetActivity for why (ASP.NET Core and Slim/PHP parse
     // array-shaped query strings differently, and the frontend talks to either tier unchanged).

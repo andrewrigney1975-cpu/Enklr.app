@@ -3,19 +3,20 @@ import { ui, toast } from '../ui.js';
 import { getCurrentProject } from '../store.js';
 import { iconSvg } from '../icons.js';
 import { escapeHTML, renderBoard, renderAssigneeFilterChips } from '../views/board.js';
-import { memberInitials } from '../date-utils.js';
-import { addMember, renameMember, setMemberRole, setMemberReportsTo, removeMember, getTeamsCommitteesForMember } from '../mutations.js';
+import { memberInitials, clampAllocatedFraction } from '../date-utils.js';
+import { addMember, renameMember, setMemberRole, setMemberAllocatedFraction, setMemberReportsTo, removeMember, getTeamsCommitteesForMember } from '../mutations.js';
 import { getMemberById } from '../utils.js';
 import { confirmDialog } from './confirm.js';
 import { memberApi } from '../api.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+import { isTimeTrackingEnabled } from '../storage.js';
 
-/* Every PUT here sends the member's full current name/role/reportsToId together, even though the UI
-   edits them via three independent inline inputs — UpdateMemberRequest has no notion of "only this
-   one field changed", same shape every other entity's server-authoritative update already uses (see
-   modals/task-types.js's combined name+iconName PUT for the same reason). */
+/* Every PUT here sends the member's full current name/role/reportsToId/allocatedFraction together,
+   even though the UI edits them via independent inline inputs — UpdateMemberRequest has no notion of
+   "only this one field changed", same shape every other entity's server-authoritative update already
+   uses (see modals/task-types.js's combined name+iconName PUT for the same reason). */
 function buildServerMemberBody(m, overrides){
-  return Object.assign({name: m.name, role: m.role || null, reportsToId: m.reportsToId || null}, overrides || {});
+  return Object.assign({name: m.name, role: m.role || null, reportsToId: m.reportsToId || null, allocatedFraction: m.allocatedFraction != null ? m.allocatedFraction : null}, overrides || {});
 }
 
 export function openTeamModal(){
@@ -59,6 +60,7 @@ export function renderMemberList(){
     return;
   }
   populateRoleOptions(project);
+  var timeTrackingOn = isTimeTrackingEnabled(project);
   project.members.forEach(function(m){
     var row = document.createElement('div');
     row.className = 'kf-member-row';
@@ -67,6 +69,9 @@ export function renderMemberList(){
       '<span class="kf-avatar kf-avatar-md" style="background:' + m.color + ';">' + escapeHTML(memberInitials(m.name)) + '</span>' +
       '<input type="text" class="kf-member-name-input" value="' + escapeHTML(m.name) + '" maxlength="60" aria-label="Member name">' +
       '<input type="text" class="kf-member-role-input" value="' + escapeHTML(m.role || '') + '" maxlength="60" list="memberRoleOptions" placeholder="Role" aria-label="Member role">' +
+      (timeTrackingOn
+        ? '<input type="number" class="kf-member-allocated-fraction-input" min="0" max="100" step="1" value="' + (m.allocatedFraction != null ? m.allocatedFraction : '') + '" placeholder="%" title="Allocated fraction" aria-label="' + escapeHTML(m.name) + ' allocated fraction">'
+        : '') +
       '<button class="kf-btn kf-btn-ghost" data-action="remove-member" title="Remove from project">' + iconSvg('trash',14) + '</button>';
     var nameInput = row.querySelector('.kf-member-name-input');
     nameInput.addEventListener('change', async function(){
@@ -100,6 +105,24 @@ export function renderMemberList(){
       setMemberRole(project, m.id, roleInput.value);
       renderMemberList();
     });
+    var allocatedFractionInput = row.querySelector('.kf-member-allocated-fraction-input');
+    if(allocatedFractionInput){
+      allocatedFractionInput.addEventListener('change', async function(){
+        var clamped = clampAllocatedFraction(allocatedFractionInput.value);
+        if(isServerAuthoritative(project)){
+          try {
+            await memberApi.update(project.serverProjectId, m.id, buildServerMemberBody(m, {allocatedFraction: clamped}));
+            await refreshProjectFromServer(project.id);
+            renderMemberList();
+          } catch(e){
+            toast('Could not update allocated fraction on the server: ' + (e.message || 'unknown error'));
+          }
+          return;
+        }
+        setMemberAllocatedFraction(project, m.id, clamped);
+        renderMemberList();
+      });
+    }
     row.querySelector('[data-action="remove-member"]').addEventListener('click', function(){
       confirmDialog(
         'Remove ' + m.name + '?',

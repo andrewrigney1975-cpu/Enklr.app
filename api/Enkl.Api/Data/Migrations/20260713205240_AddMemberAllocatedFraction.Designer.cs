@@ -3,6 +3,7 @@ using System;
 using Enkl.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Enkl.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260713205240_AddMemberAllocatedFraction")]
+    partial class AddMemberAllocatedFraction
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -607,35 +610,6 @@ namespace Enkl.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectMembers");
-                });
-
-            modelBuilder.Entity("Enkl.Api.Domain.Entities.ProjectResourcePlaceholder", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AllocatedFraction")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("ProjectResourcePlaceholders");
                 });
 
             modelBuilder.Entity("Enkl.Api.Domain.Entities.ProjectTemplate", b =>
@@ -1622,24 +1596,6 @@ namespace Enkl.Api.Data.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("ReportsTo");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Enkl.Api.Domain.Entities.ProjectResourcePlaceholder", b =>
-                {
-                    b.HasOne("Enkl.Api.Domain.Entities.Project", "Project")
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Enkl.Api.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Project");
 
                     b.Navigation("User");
                 });

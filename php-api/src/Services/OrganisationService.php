@@ -27,7 +27,7 @@ final class OrganisationService
         }
 
         $stmt = $this->db->prepare(
-            'SELECT "Id", "Username", "EmailAddress", "DisplayName", "IsOrgAdmin", "CreatedAt" FROM "Users" WHERE "OrganisationId" = :id'
+            'SELECT "Id", "Username", "EmailAddress", "DisplayName", "IsOrgAdmin", "IsActive", "CreatedAt" FROM "Users" WHERE "OrganisationId" = :id'
         );
         $stmt->execute(['id' => $organisationId]);
         $users = array_map(static fn(array $u): array => [
@@ -36,6 +36,7 @@ final class OrganisationService
             'emailAddress' => $u['EmailAddress'],
             'displayName' => $u['DisplayName'],
             'isOrgAdmin' => (bool) $u['IsOrgAdmin'],
+            'isActive' => (bool) $u['IsActive'],
             'createdAt' => $u['CreatedAt'],
         ], $stmt->fetchAll());
 
@@ -121,6 +122,7 @@ final class OrganisationService
             'emailAddress' => $email,
             'displayName' => $displayName,
             'isOrgAdmin' => false,
+            'isActive' => true,
             'createdAt' => gmdate('Y-m-d\TH:i:s.v\Z'),
         ];
     }

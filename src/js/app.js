@@ -52,7 +52,7 @@ import { scheduleDocumentSuggestions } from './features/document-suggestions.js'
 import { openRisksOverlay, closeRisksOverlay, isRisksOverlayOpen, showRisksFormView, showRisksListView, renderRisksList, saveRiskFromModal, deleteRiskFromModal, updateRiskScorePreview } from './modals/risks.js';
 import { openHealthOverlay, closeHealthOverlay, isHealthOverlayOpen, cancelHealthGaugeAnimation } from './modals/health.js';
 import { openPortfolioDashboardOverlay, closePortfolioDashboardOverlay, isPortfolioDashboardOverlayOpen, onPortfolioProjectSelectionChanged, onPortfolioTimelineControlsChanged, onPortfolioActivityControlsChanged, toggleProjectFilterPanel, closeProjectFilterPanel, isProjectFilterPanelOpen, onPortfolioProjectSearchInput, onPortfolioTimelineBarPointerDown, closePortfolioProjectDatesModal, isPortfolioProjectDatesModalOpen, clearPortfolioProjectDatesInModal, savePortfolioProjectDatesFromModal } from './modals/portfolio-dashboard.js';
-import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories } from './modals/portfolio-planner.js';
+import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories, closePortfolioPlannerResourcesModal, isPortfolioPlannerResourcesModalOpen, addPortfolioPlannerResourceFromModal, onPortfolioPlannerResourcesListClick, onPortfolioPlannerResourcesListChange } from './modals/portfolio-planner.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
 import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen, showPrinciplesFormView, showPrinciplesListView, renderPrinciplesList, savePrincipleFromModal, deletePrincipleFromModal, switchPrinciplesTab, updatePrincipleShareFromModal } from './modals/principles.js';
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
@@ -358,6 +358,14 @@ function wireEvents(){
   document.getElementById('portfolioPlannerProjectDatesOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'portfolioPlannerProjectDatesOverlay') closePortfolioPlannerProjectDatesModal();
   });
+  document.getElementById('portfolioPlannerResourcesClose').addEventListener('click', closePortfolioPlannerResourcesModal);
+  document.getElementById('portfolioPlannerResourcesDoneBtn').addEventListener('click', closePortfolioPlannerResourcesModal);
+  document.getElementById('portfolioPlannerResourcesOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'portfolioPlannerResourcesOverlay') closePortfolioPlannerResourcesModal();
+  });
+  document.getElementById('portfolioPlannerResourceAddBtn').addEventListener('click', addPortfolioPlannerResourceFromModal);
+  document.getElementById('portfolioPlannerResourcesList').addEventListener('click', onPortfolioPlannerResourcesListClick);
+  document.getElementById('portfolioPlannerResourcesList').addEventListener('change', onPortfolioPlannerResourcesListChange);
   document.getElementById('healthBtn').addEventListener('click', openHealthOverlay);
   document.getElementById('healthClose').addEventListener('click', closeHealthOverlay);
   document.getElementById('healthOverlay').addEventListener('mousedown', function(e){
@@ -1434,6 +1442,7 @@ function wireEvents(){
     else if(isPortfolioDashboardOverlayOpen()) closePortfolioDashboardOverlay();
     else if(isPortfolioPlannerProjectDatesModalOpen()) closePortfolioPlannerProjectDatesModal();
     else if(isPortfolioPlannerAddProjectModalOpen()) closePortfolioPlannerAddProjectModal();
+    else if(isPortfolioPlannerResourcesModalOpen()) closePortfolioPlannerResourcesModal();
     else if(isPortfolioPlannerOverlayOpen()) closePortfolioPlannerOverlay();
     else if(isHealthOverlayOpen()){ cancelHealthGaugeAnimation(); closeHealthOverlay(); }
     else if(isAppSettingsOverlayOpen()) closeAppSettingsOverlay();

@@ -137,7 +137,7 @@ final class PortfolioService
         $retrospectiveCount = 0;
 
         $memberStmt = $this->db->prepare(<<<SQL
-            SELECT m."Id", m."UserId", u."DisplayName", u."EmailAddress", m."Color", m."Role", m."ReportsToId"
+            SELECT m."Id", m."UserId", u."DisplayName", u."EmailAddress", m."Color", m."Role", m."AllocatedFraction", m."ReportsToId"
             FROM "ProjectMembers" m JOIN "Users" u ON u."Id" = m."UserId"
             WHERE m."ProjectId" = :pid
         SQL);
@@ -160,7 +160,8 @@ final class PortfolioService
             foreach ($memberStmt->fetchAll() as $m) {
                 $members[] = [
                     'id' => $m['Id'], 'userId' => $m['UserId'], 'displayName' => $m['DisplayName'],
-                    'email' => $m['EmailAddress'], 'color' => $m['Color'], 'role' => $m['Role'], 'reportsToId' => $m['ReportsToId'],
+                    'email' => $m['EmailAddress'], 'color' => $m['Color'], 'role' => $m['Role'],
+                    'allocatedFraction' => $m['AllocatedFraction'] !== null ? (int) $m['AllocatedFraction'] : null, 'reportsToId' => $m['ReportsToId'],
                 ];
             }
 
@@ -406,6 +407,210 @@ final class PortfolioService
         $stmt = $this->db->prepare('UPDATE "PortfolioCategories" SET "SortOrder" = :sortOrder WHERE "Id" = :id AND "OrganisationId" = :orgId');
         $stmt->execute(['sortOrder' => $sortOrder, 'id' => $categoryId, 'orgId' => $organisationId]);
         return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Placeholder resourcing for one Portfolio Planner project — re-validates the owning project
+     * against the caller's org the same way updateProjectDates does, not validateProjectIds (that
+     * one's for the bulk multi-id read case only). Returns null (not an empty array) when the project
+     * itself doesn't belong to the caller's org, so the controller can tell "no resources yet" apart
+     * from "not your project" and return 404 for the latter.
+     */
+    public function listResources(string $organisationId, string $projectId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $projectId, 'orgId' => $organisationId]);
+        if ($stmt->fetch() === false) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(<<<SQL
+            SELECT r."Id", r."ProjectId", r."Role", r."UserId", r."AllocatedFraction", u."DisplayName" AS "UserDisplayName"
+            FROM "ProjectResourcePlaceholders" r
+            LEFT JOIN "Users" u ON u."Id" = r."UserId"
+            WHERE r."ProjectId" = :pid
+        SQL);
+        $stmt->execute(['pid' => $projectId]);
+        return array_map(static fn(array $r): array => [
+            'id' => $r['Id'], 'projectId' => $r['ProjectId'], 'role' => $r['Role'],
+            'userId' => $r['UserId'], 'userDisplayName' => $r['UserDisplayName'], 'allocatedFraction' => (int) $r['AllocatedFraction'],
+        ], $stmt->fetchAll());
+    }
+
+    public function addResource(string $organisationId, string $projectId, array $request): ?array
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $projectId, 'orgId' => $organisationId]);
+        if ($stmt->fetch() === false) {
+            return null;
+        }
+
+        $trimmedRole = trim((string) ($request['role'] ?? ''));
+        if ($trimmedRole === '') {
+            $trimmedRole = 'Unspecified';
+        }
+        if (strlen($trimmedRole) > 100) {
+            $trimmedRole = substr($trimmedRole, 0, 100);
+        }
+        $allocatedFraction = max(0, min(100, (int) round((float) ($request['allocatedFraction'] ?? 0))));
+        $userId = $this->validateOrgUserId($organisationId, $request['userId'] ?? null);
+
+        $resourceId = Uuid::v4();
+        $this->db->prepare('INSERT INTO "ProjectResourcePlaceholders" ("Id", "ProjectId", "Role", "UserId", "AllocatedFraction") VALUES (:id, :pid, :role, :userId, :allocatedFraction)')
+            ->execute(['id' => $resourceId, 'pid' => $projectId, 'role' => $trimmedRole, 'userId' => $userId, 'allocatedFraction' => $allocatedFraction]);
+
+        $displayName = $userId !== null ? $this->fetchUserDisplayName($userId) : null;
+        return ['id' => $resourceId, 'projectId' => $projectId, 'role' => $trimmedRole, 'userId' => $userId, 'userDisplayName' => $displayName, 'allocatedFraction' => $allocatedFraction];
+    }
+
+    /**
+     * Edits an existing placeholder row's role/person/allocation in place — the Resources overlay's
+     * rows are editable, not just add-then-remove (see modals/portfolio-planner.js).
+     */
+    public function updateResource(string $organisationId, string $projectId, string $resourceId, array $request): ?array
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $projectId, 'orgId' => $organisationId]);
+        if ($stmt->fetch() === false) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare('SELECT 1 FROM "ProjectResourcePlaceholders" WHERE "Id" = :id AND "ProjectId" = :pid');
+        $stmt->execute(['id' => $resourceId, 'pid' => $projectId]);
+        if ($stmt->fetch() === false) {
+            return null;
+        }
+
+        $trimmedRole = trim((string) ($request['role'] ?? ''));
+        if ($trimmedRole === '') {
+            $trimmedRole = 'Unspecified';
+        }
+        if (strlen($trimmedRole) > 100) {
+            $trimmedRole = substr($trimmedRole, 0, 100);
+        }
+        $allocatedFraction = max(0, min(100, (int) round((float) ($request['allocatedFraction'] ?? 0))));
+        $userId = $this->validateOrgUserId($organisationId, $request['userId'] ?? null);
+
+        $this->db->prepare('UPDATE "ProjectResourcePlaceholders" SET "Role" = :role, "UserId" = :userId, "AllocatedFraction" = :allocatedFraction WHERE "Id" = :id')
+            ->execute(['role' => $trimmedRole, 'userId' => $userId, 'allocatedFraction' => $allocatedFraction, 'id' => $resourceId]);
+
+        $displayName = $userId !== null ? $this->fetchUserDisplayName($userId) : null;
+        return ['id' => $resourceId, 'projectId' => $projectId, 'role' => $trimmedRole, 'userId' => $userId, 'userDisplayName' => $displayName, 'allocatedFraction' => $allocatedFraction];
+    }
+
+    public function removeResource(string $organisationId, string $projectId, string $resourceId): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $projectId, 'orgId' => $organisationId]);
+        if ($stmt->fetch() === false) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare('DELETE FROM "ProjectResourcePlaceholders" WHERE "Id" = :id AND "ProjectId" = :pid');
+        $stmt->execute(['id' => $resourceId, 'pid' => $projectId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /** A supplied userId must belong to the caller's own org — same silently-drop-to-null stance
+     * createProject already uses for categoryId, rather than rejecting the whole request over a
+     * foreign-org id. */
+    private function validateOrgUserId(string $organisationId, ?string $userId): ?string
+    {
+        if ($userId === null || $userId === '') {
+            return null;
+        }
+        $stmt = $this->db->prepare('SELECT 1 FROM "Users" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $userId, 'orgId' => $organisationId]);
+        return $stmt->fetch() !== false ? $userId : null;
+    }
+
+    private function fetchUserDisplayName(string $userId): ?string
+    {
+        $stmt = $this->db->prepare('SELECT "DisplayName" FROM "Users" WHERE "Id" = :id');
+        $stmt->execute(['id' => $userId]);
+        $name = $stmt->fetchColumn();
+        return $name !== false ? $name : null;
+    }
+
+    /**
+     * Backs the Portfolio Dashboard's Resourcing section. Deliberately org-wide, not scoped to any
+     * client-supplied project id list — unlike every other method in this class, there's no
+     * "selected projects" concept here, because placeholder resources only ever exist on inactive
+     * projects and the Dashboard's own project picker deliberately excludes those, so scoping this
+     * to that picker's selection would make it permanently empty.
+     */
+    public function getResourcingSummary(string $organisationId): array
+    {
+        $realStmt = $this->db->prepare(<<<SQL
+            SELECT m."UserId", u."DisplayName", SUM(m."AllocatedFraction")::int AS "Total"
+            FROM "ProjectMembers" m
+            JOIN "Projects" p ON p."Id" = m."ProjectId"
+            JOIN "Users" u ON u."Id" = m."UserId"
+            WHERE p."OrganisationId" = :orgId AND m."AllocatedFraction" IS NOT NULL
+            GROUP BY m."UserId", u."DisplayName"
+        SQL);
+        $realStmt->execute(['orgId' => $organisationId]);
+
+        $placeholderStmt = $this->db->prepare(<<<SQL
+            SELECT r."UserId", u."DisplayName", SUM(r."AllocatedFraction")::int AS "Total"
+            FROM "ProjectResourcePlaceholders" r
+            JOIN "Projects" p ON p."Id" = r."ProjectId"
+            JOIN "Users" u ON u."Id" = r."UserId"
+            WHERE p."OrganisationId" = :orgId AND r."UserId" IS NOT NULL
+            GROUP BY r."UserId", u."DisplayName"
+        SQL);
+        $placeholderStmt->execute(['orgId' => $organisationId]);
+
+        $byUser = [];
+        foreach ($realStmt->fetchAll() as $row) {
+            $byUser[$row['UserId']] = ['displayName' => $row['DisplayName'], 'real' => (int) $row['Total'], 'placeholder' => 0];
+        }
+        foreach ($placeholderStmt->fetchAll() as $row) {
+            $existing = $byUser[$row['UserId']] ?? ['displayName' => $row['DisplayName'], 'real' => 0, 'placeholder' => 0];
+            $existing['placeholder'] = (int) $row['Total'];
+            $byUser[$row['UserId']] = $existing;
+        }
+
+        $userAllocations = array_map(
+            static fn(string $userId, array $v): array => [
+                'userId' => $userId, 'displayName' => $v['displayName'],
+                'realAllocationTotal' => $v['real'], 'placeholderAllocationTotal' => $v['placeholder'],
+            ],
+            array_keys($byUser), array_values($byUser)
+        );
+        usort($userAllocations, static fn(array $a, array $b): int =>
+            ($b['realAllocationTotal'] + $b['placeholderAllocationTotal']) <=> ($a['realAllocationTotal'] + $a['placeholderAllocationTotal']));
+
+        $unfilledStmt = $this->db->prepare(<<<SQL
+            SELECT r."Id", r."ProjectId", p."Name" AS "ProjectName", p."Key" AS "ProjectKey", r."Role", r."AllocatedFraction"
+            FROM "ProjectResourcePlaceholders" r
+            JOIN "Projects" p ON p."Id" = r."ProjectId"
+            WHERE p."OrganisationId" = :orgId AND r."UserId" IS NULL
+        SQL);
+        $unfilledStmt->execute(['orgId' => $organisationId]);
+        $unfilledRoles = array_map(static fn(array $r): array => [
+            'id' => $r['Id'], 'projectId' => $r['ProjectId'], 'projectName' => $r['ProjectName'], 'projectKey' => $r['ProjectKey'],
+            'role' => $r['Role'], 'allocatedFraction' => (int) $r['AllocatedFraction'],
+        ], $unfilledStmt->fetchAll());
+
+        return ['unfilledRoles' => $unfilledRoles, 'userAllocations' => $userAllocations];
+    }
+
+    /**
+     * The distinct, non-blank Role values already in use across every ProjectMember in the caller's
+     * org — backs the Resources overlay's role autocomplete (this is a suggestion list, not an
+     * enforced vocabulary; addResource above accepts any role string).
+     */
+    public function listDistinctRoles(string $organisationId): array
+    {
+        $stmt = $this->db->prepare(<<<SQL
+            SELECT DISTINCT m."Role" FROM "ProjectMembers" m
+            JOIN "Projects" p ON p."Id" = m."ProjectId"
+            WHERE p."OrganisationId" = :orgId AND m."Role" IS NOT NULL AND m."Role" != ''
+            ORDER BY m."Role"
+        SQL);
+        $stmt->execute(['orgId' => $organisationId]);
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
     /** The one place a client-supplied project id list is trusted at all: re-derived against the

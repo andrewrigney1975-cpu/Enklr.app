@@ -34,6 +34,7 @@ public class AppDbContext : DbContext
     public DbSet<RetrospectiveActionItem> RetrospectiveActionItems => Set<RetrospectiveActionItem>();
     public DbSet<PortfolioCategory> PortfolioCategories => Set<PortfolioCategory>();
     public DbSet<PageLoadTiming> PageLoadTimings => Set<PageLoadTiming>();
+    public DbSet<ProjectResourcePlaceholder> ProjectResourcePlaceholders => Set<ProjectResourcePlaceholder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

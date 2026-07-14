@@ -463,5 +463,31 @@ export var portfolioApi = {
   },
   updateCategorySortOrder: function(categoryId, sortOrder){
     return apiFetch('/organisations/me/portfolio/categories/' + categoryId + '/sort-order', {method: 'PUT', body: JSON.stringify({sortOrder: sortOrder})});
+  },
+  /* Backs the Portfolio Planner's Resources overlay — placeholder role+person+% resourcing for a
+     not-yet-real project. Role is free-text; listRoles() below only feeds the autocomplete, it's
+     never enforced server-side. userId is optional — null/omitted means an unfilled role. */
+  listResources: function(projectId){
+    return apiFetch('/organisations/me/portfolio/projects/' + projectId + '/resources', {method: 'GET'});
+  },
+  addResource: function(projectId, role, userId, allocatedFraction){
+    return apiFetch('/organisations/me/portfolio/projects/' + projectId + '/resources', {method: 'POST', body: JSON.stringify({role: role, userId: userId || null, allocatedFraction: allocatedFraction})});
+  },
+  updateResource: function(projectId, resourceId, role, userId, allocatedFraction){
+    return apiFetch('/organisations/me/portfolio/projects/' + projectId + '/resources/' + resourceId, {method: 'PUT', body: JSON.stringify({role: role, userId: userId || null, allocatedFraction: allocatedFraction})});
+  },
+  removeResource: function(projectId, resourceId){
+    return apiFetch('/organisations/me/portfolio/projects/' + projectId + '/resources/' + resourceId, {method: 'DELETE'});
+  },
+  /* The distinct, non-blank roles already in use across the org's real projects (ProjectMember.Role)
+     — a suggestion list for the Resources overlay's role input, not an enforced vocabulary. */
+  listRoles: function(){
+    return apiFetch('/organisations/me/portfolio/roles', {method: 'GET'});
+  },
+  /* Backs the Portfolio Dashboard's Resourcing section — GET, and deliberately org-wide (no
+     projectIds param at all), unlike every other call in this object — see
+     PortfolioService.GetResourcingSummaryAsync's doc comment for why. */
+  getResourcingSummary: function(){
+    return apiFetch('/organisations/me/portfolio/resourcing', {method: 'GET'});
   }
 };

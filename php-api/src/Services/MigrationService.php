@@ -168,7 +168,7 @@ final class MigrationService
             INSERT INTO "Users" ("Id", "OrganisationId", "Username", "NormalizedUsername", "EmailAddress", "NormalizedEmailAddress", "PasswordHash", "DisplayName", "MustChangePassword", "IsOrgAdmin", "CreatedAt")
             VALUES (:id, :orgId, :username, :normalized, :email, :normalizedEmail, :hash, :displayName, true, :isAdmin, now())
         SQL);
-        $insertMemberStmt = $this->db->prepare('INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color", "Role") VALUES (:id, :pid, :uid, :color, :role)');
+        $insertMemberStmt = $this->db->prepare('INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color", "Role", "AllocatedFraction") VALUES (:id, :pid, :uid, :color, :role, :allocatedFraction)');
         $backfillEmailStmt = $this->db->prepare('UPDATE "Users" SET "EmailAddress" = :email, "NormalizedEmailAddress" = :normalizedEmail WHERE "Id" = :id');
 
         foreach ($members as $m) {
@@ -233,8 +233,15 @@ final class MigrationService
                 $userIdByNormalizedKey[$normalized] = $userId;
             }
 
+            // Clamped the same way MemberService::update does — null stays null (never assigned an
+            // allocation), anything else is rounded and clamped to [0, 100].
+            $allocatedFraction = $m['allocatedFraction'] ?? null;
+            if ($allocatedFraction !== null) {
+                $allocatedFraction = max(0, min(100, (int) round((float) $allocatedFraction)));
+            }
+
             $memberId = Uuid::v4();
-            $insertMemberStmt->execute(['id' => $memberId, 'pid' => $projectId, 'uid' => $userIdByNormalizedKey[$normalized], 'color' => $m['color'], 'role' => $m['role'] ?? null]);
+            $insertMemberStmt->execute(['id' => $memberId, 'pid' => $projectId, 'uid' => $userIdByNormalizedKey[$normalized], 'color' => $m['color'], 'role' => $m['role'] ?? null, 'allocatedFraction' => $allocatedFraction]);
             $memberByOldId[$m['id']] = $memberId;
         }
 

@@ -29,6 +29,11 @@ var _selectedProjectIds = [];
 var _projectSearchTerm = '';
 var _aggregate = null;
 var _activity = null;
+// Org-wide, independent of _selectedProjectIds/the project picker entirely — see
+// PortfolioService.GetResourcingSummaryAsync's doc comment for why (placeholder resources only ever
+// exist on inactive projects, which the picker below deliberately excludes). Fetched once when the
+// dashboard opens and re-rendered (unchanged) on every renderAll() the same as the summary boxes.
+var _resourcingSummary = null;
 
 var _timelineState = {granularity: 'month', start: null, end: null};
 var _activityChartState = {granularity: 'week', start: null, end: null};
@@ -62,6 +67,16 @@ function loadPortfolioProjectsAndRender(){
     refreshPortfolioData();
   }, function(){
     pickerEl.innerHTML = '<div class="kf-health-empty">Could not load projects.</div>';
+  });
+
+  _resourcingSummary = null;
+  renderResourcingSummary();
+  portfolioApi.getResourcingSummary().then(function(summary){
+    _resourcingSummary = summary;
+    renderResourcingSummary();
+  }, function(){
+    document.getElementById('portfolioUnfilledRoles').innerHTML = '<div class="kf-health-empty">Could not load resourcing data.</div>';
+    document.getElementById('portfolioUserAllocations').innerHTML = '';
   });
 }
 
@@ -258,10 +273,67 @@ function renderAll(){
   renderGauges();
   renderRiskMatrix();
   renderTopMembers();
+  renderResourcingSummary();
   renderTimelineControls();
   renderTimelineChart();
   renderActivityControls();
   renderActivityChart();
+}
+
+/* =========================================================
+   RESOURCING — org-wide unfilled-role + individual-allocation summary, entirely independent of the
+   project picker above (see _resourcingSummary's own comment for why). Each user's bar plots their
+   real ProjectMember.AllocatedFraction total and their planned ProjectResourcePlaceholder total as
+   two stacked segments against a scale that always shows at least up to 150%, with a marker line at
+   the 100% mark — so a combined bar crossing that line is the at-a-glance "this person is
+   over-committed" signal, not just a plain number.
+   ========================================================= */
+function renderResourcingSummary(){
+  var unfilledEl = document.getElementById('portfolioUnfilledRoles');
+  var userAllocEl = document.getElementById('portfolioUserAllocations');
+  if(!_resourcingSummary){
+    unfilledEl.innerHTML = '<div class="kf-health-empty">Loading…</div>';
+    userAllocEl.innerHTML = '';
+    return;
+  }
+
+  var unfilled = _resourcingSummary.unfilledRoles || [];
+  if(unfilled.length === 0){
+    unfilledEl.innerHTML = '<div class="kf-health-empty">No unfilled placeholder roles.</div>';
+  } else {
+    unfilledEl.innerHTML = unfilled.map(function(r){
+      return '<div class="kf-portfolio-resourcing-unfilled-row">' +
+        '<span class="kf-dep-key">' + escapeHTML(r.projectKey) + '</span>' +
+        '<span class="kf-portfolio-planner-project-name">' + escapeHTML(r.projectName) + '</span>' +
+        '<span class="kf-portfolio-resourcing-role">' + escapeHTML(r.role) + '</span>' +
+        '<span class="kf-portfolio-resourcing-pct">' + r.allocatedFraction + '% allocated</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  var users = _resourcingSummary.userAllocations || [];
+  if(users.length === 0){
+    userAllocEl.innerHTML = '<div class="kf-health-empty">No allocation figures recorded yet — set an Allocated Fraction on a team member, or assign someone to a placeholder resource, to see them here.</div>';
+  } else {
+    userAllocEl.innerHTML = users.map(function(u){
+      var total = u.realAllocationTotal + u.placeholderAllocationTotal;
+      var scaleMax = Math.max(150, total);
+      var realPct = (u.realAllocationTotal / scaleMax) * 100;
+      var placeholderPct = (u.placeholderAllocationTotal / scaleMax) * 100;
+      var hundredMarkPct = (100 / scaleMax) * 100;
+      var overBadge = total > 100 ? '<span class="kf-portfolio-resourcing-over-badge">Over-allocated</span>' : '';
+      return '<div class="kf-portfolio-resourcing-user-row">' +
+        '<span class="kf-portfolio-resourcing-user-name">' + escapeHTML(u.displayName) + '</span>' +
+        '<span class="kf-portfolio-resourcing-bar-track">' +
+          '<span class="kf-portfolio-resourcing-bar-real" style="width:' + realPct + '%;"></span>' +
+          '<span class="kf-portfolio-resourcing-bar-placeholder" style="width:' + placeholderPct + '%;left:' + realPct + '%;"></span>' +
+          '<span class="kf-portfolio-resourcing-bar-marker" style="left:' + hundredMarkPct + '%;"></span>' +
+        '</span>' +
+        '<span class="kf-portfolio-resourcing-total">' + total + '%<span class="kf-portfolio-resourcing-split"> (' + u.realAllocationTotal + '% currently active + ' + u.placeholderAllocationTotal + '% planned)</span></span>' +
+        overBadge +
+      '</div>';
+    }).join('');
+  }
 }
 
 function renderSummaryBoxes(){

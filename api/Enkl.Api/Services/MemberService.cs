@@ -108,7 +108,7 @@ public class MemberService
         _db.ProjectMembers.Add(member);
         await _db.SaveChangesAsync();
 
-        return new MemberDto(member.Id, member.UserId, user.DisplayName, user.EmailAddress, member.Color, member.Role, member.ReportsToId);
+        return new MemberDto(member.Id, member.UserId, user.DisplayName, user.EmailAddress, member.Color, member.Role, member.AllocatedFraction, member.ReportsToId);
     }
 
     public async Task<MemberDto?> UpdateAsync(Guid projectId, Guid memberId, UpdateMemberRequest request)
@@ -125,6 +125,10 @@ public class MemberService
         var trimmedRole = (request.Role ?? "").Trim();
         member.Role = trimmedRole.Length == 0 ? null : (trimmedRole.Length > 100 ? trimmedRole[..100] : trimmedRole);
 
+        // Clamped the same way clampAllocatedFraction does client-side (date-utils.js) — null stays
+        // null (never assigned an allocation), anything else is rounded and clamped to [0, 100].
+        member.AllocatedFraction = request.AllocatedFraction is { } fraction ? Math.Clamp(fraction, 0, 100) : null;
+
         // Same lenient fallback-to-null as mutations.js's setMemberReportsTo — a self-reference or a
         // target that isn't (or is no longer) a member of this project quietly clears the field
         // rather than erroring, since the dropdown driving this should never offer an invalid option
@@ -140,7 +144,7 @@ public class MemberService
         }
 
         await _db.SaveChangesAsync();
-        return new MemberDto(member.Id, member.UserId, member.User.DisplayName, member.User.EmailAddress, member.Color, member.Role, member.ReportsToId);
+        return new MemberDto(member.Id, member.UserId, member.User.DisplayName, member.User.EmailAddress, member.Color, member.Role, member.AllocatedFraction, member.ReportsToId);
     }
 
     public async Task<bool> DeleteAsync(Guid projectId, Guid memberId)

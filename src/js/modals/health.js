@@ -294,7 +294,9 @@ export function renderHealthDashboard(){
       return '<div class="kf-health-top-member-row">' +
         '<span class="kf-health-top-member-rank">' + (idx + 1) + '</span>' +
         '<span class="kf-avatar kf-avatar-sm" style="background:' + row.color + ';">' + escapeHTML(memberInitials(row.name)) + '</span>' +
-        '<span class="kf-health-top-member-name">' + escapeHTML(row.name) + (row.role ? ' <span class="kf-health-top-member-role">' + escapeHTML(row.role) + '</span>' : '') + '</span>' +
+        '<span class="kf-health-top-member-name">' + escapeHTML(row.name) +
+          (row.allocatedFraction != null ? ' <span class="kf-health-top-member-allocated">(' + row.allocatedFraction + '% allocated fraction)</span>' : '') +
+          (row.role ? ' <span class="kf-health-top-member-role">' + escapeHTML(row.role) + '</span>' : '') + '</span>' +
         '<span class="kf-health-top-member-bar-track"><span class="kf-health-top-member-bar-fill" style="width:' + barPct + '%;"></span></span>' +
         '<span class="kf-health-top-member-count">' + row.count + '</span>' +
       '</div>';

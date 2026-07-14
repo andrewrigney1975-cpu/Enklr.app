@@ -128,6 +128,49 @@ public class PortfolioController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("projects/{projectId:guid}/resources")]
+    public async Task<IActionResult> ListResources(Guid projectId)
+    {
+        var resources = await _portfolio.ListResourcesAsync(CallerOrgId(), projectId);
+        return resources is null ? NotFound() : Ok(resources);
+    }
+
+    [HttpPost("projects/{projectId:guid}/resources")]
+    public async Task<IActionResult> AddResource(Guid projectId, CreateProjectResourcePlaceholderRequest request)
+    {
+        var resource = await _portfolio.AddResourceAsync(CallerOrgId(), projectId, request);
+        return resource is null ? NotFound() : Ok(resource);
+    }
+
+    [HttpPut("projects/{projectId:guid}/resources/{resourceId:guid}")]
+    public async Task<IActionResult> UpdateResource(Guid projectId, Guid resourceId, UpdateProjectResourcePlaceholderRequest request)
+    {
+        var resource = await _portfolio.UpdateResourceAsync(CallerOrgId(), projectId, resourceId, request);
+        return resource is null ? NotFound() : Ok(resource);
+    }
+
+    [HttpDelete("projects/{projectId:guid}/resources/{resourceId:guid}")]
+    public async Task<IActionResult> RemoveResource(Guid projectId, Guid resourceId)
+    {
+        var removed = await _portfolio.RemoveResourceAsync(CallerOrgId(), projectId, resourceId);
+        return removed ? NoContent() : NotFound();
+    }
+
+    [HttpGet("roles")]
+    public async Task<IActionResult> ListRoles()
+    {
+        return Ok(await _portfolio.ListDistinctRolesAsync(CallerOrgId()));
+    }
+
+    // GET, not POST — a pure read with no side effects, same MustChangePassword-gate-avoidance
+    // reasoning as GetAggregate/GetActivity above. Deliberately takes no project ids at all — see
+    // PortfolioService.GetResourcingSummaryAsync's doc comment for why this is org-wide.
+    [HttpGet("resourcing")]
+    public async Task<IActionResult> GetResourcingSummary()
+    {
+        return Ok(await _portfolio.GetResourcingSummaryAsync(CallerOrgId()));
+    }
+
     private static List<Guid> ParseProjectIds(string? projectIds) =>
         (projectIds ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

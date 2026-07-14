@@ -128,6 +128,19 @@ export function clampProgress(value){
   return n;
 }
 
+/* Allocated Fraction is an integer percentage clamped to [0, 100], unlike Progress it has a
+   meaningful "unset" state (a member with no allocation figure at all) — an empty/missing/
+   non-numeric value stays null rather than defaulting to 0, so "not yet assigned an allocation"
+   stays distinguishable from "explicitly allocated 0%". */
+export function clampAllocatedFraction(value){
+  if(value === null || value === '' || value === undefined) return null;
+  var n = Math.round(Number(value));
+  if(!isFinite(n)) return null;
+  if(n < 0) return 0;
+  if(n > 100) return 100;
+  return n;
+}
+
 /* Effort hours are decimal and non-negative, rounded to 2dp to avoid
    float drift. Anything missing, non-numeric, or negative falls back
    to 0 (not yet estimated/logged). */

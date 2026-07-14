@@ -1,7 +1,7 @@
 "use strict";
 import { toast } from '../ui.js';
 import { escapeHTML } from '../views/board.js';
-import { portfolioApi, isOrgAdmin } from '../api.js';
+import { portfolioApi, isOrgAdmin, getMyOrganisationApi } from '../api.js';
 import { PRIORITY_META, PRIORITY_ORDER } from '../config.js';
 import { confirmDialog } from './confirm.js';
 import { buildTimelineColumns, tlDateToPixel, tlPixelToDate } from '../views/timeline.js';
@@ -168,6 +168,7 @@ function renderPortfolioPlannerProjectRow(p){
     '<input type="date" class="kf-portfolio-planner-date-input" data-action="change-start-date" value="' + (p.startDate || '') + '" aria-label="Start date">' +
     '<input type="date" class="kf-portfolio-planner-date-input" data-action="change-end-date" value="' + (p.endDate || '') + '" aria-label="End date">' +
     '<select class="kf-portfolio-planner-category-select" data-action="change-category" aria-label="Category">' + categoryOptionsHTML + '</select>' +
+    '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-resources" title="Placeholder resourcing">Resources</button>' +
     activateHTML +
   '</div>';
 }
@@ -221,6 +222,8 @@ export function onPortfolioPlannerGroupsClick(e){
     });
   } else if(action === 'add-project'){
     openPortfolioPlannerAddProjectModal(categoryId);
+  } else if(action === 'edit-resources'){
+    openPortfolioPlannerResourcesModal(projectId);
   } else if(action === 'activate'){
     portfolioApi.updateProjectActive(projectId, true).then(function(){
       _allProjects = _allProjects.map(function(p){ return p.id === projectId ? Object.assign({}, p, {isActive: true}) : p; });
@@ -405,6 +408,165 @@ export function savePortfolioPlannerAddProjectFromModal(){
     renderPortfolioPlannerChart();
   }, function(err){
     toast((err && err.message) || 'Could not create project.');
+  });
+}
+
+/* =========================================================
+   RESOURCES MODAL — placeholder role + optional real person + % resourcing for one project, so an
+   Org Admin can rough out staffing (and report on unfilled roles / over-allocated people, see the
+   Portfolio Dashboard's Resourcing section) before a project has any real ProjectMembers. A row with
+   no person is an unfilled role; a row with a person counts toward that person's total workload
+   alongside their real ProjectMember.AllocatedFraction elsewhere. Every field change persists to the
+   server immediately (Add / edit-in-place / Remove), same as the Team modal's own member rows —
+   there's no "stage several rows, batch-save" convention anywhere else in this codebase to follow
+   instead. Role is free-text, offered as suggestions (via the org's existing ProjectMember.Role
+   vocabulary) rather than a strict picklist, same UX as the Team modal's own role input.
+   ========================================================= */
+var _resourcesModalProjectId = null;
+var _resourcesList = [];
+var _orgRoles = [];
+var _orgUsers = [];
+
+export function openPortfolioPlannerResourcesModal(projectId){
+  var project = _allProjects.filter(function(p){ return p.id === projectId; })[0];
+  if(!project) return;
+  _resourcesModalProjectId = projectId;
+  document.getElementById('portfolioPlannerResourcesTitle').textContent = project.name + ' — Resources';
+  document.getElementById('portfolioPlannerResourcesList').innerHTML = '<div class="kf-health-empty">Loading…</div>';
+  document.getElementById('portfolioPlannerResourceRoleInput').value = '';
+  document.getElementById('portfolioPlannerResourceAllocatedInput').value = '100';
+  document.getElementById('portfolioPlannerResourcePersonSelect').innerHTML = '<option value="">Unassigned</option>';
+  document.getElementById('portfolioPlannerResourcesOverlay').classList.remove('hidden');
+
+  Promise.all([portfolioApi.listResources(projectId), portfolioApi.listRoles(), getMyOrganisationApi()]).then(function(results){
+    if(_resourcesModalProjectId !== projectId) return; // closed/switched before this resolved
+    _resourcesList = results[0] || [];
+    _orgRoles = results[1] || [];
+    // Deactivated accounts are never offered as a placeholder assignee.
+    _orgUsers = (results[2] && results[2].users || []).filter(function(u){ return u.isActive !== false; })
+      .sort(function(a, b){ return a.displayName.localeCompare(b.displayName, undefined, {sensitivity: 'base'}); });
+    populatePersonSelectOptions(document.getElementById('portfolioPlannerResourcePersonSelect'));
+    renderPortfolioPlannerResourcesList();
+  }, function(){
+    document.getElementById('portfolioPlannerResourcesList').innerHTML = '<div class="kf-health-empty">Could not load resources.</div>';
+  });
+}
+export function closePortfolioPlannerResourcesModal(){
+  document.getElementById('portfolioPlannerResourcesOverlay').classList.add('hidden');
+  _resourcesModalProjectId = null;
+  _resourcesList = [];
+}
+export function isPortfolioPlannerResourcesModalOpen(){
+  return !document.getElementById('portfolioPlannerResourcesOverlay').classList.contains('hidden');
+}
+
+function populatePersonSelectOptions(selectEl, selectedUserId){
+  selectEl.innerHTML = '<option value="">Unassigned</option>' + _orgUsers.map(function(u){
+    return '<option value="' + u.id + '"' + (selectedUserId === u.id ? ' selected' : '') + '>' + escapeHTML(u.displayName) + '</option>';
+  }).join('');
+}
+
+function renderPortfolioPlannerResourcesList(){
+  populateVocabularyDatalist('portfolioPlannerResourceRoleOptions', _orgRoles);
+  var listEl = document.getElementById('portfolioPlannerResourcesList');
+  if(_resourcesList.length === 0){
+    listEl.innerHTML = '<div class="kf-member-empty">No resources added yet.</div>';
+    return;
+  }
+  listEl.innerHTML = _resourcesList.map(function(r){
+    return '<div class="kf-member-row" data-resource-id="' + r.id + '">' +
+      '<input type="text" class="kf-member-role-input kf-portfolio-planner-resource-role-input" value="' + escapeHTML(r.role) + '" maxlength="100" list="portfolioPlannerResourceRoleOptions" placeholder="Role" aria-label="Role">' +
+      '<select class="kf-portfolio-planner-resource-person-select" aria-label="Assigned person"></select>' +
+      '<input type="number" class="kf-member-allocated-fraction-input" min="0" max="100" step="1" value="' + r.allocatedFraction + '" placeholder="%" aria-label="Allocated fraction">' +
+      '<button class="kf-btn kf-btn-ghost" data-action="remove-resource" title="Remove resource">' + iconSvg('trash', 14) + '</button>' +
+    '</div>';
+  }).join('');
+  // <select> options can't be expressed as a plain HTML string attribute the way a text input's
+  // value can — each row's person select is populated as a DOM operation right after the innerHTML
+  // assignment above, same two-step reason escapeHTML+selected wouldn't otherwise compose cleanly.
+  _resourcesList.forEach(function(r){
+    var rowEl = listEl.querySelector('[data-resource-id="' + r.id + '"]');
+    if(rowEl) populatePersonSelectOptions(rowEl.querySelector('.kf-portfolio-planner-resource-person-select'), r.userId || null);
+  });
+}
+
+// Local copy of modals/team.js's populateVocabularyDatalist — kept independent rather than imported
+// to avoid a cross-modal coupling for one tiny DOM helper (this module already stands alone from
+// team.js entirely otherwise).
+function populateVocabularyDatalist(datalistId, values){
+  var list = document.getElementById(datalistId);
+  list.innerHTML = '';
+  (values || []).slice().sort(function(a, b){ return a.localeCompare(b, undefined, {sensitivity:'base'}); }).forEach(function(name){
+    var opt = document.createElement('option');
+    opt.value = name;
+    list.appendChild(opt);
+  });
+}
+
+export function addPortfolioPlannerResourceFromModal(){
+  if(!_resourcesModalProjectId) return;
+  var roleInput = document.getElementById('portfolioPlannerResourceRoleInput');
+  var personSelect = document.getElementById('portfolioPlannerResourcePersonSelect');
+  var allocatedInput = document.getElementById('portfolioPlannerResourceAllocatedInput');
+  var role = roleInput.value.trim();
+  if(!role){ toast('Please enter a role.'); return; }
+  var allocatedFraction = Math.round(Number(allocatedInput.value));
+  if(!isFinite(allocatedFraction)) allocatedFraction = 0;
+  allocatedFraction = Math.max(0, Math.min(100, allocatedFraction));
+
+  var projectId = _resourcesModalProjectId;
+  portfolioApi.addResource(projectId, role, personSelect.value || null, allocatedFraction).then(function(resource){
+    if(_resourcesModalProjectId !== projectId) return;
+    _resourcesList.push(resource);
+    roleInput.value = '';
+    personSelect.value = '';
+    allocatedInput.value = '100';
+    renderPortfolioPlannerResourcesList();
+    roleInput.focus();
+  }, function(err){
+    toast((err && err.message) || 'Could not add resource.');
+  });
+}
+
+export function onPortfolioPlannerResourcesListClick(e){
+  var actionEl = e.target.closest ? e.target.closest('[data-action="remove-resource"]') : null;
+  if(!actionEl || !_resourcesModalProjectId) return;
+  var rowEl = actionEl.closest('[data-resource-id]');
+  var resourceId = rowEl.getAttribute('data-resource-id');
+  var projectId = _resourcesModalProjectId;
+  portfolioApi.removeResource(projectId, resourceId).then(function(){
+    if(_resourcesModalProjectId !== projectId) return;
+    _resourcesList = _resourcesList.filter(function(r){ return r.id !== resourceId; });
+    renderPortfolioPlannerResourcesList();
+  }, function(){
+    toast('Could not remove resource.');
+  });
+}
+
+// Editing any of an existing row's three fields saves all three together (role/person/allocation) —
+// UpdateProjectResourcePlaceholderRequest has no notion of "only this one field changed", same shape
+// modals/team.js's buildServerMemberBody uses for the analogous reason.
+export function onPortfolioPlannerResourcesListChange(e){
+  var rowEl = e.target.closest ? e.target.closest('[data-resource-id]') : null;
+  if(!rowEl || !_resourcesModalProjectId) return;
+  var resourceId = rowEl.getAttribute('data-resource-id');
+  var resource = _resourcesList.filter(function(r){ return r.id === resourceId; })[0];
+  if(!resource) return;
+
+  var role = rowEl.querySelector('.kf-portfolio-planner-resource-role-input').value.trim() || 'Unspecified';
+  var userId = rowEl.querySelector('.kf-portfolio-planner-resource-person-select').value || null;
+  var allocatedFraction = Math.round(Number(rowEl.querySelector('.kf-member-allocated-fraction-input').value));
+  if(!isFinite(allocatedFraction)) allocatedFraction = 0;
+  allocatedFraction = Math.max(0, Math.min(100, allocatedFraction));
+
+  var projectId = _resourcesModalProjectId;
+  portfolioApi.updateResource(projectId, resourceId, role, userId, allocatedFraction).then(function(updated){
+    if(_resourcesModalProjectId !== projectId) return;
+    _resourcesList = _resourcesList.map(function(r){ return r.id === resourceId ? updated : r; });
+    renderPortfolioPlannerResourcesList();
+  }, function(err){
+    toast((err && err.message) || 'Could not update resource.');
+    renderPortfolioPlannerResourcesList();
   });
 }
 

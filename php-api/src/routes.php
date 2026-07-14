@@ -135,6 +135,12 @@ function registerRoutes(App $app): void
         $group->put('/categories/{categoryId}', [PortfolioController::class, 'updateCategory']);
         $group->delete('/categories/{categoryId}', [PortfolioController::class, 'deleteCategory']);
         $group->put('/categories/{categoryId}/sort-order', [PortfolioController::class, 'updateCategorySortOrder']);
+        $group->get('/projects/{projectId}/resources', [PortfolioController::class, 'listResources']);
+        $group->post('/projects/{projectId}/resources', [PortfolioController::class, 'addResource']);
+        $group->put('/projects/{projectId}/resources/{resourceId}', [PortfolioController::class, 'updateResource']);
+        $group->delete('/projects/{projectId}/resources/{resourceId}', [PortfolioController::class, 'removeResource']);
+        $group->get('/roles', [PortfolioController::class, 'listRoles']);
+        $group->get('/resourcing', [PortfolioController::class, 'getResourcingSummary']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Project Templates (Organisation-owned) — list/detail/create need only auth (any signed-in

@@ -1503,6 +1503,34 @@
     flex: 1;
   }
 
+  .kf-member-add-row select {
+    flex: 1;
+    border: 1.5px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    padding: 4px 6px;
+    font-size: 13px;
+    color: var(--kf-text);
+    background: var(--kf-input-bg);
+  }
+
+  .kf-member-add-row input#portfolioPlannerResourceAllocatedInput {
+    flex: 0 0 64px;
+  }
+
+  .kf-portfolio-planner-resource-role-input {
+    flex: 1;
+  }
+
+  .kf-member-row .kf-portfolio-planner-resource-person-select {
+    flex: 1;
+    border: none;
+    border-left: 1px solid var(--kf-border);
+    background: transparent;
+    padding: 4px 6px 4px 10px;
+    font-size: 13px;
+    color: var(--kf-text);
+  }
+
   /* Higher specificity than the base ".kf-field label" rule (class+element) is needed here since
      these are both <label> elements inside a .kf-field and need to override its uppercase/
      letter-spacing/font-weight defaults, not just add to them. */
@@ -1577,6 +1605,38 @@
     outline: none;
     background: var(--kf-bg);
     border-radius: 3px;
+  }
+
+  .kf-member-row .kf-member-allocated-fraction-input {
+    flex: 0 0 52px;
+    width: 52px;
+    border: none;
+    border-left: 1px solid var(--kf-border);
+    background: transparent;
+    padding: 4px 2px 4px 10px;
+    font-size: 13px;
+    color: var(--kf-text);
+    text-align: right;
+  }
+
+  .kf-member-row .kf-member-allocated-fraction-input:focus {
+    outline: none;
+    background: var(--kf-bg);
+    border-radius: 3px;
+  }
+
+  .kf-portfolio-planner-resource-role {
+    flex: 1;
+    font-size: 13px;
+    color: var(--kf-text);
+  }
+
+  .kf-portfolio-planner-resource-pct {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--kf-text-faint);
+    padding: 0 6px;
   }
 
   /* Task Type icon picker */
@@ -2525,6 +2585,13 @@
     margin-left: 6px;
   }
 
+  .kf-health-top-member-allocated {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--kf-text-faint);
+    margin-left: 6px;
+  }
+
   .kf-health-top-member-bar-track {
     flex: 2;
     height: 8px;
@@ -2547,6 +2614,125 @@
     font-weight: 500;
     color: var(--kf-text-secondary);
     flex-shrink: 0;
+  }
+
+  .kf-portfolio-resourcing-subsection {
+    margin-bottom: 18px;
+  }
+  .kf-portfolio-resourcing-subsection:last-child {
+    margin-bottom: 0;
+  }
+
+  .kf-portfolio-resourcing-subtitle {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--kf-text-secondary);
+    margin: 0 0 8px;
+  }
+
+  .kf-portfolio-resourcing-unfilled-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--kf-border);
+    font-size: 13px;
+  }
+  .kf-portfolio-resourcing-unfilled-row:last-child {
+    border-bottom: none;
+  }
+
+  .kf-portfolio-resourcing-role {
+    flex: 1;
+    color: var(--kf-text-secondary);
+  }
+
+  .kf-portfolio-resourcing-pct {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--kf-text-secondary);
+    flex-shrink: 0;
+  }
+
+  .kf-portfolio-resourcing-user-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--kf-border);
+  }
+  .kf-portfolio-resourcing-user-row:last-child {
+    border-bottom: none;
+  }
+
+  .kf-portfolio-resourcing-user-name {
+    flex: 0 0 140px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kf-portfolio-resourcing-bar-track {
+    position: relative;
+    flex: 2;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--kf-column-bg);
+    overflow: visible;
+  }
+
+  .kf-portfolio-resourcing-bar-real,
+  .kf-portfolio-resourcing-bar-placeholder {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 4px;
+  }
+  .kf-portfolio-resourcing-bar-real {
+    left: 0;
+    background: #0c66e4;
+  }
+  .kf-portfolio-resourcing-bar-placeholder {
+    background: #9cc3f2;
+  }
+
+  /* Sits at the 100% mark on a track scaled up to at least 150% — a combined bar crossing this
+     line is the at-a-glance "over-committed" signal, not just the numeric label beside it. */
+  .kf-portfolio-resourcing-bar-marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--kf-text-faint);
+  }
+
+  .kf-portfolio-resourcing-total {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--kf-text);
+    white-space: nowrap;
+  }
+
+  .kf-portfolio-resourcing-split {
+    font-weight: 400;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-portfolio-resourcing-over-badge {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: var(--kf-danger);
+    background: var(--kf-danger-hover-bg);
+    white-space: nowrap;
   }
 
   .kf-health-empty {

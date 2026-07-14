@@ -1,7 +1,7 @@
 "use strict";
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility } from '../storage.js';
 import { PRIORITY_META } from '../config.js';
-import { clampTaskScore, clampProgress, clampEffortHours, memberColorForIndex, isValidISODateString } from '../date-utils.js';
+import { clampTaskScore, clampProgress, clampEffortHours, clampAllocatedFraction, memberColorForIndex, isValidISODateString } from '../date-utils.js';
 import { getColumn, isValidTaskTypeIconName, escapeHTML } from '../utils.js';
 import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue, buildWorkflowEdgeFields, formatAuditValue } from '../mutations.js';
 
@@ -360,7 +360,8 @@ export function buildProjectFromExportDoc(doc){
       var color = (typeof m.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(m.color)) ? m.color : memberColorForIndex(project.members.length);
       var role = (typeof m.role === 'string' && m.role.trim()) ? registerRole(project, m.role) : null;
       var email = (typeof m.email === 'string' && m.email.trim()) ? m.email.trim().slice(0,320) : null;
-      var newMember = {id: uid('member'), name: name, email: email, color: color, role: role, reportsToId: null};
+      var allocatedFraction = clampAllocatedFraction(m.allocatedFraction);
+      var newMember = {id: uid('member'), name: name, email: email, color: color, role: role, allocatedFraction: allocatedFraction, reportsToId: null};
       project.members.push(newMember);
       if(typeof m.id === 'string') memberOldIdToNewId[m.id] = newMember.id;
       if(!memberNameToNewId.hasOwnProperty(name)) memberNameToNewId[name] = newMember.id;

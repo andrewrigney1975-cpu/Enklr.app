@@ -1920,6 +1920,18 @@
       </div>
 
       <div class="kf-health-section">
+        <h3 class="kf-health-section-title">Resourcing</h3>
+        <div class="kf-portfolio-resourcing-subsection">
+          <h4 class="kf-portfolio-resourcing-subtitle">Unfilled Roles</h4>
+          <div id="portfolioUnfilledRoles"></div>
+        </div>
+        <div class="kf-portfolio-resourcing-subsection">
+          <h4 class="kf-portfolio-resourcing-subtitle">Individual Allocation</h4>
+          <div id="portfolioUserAllocations"></div>
+        </div>
+      </div>
+
+      <div class="kf-health-section">
         <div class="kf-health-section-header-row">
           <h3 class="kf-health-section-title">Timeline</h3>
           <div class="kf-chart-controls">
@@ -2116,6 +2128,34 @@
       <button class="kf-btn kf-btn-secondary" id="portfolioPlannerProjectDatesClearBtn">Clear dates</button>
       <button class="kf-btn kf-btn-secondary" id="portfolioPlannerProjectDatesCancelBtn">Cancel</button>
       <button class="kf-btn kf-btn-primary" id="portfolioPlannerProjectDatesSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Portfolio Planner: placeholder Resources modal (role + allocated % rows for one project). Each
+     row persists immediately (Add/Remove), same as the Team modal's own member rows — no batch-save
+     step. -->
+<div class="kf-overlay hidden" id="portfolioPlannerResourcesOverlay">
+  <div class="kf-modal kf-modal-md" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="portfolioPlannerResourcesTitle">Resources</h2>
+      <button class="kf-btn kf-btn-ghost" id="portfolioPlannerResourcesClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="portfolioPlannerResourceRoleInput">Add a resource</label>
+        <div class="kf-member-add-row">
+          <input type="text" id="portfolioPlannerResourceRoleInput" maxlength="100" list="portfolioPlannerResourceRoleOptions" placeholder="e.g. Developer">
+          <select id="portfolioPlannerResourcePersonSelect" aria-label="Assigned person"><option value="">Unassigned</option></select>
+          <input type="number" id="portfolioPlannerResourceAllocatedInput" min="0" max="100" step="1" value="100" placeholder="%" aria-label="Allocated fraction">
+          <button class="kf-btn kf-btn-primary" id="portfolioPlannerResourceAddBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Add</button>
+        </div>
+      </div>
+      <div id="portfolioPlannerResourcesList" class="kf-member-list"></div>
+      <datalist id="portfolioPlannerResourceRoleOptions"></datalist>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="portfolioPlannerResourcesDoneBtn">Done</button>
     </div>
   </div>
 </div>

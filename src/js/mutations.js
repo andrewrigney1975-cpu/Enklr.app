@@ -2,7 +2,7 @@
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility, createDefaultProject, createProjectFromTemplate, isChangeAuditingEnabled, isSubTasksEnabled } from './storage.js';
 import { getTasksArray, getTaskTypeById, getColumn, getMemberById, getReleaseById, getDocumentById, getRiskById, getDecisionById, getPrincipleById, getObjectiveById, getTeamCommitteeById, getRetrospectiveById, getRetrospectiveItemById, getRetrospectiveActionItemById, isValidTaskTypeIconName, TASK_TYPE_ICON_LIBRARY, escapeHTML } from './utils.js';
 import { evaluateTransition, getWorkflowConditionField, WORKFLOW_CONDITION_OPERATORS, WORKFLOW_DEFAULT_CONDITION, computeReflowedLayout } from './features/workflow-engine.js';
-import { clampTaskScore, clampProgress, clampEffortHours, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
+import { clampTaskScore, clampProgress, clampEffortHours, clampAllocatedFraction, localDateValueToUTCISO, defaultStartDateValue, defaultEndDateValue, memberColorForIndex } from './date-utils.js';
 import { PRIORITY_META, RISK_STATUS_META, DECISION_TYPE_META, DECISION_STATUS_META, TEAM_COMMITTEE_TYPES } from './config.js';
 import { iconSvg } from './icons.js';
 
@@ -53,7 +53,7 @@ export function addMember(project, name){
   // always null here — nothing to enter, nothing to validate. It's only ever populated by a
   // refresh from the server (see features/migration.js's buildLocalProjectFromServerDetail) once
   // this project is migrated and an Org Admin has set one on the underlying account.
-  var member = {id: uid('member'), name: trimmed, email: null, color: memberColorForIndex(project.members.length), role: null, reportsToId: null};
+  var member = {id: uid('member'), name: trimmed, email: null, color: memberColorForIndex(project.members.length), role: null, reportsToId: null, allocatedFraction: null};
   project.members.push(member);
   saveDB();
   return member;
@@ -71,6 +71,12 @@ export function setMemberRole(project, memberId, role){
   if(!member) return;
   var trimmed = (role || '').trim();
   member.role = trimmed ? registerRole(project, trimmed) : null;
+  saveDB();
+}
+export function setMemberAllocatedFraction(project, memberId, value){
+  var member = getMemberById(project, memberId);
+  if(!member) return;
+  member.allocatedFraction = clampAllocatedFraction(value);
   saveDB();
 }
 export function setMemberReportsTo(project, memberId, reportsToId){
