@@ -57,6 +57,7 @@ import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, sh
 import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen, showPrinciplesFormView, showPrinciplesListView, renderPrinciplesList, savePrincipleFromModal, deletePrincipleFromModal, switchPrinciplesTab, updatePrincipleShareFromModal } from './modals/principles.js';
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
 import { openTeamsCommitteesOverlay, closeTeamsCommitteesOverlay, isTeamsCommitteesOverlayOpen, showTeamCommitteeFormView, showTeamsCommitteesListView, renderTeamsCommitteesList, saveTeamCommitteeFromModal, deleteTeamCommitteeFromModal } from './modals/teams-committees.js';
+import { openReportOverlay, closeReportOverlay, isReportOverlayOpen, printReport } from './features/reports.js';
 import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick } from './modals/project-search.js';
 import { openAboutModal, closeAboutModal, isAboutModalOpen } from './modals/about.js';
 import { openUfoModal, closeUfoModal, isUfoModalOpen } from './modals/ufo.js';
@@ -261,6 +262,7 @@ function wireEvents(){
 
   document.getElementById('risksBtn').addEventListener('click', openRisksOverlay);
   document.getElementById('risksModalClose').addEventListener('click', closeRisksOverlay);
+  document.getElementById('risksReportBtn').addEventListener('click', function(){ openReportOverlay('risks'); });
   document.getElementById('risksDoneBtn').addEventListener('click', closeRisksOverlay);
   document.getElementById('risksOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'risksOverlay') closeRisksOverlay();
@@ -372,6 +374,7 @@ function wireEvents(){
     if(e.target.id === 'healthOverlay'){ cancelHealthGaugeAnimation(); closeHealthOverlay(); }
   });
   document.getElementById('decisionsModalClose').addEventListener('click', closeDecisionsOverlay);
+  document.getElementById('decisionsReportBtn').addEventListener('click', function(){ openReportOverlay('decisions'); });
   document.getElementById('decisionsDoneBtn').addEventListener('click', closeDecisionsOverlay);
   document.getElementById('decisionsOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'decisionsOverlay') closeDecisionsOverlay();
@@ -395,6 +398,7 @@ function wireEvents(){
 
   document.getElementById('principlesBtn').addEventListener('click', openPrinciplesOverlay);
   document.getElementById('principlesModalClose').addEventListener('click', closePrinciplesOverlay);
+  document.getElementById('principlesReportBtn').addEventListener('click', function(){ openReportOverlay('principles'); });
   document.getElementById('principlesDoneBtn').addEventListener('click', closePrinciplesOverlay);
   document.getElementById('principlesOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'principlesOverlay') closePrinciplesOverlay();
@@ -419,6 +423,13 @@ function wireEvents(){
 
   document.getElementById('objectivesBtn').addEventListener('click', openObjectivesOverlay);
   document.getElementById('objectivesModalClose').addEventListener('click', closeObjectivesOverlay);
+  document.getElementById('objectivesReportBtn').addEventListener('click', function(){ openReportOverlay('objectives'); });
+
+  document.getElementById('reportClose').addEventListener('click', closeReportOverlay);
+  document.getElementById('reportPrintBtn').addEventListener('click', printReport);
+  document.getElementById('reportOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'reportOverlay') closeReportOverlay();
+  });
   document.getElementById('objectivesDoneBtn').addEventListener('click', closeObjectivesOverlay);
   document.getElementById('objectivesOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'objectivesOverlay') closeObjectivesOverlay();
@@ -1451,6 +1462,7 @@ function wireEvents(){
     else if(isDocumentsOverlayOpen()) closeDocumentsOverlay();
     else if(isRisksOverlayOpen()) closeRisksOverlay();
     else if(isDecisionsOverlayOpen()) closeDecisionsOverlay();
+    else if(isReportOverlayOpen()) closeReportOverlay();
     else if(isPrinciplesOverlayOpen()) closePrinciplesOverlay();
     else if(isObjectivesOverlayOpen()) closeObjectivesOverlay();
     else if(isProjectSearchOverlayOpen()) closeProjectSearchOverlay();

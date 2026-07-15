@@ -3548,6 +3548,114 @@
     margin-bottom: 0;
   }
 
+  /* Entity Report (features/reports.js) — one repeating block per Risk/Decision/Principle/
+     Objective, shared styling across all four report types. */
+  .kf-report-item {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--kf-border);
+  }
+
+  .kf-report-item:first-child {
+    padding-top: 0;
+  }
+
+  .kf-report-item:last-child {
+    border-bottom: none;
+  }
+
+  .kf-report-item-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .kf-report-item-key {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-report-no-desc {
+    font-size: 13px;
+    color: var(--kf-text-faint);
+    margin-bottom: 8px;
+  }
+
+  .kf-report-ratings {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    margin-bottom: 8px;
+  }
+
+  .kf-report-rating-detail {
+    font-size: 12px;
+    color: var(--kf-text-secondary);
+  }
+
+  .kf-report-related {
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 12px;
+  }
+
+  .kf-report-related-empty {
+    color: var(--kf-text-faint);
+  }
+
+  .kf-report-related-label {
+    font-weight: 600;
+    color: var(--kf-text-secondary);
+    margin-right: 4px;
+  }
+
+  /* Isolate the Entity Report overlay when the browser's print dialog opens — every other
+     overlay/nav/header is hidden so the printed page is just the report's own title + items,
+     with the Print/Close buttons themselves omitted since they're not part of the report content. */
+  @media print {
+    body > *:not(#reportOverlay) {
+      display: none !important;
+    }
+
+    #reportOverlay {
+      position: static !important;
+      display: block !important;
+      background: none !important;
+    }
+
+    #reportOverlay .kf-modal {
+      box-shadow: none !important;
+      height: auto !important;
+      max-height: none !important;
+      width: 100% !important;
+      max-width: none !important;
+      display: block !important;
+    }
+
+    /* .kf-modal-body is the ACTUAL scrolling container (overflow-y:auto + flex:1, sized by the
+       modal's own fixed height/max-height above) — resetting only the modal's own height leaves
+       this element still clipped to whatever height the flex layout gave it, so any report content
+       past one screen's worth silently never reaches the printed page. Everything here has to be
+       reset together for the full report to actually print. */
+    #reportOverlay .kf-modal-body {
+      overflow: visible !important;
+      height: auto !important;
+      max-height: none !important;
+      flex: none !important;
+    }
+
+    #reportPrintBtn, #reportClose {
+      display: none !important;
+    }
+  }
+
   .kf-field input[type=range] {
     width: 100%;
     display: block;
