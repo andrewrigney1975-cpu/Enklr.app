@@ -28,8 +28,13 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
   // ── 3. CSS: the action group's mobile gap matches the project-picker's gap ──
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1];
-  const mediaStart = style.indexOf('@media (max-width: 1024px)');
-  const mediaBlock = style.slice(mediaStart);
+  // build.js minifies the inlined CSS (strips spaces around ':' and before '('), so this can't be a
+  // literal substring search — style.indexOf() silently returning -1 here made style.slice(-1)
+  // return just the stylesheet's LAST CHARACTER (not "nothing found"), which is why every check
+  // depending on mediaBlock below failed at once.
+  const mediaStartMatch = style.match(/@media\s*\(\s*max-width:\s*1024px\s*\)/);
+  const mediaStart = mediaStartMatch ? mediaStartMatch.index : -1;
+  const mediaBlock = mediaStart !== -1 ? style.slice(mediaStart) : '';
 
   function ruleFor(text, selector){
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

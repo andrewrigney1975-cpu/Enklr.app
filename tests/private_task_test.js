@@ -110,7 +110,10 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   log('"Continue without a key" opens the task modal in reduced view', !doc.getElementById('taskOverlay').classList.contains('hidden') && !doc.getElementById('taskPrivateReducedView').classList.contains('hidden'));
   log('reduced view hides the full field set', doc.getElementById('taskFullFields').classList.contains('hidden'));
   log('reduced view shows only the title', doc.getElementById('taskPrivateReducedTitle').textContent === taskTitle);
-  log('reduced view hides the Save button (nothing editable)', doc.getElementById('taskSaveBtn').classList.contains('hidden'));
+  // showTaskFullFields (modals/task.js) toggles the Save button via "kf-vis-hidden", a distinct
+  // utility class from the plain "hidden" this checked for — that class doesn't exist on this
+  // element at all, so this always failed regardless of the button's actual (correct) visibility.
+  log('reduced view hides the Save button (nothing editable)', doc.getElementById('taskSaveBtn').classList.contains('kf-vis-hidden'));
   doc.getElementById('taskModalClose').click();
   await wait(10);
 

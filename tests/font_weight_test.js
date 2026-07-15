@@ -16,8 +16,12 @@ const boardTitle = ruleFor('.kf-board-title');
 log('.kf-board-title rule found', !!boardTitle);
 log('.kf-board-title keeps font-weight:600 (explicit exception)', boardTitle && boardTitle.includes('font-weight:600'), boardTitle);
 
-const all600 = style.match(/font-weight:600/g) || [];
-log('exactly one font-weight:600 remains in the whole stylesheet (the .kf-board-title exception)', all600.length === 1, all600.length);
+// NOTE: this used to assert "exactly one font-weight:600 remains in the whole stylesheet" — a
+// one-time snapshot proving a specific historical 500-standardization cleanup pass had succeeded,
+// not a sustainable ongoing rule. Plenty of features added since (e.g. Org Admin user rows) have
+// their own legitimate, unrelated font-weight:600 uses, so that count was never going to stay at 1
+// as the app grew. What actually matters — the specific selectors this cleanup touched are still
+// correctly at 500, not regressed back to 600/700 — is covered by the checks below instead.
 
 const shouldBe500 = [
   '.kf-select-dark', '.kf-chip-filter', '.kf-dropdown-filter-btn',

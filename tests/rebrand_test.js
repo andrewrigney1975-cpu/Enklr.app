@@ -11,9 +11,10 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   function log(label, ok, extra){ console.log((ok?'PASS':'FAIL') + ' - ' + label + (extra?' :: '+extra:'')); }
 
   // ── 1. Tab title and header logo ──────────────────────────────────────────
-  log('tab title is "Enkl"', doc.title === 'Enkl', doc.title);
+  // Renamed to "Enkl Task" after this test was written (a later, deliberate naming update).
+  log('tab title is "Enkl Task"', doc.title === 'Enkl Task', doc.title);
   const logo = doc.querySelector('.kf-logo');
-  log('header logo reads "Enkl"', logo.textContent.trim() === 'Enkl', logo.textContent.trim());
+  log('header logo reads "Enkl Task"', logo.textContent.trim() === 'Enkl Task', logo.textContent.trim());
 
   // ── 2. No leftover references to either previous brand name ──────────────
   log('no "KanbanFlow" text remains anywhere in the file', html.indexOf('KanbanFlow') === -1);
@@ -24,16 +25,26 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
       doc.getElementById('importProjectBtn').getAttribute('title'));
 
   // ── 4. Internal storage keys are UNCHANGED, for backward compatibility ───
+  // build.js's JS minifier renames module-scoped variables (STORAGE_KEY/THEME_STORAGE_KEY become
+  // short, unpredictable symbols) and switches to double quotes — a literal "STORAGE_KEY = '...'"
+  // source search can never match the minified bundle. The actual, meaningful thing to verify is
+  // that the app reads/writes localStorage under these exact literal key STRINGS, which is directly
+  // checkable by asking the running app's own localStorage for them instead of grepping variable
+  // names out of minified source.
   log('the localStorage data key is unchanged (kanbanflow_v1_db) so existing saved boards still load',
-      html.indexOf("STORAGE_KEY = 'kanbanflow_v1_db'") !== -1);
+      window.localStorage.getItem('kanbanflow_v1_db') !== null);
+  doc.getElementById('themeToggleBtn').click();
+  await wait(10);
   log('the localStorage theme key is unchanged (kanbanflow_theme) so existing theme preference still loads',
-      html.indexOf("THEME_STORAGE_KEY = 'kanbanflow_theme'") !== -1);
+      window.localStorage.getItem('kanbanflow_theme') === 'dark', window.localStorage.getItem('kanbanflow_theme'));
 
   // ── 5. Inter is loaded from Google Fonts and set as the default font ─────
   log('a Google Fonts stylesheet link for Inter is present', /fonts\.googleapis\.com\/css2\?family=Inter/.test(html));
   log('preconnect hints to the Google Fonts domains are present', html.indexOf('fonts.googleapis.com') !== -1 && html.indexOf('fonts.gstatic.com') !== -1);
   const fontVarMatch = html.match(/--kf-font:\s*([^;]+);/);
-  log('--kf-font lists Inter first', !!fontVarMatch && fontVarMatch[1].trim().toLowerCase().startsWith("'inter'"), fontVarMatch && fontVarMatch[1]);
+  // build.js's CSS minifier normalizes quote style (source uses 'Inter', the minified output uses
+  // "Inter") — both are identical, valid CSS, so the quote character can't be part of the match.
+  log('--kf-font lists Inter first', !!fontVarMatch && /^["']inter["']/.test(fontVarMatch[1].trim().toLowerCase()), fontVarMatch && fontVarMatch[1]);
   log('--kf-font keeps a system-font fallback chain after Inter (graceful degradation if the CDN is unreachable)',
       !!fontVarMatch && fontVarMatch[1].indexOf('sans-serif') !== -1 && fontVarMatch[1].indexOf('apple-system') !== -1);
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1];

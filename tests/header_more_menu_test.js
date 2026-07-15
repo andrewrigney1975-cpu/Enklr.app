@@ -41,7 +41,9 @@ function loadFixture(project){
 
     doc.getElementById('appSettingsBtn').click();
     await wait(20);
-    const rowIds = Array.from(doc.querySelectorAll('#appSettingsOverlay .kf-risk-doc-picker-row')).map(r => r.querySelector('input').id);
+    // App Settings was later restructured into categorized ".kf-setting-row" rows — the old
+    // ".kf-risk-doc-picker-row" class this looked for doesn't exist anymore.
+    const rowIds = Array.from(doc.querySelectorAll('#appSettingsOverlay .kf-setting-row')).map(r => r.querySelector('input').id);
     log('App Settings is ordered Health Dashboard first, matching the header',
         rowIds[0] === 'settingsShowHealthBtn', rowIds.join(','));
   }
@@ -131,12 +133,19 @@ function loadFixture(project){
 
   {
     const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1];
-    const mediaStart = style.indexOf('@media (max-width: 1024px)');
-    const mobileBlock = style.slice(mediaStart);
+    // build.js minifies the inlined CSS (strips spaces around ':' and before '('), so this can't be
+    // a literal substring search — style.indexOf() silently returning -1 here made style.slice(-1)
+    // return just the stylesheet's LAST CHARACTER (not "nothing found"), breaking every check below.
+    const mediaStartMatch = style.match(/@media\s*\(\s*max-width:\s*1024px\s*\)/);
+    const mediaStart = mediaStartMatch ? mediaStartMatch.index : -1;
+    const mobileBlock = mediaStart !== -1 ? style.slice(mediaStart) : '';
     log('mobile CSS restores consolidated items back to visible (display:flex), so the mobile menu always shows everything flat',
         /\.kf-header-consolidated\{display:\s*flex/.test(mobileBlock));
+    // The minifier also drops the trailing ';' before a rule's closing '}' when it's the last (only)
+    // declaration — ".kf-header-consolidated{display:none}" with no semicolon is equally valid.
+    const consolidatedDefaultMatch = style.match(/\.kf-header-consolidated\{display:none;?\}/);
     log('the consolidation class is display:none by default, BEFORE the media query (correct source order)',
-        style.indexOf('.kf-header-consolidated{display:none;}') !== -1 && style.indexOf('.kf-header-consolidated{display:none;}') < mediaStart);
+        !!consolidatedDefaultMatch && consolidatedDefaultMatch.index < mediaStart);
     log('mobile CSS forces the desktop More wrap to display:none too (the dropdown mechanism is desktop-only)', /\.kf-header-more-wrap\{[^}]*display:\s*none/.test(mobileBlock));
     log('mobile CSS strips ALL header buttons\u2019 border (general simplification, not just Health Dashboard)',
         /\.kf-header-controls \.kf-header-btn\{border:\s*none/.test(mobileBlock));

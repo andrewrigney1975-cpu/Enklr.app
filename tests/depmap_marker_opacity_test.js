@@ -22,7 +22,9 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   log('"kf-arrow-done" refX is 9.25', doneMarker.getAttribute('refX') === '9.25', doneMarker.getAttribute('refX'));
 
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1];
-  log('--kf-depnode-opacity CSS variable is defined as 0.8', /--kf-depnode-opacity:\s*0\.8\s*;/.test(style),
+  // build.js's CSS minifier strips a leading "0" before a decimal point (0.8 -> .8) — both are
+  // identical, valid CSS values, so the leading zero must be optional here, not required.
+  log('--kf-depnode-opacity CSS variable is defined as 0.8', /--kf-depnode-opacity:\s*0?\.8\s*;/.test(style),
       (style.match(/--kf-depnode-opacity:[^;]+;/) || [])[0]);
 
   function ruleFor(selector){

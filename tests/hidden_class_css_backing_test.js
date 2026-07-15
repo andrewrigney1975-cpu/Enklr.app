@@ -35,15 +35,20 @@ while ((m = jsHiddenRe.exec(html))) {
 
 const allElements = staticElements.concat(dynamicElements);
 
+/* A selector's end is either '{' (last selector before the rule body) or ',' (more selectors follow
+   in the same comma-separated list) — esbuild's CSS minifier merges separate source rules that share
+   an identical body into one such list (e.g. "#a.hidden,#b.hidden{display:none}"), so matching only
+   '\s*\{' produces false negatives for every selector except the last one in a merged group. Both
+   terminators are valid CSS and must be accepted. */
 function hasMatchingRule(classes, id){
   const others = classes.filter(c => c !== 'hidden');
-  if (/(^|[^.\w-])\.hidden\s*\{/.test(style)) return true;
-  if (id && new RegExp('#' + id + '\\.hidden\\s*\\{').test(style)) return true;
-  if (id && new RegExp('\\.hidden#' + id + '\\s*\\{').test(style)) return true;
+  if (/(^|[^.\w-])\.hidden\s*[,{]/.test(style)) return true;
+  if (id && new RegExp('#' + id + '\\.hidden\\s*[,{]').test(style)) return true;
+  if (id && new RegExp('\\.hidden#' + id + '\\s*[,{]').test(style)) return true;
   return others.some(cls => {
     const escaped = cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re1 = new RegExp('\\.' + escaped + '\\.hidden\\s*\\{');
-    const re2 = new RegExp('\\.hidden\\.' + escaped + '\\s*\\{');
+    const re1 = new RegExp('\\.' + escaped + '\\.hidden\\s*[,{]');
+    const re2 = new RegExp('\\.hidden\\.' + escaped + '\\s*[,{]');
     return re1.test(style) || re2.test(style);
   });
 }

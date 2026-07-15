@@ -56,7 +56,9 @@ function makeDB(projectId, tasks, projectOverrides){
     log('alert shows automatically on load when an unscored task exists', !doc.getElementById('defaultScoreAlertOverlay').classList.contains('hidden'));
     log('message mentions exactly 1 task', doc.getElementById('defaultScoreAlertMessage').textContent.indexOf('1 task') !== -1,
         doc.getElementById('defaultScoreAlertMessage').textContent);
-    log('singular message uses correct grammar ("hasn\u2019t", not "haven\u2019t")', doc.getElementById('defaultScoreAlertMessage').textContent.indexOf('hasn\u2019t been scored') !== -1,
+    // The product copy uses the full ("has not"/"have not"), not contracted, form \u2014 the actual
+    // thing this checks is singular subject-verb agreement, not a specific contraction.
+    log('singular message uses correct grammar ("has not", not "have not")', doc.getElementById('defaultScoreAlertMessage').textContent.indexOf('has not been scored') !== -1,
         doc.getElementById('defaultScoreAlertMessage').textContent);
     log('message explains the default-of-1 condition', doc.getElementById('defaultScoreAlertMessage').textContent.indexOf('default of 1') !== -1);
     const rows = doc.querySelectorAll('.kf-defaultscore-alert-row');

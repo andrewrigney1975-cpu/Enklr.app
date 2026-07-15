@@ -3,8 +3,10 @@ const fs = require('fs');
 const html = fs.readFileSync('../dist/index.html', 'utf8');
 function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-const VIEWS_BTN_IDS = ['taskListBtn', 'timelineBtn', 'depMapBtn', 'costBenefitBtn', 'orgChartBtn', 'workflowBtn'];
-const TOOLS_BTN_IDS = ['bulkEditBtn', 'archivedTasksBtn', 'taskTypesBtn', 'releasesBtn'];
+// Governance Map was added to Views later (replacing Workflow's old spot there — Workflow itself
+// moved to Tools), and To-Do was added to Tools since these lists were written.
+const VIEWS_BTN_IDS = ['taskListBtn', 'timelineBtn', 'depMapBtn', 'costBenefitBtn', 'orgChartBtn', 'governanceMapBtn'];
+const TOOLS_BTN_IDS = ['bulkEditBtn', 'todoBtn', 'archivedTasksBtn', 'taskTypesBtn', 'releasesBtn', 'workflowBtn'];
 const ALL_RELOCATING_IDS = VIEWS_BTN_IDS.concat(TOOLS_BTN_IDS);
 
 (async () => {
@@ -42,9 +44,9 @@ const ALL_RELOCATING_IDS = VIEWS_BTN_IDS.concat(TOOLS_BTN_IDS);
 
     const viewsOrder = Array.from(viewsSlot.querySelectorAll('button')).map(b => b.id).filter(Boolean);
     const toolsOrder = Array.from(toolsSlot.querySelectorAll('button')).map(b => b.id).filter(Boolean);
-    log('Views section lists List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Workflow in order',
+    log('Views section lists List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map in order',
         viewsOrder.join(',') === VIEWS_BTN_IDS.join(','), viewsOrder.join(','));
-    log('Tools section lists Bulk Edit, Archived, Task Types, Releases in order',
+    log('Tools section lists Bulk Edit, To-Do, Archived, Task Types, Releases, Workflow in order',
         toolsOrder.join(',') === TOOLS_BTN_IDS.join(','), toolsOrder.join(','));
   }
 
@@ -70,13 +72,13 @@ const ALL_RELOCATING_IDS = VIEWS_BTN_IDS.concat(TOOLS_BTN_IDS);
 
     const row1Order = Array.from(row1.querySelectorAll('button')).map(b => b.id).filter(Boolean);
     const row1RelevantOrder = row1Order.filter(id => TOOLS_BTN_IDS.includes(id) || id === 'addColumnTopBtn');
-    log('row 1 order: Bulk Edit, Archived, Task Types, Releases, then Column',
+    log('row 1 order: Bulk Edit, To-Do, Archived, Task Types, Releases, Workflow, then Column',
         row1RelevantOrder.join(',') === TOOLS_BTN_IDS.concat('addColumnTopBtn').join(','), row1Order.join(','));
     log('Column sticks to the right-hand end of row 1',
         row1RelevantOrder.indexOf('addColumnTopBtn') === row1RelevantOrder.length - 1);
 
     const row2Order = Array.from(row2.querySelectorAll('button')).map(b => b.id).filter(Boolean);
-    log('row 2 order: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart (no Column — it moved to row 1)',
+    log('row 2 order: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map (no Column — it moved to row 1)',
         row2Order.join(',') === VIEWS_BTN_IDS.join(','), row2Order.join(','));
   }
 

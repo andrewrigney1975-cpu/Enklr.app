@@ -42,14 +42,19 @@ function isNavItemVisible(doc, btnId){
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1];
   const baseRule = (style.match(/\.kf-appsettings-label\{([^}]*)\}/) || [])[1] || '';
   log('the mobile label is hidden by default (desktop: icon-only)', /display:\s*none/.test(baseRule), baseRule);
-  const mediaStart = style.indexOf('@media (max-width: 1024px)');
-  const mobileOverride = style.slice(mediaStart).match(/\.kf-appsettings-label\{([^}]*)\}/);
+  // build.js minifies the inlined CSS (strips spaces around ':' and before '('), so this can't be a
+  // literal substring search — match tolerantly instead.
+  const mediaStartMatch = style.match(/@media\s*\(\s*max-width:\s*1024px\s*\)/);
+  const mediaStart = mediaStartMatch ? mediaStartMatch.index : -1;
+  const mobileOverride = mediaStart !== -1 ? style.slice(mediaStart).match(/\.kf-appsettings-label\{([^}]*)\}/) : null;
   log('the mobile label has a visible override inside the mobile media query', !!mobileOverride && /display:\s*inline/.test(mobileOverride[1]),
       mobileOverride && mobileOverride[1]);
-  const headerControls = doc.getElementById('headerControls');
+  // themeToggleBtn/appSettingsBtn are nested inside #headerUtilityGroup (a sub-wrapper added later),
+  // not direct children of #headerControls — checking the wrong parent always reported "-1/-1".
+  const headerUtilityGroup = doc.getElementById('headerUtilityGroup');
   const themeBtn = doc.getElementById('themeToggleBtn');
   const settingsBtn = doc.getElementById('appSettingsBtn');
-  const siblings = Array.from(headerControls.children);
+  const siblings = Array.from(headerUtilityGroup.children);
   log('gear button comes immediately after the theme toggle', siblings.indexOf(settingsBtn) === siblings.indexOf(themeBtn) + 1,
       `theme=${siblings.indexOf(themeBtn)} settings=${siblings.indexOf(settingsBtn)}`);
 
@@ -62,9 +67,9 @@ function isNavItemVisible(doc, btnId){
   settingsBtn.click();
   await wait(20);
   log('clicking the gear button opens the modal', !doc.getElementById('appSettingsOverlay').classList.contains('hidden'));
-  log('modal heading reads "Extended Project Modules"', doc.getElementById('appSettingsOverlay').textContent.indexOf('Extended Project Modules') !== -1);
-  log('modal description reads "Choose which modules should be used in this Project"',
-      doc.getElementById('appSettingsOverlay').textContent.indexOf('Choose which modules should be used in this Project') !== -1);
+  log('modal heading reads "App and Project Settings"', doc.getElementById('appSettingsOverlay').textContent.indexOf('App and Project Settings') !== -1);
+  log('modal description reads "Choose which modules are switched on for this project."',
+      doc.getElementById('appSettingsOverlay').textContent.indexOf('Choose which modules are switched on for this project.') !== -1);
   log('old "Header buttons" heading text is gone', doc.getElementById('appSettingsOverlay').textContent.indexOf('Header buttons') === -1);
   log('Documents checkbox starts checked', doc.getElementById('settingsShowDocumentsBtn').checked);
   log('Risks checkbox starts checked', doc.getElementById('settingsShowRisksBtn').checked);

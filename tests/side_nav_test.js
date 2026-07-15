@@ -3,18 +3,35 @@ const fs = require('fs');
 const html = fs.readFileSync('../dist/index.html', 'utf8');
 function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
+// build.js's CSS minifier merges separate rules sharing an identical body into one comma-separated
+// selector list (e.g. "#a,#b,#c{display:none}") — a selector's own rule body can start well after
+// where the selector itself appears, once other merged selectors are chained in before the actual
+// '{'. Find where the selector starts, then capture from ITS rule's real opening brace to the
+// matching close, rather than assuming '{' immediately follows the selector.
 function ruleFor(text, selector){
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp('(^|[{};,])\\s*' + escaped + '\\{([^}]*)\\}', 'm');
+  const re = new RegExp('(^|[{};,])\\s*' + escaped + '\\s*[,{]', 'm');
   const m = text.match(re);
-  return m ? m[2] : null;
+  if (!m) return null;
+  const openBraceIdx = text.indexOf('{', m.index);
+  if (openBraceIdx === -1) return null;
+  const closeBraceIdx = text.indexOf('}', openBraceIdx);
+  if (closeBraceIdx === -1) return null;
+  return text.slice(openBraceIdx + 1, closeBraceIdx);
 }
 
 (async () => {
   function log(label, ok, extra){ console.log((ok?'PASS':'FAIL') + ' - ' + label + (extra?' :: '+extra:'')); }
 
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1];
-  const mediaStart = style.indexOf('@media (max-width: 1024px)');
+  // build.js minifies the inlined CSS (strips spaces around ':' and before '('), so this can't be a
+  // literal substring search — a silent -1 here previously fed into style.indexOf('{', -1) (treated
+  // as 0, matching the stylesheet's very FIRST rule instead of the media query) and then into
+  // style.slice(-1, ...)/style.slice(0,-1) (negative slice indices count from the end), corrupting
+  // both mediaBlock (ended up empty) and beforeMedia (ended up a near-duplicate of the whole sheet)
+  // silently rather than throwing — which is why only SOME of the checks below failed.
+  const mediaStartMatch = style.match(/@media\s*\(\s*max-width:\s*1024px\s*\)/);
+  const mediaStart = mediaStartMatch ? mediaStartMatch.index : -1;
   const openBraceIdx = style.indexOf('{', mediaStart);
   let depth = 1, i = openBraceIdx + 1;
   while (depth > 0 && i < style.length) {
@@ -60,10 +77,13 @@ function ruleFor(text, selector){
 
     const viewsOrder = Array.from(sections[0].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
     const toolsOrder = Array.from(sections[1].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
-    log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Workflow',
-        viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn,navOrgChartBtn,navWorkflowBtn', viewsOrder.join(','));
-    log('Tools section: Bulk Edit, Archived, Task Types, Releases',
-        toolsOrder.join(',') === 'navBulkEditBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn', toolsOrder.join(','));
+    // Governance Map was added to Views later (replacing Workflow's old spot there — Workflow
+    // itself moved to Tools), and To-Do/Workflow/Portfolio Planner/Retrospectives were all added to
+    // Tools since this list was written.
+    log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map',
+        viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn,navOrgChartBtn,navGovernanceMapBtn', viewsOrder.join(','));
+    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Workflow, Portfolio Planner, Retrospectives',
+        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn', toolsOrder.join(','));
 
     viewsOrder.concat(toolsOrder).forEach(id => {
       const el = doc.getElementById(id);

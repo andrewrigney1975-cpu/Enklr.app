@@ -1569,6 +1569,10 @@
     margin-top: 8px;
   }
 
+  .kf-sso-token-reveal.hidden {
+    display: none;
+  }
+
   .kf-member-list {
     display: flex;
     flex-direction: column;
@@ -1809,6 +1813,26 @@
   }
 
   .kf-modal-footer.hidden {
+    display: none;
+  }
+
+  #serverLoginSsoBtn.hidden {
+    display: none;
+  }
+
+  #workflowSaveBtn.hidden {
+    display: none;
+  }
+
+  #projectTemplateField.hidden {
+    display: none;
+  }
+
+  #newMemberEmailInput.hidden {
+    display: none;
+  }
+
+  #principlesTabStrip.hidden {
     display: none;
   }
 

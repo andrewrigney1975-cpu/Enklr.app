@@ -51,7 +51,9 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   log('App Settings\u2019 checkbox label is still "Health Dashboard"',
       doc.getElementById('settingsShowHealthBtn').closest('label').textContent.indexOf('Health Dashboard') !== -1);
 
-  const settingsRows = Array.from(doc.querySelectorAll('#appSettingsOverlay .kf-risk-doc-picker-row'));
+  // App Settings was later restructured into categorized ".kf-setting-row" rows — the old
+  // ".kf-risk-doc-picker-row" class this looked for doesn't exist anymore.
+  const settingsRows = Array.from(doc.querySelectorAll('#appSettingsOverlay .kf-setting-row'));
   const rowIds = settingsRows.map(r => r.querySelector('input').id);
   log('App Settings order matches the current header button order (Health Dashboard, Principles, Objectives, Documents, Risks, Decisions, Teams & Committees, Workflow)',
       rowIds.join(',') === 'settingsShowHealthBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowDocumentsBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowTeamsCommitteesBtn,settingsShowWorkflowBtn',

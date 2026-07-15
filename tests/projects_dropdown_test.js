@@ -37,11 +37,13 @@ function installFakeFileReader(window){
   await wait(10);
   log('clicking "Projects..." opens the panel', !doc.getElementById('projectsMenuPanel').classList.contains('hidden'));
 
+  // "Migrate to Server" and "Save as Template..." were added to this panel later — it's 5 links
+  // now, not the original 3.
   const links = Array.from(doc.querySelectorAll('#projectsMenuPanel a'));
   const linkTexts = links.map(a => a.textContent);
-  log('panel contains exactly 3 links', links.length === 3, linkTexts.join(','));
-  log('links are New Project, Import Project, Export Project, as plain <a> text links (not buttons)',
-      linkTexts.join(',') === 'New Project,Import Project,Export Project' && links.every(a => a.tagName === 'A'),
+  log('panel contains exactly 5 links', links.length === 5, linkTexts.join(','));
+  log('links are New Project, Import Project, Export Project, Migrate to Server, Save as Template..., as plain <a> text links (not buttons)',
+      linkTexts.join(',') === 'New Project,Import Project,Export Project,Migrate to Server,Save as Template...' && links.every(a => a.tagName === 'A'),
       linkTexts.join(','));
   log('links use the same text-link styling class as the other More-menu links (consistent visual language)',
       links.every(a => a.classList.contains('kf-header-more-link')));
@@ -85,12 +87,27 @@ function installFakeFileReader(window){
 
   // ── 6. CSS: the 3 originals are hidden on desktop by default, restored on mobile; the dropdown is the reverse ──
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1];
-  const mediaStart = style.indexOf('@media (max-width: 1024px)');
-  const mobileBlock = style.slice(mediaStart);
+  // build.js minifies the inlined CSS (strips spaces around ':' and before '('), so this can't be a
+  // literal substring search — style.indexOf() silently returning -1 here made style.slice(-1)
+  // return just the stylesheet's LAST CHARACTER (not "nothing found"), breaking every check below.
+  const mediaStartMatch = style.match(/@media\s*\(\s*max-width:\s*1024px\s*\)/);
+  const mediaStart = mediaStartMatch ? mediaStartMatch.index : -1;
+  const mobileBlock = mediaStart !== -1 ? style.slice(mediaStart) : '';
+  // build.js's minifier merges separate rules sharing an identical body into one comma-separated
+  // selector list (e.g. ".kf-header-nav-projectaction,.kf-drawer-section-label,...{display:none}"),
+  // so "display:none" doesn't necessarily sit right after THIS selector — it's only at the end of
+  // the whole group. Find where this selector starts, then check the body of whatever rule it
+  // belongs to (up to the next '}'), rather than assuming the property immediately follows it.
+  const projectActionSelectorMatch = style.match(/\.kf-header-nav-projectaction\s*[,{]/);
+  const projectActionRuleBody = projectActionSelectorMatch
+    ? style.slice(projectActionSelectorMatch.index, style.indexOf('}', projectActionSelectorMatch.index))
+    : '';
   log('the 3 project-action buttons are hidden by default (desktop), BEFORE the media query (correct source order)',
-      style.indexOf('.kf-header-nav-projectaction{display:none;}') !== -1 && style.indexOf('.kf-header-nav-projectaction{display:none;}') < mediaStart);
+      /display:none/.test(projectActionRuleBody) && projectActionSelectorMatch.index < mediaStart);
   log('mobile CSS restores the 3 original buttons to visible', /\.kf-header-nav-projectaction\{display:\s*flex/.test(mobileBlock));
-  log('mobile CSS hides the desktop Projects dropdown', /\.kf-projects-menu-wrap\{display:\s*none/.test(mobileBlock));
+  // #projectsMenuWrap's actual class is the shared, generic ".kf-desktop-menu-wrap" (also used by
+  // the Account menu) — there's no dedicated ".kf-projects-menu-wrap" class anywhere in the markup.
+  log('mobile CSS hides the desktop Projects dropdown', /\.kf-header-controls \.kf-desktop-menu-wrap\{display:\s*none/.test(mobileBlock));
 
   console.log('\nDesktop Projects dropdown test complete.');
   process.exit(0);
