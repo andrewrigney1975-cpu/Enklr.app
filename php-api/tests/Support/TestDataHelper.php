@@ -1,0 +1,101 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Enkl\Api\Tests\Support;
+
+use Enkl\Api\Auth\PasswordHasher;
+use Enkl\Api\Auth\UsernameNormalizer;
+use Enkl\Api\Support\Uuid;
+use PDO;
+
+/**
+ * Shared seeding helpers for direct-PDO test setup — the PHP-tier mirror of
+ * api/Enkl.Api.Tests/TestDataHelper.cs. Every name passed in must already be unique-per-test
+ * (Guid-suffixed by the caller, see unique()) since the test Postgres instance is shared across the
+ * whole run, not reset between tests.
+ */
+final class TestDataHelper
+{
+    public const DEFAULT_PASSWORD = 'TestPassword123!';
+
+    /** @return array{orgId:string, userId:string} */
+    public static function seedOrgAndUser(
+        PDO $db,
+        string $orgName,
+        string $username,
+        bool $isOrgAdmin = true,
+        bool $mustChangePassword = false
+    ): array {
+        $orgId = Uuid::v4();
+        $db->prepare(
+            'INSERT INTO "Organisations" ("Id", "Name", "NormalizedName", "CreatedAt") VALUES (:id, :name, :normalizedName, now())'
+        )->execute(['id' => $orgId, 'name' => $orgName, 'normalizedName' => strtolower($orgName)]);
+
+        $userId = Uuid::v4();
+        // NormalizedUsername MUST go through the real UsernameNormalizer (strips non-alphanumerics,
+        // not just lowercases) — a hand-rolled strtolower() here would silently diverge from what
+        // AuthController::login actually looks up by the moment a seeded username contains a hyphen
+        // (exactly what unique() below produces), the same mismatch that made every .NET AuthTests
+        // login 401 until TestDataHelper.cs was fixed to call UsernameNormalizer.Normalize() too.
+        $db->prepare(<<<SQL
+            INSERT INTO "Users" (
+                "Id", "OrganisationId", "Username", "NormalizedUsername", "PasswordHash", "DisplayName",
+                "MustChangePassword", "IsOrgAdmin", "IsActive", "CreatedAt"
+            ) VALUES (
+                :id, :orgId, :username, :normalizedUsername, :passwordHash, :displayName,
+                :mustChangePassword, :isOrgAdmin, true, now()
+            )
+        SQL)->execute([
+            'id' => $userId,
+            'orgId' => $orgId,
+            'username' => $username,
+            'normalizedUsername' => UsernameNormalizer::normalize($username),
+            'passwordHash' => PasswordHasher::hash(self::DEFAULT_PASSWORD),
+            'displayName' => $username,
+            'mustChangePassword' => $mustChangePassword ? 1 : 0,
+            'isOrgAdmin' => $isOrgAdmin ? 1 : 0,
+        ]);
+
+        return ['orgId' => $orgId, 'userId' => $userId];
+    }
+
+    public static function seedProject(PDO $db, string $organisationId, string $key, ?string $memberUserId = null): string
+    {
+        $projectId = Uuid::v4();
+        $db->prepare(<<<SQL
+            INSERT INTO "Projects" ("Id", "OrganisationId", "Name", "Key", "DateCreated", "DateLastModified", "TaskCounter")
+            VALUES (:id, :orgId, :name, :key, now(), now(), 1)
+        SQL)->execute(['id' => $projectId, 'orgId' => $organisationId, 'name' => $key, 'key' => $key]);
+
+        if ($memberUserId !== null) {
+            $db->prepare(
+                'INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color") VALUES (:id, :pid, :uid, :color)'
+            )->execute(['id' => Uuid::v4(), 'pid' => $projectId, 'uid' => $memberUserId, 'color' => '#4f46e5']);
+        }
+
+        return $projectId;
+    }
+
+    /** Unique-per-call suffix — an 8-hex-char segment of a v4 UUID, short by design (see
+     *  AuthTests.cs's Unique() for the .NET twin of this helper). */
+    public static function unique(string $prefix): string
+    {
+        return $prefix . '-' . substr(str_replace('-', '', Uuid::v4()), 0, 8);
+    }
+
+    /**
+     * RateLimitMiddleware (see its own doc comment) partitions purely by client IP + policy name, DB-
+     * backed and shared across this whole test run — with no per-test isolation, AuthTest's several
+     * logins-per-test would otherwise trip the "auth" policy's 10/min limit by the 4th or 5th test.
+     * A monotonically-increasing fake X-Forwarded-For per test (this PHPUnit process is single-
+     * threaded, so a static counter is safely unique across every call in the whole run) sidesteps it
+     * without weakening RateLimitMiddleware.php itself or its own test coverage elsewhere.
+     */
+    public static function uniqueIp(): string
+    {
+        static $counter = 0;
+        $counter++;
+        return sprintf('10.%d.%d.%d', ($counter >> 16) & 0xff, ($counter >> 8) & 0xff, $counter & 0xff);
+    }
+}
