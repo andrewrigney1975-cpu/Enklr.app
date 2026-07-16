@@ -2,6 +2,7 @@ using Enkl.Api.Data;
 using Enkl.Api.Domain.Entities;
 using Enkl.Api.Dtos;
 using Enkl.Api.Validation;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Enkl.Api.Services;
@@ -14,10 +15,14 @@ namespace Enkl.Api.Services;
 public class ToDoService
 {
     private readonly AppDbContext _db;
+    private readonly IValidator<CreateToDoListRequest> _createValidator;
+    private readonly IValidator<UpdateToDoListRequest> _renameValidator;
 
-    public ToDoService(AppDbContext db)
+    public ToDoService(AppDbContext db, IValidator<CreateToDoListRequest> createValidator, IValidator<UpdateToDoListRequest> renameValidator)
     {
         _db = db;
+        _createValidator = createValidator;
+        _renameValidator = renameValidator;
     }
 
     public async Task<List<ToDoListDto>> ListAsync(Guid userId)
@@ -34,8 +39,9 @@ public class ToDoService
 
     public async Task<ToDoListDto> CreateListAsync(Guid userId, CreateToDoListRequest request)
     {
+        await _createValidator.ValidateAndThrowApiExceptionAsync(request);
+
         var title = (request.Title ?? "").Trim();
-        if (title.Length == 0) throw new ApiValidationException("Please enter a list title.");
         if (title.Length > 200) title = title[..200];
 
         var now = DateTime.UtcNow;
@@ -49,11 +55,12 @@ public class ToDoService
     /// <summary>Returns null if the list doesn't exist or belongs to a different User than the caller.</summary>
     public async Task<ToDoListDto?> RenameListAsync(Guid userId, Guid listId, UpdateToDoListRequest request)
     {
+        await _renameValidator.ValidateAndThrowApiExceptionAsync(request);
+
         var list = await _db.ToDoLists.Include(l => l.Items).FirstOrDefaultAsync(l => l.Id == listId && l.UserId == userId);
         if (list is null) return null;
 
         var title = (request.Title ?? "").Trim();
-        if (title.Length == 0) throw new ApiValidationException("Please enter a list title.");
         list.Title = title.Length > 200 ? title[..200] : title;
         list.DateLastModified = DateTime.UtcNow;
         await _db.SaveChangesAsync();

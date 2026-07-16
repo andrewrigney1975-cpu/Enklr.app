@@ -2,6 +2,7 @@ using Enkl.Api.Data;
 using Enkl.Api.Domain.Entities;
 using Enkl.Api.Dtos;
 using Enkl.Api.Validation;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Enkl.Api.Services;
@@ -10,11 +11,13 @@ public class RetrospectiveService
 {
     private readonly AppDbContext _db;
     private readonly PrincipleService _principles;
+    private readonly IValidator<PromoteRetrospectiveItemRequest> _promoteValidator;
 
-    public RetrospectiveService(AppDbContext db, PrincipleService principles)
+    public RetrospectiveService(AppDbContext db, PrincipleService principles, IValidator<PromoteRetrospectiveItemRequest> promoteValidator)
     {
         _db = db;
         _principles = principles;
+        _promoteValidator = promoteValidator;
     }
 
     private static readonly string[] ValidColumns = { "start", "stop", "keep" };
@@ -123,6 +126,8 @@ public class RetrospectiveService
     // MigrationService.MigrateAsync does for its own multi-step writes.
     public async Task<PromoteRetrospectiveItemResponseDto?> PromoteItemAsync(Guid projectId, Guid retrospectiveId, Guid itemId, PromoteRetrospectiveItemRequest request)
     {
+        await _promoteValidator.ValidateAndThrowApiExceptionAsync(request);
+
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
         var item = await _db.RetrospectiveItems
@@ -131,7 +136,6 @@ public class RetrospectiveService
         if (item is null) return null;
 
         var title = (request.Title ?? "").Trim();
-        if (title.Length == 0) throw new ApiValidationException("Please enter a principle title.");
 
         var principle = await _principles.CreateAsync(projectId, new CreatePrincipleRequest(title, request.Description, null));
         if (principle is null) return null;

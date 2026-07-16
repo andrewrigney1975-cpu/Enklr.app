@@ -4,6 +4,7 @@ using Enkl.Api.Auth;
 using Enkl.Api.Data;
 using Enkl.Api.Services;
 using Enkl.Api.Validation;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -96,6 +97,10 @@ builder.Services.AddScoped<DecisionService>();
 builder.Services.AddScoped<MemberService>();
 builder.Services.AddScoped<TemplateService>();
 builder.Services.AddScoped<ToDoService>();
+// ARCHITECTURE-REVIEW.md finding 2.5: registers every AbstractValidator<T> in Validators/ (scans
+// this same assembly, so no per-validator AddScoped<IValidator<T>, ...> line is needed as more get
+// added).
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddScoped<SamlService>();
 builder.Services.AddScoped<OrganisationSsoConfigService>();
 builder.Services.AddScoped<ScimUserService>();

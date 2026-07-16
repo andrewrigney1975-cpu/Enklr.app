@@ -4,6 +4,7 @@ using Enkl.Api.Domain;
 using Enkl.Api.Domain.Entities;
 using Enkl.Api.Dtos;
 using Enkl.Api.Validation;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Enkl.Api.Services;
@@ -18,6 +19,7 @@ namespace Enkl.Api.Services;
 public class MemberService
 {
     private readonly AppDbContext _db;
+    private readonly IValidator<CreateMemberRequest> _createValidator;
 
     // Mirrors MEMBER_PALETTE in src/js/config.js exactly, so a member added from a browser and one
     // added via a fresh migration land on the same color for the same position.
@@ -27,18 +29,20 @@ public class MemberService
         "#006644", "#5243AA", "#B04632", "#1B5E20", "#8777D9"
     };
 
-    public MemberService(AppDbContext db)
+    public MemberService(AppDbContext db, IValidator<CreateMemberRequest> createValidator)
     {
         _db = db;
+        _createValidator = createValidator;
     }
 
     public async Task<MemberDto?> CreateAsync(Guid projectId, CreateMemberRequest request)
     {
+        await _createValidator.ValidateAndThrowApiExceptionAsync(request);
+
         var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var trimmedName = (request.Name ?? "").Trim();
-        if (trimmedName.Length == 0) throw new ApiValidationException("Please enter a name.");
         if (trimmedName.Length > 60) trimmedName = trimmedName[..60];
 
         var normalized = UsernameNormalizer.Normalize(trimmedName);

@@ -3,6 +3,7 @@ using Enkl.Api.Data;
 using Enkl.Api.Domain.Entities;
 using Enkl.Api.Dtos;
 using Enkl.Api.Validation;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Enkl.Api.Services;
@@ -16,11 +17,13 @@ namespace Enkl.Api.Services;
 public class TemplateService
 {
     private readonly AppDbContext _db;
+    private readonly IValidator<CreateTemplateRequest> _createValidator;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public TemplateService(AppDbContext db)
+    public TemplateService(AppDbContext db, IValidator<CreateTemplateRequest> createValidator)
     {
         _db = db;
+        _createValidator = createValidator;
     }
 
     public async Task<List<ProjectTemplateSummaryDto>> ListAsync(Guid organisationId)
@@ -40,8 +43,9 @@ public class TemplateService
 
     public async Task<ProjectTemplateSummaryDto> CreateAsync(Guid organisationId, CreateTemplateRequest request)
     {
+        await _createValidator.ValidateAndThrowApiExceptionAsync(request);
+
         var name = (request.Name ?? "").Trim();
-        if (name.Length == 0) throw new ApiValidationException("Please enter a template name.");
         if (name.Length > 200) name = name[..200];
 
         var now = DateTime.UtcNow;

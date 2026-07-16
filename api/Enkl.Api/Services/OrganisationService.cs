@@ -4,6 +4,7 @@ using Enkl.Api.Domain;
 using Enkl.Api.Domain.Entities;
 using Enkl.Api.Dtos;
 using Enkl.Api.Validation;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Enkl.Api.Services;
@@ -11,10 +12,12 @@ namespace Enkl.Api.Services;
 public class OrganisationService
 {
     private readonly AppDbContext _db;
+    private readonly IValidator<CreateUserRequest> _createUserValidator;
 
-    public OrganisationService(AppDbContext db)
+    public OrganisationService(AppDbContext db, IValidator<CreateUserRequest> createUserValidator)
     {
         _db = db;
+        _createUserValidator = createUserValidator;
     }
 
     public async Task<OrganisationDetailDto?> GetOrganisationAsync(Guid organisationId)
@@ -59,17 +62,12 @@ public class OrganisationService
     /// </summary>
     public async Task<OrgUserDto> CreateUserAsync(Guid organisationId, CreateUserRequest request)
     {
+        await _createUserValidator.ValidateAndThrowApiExceptionAsync(request);
+
         var displayName = (request.DisplayName ?? "").Trim();
-        if (displayName.Length == 0) throw new ApiValidationException("Please enter a display name.");
         if (displayName.Length > 200) displayName = displayName[..200];
 
-        if (string.IsNullOrEmpty(request.Password) || request.Password.Length < 8)
-        {
-            throw new ApiValidationException("Password must be at least 8 characters.");
-        }
-
         var normalized = UsernameNormalizer.Normalize(request.Username ?? "");
-        if (normalized.Length == 0) throw new ApiValidationException("Please enter a username.");
         if (await _db.Users.AnyAsync(u => u.NormalizedUsername == normalized))
         {
             throw new ApiValidationException($"Username \"{normalized}\" is already taken.");
