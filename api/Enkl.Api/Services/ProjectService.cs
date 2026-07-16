@@ -45,6 +45,7 @@ public class ProjectService
         // got cancelled by Npgsql's command timeout, returning a 500 — AsSplitQuery makes EF Core
         // issue one query per collection instead, so row counts add rather than multiply.
         var project = await _db.Projects
+            .AsNoTracking()
             .AsSplitQuery()
             .Include(p => p.Members).ThenInclude(m => m.User)
             .Include(p => p.Columns)
@@ -102,7 +103,7 @@ public class ProjectService
     /// </summary>
     public async Task<CreateProjectResponseDto?> CreateAsync(Guid callerUserId, CreateProjectRequest request)
     {
-        var user = await _db.Users.Include(u => u.Organisation).FirstOrDefaultAsync(u => u.Id == callerUserId);
+        var user = await _db.Users.AsNoTracking().Include(u => u.Organisation).FirstOrDefaultAsync(u => u.Id == callerUserId);
         if (user is null) return null;
 
         // Only a template belonging to the caller's own Organisation may be applied — same org-scoping
@@ -110,7 +111,7 @@ public class ProjectService
         ProjectTemplate? template = null;
         if (request.TemplateId is Guid templateId)
         {
-            template = await _db.ProjectTemplates.FirstOrDefaultAsync(t => t.Id == templateId && t.OrganisationId == user.OrganisationId);
+            template = await _db.ProjectTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == templateId && t.OrganisationId == user.OrganisationId);
             if (template is null) throw new ApiValidationException("Template not found.");
         }
 
@@ -176,7 +177,7 @@ public class ProjectService
 
         await _db.SaveChangesAsync();
 
-        var memberships = await _db.ProjectMembers.Where(m => m.UserId == user.Id).ToListAsync();
+        var memberships = await _db.ProjectMembers.AsNoTracking().Where(m => m.UserId == user.Id).ToListAsync();
         var (token, expiresAt) = _jwt.GenerateToken(user, memberships);
         var detail = await GetProjectDetailAsync(project.Id);
 

@@ -28,7 +28,7 @@ public class ScimUserService
 
     public async Task<ScimListResponse<ScimUserResponse>> ListAsync(Guid orgId, string? filter, int startIndex, int count)
     {
-        var query = _db.Users.Where(u => u.OrganisationId == orgId);
+        var query = _db.Users.AsNoTracking().Where(u => u.OrganisationId == orgId);
 
         if (!string.IsNullOrWhiteSpace(filter))
         {
@@ -64,7 +64,7 @@ public class ScimUserService
 
     public async Task<ScimUserResponse?> GetAsync(Guid orgId, Guid userId)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.OrganisationId == orgId);
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && u.OrganisationId == orgId);
         return user is null ? null : ToResponse(user);
     }
 

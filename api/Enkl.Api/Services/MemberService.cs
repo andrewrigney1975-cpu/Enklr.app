@@ -34,7 +34,7 @@ public class MemberService
 
     public async Task<MemberDto?> CreateAsync(Guid projectId, CreateMemberRequest request)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var trimmedName = (request.Name ?? "").Trim();

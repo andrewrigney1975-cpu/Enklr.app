@@ -110,6 +110,7 @@ public class PortfolioService
         // Materialize entities first, then map in-memory (ProjectService.ToTaskDto isn't EF
         // Core-translatable) — same two-step shape ProjectService.GetProjectDetailAsync itself uses.
         var taskEntities = await _db.Tasks
+            .AsNoTracking()
             .Where(t => validProjectIds.Contains(t.ProjectId))
             .Include(t => t.Dependencies)
             .Include(t => t.AuditLog)

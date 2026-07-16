@@ -30,7 +30,7 @@ public class OrganisationSsoConfigService
 
     public async Task<SsoConfigDto> GetAsync(Guid organisationId)
     {
-        var cfg = await _db.OrganisationSsoConfigs.FirstOrDefaultAsync(c => c.OrganisationId == organisationId);
+        var cfg = await _db.OrganisationSsoConfigs.AsNoTracking().FirstOrDefaultAsync(c => c.OrganisationId == organisationId);
         return ToDto(organisationId, cfg);
     }
 

@@ -213,7 +213,7 @@ public class ScimGroupService
 
     private async Task<ScimGroupResponse> ToResponseAsync(Guid id)
     {
-        var team = await _db.OrgTeams.Include(t => t.Members).ThenInclude(m => m.User).FirstAsync(t => t.Id == id);
+        var team = await _db.OrgTeams.AsNoTracking().Include(t => t.Members).ThenInclude(m => m.User).FirstAsync(t => t.Id == id);
         return new ScimGroupResponse(
             new[] { ScimSchemas.Group },
             team.Id.ToString(),

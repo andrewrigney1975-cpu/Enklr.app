@@ -21,7 +21,7 @@ public class DecisionService
 
     public async Task<DecisionDto?> CreateAsync(Guid projectId, CreateDecisionRequest request)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var decision = new Decision
@@ -101,6 +101,7 @@ public class DecisionService
     private async Task<DecisionDto> ToDtoAsync(Guid decisionId)
     {
         var d = await _db.Decisions
+            .AsNoTracking()
             .Include(x => x.Documents).Include(x => x.Risks).Include(x => x.Principles).Include(x => x.Objectives)
             .FirstAsync(x => x.Id == decisionId);
         return new DecisionDto(

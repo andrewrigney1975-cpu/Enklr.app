@@ -34,7 +34,7 @@ public class TemplateService
 
     public async Task<ProjectTemplateDetailDto?> GetDetailAsync(Guid organisationId, Guid templateId)
     {
-        var t = await _db.ProjectTemplates.FirstOrDefaultAsync(x => x.Id == templateId && x.OrganisationId == organisationId);
+        var t = await _db.ProjectTemplates.AsNoTracking().FirstOrDefaultAsync(x => x.Id == templateId && x.OrganisationId == organisationId);
         return t is null ? null : ToDetailDto(t);
     }
 

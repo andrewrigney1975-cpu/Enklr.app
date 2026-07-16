@@ -26,7 +26,7 @@ public class TeamCommitteeService
 
     public async Task<TeamCommitteeDto?> CreateAsync(Guid projectId, CreateTeamCommitteeRequest request)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var type = request.Type is "team" or "committee" ? request.Type : "team";
@@ -84,10 +84,10 @@ public class TeamCommitteeService
     /// </summary>
     public async Task<ApplyOrgTeamResultDto?> ApplyOrgTeamAsync(Guid projectId, Guid orgTeamId)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
-        var orgTeam = await _db.OrgTeams.Include(t => t.Members).ThenInclude(m => m.User)
+        var orgTeam = await _db.OrgTeams.AsNoTracking().Include(t => t.Members).ThenInclude(m => m.User)
             .FirstOrDefaultAsync(t => t.Id == orgTeamId && t.OrganisationId == project.OrganisationId);
         if (orgTeam is null) return null;
 
@@ -121,7 +121,7 @@ public class TeamCommitteeService
         var memberCount = await _db.ProjectMembers.CountAsync(m => m.ProjectId == projectId);
         foreach (var orgTeamMember in orgTeam.Members)
         {
-            var projectMember = await _db.ProjectMembers.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == orgTeamMember.UserId);
+            var projectMember = await _db.ProjectMembers.AsNoTracking().FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == orgTeamMember.UserId);
             if (projectMember is null)
             {
                 projectMember = new ProjectMember
@@ -186,7 +186,7 @@ public class TeamCommitteeService
 
     private async Task<TeamCommitteeDto> ToDtoAsync(Guid id)
     {
-        var tc = await _db.TeamsCommittees.Include(x => x.Members).FirstAsync(x => x.Id == id);
+        var tc = await _db.TeamsCommittees.AsNoTracking().Include(x => x.Members).FirstAsync(x => x.Id == id);
         return new TeamCommitteeDto(tc.Id, tc.Key, tc.Name, tc.Description, tc.Type, tc.ParentId, tc.Members.Select(x => x.ProjectMemberId).ToList());
     }
 }

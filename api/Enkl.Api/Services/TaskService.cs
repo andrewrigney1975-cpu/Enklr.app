@@ -19,7 +19,7 @@ public class TaskService
     public async Task<TaskDto?> CreateAsync(Guid projectId, CreateTaskRequest request)
     {
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
-        var column = await _db.Columns.FirstOrDefaultAsync(c => c.Id == request.ColumnId && c.ProjectId == projectId);
+        var column = await _db.Columns.AsNoTracking().FirstOrDefaultAsync(c => c.Id == request.ColumnId && c.ProjectId == projectId);
         if (project is null || column is null) return null;
 
         if (request.DependsOnTaskIds is { Count: > 0 } && await WouldCreateDependencyCycleAsync(projectId, Guid.Empty, request.DependsOnTaskIds, isNewTask: true))
@@ -72,7 +72,7 @@ public class TaskService
             .FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == projectId);
         if (task is null) return null;
 
-        var newColumn = await _db.Columns.FirstOrDefaultAsync(c => c.Id == request.ColumnId && c.ProjectId == projectId);
+        var newColumn = await _db.Columns.AsNoTracking().FirstOrDefaultAsync(c => c.Id == request.ColumnId && c.ProjectId == projectId);
         if (newColumn is null) return null;
 
         var newDeps = (request.DependsOnTaskIds ?? new List<Guid>()).Where(id => id != taskId).Distinct().ToList();
@@ -135,7 +135,7 @@ public class TaskService
     /// </summary>
     public async Task<(Guid TaskId, string Key, string Title)?> GetTaskSummaryAsync(Guid projectId, Guid taskId)
     {
-        var task = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == projectId);
+        var task = await _db.Tasks.AsNoTracking().FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == projectId);
         return task is null ? null : (task.Id, task.Key, task.Title);
     }
 
@@ -163,6 +163,7 @@ public class TaskService
     private async Task<TaskDto> ToTaskDtoWithRelationsAsync(Guid taskId)
     {
         var task = await _db.Tasks
+            .AsNoTracking()
             .Include(t => t.Dependencies)
             .Include(t => t.AuditLog)
             .FirstAsync(t => t.Id == taskId);

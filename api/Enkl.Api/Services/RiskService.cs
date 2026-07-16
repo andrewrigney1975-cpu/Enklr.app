@@ -16,7 +16,7 @@ public class RiskService
 
     public async Task<RiskDto?> CreateAsync(Guid projectId, CreateRiskRequest request)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var risk = new Risk
@@ -94,7 +94,7 @@ public class RiskService
 
     private async Task<RiskDto> ToDtoAsync(Guid riskId)
     {
-        var r = await _db.Risks.Include(x => x.Documents).Include(x => x.Principles).Include(x => x.Objectives).FirstAsync(x => x.Id == riskId);
+        var r = await _db.Risks.AsNoTracking().Include(x => x.Documents).Include(x => x.Principles).Include(x => x.Objectives).FirstAsync(x => x.Id == riskId);
         return new RiskDto(
             r.Id, r.Key, r.Title, r.Description, r.Likelihood, r.Impact, r.Mitigations, r.OwnerId, r.TaskId,
             r.Status, r.DateToClose, r.DateClosed,

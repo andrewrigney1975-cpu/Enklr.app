@@ -23,6 +23,7 @@ public class ToDoService
     public async Task<List<ToDoListDto>> ListAsync(Guid userId)
     {
         var lists = await _db.ToDoLists
+            .AsNoTracking()
             .Include(l => l.Items)
             .Where(l => l.UserId == userId)
             .OrderBy(l => l.DateCreated)

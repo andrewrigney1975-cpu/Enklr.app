@@ -21,7 +21,7 @@ public class RetrospectiveService
 
     public async Task<RetrospectiveDto?> CreateAsync(Guid projectId, CreateRetrospectiveRequest request)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var now = DateTime.UtcNow;

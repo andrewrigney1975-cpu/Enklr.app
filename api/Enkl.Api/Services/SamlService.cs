@@ -43,7 +43,7 @@ public class SamlService
 
     public async Task<OrganisationSsoConfig?> GetEnabledConfigAsync(Guid orgId)
     {
-        var cfg = await _db.OrganisationSsoConfigs.FirstOrDefaultAsync(c => c.OrganisationId == orgId);
+        var cfg = await _db.OrganisationSsoConfigs.AsNoTracking().FirstOrDefaultAsync(c => c.OrganisationId == orgId);
         return cfg is { SamlEnabled: true } ? cfg : null;
     }
 
@@ -75,7 +75,7 @@ public class SamlService
     public async Task<SamlAcsResult> ProcessAssertionAsync(Guid orgId, OrganisationSsoConfig ssoConfig, string email, string? displayNameHint)
     {
         var normalizedEmail = EmailAddressNormalizer.Normalize(email);
-        var user = await _db.Users.Include(u => u.Organisation)
+        var user = await _db.Users.AsNoTracking().Include(u => u.Organisation)
             .FirstOrDefaultAsync(u => u.NormalizedEmailAddress == normalizedEmail);
 
         if (user is not null && user.OrganisationId != orgId)
@@ -91,7 +91,7 @@ public class SamlService
 
         if (!user.IsActive) return new SamlAcsResult(SamlAcsOutcome.UserInactive, null);
 
-        var memberships = await _db.ProjectMembers.Where(m => m.UserId == user.Id).ToListAsync();
+        var memberships = await _db.ProjectMembers.AsNoTracking().Where(m => m.UserId == user.Id).ToListAsync();
         var (token, expiresAt) = _jwt.GenerateToken(user, memberships);
         var response = new SsoExchangeResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword));
         return new SamlAcsResult(SamlAcsOutcome.Success, _exchange.Issue(JsonSerializer.Serialize(response)));

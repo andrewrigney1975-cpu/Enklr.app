@@ -20,6 +20,7 @@ public class OrganisationService
     public async Task<OrganisationDetailDto?> GetOrganisationAsync(Guid organisationId)
     {
         var org = await _db.Organisations
+            .AsNoTracking()
             .Include(o => o.Users)
             .FirstOrDefaultAsync(o => o.Id == organisationId);
         if (org is null) return null;
@@ -118,6 +119,7 @@ public class OrganisationService
     public async Task<List<OrgTeamSummaryDto>> GetOrgTeamsAsync(Guid organisationId)
     {
         var teams = await _db.OrgTeams
+            .AsNoTracking()
             .Include(t => t.Members).ThenInclude(m => m.User)
             .Where(t => t.OrganisationId == organisationId)
             .OrderBy(t => t.Name)

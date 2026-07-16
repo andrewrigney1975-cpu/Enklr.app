@@ -16,7 +16,7 @@ public class ObjectiveService
 
     public async Task<ObjectiveDto?> CreateAsync(Guid projectId, CreateObjectiveRequest request)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var objective = new Objective
@@ -72,7 +72,7 @@ public class ObjectiveService
 
     private async Task<ObjectiveDto> ToDtoAsync(Guid objectiveId)
     {
-        var o = await _db.Objectives.Include(x => x.Principles).FirstAsync(x => x.Id == objectiveId);
+        var o = await _db.Objectives.AsNoTracking().Include(x => x.Principles).FirstAsync(x => x.Id == objectiveId);
         return new ObjectiveDto(o.Id, o.Key, o.Title, o.Description, o.Principles.Select(x => x.PrincipleId).ToList());
     }
 }

@@ -16,7 +16,7 @@ public class DocumentService
 
     public async Task<DocumentDto?> CreateAsync(Guid projectId, CreateDocumentRequest request)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var document = new Document
@@ -81,7 +81,7 @@ public class DocumentService
 
     private async Task<DocumentDto> ToDtoAsync(Guid documentId)
     {
-        var d = await _db.Documents.Include(x => x.RelatedDocuments).FirstAsync(x => x.Id == documentId);
+        var d = await _db.Documents.AsNoTracking().Include(x => x.RelatedDocuments).FirstAsync(x => x.Id == documentId);
         return new DocumentDto(d.Id, d.Key, d.Title, d.Url, d.Description, d.OwnerId, d.TaskId, d.RelatedDocuments.Select(r => r.RelatedDocumentId).ToList());
     }
 }

@@ -113,14 +113,14 @@ public class MigrationService
             // Authenticated caller: always migrate into their own Organisation regardless of what
             // name the export document carries. This is the "add another local project to my
             // existing org" flow — never let a submitted name redirect it into someone else's org.
-            var callerOrg = await _db.Organisations.FirstOrDefaultAsync(o => o.Id == callerOrgId.Value);
+            var callerOrg = await _db.Organisations.AsNoTracking().FirstOrDefaultAsync(o => o.Id == callerOrgId.Value);
             if (callerOrg is not null) return (callerOrg, false);
             // Falls through to name-based resolution only if the token's org somehow no longer
             // exists; the existing-org check below still protects that path.
         }
 
         var normalized = UsernameNormalizer.Normalize(name);
-        var existing = await _db.Organisations.FirstOrDefaultAsync(o => o.NormalizedName == normalized);
+        var existing = await _db.Organisations.AsNoTracking().FirstOrDefaultAsync(o => o.NormalizedName == normalized);
         if (existing is not null)
         {
             // An unauthenticated caller matching an existing Organisation purely by name was the

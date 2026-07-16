@@ -16,7 +16,7 @@ public class PrincipleService
 
     public async Task<PrincipleDto?> CreateAsync(Guid projectId, CreatePrincipleRequest request)
     {
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
         var principle = new Principle
@@ -91,10 +91,10 @@ public class PrincipleService
     /// "projects" claim, not anything this service layer has access to.</summary>
     public async Task<PrincipleDto?> CopyAsync(Guid organisationId, Guid principleId, CopyPrincipleRequest request)
     {
-        var source = await _db.Principles.FirstOrDefaultAsync(p => p.Id == principleId && p.OrganisationId == organisationId && p.IsOrganisationWide);
+        var source = await _db.Principles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == principleId && p.OrganisationId == organisationId && p.IsOrganisationWide);
         if (source is null) return null;
 
-        var targetProject = await _db.Projects.FirstOrDefaultAsync(p => p.Id == request.TargetProjectId && p.OrganisationId == organisationId);
+        var targetProject = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.TargetProjectId && p.OrganisationId == organisationId);
         if (targetProject is null) return null;
 
         return await CreateAsync(targetProject.Id, new CreatePrincipleRequest(source.Title, source.Description, source.DocumentUrl));
@@ -110,6 +110,7 @@ public class PrincipleService
     public async Task<List<PrincipleSuggestionDto>> GetSuggestionsAsync(Guid organisationId)
     {
         var items = await _db.RetrospectiveItems
+            .AsNoTracking()
             .Include(i => i.Retrospective).ThenInclude(r => r.Project)
             .Where(i => (i.Column == "start" || i.Column == "keep")
                 && i.PromotedPrincipleId == null
