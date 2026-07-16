@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Enkl\Api\Auth\JwtAuthMiddleware;
 use Enkl\Api\Auth\OrgAdminMiddleware;
+use Enkl\Api\Auth\ProjectAdminMiddleware;
 use Enkl\Api\Auth\ProjectMemberMiddleware;
 use Enkl\Api\Auth\RateLimitMiddleware;
 use Enkl\Api\Auth\RequireAuthMiddleware;
@@ -195,12 +196,22 @@ function registerRoutes(App $app): void
         $group->get('', [ProjectsController::class, 'detail']);
         $group->put('', [ProjectsController::class, 'update']);
         $group->delete('', [ProjectsController::class, 'delete']);
-        $group->put('/settings', [ProjectsController::class, 'updateSettings']);
-        $group->put('/workflow', [ProjectsController::class, 'updateWorkflow']);
+        // Project Administrator capabilities ("change app settings", "manage workflow") — see
+        // Auth/ProjectAdminMiddleware.php's own doc comment.
+        $group->put('/settings', [ProjectsController::class, 'updateSettings'])->add(ProjectAdminMiddleware::class);
+        $group->put('/workflow', [ProjectsController::class, 'updateWorkflow'])->add(ProjectAdminMiddleware::class);
 
-        registerEntityRoutes($group, '/columns', ColumnsController::class, 'columnId');
+        // Columns and Members are entirely mutation-only controllers (both are read via GET
+        // /api/projects/{id}'s own project-detail response, not through these) — nested in their own
+        // sub-groups (same "extra check on just these routes" shape as teams-committees below) so
+        // every action in both requires the Project Administrator role, not just plain membership.
+        $group->group('', function ($adminGroup) {
+            registerEntityRoutes($adminGroup, '/columns', ColumnsController::class, 'columnId');
+            registerEntityRoutes($adminGroup, '/members', MembersController::class, 'memberId');
+            $adminGroup->put('/members/{memberId}/admin', [MembersController::class, 'setProjectAdmin']);
+        })->add(ProjectAdminMiddleware::class);
+
         registerEntityRoutes($group, '/tasks', TasksController::class, 'taskId');
-        registerEntityRoutes($group, '/members', MembersController::class, 'memberId');
         registerEntityRoutes($group, '/releases', ReleasesController::class, 'id');
         registerEntityRoutes($group, '/task-types', TaskTypesController::class, 'id');
         registerEntityRoutes($group, '/principles', PrinciplesController::class, 'id');

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Enkl\Api\Controllers;
 
-use Enkl\Api\Auth\JwtService;
 use Enkl\Api\Db\Database;
 use Enkl\Api\Services\PrincipleService;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -17,9 +16,11 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * different: it WRITES a new Principle into a specific project, so unlike the read-only endpoints
  * above, it also requires the caller to actually be a member of the target project (security review
  * finding M9) — this route isn't under a {projectId} route segment (targetProjectId lives in the
- * request body instead), so ProjectMemberMiddleware's usual route-based check can't apply here; the
- * same "projects" JWT claim it reads is checked manually below instead. See routes.php, which
- * attaches RequireAuthMiddleware only, no OrgAdminMiddleware/ProjectMemberMiddleware.
+ * request body instead), so ProjectMemberMiddleware's usual route-based check can't apply here; a
+ * live DB check (ARCHITECTURE-REVIEW.md finding 2.4 — see ProjectMemberMiddleware's own doc comment
+ * for why a live check replaced the stale JWT "projects" claim) is done manually below instead, same
+ * reasoning, just without a route-based middleware to hook into. See routes.php, which attaches
+ * RequireAuthMiddleware only, no OrgAdminMiddleware/ProjectMemberMiddleware.
  */
 final class OrganisationPrinciplesController extends BaseController
 {
@@ -44,11 +45,14 @@ final class OrganisationPrinciplesController extends BaseController
         $targetProjectId = (string) ($body['targetProjectId'] ?? '');
 
         $claims = $request->getAttribute('jwtClaims');
-        $memberships = $claims !== null ? JwtService::parseProjectsClaim($claims) : [];
-        // in_array over array_map, not array_any — this codebase targets PHP >= 8.2 (composer.json)
-        // and array_any() is PHP 8.4+.
-        $memberProjectIds = array_map(static fn(array $m): string => (string) $m['ProjectId'], $memberships);
-        $isMember = $targetProjectId !== '' && in_array($targetProjectId, $memberProjectIds, true);
+        $isMember = false;
+        if ($targetProjectId !== '' && $claims !== null && isset($claims->sub)) {
+            $stmt = Database::connection()->prepare(
+                'SELECT 1 FROM "ProjectMembers" WHERE "ProjectId" = :pid AND "UserId" = :uid'
+            );
+            $stmt->execute(['pid' => $targetProjectId, 'uid' => (string) $claims->sub]);
+            $isMember = $stmt->fetch() !== false;
+        }
         if (!$isMember) {
             return $this->json($response, ['message' => 'You are not a member of this project.'], 403);
         }

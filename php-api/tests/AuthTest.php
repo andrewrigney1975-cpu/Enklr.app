@@ -164,4 +164,65 @@ final class AuthTest extends TestCase
         $response = Http::get('/api/projects/' . $projectId, $token, ['X-Forwarded-For' => $ip]);
         self::assertSame(403, $response['status']);
     }
+
+    // Project Administrator role: a plain (non-admin) project member can view the project but must
+    // not be able to add a column — one of the four Project Admin capabilities.
+    public function testProjectAdminPolicyRejectsPlainMemberFromCreatingColumn(): void
+    {
+        $ip = TestDataHelper::uniqueIp();
+        $org = TestDataHelper::unique('org');
+        $user = TestDataHelper::unique('user');
+        $projectKey = TestDataHelper::unique('P');
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, $org, $user);
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], $projectKey, $seeded['userId'], memberIsProjectAdmin: false);
+
+        $login = Http::post('/api/auth/login', ['username' => $user, 'password' => TestDataHelper::DEFAULT_PASSWORD], null, ['X-Forwarded-For' => $ip]);
+        $token = $login['body']['token'];
+
+        $read = Http::get('/api/projects/' . $projectId, $token, ['X-Forwarded-For' => $ip]);
+        self::assertSame(200, $read['status']);
+
+        $response = Http::post('/api/projects/' . $projectId . '/columns', ['name' => 'New Column', 'done' => false, 'color' => null], $token, ['X-Forwarded-For' => $ip]);
+        self::assertSame(403, $response['status']);
+    }
+
+    public function testProjectAdminPolicyAllowsProjectAdminToCreateColumn(): void
+    {
+        $ip = TestDataHelper::uniqueIp();
+        $org = TestDataHelper::unique('org');
+        $user = TestDataHelper::unique('user');
+        $projectKey = TestDataHelper::unique('P');
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, $org, $user);
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], $projectKey, $seeded['userId'], memberIsProjectAdmin: true);
+
+        $login = Http::post('/api/auth/login', ['username' => $user, 'password' => TestDataHelper::DEFAULT_PASSWORD], null, ['X-Forwarded-For' => $ip]);
+        $token = $login['body']['token'];
+
+        $response = Http::post('/api/projects/' . $projectId . '/columns', ['name' => 'New Column', 'done' => false, 'color' => null], $token, ['X-Forwarded-For' => $ip]);
+        self::assertSame(200, $response['status']);
+    }
+
+    // Promotion/demotion takes effect on the very next request, not at next login — same live-check
+    // guarantee ProjectMemberPolicy already relies on, applied to the Project Admin flag specifically.
+    public function testProjectAdminPolicyPromotionTakesEffectWithoutReLogin(): void
+    {
+        $ip = TestDataHelper::uniqueIp();
+        $org = TestDataHelper::unique('org');
+        $user = TestDataHelper::unique('user');
+        $projectKey = TestDataHelper::unique('P');
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, $org, $user);
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], $projectKey, $seeded['userId'], memberIsProjectAdmin: false);
+
+        $login = Http::post('/api/auth/login', ['username' => $user, 'password' => TestDataHelper::DEFAULT_PASSWORD], null, ['X-Forwarded-For' => $ip]);
+        $token = $login['body']['token'];
+
+        $beforePromotion = Http::post('/api/projects/' . $projectId . '/columns', ['name' => 'Too Early', 'done' => false, 'color' => null], $token, ['X-Forwarded-For' => $ip]);
+        self::assertSame(403, $beforePromotion['status']);
+
+        self::$db->prepare('UPDATE "ProjectMembers" SET "IsProjectAdmin" = true WHERE "ProjectId" = :pid AND "UserId" = :uid')
+            ->execute(['pid' => $projectId, 'uid' => $seeded['userId']]);
+
+        $afterPromotion = Http::post('/api/projects/' . $projectId . '/columns', ['name' => 'Now Allowed', 'done' => false, 'color' => null], $token, ['X-Forwarded-For' => $ip]);
+        self::assertSame(200, $afterPromotion['status']);
+    }
 }

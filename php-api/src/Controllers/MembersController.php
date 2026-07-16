@@ -33,4 +33,16 @@ final class MembersController extends BaseController
     {
         return $this->service()->delete($args['projectId'], $args['memberId']) ? $this->noContent($response) : $this->notFound($response);
     }
+
+    // "The project admin role can be assigned to users via the Team management tool" — Project-Admin
+    // gated same as every other action here (routes.php), so only an existing admin can promote/
+    // demote another member. MemberService::setProjectAdmin's last-admin guard throws
+    // ApiValidationException, mapped to 400 by bootstrap.php's global error handler like every other
+    // manual validation check in this tier.
+    public function setProjectAdmin(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $result = $this->service()->setProjectAdmin($args['projectId'], $args['memberId'], (bool) ($body['isProjectAdmin'] ?? false));
+        return $result === null ? $this->notFound($response) : $this->json($response, $result);
+    }
 }

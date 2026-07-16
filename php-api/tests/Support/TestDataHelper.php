@@ -60,7 +60,7 @@ final class TestDataHelper
         return ['orgId' => $orgId, 'userId' => $userId];
     }
 
-    public static function seedProject(PDO $db, string $organisationId, string $key, ?string $memberUserId = null): string
+    public static function seedProject(PDO $db, string $organisationId, string $key, ?string $memberUserId = null, bool $memberIsProjectAdmin = false): string
     {
         $projectId = Uuid::v4();
         $db->prepare(<<<SQL
@@ -70,8 +70,8 @@ final class TestDataHelper
 
         if ($memberUserId !== null) {
             $db->prepare(
-                'INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color") VALUES (:id, :pid, :uid, :color)'
-            )->execute(['id' => Uuid::v4(), 'pid' => $projectId, 'uid' => $memberUserId, 'color' => '#4f46e5']);
+                'INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color", "IsProjectAdmin") VALUES (:id, :pid, :uid, :color, :isProjectAdmin)'
+            )->execute(['id' => Uuid::v4(), 'pid' => $projectId, 'uid' => $memberUserId, 'color' => '#4f46e5', 'isProjectAdmin' => (int) $memberIsProjectAdmin]);
         }
 
         return $projectId;

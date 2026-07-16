@@ -65,7 +65,7 @@ final class AuthController extends BaseController
             return $this->json($response, ['message' => 'Invalid username or password.'], 401);
         }
 
-        $stmt = $db->prepare('SELECT "ProjectId", "Role" FROM "ProjectMembers" WHERE "UserId" = :uid');
+        $stmt = $db->prepare('SELECT "ProjectId", "Role", "IsProjectAdmin" FROM "ProjectMembers" WHERE "UserId" = :uid');
         $stmt->execute(['uid' => $user['Id']]);
         $memberships = $stmt->fetchAll();
 
@@ -168,7 +168,7 @@ final class AuthController extends BaseController
         $stmt->execute(['id' => $userId]);
         $user = $stmt->fetch();
 
-        $stmt = $db->prepare('SELECT "ProjectId", "Role" FROM "ProjectMembers" WHERE "UserId" = :uid');
+        $stmt = $db->prepare('SELECT "ProjectId", "Role", "IsProjectAdmin" FROM "ProjectMembers" WHERE "UserId" = :uid');
         $stmt->execute(['uid' => $userId]);
         $memberships = $stmt->fetchAll();
 

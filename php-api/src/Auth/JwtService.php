@@ -24,15 +24,19 @@ use stdClass;
  *   securityStamp the live User.SecurityStamp value at mint time (security review finding H2) —
  *                 re-checked against the DB on every authenticated request (SecurityStampMiddleware)
  *                 so password/role/deactivation changes invalidate already-issued tokens
- *   projects     a JSON-encoded STRING (double-encoded) of [{"ProjectId":"...","Role":null}, ...],
- *                deliberately PascalCase inside to match System.Text.Json.Serialize's default output
- *                for the C# ProjectClaim record (no camelCase policy applied to that call site)
+ *   projects     a JSON-encoded STRING (double-encoded) of
+ *                [{"ProjectId":"...","Role":null,"IsProjectAdmin":false}, ...], deliberately
+ *                PascalCase inside to match System.Text.Json.Serialize's default output for the C#
+ *                ProjectClaim record (no camelCase policy applied to that call site). IsProjectAdmin
+ *                is display-only client-side (api.js's isProjectAdmin()) — the server always
+ *                re-checks a live ProjectMembers row (Auth/ProjectAdminMiddleware.php) for
+ *                authorization itself, never this claim.
  */
 final class JwtService
 {
     /**
      * @param array{Id:string,Username:string,DisplayName:string,OrganisationId:string,OrganisationName:string,IsOrgAdmin:bool,SecurityStamp:string} $user
-     * @param array<array{ProjectId:string,Role:?string}> $memberships
+     * @param array<array{ProjectId:string,Role:?string,IsProjectAdmin:bool}> $memberships
      * @return array{token:string, expiresAt:string} expiresAt as an ISO-8601 UTC string, matching how
      *   the .NET DateTime gets JSON-serialized in LoginResponse/CreateProjectResponseDto
      */
@@ -43,7 +47,7 @@ final class JwtService
         $expiresAt = $now->modify('+' . (int) round($expiryHours * 3600) . ' seconds');
 
         $projectsClaim = json_encode(array_map(
-            static fn(array $m): array => ['ProjectId' => $m['ProjectId'], 'Role' => $m['Role']],
+            static fn(array $m): array => ['ProjectId' => $m['ProjectId'], 'Role' => $m['Role'], 'IsProjectAdmin' => (bool) $m['IsProjectAdmin']],
             $memberships
         ));
 

@@ -163,6 +163,11 @@ final class MigrationService
         $userIdByNormalizedKey = [];
         $memberByOldId = [];
         $firstAdminAssigned = false;
+        // The first member listed in the export is treated as this project's "owner" — same
+        // always-a-Project-Admin default ProjectService::create gives a freshly created project's
+        // creator, applied here so a migrated project isn't immediately locked out of column/
+        // settings/workflow/member management either.
+        $isFirstProjectMember = true;
 
         $findInOrgStmt = $this->db->prepare('SELECT "Id", "EmailAddress" FROM "Users" WHERE "NormalizedUsername" = :n AND "OrganisationId" = :org');
         $findAnywhereStmt = $this->db->prepare('SELECT 1 FROM "Users" WHERE "NormalizedUsername" = :n');
@@ -170,7 +175,7 @@ final class MigrationService
             INSERT INTO "Users" ("Id", "OrganisationId", "Username", "NormalizedUsername", "EmailAddress", "NormalizedEmailAddress", "PasswordHash", "DisplayName", "MustChangePassword", "IsOrgAdmin", "CreatedAt")
             VALUES (:id, :orgId, :username, :normalized, :email, :normalizedEmail, :hash, :displayName, true, :isAdmin, now())
         SQL);
-        $insertMemberStmt = $this->db->prepare('INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color", "Role", "AllocatedFraction") VALUES (:id, :pid, :uid, :color, :role, :allocatedFraction)');
+        $insertMemberStmt = $this->db->prepare('INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color", "Role", "AllocatedFraction", "IsProjectAdmin") VALUES (:id, :pid, :uid, :color, :role, :allocatedFraction, :isProjectAdmin)');
         $backfillEmailStmt = $this->db->prepare('UPDATE "Users" SET "EmailAddress" = :email, "NormalizedEmailAddress" = :normalizedEmail WHERE "Id" = :id');
 
         foreach ($members as $m) {
@@ -243,8 +248,12 @@ final class MigrationService
             }
 
             $memberId = Uuid::v4();
-            $insertMemberStmt->execute(['id' => $memberId, 'pid' => $projectId, 'uid' => $userIdByNormalizedKey[$normalized], 'color' => $m['color'], 'role' => $m['role'] ?? null, 'allocatedFraction' => $allocatedFraction]);
+            $insertMemberStmt->execute([
+                'id' => $memberId, 'pid' => $projectId, 'uid' => $userIdByNormalizedKey[$normalized], 'color' => $m['color'],
+                'role' => $m['role'] ?? null, 'allocatedFraction' => $allocatedFraction, 'isProjectAdmin' => (int) $isFirstProjectMember,
+            ]);
             $memberByOldId[$m['id']] = $memberId;
+            $isFirstProjectMember = false;
         }
 
         $reportsToStmt = $this->db->prepare('UPDATE "ProjectMembers" SET "ReportsToId" = :reportsTo WHERE "Id" = :id');

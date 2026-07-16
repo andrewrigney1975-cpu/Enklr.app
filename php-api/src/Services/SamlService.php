@@ -136,7 +136,7 @@ final class SamlService
             return ['outcome' => 'user_inactive', 'exchangeCode' => null];
         }
 
-        $stmt = $this->db->prepare('SELECT "ProjectId", "Role" FROM "ProjectMembers" WHERE "UserId" = :uid');
+        $stmt = $this->db->prepare('SELECT "ProjectId", "Role", "IsProjectAdmin" FROM "ProjectMembers" WHERE "UserId" = :uid');
         $stmt->execute(['uid' => $user['Id']]);
         $memberships = $stmt->fetchAll();
 

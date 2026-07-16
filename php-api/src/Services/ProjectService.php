@@ -152,8 +152,11 @@ final class ProjectService
             'settings' => $settingsJson,
         ]);
 
+        // The creator is the project's "owner" — always its first Project Admin, so a freshly
+        // created project is never immediately locked out of column/settings/workflow/member
+        // management (see Auth/ProjectAdminMiddleware.php's own doc comment for what this gates).
         $stmt = $this->db->prepare(
-            'INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color") VALUES (:id, :pid, :uid, :color)'
+            'INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color", "IsProjectAdmin") VALUES (:id, :pid, :uid, :color, true)'
         );
         $stmt->execute(['id' => Uuid::v4(), 'pid' => $projectId, 'uid' => $callerUserId, 'color' => MemberPalette::COLORS[0]]);
 
@@ -209,7 +212,7 @@ final class ProjectService
             }
         }
 
-        $stmt = $this->db->prepare('SELECT "ProjectId", "Role" FROM "ProjectMembers" WHERE "UserId" = :uid');
+        $stmt = $this->db->prepare('SELECT "ProjectId", "Role", "IsProjectAdmin" FROM "ProjectMembers" WHERE "UserId" = :uid');
         $stmt->execute(['uid' => $callerUserId]);
         $memberships = $stmt->fetchAll();
         $tokenInfo = JwtService::generateToken($user, $memberships);
@@ -374,7 +377,7 @@ final class ProjectService
     private function fetchMembers(string $projectId): array
     {
         $stmt = $this->db->prepare(<<<SQL
-            SELECT m."Id", m."UserId", u."DisplayName", u."EmailAddress", m."Color", m."Role", m."AllocatedFraction", m."ReportsToId"
+            SELECT m."Id", m."UserId", u."DisplayName", u."EmailAddress", m."Color", m."Role", m."AllocatedFraction", m."ReportsToId", m."IsProjectAdmin"
             FROM "ProjectMembers" m JOIN "Users" u ON u."Id" = m."UserId"
             WHERE m."ProjectId" = :pid
         SQL);
@@ -382,6 +385,7 @@ final class ProjectService
         return array_map(static fn(array $m): array => [
             'id' => $m['Id'], 'userId' => $m['UserId'], 'displayName' => $m['DisplayName'], 'email' => $m['EmailAddress'],
             'color' => $m['Color'], 'role' => $m['Role'], 'allocatedFraction' => $m['AllocatedFraction'] !== null ? (int) $m['AllocatedFraction'] : null, 'reportsToId' => $m['ReportsToId'],
+            'isProjectAdmin' => (bool) $m['IsProjectAdmin'],
         ], $stmt->fetchAll());
     }
 

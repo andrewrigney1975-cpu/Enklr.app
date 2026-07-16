@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Enkl\Api\Auth;
 
+use Enkl\Api\Db\Database;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -12,18 +13,27 @@ use Slim\Psr7\Response;
 use Slim\Routing\RouteContext;
 
 /**
- * Ported from Auth/ProjectMemberAuthorizationHandler.cs — reads the route's {projectId} and checks it
- * against the JWT's "projects" claim, decoded once per request. Membership is embedded in the token
- * rather than re-queried from the DB (same trade-off as the .NET version: a membership change only
- * takes effect on that user's next login, not live) — see Services/ProjectService's create-project
- * JWT-reissue handling for the one place this trade-off is worked around deliberately.
+ * ARCHITECTURE-REVIEW.md finding 2.4 (.NET tier), ported here: reads the route's {projectId} and
+ * checks it against a LIVE "ProjectMembers" row, not the JWT's baked-in "projects" claim — that claim
+ * is minted once at login and never re-queried, so removing a user from a project used to have no
+ * effect until their token expired/they logged in again (up to the full 8h JWT lifetime), a real
+ * staleness window for a governance tool where offboarding access changes are sometimes urgent. This
+ * mirrors the same "server-side re-validation, never trust the client's embedded claim" idiom the
+ * cross-org-isolation pattern already establishes elsewhere in this codebase — the JWT is still
+ * trusted for WHO the caller is (the "sub" claim, checked elsewhere), just not for what they're
+ * currently a member of.
+ *
+ * This was previously a pure claim check (this file's own prior revision, and still how
+ * `ProjectClaim.Role`/`.IsProjectAdmin` are minted for the frontend's own client-side "what to show"
+ * decisions — see api.js's isProjectAdmin()) — fixed here to close the drift against the .NET tier's
+ * already-live-checked ProjectMemberAuthorizationHandler.cs.
  */
 final class ProjectMemberMiddleware implements MiddlewareInterface
 {
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $claims = $request->getAttribute('jwtClaims');
-        if ($claims === null) {
+        if ($claims === null || !isset($claims->sub)) {
             return $this->forbidden();
         }
 
@@ -33,11 +43,13 @@ final class ProjectMemberMiddleware implements MiddlewareInterface
             return $this->forbidden();
         }
 
-        $memberships = JwtService::parseProjectsClaim($claims);
-        foreach ($memberships as $m) {
-            if (strcasecmp((string) $m['ProjectId'], $projectId) === 0) {
-                return $handler->handle($request);
-            }
+        $stmt = Database::connection()->prepare(
+            'SELECT 1 FROM "ProjectMembers" WHERE "ProjectId" = :pid AND "UserId" = :uid'
+        );
+        $stmt->execute(['pid' => $projectId, 'uid' => (string) $claims->sub]);
+
+        if ($stmt->fetch() !== false) {
+            return $handler->handle($request);
         }
 
         return $this->forbidden();

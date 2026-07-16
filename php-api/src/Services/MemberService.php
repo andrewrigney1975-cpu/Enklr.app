@@ -121,7 +121,7 @@ final class MemberService
         $this->db->prepare('INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color") VALUES (:id, :pid, :uid, :color)')
             ->execute(['id' => $memberId, 'pid' => $projectId, 'uid' => $user['Id'], 'color' => $color]);
 
-        return ['id' => $memberId, 'userId' => $user['Id'], 'displayName' => $user['DisplayName'], 'email' => $user['EmailAddress'] ?? null, 'color' => $color, 'role' => null, 'allocatedFraction' => null, 'reportsToId' => null];
+        return ['id' => $memberId, 'userId' => $user['Id'], 'displayName' => $user['DisplayName'], 'email' => $user['EmailAddress'] ?? null, 'color' => $color, 'role' => null, 'allocatedFraction' => null, 'reportsToId' => null, 'isProjectAdmin' => false];
     }
 
     // ARCHITECTURE-REVIEW.md finding 3.1: the conditional Users.DisplayName update and the
@@ -191,7 +191,7 @@ final class MemberService
         $this->db->prepare('UPDATE "ProjectMembers" SET "Role" = :role, "AllocatedFraction" = :allocatedFraction, "ReportsToId" = :reportsToId WHERE "Id" = :id')
             ->execute(['role' => $role, 'allocatedFraction' => $allocatedFraction, 'reportsToId' => $reportsToId, 'id' => $memberId]);
 
-        return ['id' => $memberId, 'userId' => $member['UserId'], 'displayName' => $displayName, 'email' => $member['UserEmailAddress'], 'color' => $member['Color'], 'role' => $role, 'allocatedFraction' => $allocatedFraction, 'reportsToId' => $reportsToId];
+        return ['id' => $memberId, 'userId' => $member['UserId'], 'displayName' => $displayName, 'email' => $member['UserEmailAddress'], 'color' => $member['Color'], 'role' => $role, 'allocatedFraction' => $allocatedFraction, 'reportsToId' => $reportsToId, 'isProjectAdmin' => (bool) $member['IsProjectAdmin']];
     }
 
     // ARCHITECTURE-REVIEW.md finding 3.1: unlinking ReportsTo and deleting the member row used to be
@@ -214,10 +214,15 @@ final class MemberService
 
     private function deleteInTransaction(string $projectId, string $memberId): bool
     {
-        $stmt = $this->db->prepare('SELECT 1 FROM "ProjectMembers" WHERE "Id" = :id AND "ProjectId" = :pid');
+        $stmt = $this->db->prepare('SELECT "IsProjectAdmin" FROM "ProjectMembers" WHERE "Id" = :id AND "ProjectId" = :pid');
         $stmt->execute(['id' => $memberId, 'pid' => $projectId]);
-        if ($stmt->fetch() === false) {
+        $member = $stmt->fetch();
+        if ($member === false) {
             return false;
+        }
+
+        if ((bool) $member['IsProjectAdmin']) {
+            $this->ensureNotLastProjectAdmin($projectId, $memberId);
         }
 
         // ReportsTo is a Restrict FK — anyone reporting to this member gets orphaned back to "no one"
@@ -228,6 +233,58 @@ final class MemberService
 
         $this->db->prepare('DELETE FROM "ProjectMembers" WHERE "Id" = :id')->execute(['id' => $memberId]);
         return true;
+    }
+
+    /**
+     * The Project Admin-assignment half of "manage team members" — promotes or demotes an existing
+     * member. Guards against ever leaving a project with zero Project Admins (see
+     * ensureNotLastProjectAdmin's own doc comment for why that's worth blocking outright rather than
+     * just discouraging in the UI). Ported from Services/MemberService.cs's SetProjectAdminAsync.
+     */
+    public function setProjectAdmin(string $projectId, string $memberId, bool $isProjectAdmin): ?array
+    {
+        $stmt = $this->db->prepare(<<<SQL
+            SELECT m.*, u."DisplayName" AS "UserDisplayName", u."EmailAddress" AS "UserEmailAddress" FROM "ProjectMembers" m
+            JOIN "Users" u ON u."Id" = m."UserId"
+            WHERE m."Id" = :id AND m."ProjectId" = :pid
+        SQL);
+        $stmt->execute(['id' => $memberId, 'pid' => $projectId]);
+        $member = $stmt->fetch();
+        if ($member === false) {
+            return null;
+        }
+
+        if (!$isProjectAdmin && (bool) $member['IsProjectAdmin']) {
+            $this->ensureNotLastProjectAdmin($projectId, $memberId);
+        }
+
+        $this->db->prepare('UPDATE "ProjectMembers" SET "IsProjectAdmin" = :isAdmin WHERE "Id" = :id')
+            ->execute(['isAdmin' => (int) $isProjectAdmin, 'id' => $memberId]);
+
+        return [
+            'id' => $memberId, 'userId' => $member['UserId'], 'displayName' => $member['UserDisplayName'],
+            'email' => $member['UserEmailAddress'], 'color' => $member['Color'], 'role' => $member['Role'],
+            'allocatedFraction' => $member['AllocatedFraction'], 'reportsToId' => $member['ReportsToId'],
+            'isProjectAdmin' => $isProjectAdmin,
+        ];
+    }
+
+    /**
+     * A project with zero Project Admins can never have another one assigned again short of direct
+     * DB access — nobody left could reach the "manage team members" capability that grants the role
+     * in the first place. Called before demoting/removing a member who IS currently a Project Admin;
+     * throws if they're the last one. Ported from Services/MemberService.cs's
+     * EnsureNotLastProjectAdminAsync.
+     */
+    private function ensureNotLastProjectAdmin(string $projectId, string $excludingMemberId): void
+    {
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM "ProjectMembers" WHERE "ProjectId" = :pid AND "Id" != :id AND "IsProjectAdmin" = true'
+        );
+        $stmt->execute(['pid' => $projectId, 'id' => $excludingMemberId]);
+        if ($stmt->fetch() === false) {
+            throw new ApiValidationException('A project must always have at least one Project Admin. Assign another member as Project Admin first.');
+        }
     }
 
     private function resolveUniqueUsername(string $baseUsername): string
