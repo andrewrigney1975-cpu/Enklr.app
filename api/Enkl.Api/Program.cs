@@ -129,8 +129,10 @@ builder.Services
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("ProjectMember", policy => policy.Requirements.Add(new ProjectMemberRequirement()))
+    .AddPolicy("ProjectAdmin", policy => policy.Requirements.Add(new ProjectAdminRequirement()))
     .AddPolicy("OrgAdmin", policy => policy.RequireClaim("orgAdmin", "true"));
 builder.Services.AddSingleton<IAuthorizationHandler, ProjectMemberAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, ProjectAdminAuthorizationHandler>();
 
 // Security review (Low/Informational finding): no CORS policy existed at all anywhere in this
 // codebase. Already safe by default — this API is only ever reached through nginx in the same

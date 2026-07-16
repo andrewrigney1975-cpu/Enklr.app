@@ -46,7 +46,7 @@ public static class TestDataHelper
         return (org, user);
     }
 
-    public static async Task<Project> SeedProjectAsync(AppDbContext db, Guid organisationId, string key, User? member = null)
+    public static async Task<Project> SeedProjectAsync(AppDbContext db, Guid organisationId, string key, User? member = null, bool memberIsProjectAdmin = false)
     {
         var project = new Project
         {
@@ -67,7 +67,8 @@ public static class TestDataHelper
                 Id = Guid.NewGuid(),
                 ProjectId = project.Id,
                 UserId = member.Id,
-                Color = "#4f46e5"
+                Color = "#4f46e5",
+                IsProjectAdmin = memberIsProjectAdmin
             });
         }
 
@@ -80,4 +81,22 @@ public static class TestDataHelper
     /// design to stay comfortably under any column's length limit while still being effectively
     /// unique for a single test run's volume of calls.</summary>
     public static string Unique(string prefix) => $"{prefix}-{Guid.NewGuid():N}"[..(prefix.Length + 9)];
+
+    private static int _ipCounter;
+
+    /// <summary>
+    /// The "auth" rate-limit policy (Program.cs) partitions by client IP, sliding 10/min window,
+    /// shared across every test in this collection since they all hit the same WebApplicationFactory.
+    /// A test that logs in more than once, or a run with enough login-heavy tests, can trip it —
+    /// spoof a fresh X-Forwarded-For per test instead (ForwardedHeadersOptions.KnownProxies/
+    /// KnownIPNetworks are both cleared in Program.cs specifically so this is trusted unconditionally,
+    /// same reasoning as the PHP tier's own equivalent finding) so unrelated tests never share a
+    /// rate-limit bucket. Set via `client.DefaultRequestHeaders.Add("X-Forwarded-For", ...)` before
+    /// the first request on a given HttpClient.
+    /// </summary>
+    public static string UniqueIp()
+    {
+        var n = Interlocked.Increment(ref _ipCounter);
+        return $"10.{(n >> 16) & 0xff}.{(n >> 8) & 0xff}.{n & 0xff}";
+    }
 }

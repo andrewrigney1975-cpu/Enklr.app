@@ -35,6 +35,11 @@ public class MigrationEntityBuilder
         var userIdByNormalizedKey = new Dictionary<string, Guid>();
         var memberByOldId = new Dictionary<string, ProjectMember>();
         var firstAdminAssigned = false;
+        // The first member listed in the export is treated as this project's "owner" — same
+        // always-a-Project-Admin default ProjectService.CreateAsync gives a freshly created
+        // project's creator, applied here so a migrated project isn't immediately locked out of
+        // column/settings/workflow/member management either.
+        var isFirstProjectMember = true;
 
         foreach (var m in members)
         {
@@ -119,9 +124,10 @@ public class MigrationEntityBuilder
                 userIdByNormalizedKey[normalized] = userId;
             }
 
-            var member = new ProjectMember { Id = Guid.NewGuid(), ProjectId = projectId, UserId = userId, Color = m.Color, Role = m.Role, AllocatedFraction = m.AllocatedFraction is { } fraction ? Math.Clamp(fraction, 0, 100) : null };
+            var member = new ProjectMember { Id = Guid.NewGuid(), ProjectId = projectId, UserId = userId, Color = m.Color, Role = m.Role, IsProjectAdmin = isFirstProjectMember, AllocatedFraction = m.AllocatedFraction is { } fraction ? Math.Clamp(fraction, 0, 100) : null };
             _db.ProjectMembers.Add(member);
             memberByOldId[m.Id] = member;
+            isFirstProjectMember = false;
         }
 
         foreach (var m in members)

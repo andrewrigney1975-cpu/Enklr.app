@@ -10,6 +10,7 @@ public class ProjectMember
     public User User { get; set; } = null!;
     public string Color { get; set; } = "";
     public string? Role { get; set; }
+    public bool IsProjectAdmin { get; set; }
     public int? AllocatedFraction { get; set; }
     public Guid? ReportsToId { get; set; }
     public ProjectMember? ReportsTo { get; set; }

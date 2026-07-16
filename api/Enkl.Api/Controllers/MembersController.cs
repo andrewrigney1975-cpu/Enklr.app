@@ -5,8 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Enkl.Api.Controllers;
 
+// Every action here is a mutation (members are read via GET /api/projects/{id}'s own project-detail
+// graph, not through this controller), so the whole class is Project-Admin-gated — "manage team
+// members" is one of the four Project Administrator capabilities.
 [ApiController]
-[Authorize(Policy = "ProjectMember")]
+[Authorize(Policy = "ProjectAdmin")]
 [Route("api/projects/{projectId:guid}/members")]
 public class MembersController : ControllerBase
 {
@@ -35,5 +38,16 @@ public class MembersController : ControllerBase
     public async Task<IActionResult> Delete(Guid projectId, Guid memberId)
     {
         return await _members.DeleteAsync(projectId, memberId) ? NoContent() : NotFound();
+    }
+
+    // "The project admin role can be assigned to users via the Team management tool" — Project-Admin
+    // gated same as every other action here, so only an existing admin can promote/demote another
+    // member (ApiValidationException from MemberService.SetProjectAdminAsync's last-admin guard maps
+    // to 400 via Program.cs's global exception handler, same as every other manual validation check).
+    [HttpPut("{memberId:guid}/admin")]
+    public async Task<IActionResult> SetProjectAdmin(Guid projectId, Guid memberId, SetProjectAdminRequest request)
+    {
+        var result = await _members.SetProjectAdminAsync(projectId, memberId, request.IsProjectAdmin);
+        return result is null ? NotFound() : Ok(result);
     }
 }

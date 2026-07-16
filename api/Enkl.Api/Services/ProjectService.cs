@@ -73,7 +73,7 @@ public class ProjectService
 
         return new ProjectDetailDto(
             project.Id, project.Name, project.Key, project.OrganisationId,
-            project.Members.Select(m => new MemberDto(m.Id, m.UserId, m.User.DisplayName, m.User.EmailAddress, m.Color, m.Role, m.AllocatedFraction, m.ReportsToId)).ToList(),
+            project.Members.Select(m => new MemberDto(m.Id, m.UserId, m.User.DisplayName, m.User.EmailAddress, m.Color, m.Role, m.AllocatedFraction, m.ReportsToId, m.IsProjectAdmin)).ToList(),
             project.Columns.OrderBy(c => c.Order).Select(c => new ColumnDto(c.Id, c.Name, c.Done, c.Color, c.Order, c.Cap)).ToList(),
             project.Tasks.Select(ToTaskDto).ToList(),
             project.Releases.Select(r => new ReleaseDto(r.Id, r.Name, r.Status, r.OwnerId, r.StartDate, r.EndDate)).ToList(),
@@ -137,7 +137,10 @@ public class ProjectService
             TaskCounter = 1
         };
         _db.Projects.Add(project);
-        _db.ProjectMembers.Add(new ProjectMember { Id = Guid.NewGuid(), ProjectId = project.Id, UserId = user.Id, Color = FirstMemberColor });
+        // The creator is the project's "owner" — always its first Project Admin, so a freshly
+        // created project is never immediately locked out of column/settings/workflow/member
+        // management (see ProjectAdminAuthorizationHandler's own doc comment for what this gates).
+        _db.ProjectMembers.Add(new ProjectMember { Id = Guid.NewGuid(), ProjectId = project.Id, UserId = user.Id, Color = FirstMemberColor, IsProjectAdmin = true });
 
         if (template is not null)
         {

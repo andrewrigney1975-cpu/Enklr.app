@@ -112,7 +112,7 @@ public class MemberService
         _db.ProjectMembers.Add(member);
         await _db.SaveChangesAsync();
 
-        return new MemberDto(member.Id, member.UserId, user.DisplayName, user.EmailAddress, member.Color, member.Role, member.AllocatedFraction, member.ReportsToId);
+        return new MemberDto(member.Id, member.UserId, user.DisplayName, user.EmailAddress, member.Color, member.Role, member.AllocatedFraction, member.ReportsToId, member.IsProjectAdmin);
     }
 
     public async Task<MemberDto?> UpdateAsync(Guid projectId, Guid memberId, UpdateMemberRequest request)
@@ -148,13 +148,18 @@ public class MemberService
         }
 
         await _db.SaveChangesAsync();
-        return new MemberDto(member.Id, member.UserId, member.User.DisplayName, member.User.EmailAddress, member.Color, member.Role, member.AllocatedFraction, member.ReportsToId);
+        return new MemberDto(member.Id, member.UserId, member.User.DisplayName, member.User.EmailAddress, member.Color, member.Role, member.AllocatedFraction, member.ReportsToId, member.IsProjectAdmin);
     }
 
     public async Task<bool> DeleteAsync(Guid projectId, Guid memberId)
     {
         var member = await _db.ProjectMembers.FirstOrDefaultAsync(m => m.Id == memberId && m.ProjectId == projectId);
         if (member is null) return false;
+
+        if (member.IsProjectAdmin)
+        {
+            await EnsureNotLastProjectAdminAsync(projectId, memberId);
+        }
 
         // ReportsTo is a Restrict FK (see ProjectMemberConfiguration) — anyone reporting to this
         // member gets orphaned back to "no one" first, same as mutations.js's removeMember. Every
@@ -166,6 +171,44 @@ public class MemberService
         _db.ProjectMembers.Remove(member);
         await _db.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// The Project Admin-assignment half of "manage team members" — promotes or demotes an existing
+    /// member. Guards against ever leaving a project with zero Project Admins (see
+    /// EnsureNotLastProjectAdminAsync's own doc comment for why that's worth blocking outright rather
+    /// than just discouraging in the UI).
+    /// </summary>
+    public async Task<MemberDto?> SetProjectAdminAsync(Guid projectId, Guid memberId, bool isProjectAdmin)
+    {
+        var member = await _db.ProjectMembers.Include(m => m.User).FirstOrDefaultAsync(m => m.Id == memberId && m.ProjectId == projectId);
+        if (member is null) return null;
+
+        if (!isProjectAdmin && member.IsProjectAdmin)
+        {
+            await EnsureNotLastProjectAdminAsync(projectId, memberId);
+        }
+
+        member.IsProjectAdmin = isProjectAdmin;
+        await _db.SaveChangesAsync();
+        return new MemberDto(member.Id, member.UserId, member.User.DisplayName, member.User.EmailAddress, member.Color, member.Role, member.AllocatedFraction, member.ReportsToId, member.IsProjectAdmin);
+    }
+
+    /// <summary>
+    /// A project with zero Project Admins can never have another one assigned again short of direct
+    /// DB access — nobody left could reach the "manage team members" capability that grants the role
+    /// in the first place. Called before demoting/removing a member who IS currently a Project Admin;
+    /// throws if they're the last one, exactly the "one-endpoint-owns-the-flag"-style invariant
+    /// OrganisationService/PortfolioService already enforce elsewhere in this tier for similarly
+    /// unrecoverable states.
+    /// </summary>
+    private async Task EnsureNotLastProjectAdminAsync(Guid projectId, Guid excludingMemberId)
+    {
+        var anotherAdminExists = await _db.ProjectMembers.AnyAsync(m => m.ProjectId == projectId && m.Id != excludingMemberId && m.IsProjectAdmin);
+        if (!anotherAdminExists)
+        {
+            throw new ApiValidationException("A project must always have at least one Project Admin. Assign another member as Project Admin first.");
+        }
     }
 
     private async Task<string> ResolveUniqueUsernameAsync(string baseUsername)

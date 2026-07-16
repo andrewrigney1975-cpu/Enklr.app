@@ -59,16 +59,18 @@ public class ProjectsController : ControllerBase
         return await _projects.DeleteAsync(projectId) ? NoContent() : NotFound();
     }
 
+    // Project Administrator capability: "change app settings" — see ProjectAdminAuthorizationHandler.
     [HttpPut("{projectId:guid}/settings")]
-    [Authorize(Policy = "ProjectMember")]
+    [Authorize(Policy = "ProjectAdmin")]
     public async Task<IActionResult> UpdateSettings(Guid projectId, ProjectSettingsDto request)
     {
         var result = await _projects.UpdateProjectSettingsAsync(projectId, request);
         return result is null ? NotFound() : Ok(result);
     }
 
+    // Project Administrator capability: "manage workflow" — see ProjectAdminAuthorizationHandler.
     [HttpPut("{projectId:guid}/workflow")]
-    [Authorize(Policy = "ProjectMember")]
+    [Authorize(Policy = "ProjectAdmin")]
     public async Task<IActionResult> UpdateWorkflow(Guid projectId, [FromBody] JsonElement request)
     {
         var result = await _projects.UpdateProjectWorkflowAsync(projectId, request);

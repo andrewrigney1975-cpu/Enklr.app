@@ -22,7 +22,7 @@ public class JwtTokenService
         var expiresAt = DateTime.UtcNow.AddHours(expiryHours);
 
         var projectsClaim = JsonSerializer.Serialize(
-            memberships.Select(m => new ProjectClaim(m.ProjectId, m.Role)));
+            memberships.Select(m => new ProjectClaim(m.ProjectId, m.Role, m.IsProjectAdmin)));
 
         var claims = new List<Claim>
         {

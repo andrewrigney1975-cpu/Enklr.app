@@ -5,8 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Enkl.Api.Controllers;
 
+// Every action here is a mutation (create/update/delete — there's no GET/list route in this
+// controller, columns are read via GET /api/projects/{id}'s own project-detail graph), so the whole
+// class is Project-Admin-gated rather than layering it action-by-action.
 [ApiController]
-[Authorize(Policy = "ProjectMember")]
+[Authorize(Policy = "ProjectAdmin")]
 [Route("api/projects/{projectId:guid}/columns")]
 public class ColumnsController : ControllerBase
 {

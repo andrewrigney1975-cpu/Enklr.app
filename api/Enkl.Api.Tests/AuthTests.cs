@@ -266,4 +266,102 @@ public class AuthTests
         var afterRemoval = await client.GetAsync($"/api/projects/{projectId}");
         Assert.Equal(HttpStatusCode.Forbidden, afterRemoval.StatusCode);
     }
+
+    // Project Administrator role: a plain (non-admin) project member can view the project but must
+    // not be able to add a column — one of the four Project Admin capabilities.
+    [Fact]
+    public async Task ProjectAdminPolicy_RejectsPlainMemberFromCreatingColumn()
+    {
+        var org = TestDataHelper.Unique("org");
+        var user = TestDataHelper.Unique("user");
+        var projectKey = TestDataHelper.Unique("PRJ");
+        Guid projectId;
+        using (var scope = _fixture.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var (seededOrg, seededUser) = await TestDataHelper.SeedOrgAndUserAsync(db, org, user);
+            var project = await TestDataHelper.SeedProjectAsync(db, seededOrg.Id, projectKey, member: seededUser, memberIsProjectAdmin: false);
+            projectId = project.Id;
+        }
+
+        var client = _fixture.Factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", TestDataHelper.UniqueIp());
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(user, TestDataHelper.DefaultPassword));
+        var login = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Token);
+
+        // Confirm plain membership works for a read first, isolating the assertion below to the
+        // ProjectAdmin policy specifically rather than a broader auth failure.
+        var read = await client.GetAsync($"/api/projects/{projectId}");
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+
+        var response = await client.PostAsJsonAsync($"/api/projects/{projectId}/columns", new CreateColumnRequest("New Column", false, null));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ProjectAdminPolicy_AllowsProjectAdminToCreateColumn()
+    {
+        var org = TestDataHelper.Unique("org");
+        var user = TestDataHelper.Unique("user");
+        var projectKey = TestDataHelper.Unique("PRJ");
+        Guid projectId;
+        using (var scope = _fixture.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var (seededOrg, seededUser) = await TestDataHelper.SeedOrgAndUserAsync(db, org, user);
+            var project = await TestDataHelper.SeedProjectAsync(db, seededOrg.Id, projectKey, member: seededUser, memberIsProjectAdmin: true);
+            projectId = project.Id;
+        }
+
+        var client = _fixture.Factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", TestDataHelper.UniqueIp());
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(user, TestDataHelper.DefaultPassword));
+        var login = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Token);
+
+        var response = await client.PostAsJsonAsync($"/api/projects/{projectId}/columns", new CreateColumnRequest("New Column", false, null));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // Promotion/demotion takes effect on the very next request, not at next login — same live-check
+    // guarantee as ProjectMemberPolicy_RejectsTokenWhoseMembershipWasRemovedAfterMint above, applied
+    // to the Project Admin flag specifically.
+    [Fact]
+    public async Task ProjectAdminPolicy_PromotionTakesEffectWithoutReLogin()
+    {
+        var org = TestDataHelper.Unique("org");
+        var user = TestDataHelper.Unique("user");
+        var projectKey = TestDataHelper.Unique("PRJ");
+        Guid projectId;
+        Guid userId;
+        using (var scope = _fixture.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var (seededOrg, seededUser) = await TestDataHelper.SeedOrgAndUserAsync(db, org, user);
+            userId = seededUser.Id;
+            var project = await TestDataHelper.SeedProjectAsync(db, seededOrg.Id, projectKey, member: seededUser, memberIsProjectAdmin: false);
+            projectId = project.Id;
+        }
+
+        var client = _fixture.Factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", TestDataHelper.UniqueIp());
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(user, TestDataHelper.DefaultPassword));
+        var login = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Token);
+
+        var beforePromotion = await client.PostAsJsonAsync($"/api/projects/{projectId}/columns", new CreateColumnRequest("Too Early", false, null));
+        Assert.Equal(HttpStatusCode.Forbidden, beforePromotion.StatusCode);
+
+        using (var scope = _fixture.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var membership = await db.ProjectMembers.SingleAsync(m => m.ProjectId == projectId && m.UserId == userId);
+            membership.IsProjectAdmin = true;
+            await db.SaveChangesAsync();
+        }
+
+        var afterPromotion = await client.PostAsJsonAsync($"/api/projects/{projectId}/columns", new CreateColumnRequest("Now Allowed", false, null));
+        Assert.Equal(HttpStatusCode.OK, afterPromotion.StatusCode);
+    }
 }

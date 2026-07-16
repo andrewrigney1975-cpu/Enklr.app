@@ -11,6 +11,9 @@ public class ProjectMemberConfiguration : IEntityTypeConfiguration<ProjectMember
         b.HasKey(m => m.Id);
         b.Property(m => m.Color).HasMaxLength(20);
         b.Property(m => m.Role).HasMaxLength(100);
+        // Explicit HasDefaultValue, not just the C# property initializer — EF Core doesn't read a
+        // property initializer as a SQL column default (see CLAUDE.md §3's own documented gotcha).
+        b.Property(m => m.IsProjectAdmin).HasDefaultValue(false);
 
         b.HasOne(m => m.Project)
             .WithMany(p => p.Members)
