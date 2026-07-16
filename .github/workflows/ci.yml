@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dotnet-build:
+    name: .NET API build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore api/Enkl.Api/Enkl.Api.csproj
+      - name: Build
+        run: dotnet build api/Enkl.Api/Enkl.Api.csproj --no-restore --configuration Release
+
+  php-lint:
+    name: PHP API lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pgsql
+      - name: Composer install
+        working-directory: php-api
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Lint every PHP file
+        working-directory: php-api
+        run: find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+
+  frontend-build-and-test:
+    name: Frontend build + test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install root dependencies
+        run: npm ci
+      - name: Build bundle
+        run: node build.js
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm ci
+      - name: Run test suite
+        working-directory: tests
+        run: node run_all_tests.js
