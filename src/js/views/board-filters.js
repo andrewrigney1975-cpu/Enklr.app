@@ -1,7 +1,7 @@
 "use strict";
 import { PRIORITY_ORDER } from '../config.js';
 import { iconSvg } from '../icons.js';
-import { escapeHTML, getMemberById, getTaskTypeById, getTeamCommitteeById, getTasksArray } from '../utils.js';
+import { escapeHTML, getMemberById, getTaskTypeById, getTeamCommitteeById, getTasksArray, isTaskBlocked, isTaskOverdue } from '../utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui, getPriority } from '../ui.js';
 import { getTeamsCommitteesForMember } from '../mutations.js';
@@ -332,6 +332,76 @@ export function closeTaskTypeFilterPanel(){
   document.getElementById('taskTypeFilterPanel').classList.add('hidden');
 }
 
+/* Status filter — same dropdown-checkbox styling as Assignee/Type, but a fixed two-option
+   list (Blocked/Overdue, computed live off each task rather than a stored field) instead of
+   one derived from project data, so unlike the other filters it's never hidden even when
+   nothing currently matches. */
+export var STATUS_FILTER_OPTIONS = [
+  {key: 'blocked', label: 'Blocked', icon: 'warning', colorVar: '--kf-blocked-fg'},
+  {key: 'overdue', label: 'Overdue', icon: 'clock', colorVar: '--kf-overdue-fg'}
+];
+
+export function renderStatusFilterChips(){
+  var wrap = document.getElementById('statusFilterWrap');
+  var panel = document.getElementById('statusFilterPanel');
+  var label = document.getElementById('statusFilterLabel');
+  if(!wrap) return;
+
+  var n = ui.activeStatuses.size;
+  if(n === 0){
+    label.textContent = 'Status';
+  } else if(n === 1){
+    var onlyKey = ui.activeStatuses.values().next().value;
+    var onlyOpt = STATUS_FILTER_OPTIONS.filter(function(o){ return o.key === onlyKey; })[0];
+    label.textContent = onlyOpt ? onlyOpt.label : 'Status';
+  } else {
+    label.textContent = n + ' statuses';
+  }
+  wrap.classList.toggle('active', n > 0);
+
+  panel.innerHTML = '';
+  STATUS_FILTER_OPTIONS.forEach(function(opt){
+    var row = document.createElement('label');
+    row.className = 'kf-dropdown-filter-row';
+    var checked = ui.activeStatuses.has(opt.key);
+    row.innerHTML =
+      '<input type="checkbox" ' + (checked ? 'checked' : '') + '>' +
+      '<span class="kf-dropdown-filter-status-icon" style="color:var(' + opt.colorVar + ');">' + iconSvg(opt.icon, 13) + '</span>' +
+      '<span class="kf-dropdown-filter-name">' + escapeHTML(opt.label) + '</span>';
+    row.querySelector('input').addEventListener('change', function(e){
+      if(e.target.checked) ui.activeStatuses.add(opt.key);
+      else ui.activeStatuses.delete(opt.key);
+      renderStatusFilterChips();
+      renderBoard();
+    });
+    panel.appendChild(row);
+  });
+
+  if(n > 0){
+    var divider = document.createElement('div');
+    divider.className = 'kf-dropdown-filter-divider';
+    panel.appendChild(divider);
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'kf-dropdown-filter-clear';
+    clearBtn.textContent = 'Clear selection';
+    clearBtn.addEventListener('click', function(){
+      ui.activeStatuses.clear();
+      renderStatusFilterChips();
+      renderBoard();
+    });
+    panel.appendChild(clearBtn);
+  }
+}
+
+export function toggleStatusFilterPanel(){
+  var panel = document.getElementById('statusFilterPanel');
+  panel.classList.toggle('hidden');
+}
+export function closeStatusFilterPanel(){
+  document.getElementById('statusFilterPanel').classList.add('hidden');
+}
+
 export function taskMatchesFilters(task){
   if(ui.activePriorities.size > 0 && !ui.activePriorities.has(task.priority)) return false;
   if(ui.activeTeams.size > 0){
@@ -350,6 +420,16 @@ export function taskMatchesFilters(task){
   if(ui.activeTaskTypes.size > 0){
     var typeKey = task.typeId || NO_TYPE_FILTER_KEY;
     if(!ui.activeTaskTypes.has(typeKey)) return false;
+  }
+  if(ui.activeStatuses.size > 0){
+    // OR semantics across selected statuses (matching Blocked AND Overdue both selected shows
+    // a task that's either one, not only tasks that are both), same as every other multi-
+    // select filter chip in this toolbar.
+    var statusProject = getCurrentProject();
+    var matchesAnyStatus =
+      (ui.activeStatuses.has('blocked') && isTaskBlocked(statusProject, task)) ||
+      (ui.activeStatuses.has('overdue') && isTaskOverdue(statusProject, task));
+    if(!matchesAnyStatus) return false;
   }
   if(ui.searchTerm){
     var term = ui.searchTerm.toLowerCase();

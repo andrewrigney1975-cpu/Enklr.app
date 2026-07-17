@@ -9,6 +9,21 @@ import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
 
 export function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
+
+/* SVG has no text-wrapping/line-clamp primitive, so a task node's title is hand-wrapped into
+   at most two ~26-char lines (breaking on the last space that fits), with the second line
+   ellipsis-truncated if there's still more left over — the SVG equivalent of the board card's
+   `-webkit-line-clamp: 2` title. */
+function wrapDepNodeTitle(title){
+  var maxLineLen = 26;
+  if(title.length <= maxLineLen) return [title, ''];
+  var breakAt = title.lastIndexOf(' ', maxLineLen);
+  if(breakAt < 10) breakAt = maxLineLen;
+  var line1 = title.slice(0, breakAt).trim();
+  var rest = title.slice(breakAt).trim();
+  if(rest.length > maxLineLen) rest = rest.slice(0, maxLineLen - 1) + '…';
+  return [line1, rest];
+}
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 
 var _toast = function(msg){ console.error(msg); };
@@ -32,8 +47,8 @@ export var DEPMAP_MIN_ZOOM = 0.3;
 export var DEPMAP_MAX_ZOOM = 2.5;
 export var lastDepLayout = null;
 
-export var DEPMAP_NODE_W = 200;
-export var DEPMAP_NODE_H = 80;
+export var DEPMAP_NODE_W = 220;
+export var DEPMAP_NODE_H = 104;
 export var DEPMAP_GAP_X = 100;
 export var DEPMAP_GAP_Y = 18;
 export var DEPMAP_MARGIN = 30;
@@ -200,6 +215,12 @@ export function renderDependencyMap(){
     return '<path d="' + path + '" fill="none" stroke="#6554c0" stroke-width="2" stroke-dasharray="5 4" opacity="0.75"></path>';
   }).join('') : '';
 
+  /* Node content is grouped into the same row order as the board card (Board§renderCard):
+     key+type-icon+avatar row, up-to-2-line title, priority+related+blocked+overdue row,
+     progress row — each badge sits at a FIXED x/y regardless of which optional elements are
+     present, the SVG equivalent of the board card's reserved-space slots (an absolutely-
+     positioned element never shifts based on its siblings, so no extra slot markup is needed
+     here the way it is in HTML/CSS). */
   var nodesHTML = layout.nodes.map(function(n){
     var t = n.task;
     var prio = getPriority(t.priority);
@@ -207,43 +228,66 @@ export function renderDependencyMap(){
     var overdue = isTaskOverdue(project, t);
     var assignee = getMemberById(project, t.assigneeId);
     var taskType = getTaskTypeById(project, t.typeId);
-    var title = t.title.length > 26 ? t.title.slice(0,25) + '…' : t.title;
-    var warningBadge = blocked
-      ? '<g transform="translate(' + (n.w - 24) + ',8)" style="color:#de350b;"><title>Blocked by unfinished dependencies</title>' + iconSvg('warning',16) + '</g>'
-      : '';
-    var overdueBadge = overdue
-      ? '<g transform="translate(' + (blocked ? n.w - 46 : n.w - 24) + ',8)" style="color:var(--kf-overdue-fg);"><title>Overdue — end date was ' + escapeHTML(utcISOToLocalDisplayDate(t.endDate)) + '</title>' + iconSvg('clock',16) + '</g>'
-      : '';
+    var depCount = (t.dependencies || []).length;
+    var titleLines = wrapDepNodeTitle(t.title);
+
+    // Row 1: key (+ private lock + type icon) left, assignee avatar right — fixed positions.
     var lockBadge = t.isPrivate
-      ? '<g transform="translate(' + (n.w - 24 - ((blocked?1:0)+(overdue?1:0)) * 22) + ',8)" style="color:var(--kf-text-secondary);"><title>Private task</title>' + iconSvg('lock',16) + '</g>'
+      ? '<g transform="translate(50,7)" style="color:var(--kf-text-secondary);"><title>Private task</title>' + iconSvg('lock',14) + '</g>'
       : '';
-    var typeBadge = '';
-    if(taskType && taskType.iconName){
-      var precedingBadgeCount = (blocked ? 1 : 0) + (overdue ? 1 : 0) + (t.isPrivate ? 1 : 0);
-      typeBadge = '<g transform="translate(' + (n.w - 24 - precedingBadgeCount * 22) + ',8)" style="color:var(--kf-text-secondary);"><title>' + escapeHTML(taskType.name) + '</title>' + iconSvg(taskType.iconName,16) + '</g>';
-    }
+    var typeBadge = (taskType && taskType.iconName)
+      ? '<g transform="translate(74,6)" style="color:var(--kf-text-secondary);"><title>' + escapeHTML(taskType.name) + '</title>' + iconSvg(taskType.iconName,16) + '</g>'
+      : '';
     var avatarBadge = assignee
-      ? '<g><title>' + escapeHTML(assignee.name) + '</title><circle cx="' + (n.w - 18) + '" cy="' + (n.h - 22) + '" r="10" fill="' + assignee.color + '"></circle>' +
-        '<text x="' + (n.w - 18) + '" y="' + (n.h - 18.5) + '" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">' + escapeHTML(memberInitials(assignee.name)) + '</text></g>'
+      ? '<g><title>' + escapeHTML(assignee.name) + '</title><circle cx="' + (n.w - 19) + '" cy="17" r="9" fill="' + assignee.color + '"></circle>' +
+        '<text x="' + (n.w - 19) + '" y="20.5" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">' + escapeHTML(memberInitials(assignee.name)) + '</text></g>'
       : '';
     var archivedBadge = t.archived
       ? '<g transform="translate(4,7)" style="color:var(--kf-text-faint);"><title>Archived</title>' + iconSvg('archive',14) + '</g>'
       : '';
-    /* Same track + fill + % label as the board card's progress chip
-       (kf-progress-chip/-track/-fill in styles.css), just redrawn in
-       SVG rather than HTML/CSS — one visual language for "progress"
-       across both views. */
+
+    // Title: two fixed baselines (line-clamp-2 equivalent), the 2nd only rendered if needed.
+    var titleHTML = '<text x="16" y="42" font-size="13" font-weight="600" style="fill:var(--kf-text);">' + escapeHTML(titleLines[0]) + '</text>' +
+      (titleLines[1] ? '<text x="16" y="58" font-size="13" font-weight="600" style="fill:var(--kf-text);">' + escapeHTML(titleLines[1]) + '</text>' : '');
+
+    // Row 3: priority (always present) + blocked + overdue — fixed slots.
+    var warningBadge = blocked
+      ? '<g transform="translate(90,70)" style="color:var(--kf-blocked-fg);"><title>Blocked by unfinished dependencies</title>' + iconSvg('warning',12) +
+        '<text x="16" y="10" font-size="9" font-weight="600" fill="var(--kf-blocked-fg)">Blocked</text></g>'
+      : '';
+    var overdueBadge = overdue
+      ? '<g transform="translate(140,70)" style="color:var(--kf-overdue-fg);"><title>Overdue — end date was ' + escapeHTML(utcISOToLocalDisplayDate(t.endDate)) + '</title>' + iconSvg('clock',12) +
+        '<text x="16" y="10" font-size="9" font-weight="600" fill="var(--kf-overdue-fg)">Overdue</text></g>'
+      : '';
+
+    /* Row 4: progress graph on the left — same track + fill + % label as the board card's
+       progress chip (kf-progress-chip/-track/-fill in styles.css), just redrawn in SVG rather
+       than HTML/CSS — stretched as wide as the row allows, i.e. up to whatever space the
+       dep-count badge (pinned bottom-right) doesn't need, matching the board card's flex:1
+       track. */
     var progressBadge = '';
+    var trackY = n.h - 12;
+    // Dep badge is always rendered now (even at zero), so it's always reserved out of the
+    // track's available width, not just when depCount > 0.
+    var depBadgeW = 34;
+    var trackX = 16, trackRightMargin = 14, labelW = 30;
+    var trackEndX = n.w - trackRightMargin - depBadgeW;
+    var trackW = Math.max(20, trackEndX - trackX - labelW);
     if(isTimeTrackingEnabled(project)){
       var progress = clampProgress(t.progress);
-      var trackX = 16, trackY = n.h - 12, trackW = 36, trackH = 5;
+      var trackH = 5;
       progressBadge =
         '<g><title>Progress: ' + progress + '%</title>' +
           '<rect x="' + trackX + '" y="' + trackY + '" width="' + trackW + '" height="' + trackH + '" rx="2.5" fill="var(--kf-border)"></rect>' +
-          '<rect x="' + trackX + '" y="' + trackY + '" width="' + (trackW * progress / 100) + '" height="' + trackH + '" rx="2.5" fill="var(--kf-blue)"></rect>' +
+          '<rect x="' + trackX + '" y="' + trackY + '" width="' + (trackW * progress / 100) + '" height="' + trackH + '" rx="2.5" fill="' + (progress === 100 ? 'var(--kf-good-fg)' : 'var(--kf-blue)') + '"></rect>' +
           '<text x="' + (trackX + trackW + 6) + '" y="' + (trackY + trackH + 1) + '" font-size="9" font-weight="600" fill="var(--kf-text-secondary)">' + progress + '%</text>' +
         '</g>';
     }
+    // Always rendered (even at zero), dimmed to 50% opacity when there are no dependencies —
+    // same treatment as the board card's dep chip.
+    var depBadge = '<g transform="translate(' + (n.w - depBadgeW) + ',' + (trackY - 3) + ')" style="color:var(--kf-text-secondary);' + (depCount === 0 ? 'opacity:0.5;' : '') + '"><title>' +
+        (depCount > 0 ? 'Depends on ' + depCount + ' task(s)' : 'No dependencies') + '</title>' + iconSvg('link',12) +
+        '<text x="16" y="10" font-size="10" font-weight="600" fill="var(--kf-text-secondary)">' + depCount + '</text></g>';
     var keyX = t.archived ? 30 : 16;
     return (
       '<g class="kf-depnode' + (t.archived ? ' kf-depnode-archived' : '') + '" data-task-id="' + t.id + '" transform="translate(' + n.x + ',' + n.y + ')">' +
@@ -251,14 +295,15 @@ export function renderDependencyMap(){
         '<rect x="0" y="0" width="5" height="' + n.h + '" rx="2" fill="' + prio.accent + '"></rect>' +
         archivedBadge +
         '<text x="' + keyX + '" y="20" font-size="10" font-weight="700" style="fill:var(--kf-text-faint);">' + escapeHTML(t.key) + '</text>' +
-        '<text x="16" y="40" font-size="13" font-weight="600" style="fill:var(--kf-text);">' + escapeHTML(title) + '</text>' +
-        '<circle cx="21" cy="58" r="4" fill="' + prio.accent + '"></circle>' +
-        '<text x="30" y="61.5" font-size="10" font-weight="700" fill="' + prio.accent + '">' + escapeHTML(prio.label) + '</text>' +
-        warningBadge +
-        overdueBadge +
         lockBadge +
         typeBadge +
         avatarBadge +
+        titleHTML +
+        '<circle cx="21" cy="76" r="4" fill="' + prio.accent + '"></circle>' +
+        '<text x="30" y="79.5" font-size="10" font-weight="700" fill="' + prio.accent + '">' + escapeHTML(prio.label) + '</text>' +
+        depBadge +
+        warningBadge +
+        overdueBadge +
         progressBadge +
       '</g>'
     );

@@ -163,6 +163,7 @@ export var ui = {
   activeAssignees: new Set(),
   activeTeams: new Set(),
   activeTaskTypes: new Set(),
+  activeStatuses: new Set(),
   editingTaskId: null,
   taskModalColumnId: null,
   taskModalDeps: [],
@@ -225,6 +226,7 @@ export function resetFilters(){
   ui.activeAssignees = new Set();
   ui.activeTeams = new Set();
   ui.activeTaskTypes = new Set();
+  ui.activeStatuses = new Set();
   ui.depMapColumnFilter = new Set();
   ui.cbColumnFilter = new Set();
   var searchInput = document.getElementById('searchInput');

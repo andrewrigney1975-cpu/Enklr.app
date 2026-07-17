@@ -33,7 +33,7 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
   const avatarText = avatar.textContent.trim();
   const boardCard = Array.from(doc.querySelectorAll('.kf-card')).find(c => c.textContent.indexOf('Configure project modules, columns and details') !== -1);
-  const boardAvatar = boardCard.querySelector('.kf-card-key').parentElement.querySelector('.kf-avatar');
+  const boardAvatar = boardCard.querySelector('.kf-card-key').closest('.kf-card-row-top').querySelector('.kf-avatar');
   log('the same task\u2019s board-card avatar shows the same initials as its timeline-bar avatar',
       boardAvatar.textContent.trim() === avatarText, `board=${boardAvatar.textContent} timeline=${avatarText}`);
 

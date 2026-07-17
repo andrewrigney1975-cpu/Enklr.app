@@ -14,7 +14,7 @@ import { evaluateColumnMove, isWorkflowEnabled } from '../features/workflow-engi
 import { isGovernanceMapEnabled } from './governance-map.js';
 import { isServerAuthoritative, isServerLoggedIn, moveTaskToColumnOnServer, refreshProjectFromServer, reorderColumnsOnServer, deleteColumnOnServer } from '../features/migration.js';
 import { updateProjectSettingsApi, isOrgAdmin, isProjectAdmin, getOrgName, isApiReachable, pollApiReachability } from '../api.js';
-import { renderPriorityFilterChips, renderTeamFilterChips, renderAssigneeFilterChips, renderTaskTypeFilterChips, taskMatchesFilters } from './board-filters.js';
+import { renderPriorityFilterChips, renderTeamFilterChips, renderAssigneeFilterChips, renderTaskTypeFilterChips, renderStatusFilterChips, taskMatchesFilters } from './board-filters.js';
 import { fitBoardForTaskModal, restoreBoardAfterTaskModal, refitBoardForOpenTaskModal } from './board-layout.js';
 
 // Re-exported for the many modals that already do `import { escapeHTML } from '../views/board.js'`
@@ -43,6 +43,10 @@ export {
   renderTaskTypeFilterChips,
   toggleTaskTypeFilterPanel,
   closeTaskTypeFilterPanel,
+  STATUS_FILTER_OPTIONS,
+  renderStatusFilterChips,
+  toggleStatusFilterPanel,
+  closeStatusFilterPanel,
   taskMatchesFilters
 } from './board-filters.js';
 export { fitBoardForTaskModal, restoreBoardAfterTaskModal, refitBoardForOpenTaskModal } from './board-layout.js';
@@ -221,6 +225,7 @@ export function renderAll(){
   renderTeamFilterChips();
   renderAssigneeFilterChips();
   renderTaskTypeFilterChips();
+  renderStatusFilterChips();
   applyHeaderButtonVisibility();
   renderBoard();
 }
@@ -623,41 +628,60 @@ export function renderCard(project, task){
   var overdue = isTaskOverdue(project, task);
   var depCount = (task.dependencies || []).length;
   var assignee = getMemberById(project, task.assigneeId);
-  var overrun = isTimeTrackingEnabled(project) ? getTaskOverrunStatus(project, task) : null;
+  var timeTrackingOn = isTimeTrackingEnabled(project);
+  var overrun = timeTrackingOn ? getTaskOverrunStatus(project, task) : null;
   if(overrun) card.classList.add(overrun.level === 'over' ? 'kf-card-over' : 'kf-card-atrisk');
-
-  var metaHTML = '<span class="kf-card-key">' + escapeHTML(task.key) + '</span>';
-  if(task.isPrivate){
-    metaHTML += '<span class="kf-private-chip" title="Private task">' + iconSvg('lock',12) + '</span>';
-  }
   var taskType = getTaskTypeById(project, task.typeId);
-  if(taskType && taskType.iconName){
-    metaHTML += '<span class="kf-card-type-icon" title="' + escapeHTML(taskType.name) + '">' + iconSvg(taskType.iconName, 13) + '</span>';
+
+  // Row 1: key (+ private lock + type icon) on the left, assignee avatar pinned right in a
+  // fixed-size slot so its presence/absence never shifts the row's height.
+  var topRowHTML = '<span class="kf-card-row-left"><span class="kf-card-key">' + escapeHTML(task.key) + '</span>';
+  if(task.isPrivate){
+    topRowHTML += '<span class="kf-private-chip" title="Private task">' + iconSvg('lock',12) + '</span>';
   }
-  metaHTML += '<span class="kf-priority-pill" style="color:' + prio.color + ';background:' + prio.bg + ';">' + iconSvg(prio.icon,12) + escapeHTML(prio.label) + '</span>';
-  if(depCount > 0){
-    metaHTML += '<span class="kf-dep-chip" title="Depends on ' + depCount + ' task(s)">' + iconSvg('link',12) + depCount + '</span>';
-  }
+  topRowHTML += '<span class="kf-card-type-slot">' +
+      ((taskType && taskType.iconName) ? '<span class="kf-card-type-icon" title="' + escapeHTML(taskType.name) + '">' + iconSvg(taskType.iconName, 13) + '</span>' : '') +
+    '</span></span><span class="kf-card-avatar-slot">' +
+    (assignee ? '<span class="kf-avatar kf-avatar-sm" style="background:' + assignee.color + ';" title="Assigned to ' + escapeHTML(assignee.name) + '">' + escapeHTML(memberInitials(assignee.name)) + '</span>' : '') +
+    '</span>';
+
+  // Row 2 (title) is rendered separately below — a natural 1-or-2-line block, only as tall
+  // as it needs to be, capped at 2 lines with ellipsis for anything longer.
+
+  // Row 3: priority (always present) + blocked/overdue chips — the row wraps via CSS if it
+  // ever gets crowded.
+  var tagsRowHTML = '<span class="kf-priority-pill" style="color:' + prio.color + ';background:' + prio.bg + ';">' + iconSvg(prio.icon,12) + escapeHTML(prio.label) + '</span>';
   if(blocked){
-    metaHTML += '<span class="kf-blocked-chip" title="Blocked by unfinished dependencies">' + iconSvg('warning',12) + 'Blocked</span>';
+    tagsRowHTML += '<span class="kf-blocked-chip" title="Blocked by unfinished dependencies">' + iconSvg('warning',12) + 'Blocked</span>';
   }
   if(overdue){
-    metaHTML += '<span class="kf-overdue-chip" title="End date was ' + escapeHTML(utcISOToLocalDisplayDate(task.endDate)) + '">' + iconSvg('clock',12) + 'Overdue</span>';
+    tagsRowHTML += '<span class="kf-overdue-chip" title="End date was ' + escapeHTML(utcISOToLocalDisplayDate(task.endDate)) + '">' + iconSvg('clock',12) + 'Overdue</span>';
   }
-  if(isTimeTrackingEnabled(project)){
+
+  // Row 4: progress graph on the left, only rendered when the project has time tracking on —
+  // a project-wide toggle, so every card in a given project reserves this row consistently —
+  // and related/dependency count pinned bottom-right in its own reserved slot.
+  var progressPartHTML = '';
+  if(timeTrackingOn){
     var progress = clampProgress(task.progress);
-    metaHTML += '<span class="kf-progress-chip" title="Progress: ' + progress + '%">' +
-      '<span class="kf-progress-track"><span class="kf-progress-fill" style="width:' + progress + '%;"></span></span>' +
+    progressPartHTML = '<span class="kf-progress-chip" title="Progress: ' + progress + '%">' +
+      '<span class="kf-progress-track"><span class="kf-progress-fill' + (progress === 100 ? ' kf-progress-fill-done' : '') + '" style="width:' + progress + '%;"></span></span>' +
       '<span class="kf-progress-label">' + progress + '%</span>' +
     '</span>';
   }
-  if(assignee){
-    metaHTML += '<span class="kf-avatar kf-avatar-sm" style="background:' + assignee.color + ';" title="Assigned to ' + escapeHTML(assignee.name) + '">' + escapeHTML(memberInitials(assignee.name)) + '</span>';
-  }
+  // Always rendered (even at zero) so the count is visible at a glance; a zero count is
+  // dimmed to 50% opacity rather than removed, so it still reads as "nothing here" without
+  // the row shifting when a dependency is later added.
+  var depPartHTML = '<span class="kf-card-dep-slot"><span class="kf-dep-chip' + (depCount === 0 ? ' kf-dep-chip-zero' : '') + '" title="' +
+      (depCount > 0 ? 'Depends on ' + depCount + ' task(s)' : 'No dependencies') + '">' + iconSvg('link',12) + depCount + '</span></span>';
 
   card.innerHTML =
+    '<div class="kf-card-row kf-card-row-top">' + topRowHTML + '</div>' +
     '<div class="kf-card-title">' + escapeHTML(task.title) + '</div>' +
-    '<div class="kf-card-meta">' + metaHTML + '</div>';
+    '<div class="kf-card-row kf-card-row-tags">' + tagsRowHTML + '</div>' +
+    // The progress slot is flex:1 (CSS) so the track stretches to fill whatever width the
+    // dep-count slot doesn't need, rather than sitting at a fixed width.
+    '<div class="kf-card-row kf-card-row-progress"><span class="kf-card-progress-slot">' + progressPartHTML + '</span>' + depPartHTML + '</div>';
 
   card.addEventListener('click', function(){
     if(ui.dragWasMove){ ui.dragWasMove = false; return; }
