@@ -192,6 +192,15 @@ Advanced Query tab (a Project Admin or Org Admin on that project):
 3. Check **Expose via API**, then Save (or Update, if editing an existing saved query).
 4. Once saved, the tab shows the query's public URL with a **Copy URL** button — this is exactly the
    URL to hand to the 3rd-party integration, alongside the org's API key.
+5. A **Test API (GET)** button sits next to it. Clicking it runs the query through the exact same
+   server-side execution path the real public endpoint uses and shows the result — status, row
+   count, and the full JSON response — in a scrolling box underneath, the same way "try it out" works
+   in a Swagger/OpenAPI explorer. This is a convenience for confirming a query returns what's
+   expected *before* handing the URL and key to a 3rd party, without needing a separate HTTP client.
+   It authenticates using your own logged-in session, not the org's actual API key — the raw key is
+   never retrievable after generation (see §2), so there's nothing for this button to send even if it
+   wanted to call the real endpoint directly. The results are identical either way; only how the
+   request proves who's allowed to run it differs.
 
 The URL has the shape:
 

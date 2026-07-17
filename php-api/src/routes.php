@@ -243,6 +243,8 @@ function registerRoutes(App $app): void
         // loaded saved query's SQL in place rather than only ever creating a new one) — the standard
         // POST/PUT/DELETE trio, same as every other simple project-scoped entity.
         registerEntityRoutes($group, '/saved-queries', SavedQueriesController::class, 'id');
+        // "Test API (GET)" button — see SavedQueriesController::test's own doc comment.
+        $group->get('/saved-queries/{id}/test', [SavedQueriesController::class, 'test']);
         // Team/committee CRUD (including applying a synced Org Team's membership onto one) is
         // OrgAdmin-only — per product decision, a project member without that flag should neither
         // see nor be able to use the Teams & Committees feature to change membership. Nested in its

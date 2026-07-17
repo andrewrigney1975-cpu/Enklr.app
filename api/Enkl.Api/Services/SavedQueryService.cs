@@ -45,6 +45,17 @@ public class SavedQueryService
         return ToDto(query);
     }
 
+    /// <summary>Raw Sql text for the "Test API" button (Controllers/SavedQueriesController.cs's
+    /// Test action) — a dedicated, minimal existence+ownership lookup rather than pulling the whole
+    /// SavedQueryDto shape through for one field.</summary>
+    public async Task<string?> GetSqlAsync(Guid projectId, Guid queryId)
+    {
+        return await _db.SavedQueries.AsNoTracking()
+            .Where(q => q.Id == queryId && q.ProjectId == projectId)
+            .Select(q => q.Sql)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<bool> DeleteAsync(Guid projectId, Guid queryId)
     {
         var query = await _db.SavedQueries.FirstOrDefaultAsync(q => q.Id == queryId && q.ProjectId == projectId);

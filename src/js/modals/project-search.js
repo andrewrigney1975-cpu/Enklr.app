@@ -19,7 +19,7 @@ import { openTeamsCommitteesOverlay, showTeamCommitteeFormView } from './teams-c
 import { confirmDialog } from './confirm.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 import { addSavedQuery, updateSavedQuery, deleteSavedQuery } from '../mutations.js';
-import { savedQueryApi } from '../api.js';
+import { savedQueryApi, testSavedQueryApi } from '../api.js';
 import { computeIntellisense, getCaretPixelPosition } from '../features/sql-intellisense.js';
 import { formatSql } from '../features/sql-formatter.js';
 
@@ -423,13 +423,56 @@ function projectQueryApiUrl(queryId){
   return window.location.origin + '/api/public/v1/queries/' + queryId + '/results';
 }
 
+// The saved query id the "Test API" button should actually call — tracked separately from
+// loadedSavedQueryId since showProjectQueryApiUrl() is also called right after a brand-new query is
+// created (confirmSaveProjectQuery doesn't load the new query, see its own comment), when
+// loadedSavedQueryId is still null.
+var currentApiUrlQueryId = null;
+
 function showProjectQueryApiUrl(queryId){
+  currentApiUrlQueryId = queryId;
   document.getElementById('projectQueryApiUrlText').textContent = projectQueryApiUrl(queryId);
   document.getElementById('projectQueryApiUrlRow').classList.remove('hidden');
+  hideProjectQueryApiTestPanel();
 }
 
 function hideProjectQueryApiUrl(){
+  currentApiUrlQueryId = null;
   document.getElementById('projectQueryApiUrlRow').classList.add('hidden');
+  hideProjectQueryApiTestPanel();
+}
+
+function hideProjectQueryApiTestPanel(){
+  document.getElementById('projectQueryApiTestPanel').classList.add('hidden');
+  document.getElementById('projectQueryApiTestResult').textContent = '';
+  document.getElementById('projectQueryApiTestStatus').textContent = '';
+  document.getElementById('projectQueryApiTestStatus').className = 'kf-query-api-test-status';
+}
+
+// "Test API (GET)" button — see api.js's testSavedQueryApi() for why this goes through an
+// authenticated project endpoint rather than the real public one (no retrievable API key to send).
+export async function testProjectQueryApi(){
+  var project = getCurrentProject();
+  if(!project || !currentApiUrlQueryId) return;
+
+  var statusEl = document.getElementById('projectQueryApiTestStatus');
+  var resultEl = document.getElementById('projectQueryApiTestResult');
+  document.getElementById('projectQueryApiTestPanel').classList.remove('hidden');
+  statusEl.className = 'kf-query-api-test-status';
+  statusEl.textContent = 'Running...';
+  resultEl.textContent = '';
+
+  try {
+    var result = await testSavedQueryApi(project.serverProjectId, currentApiUrlQueryId);
+    statusEl.className = 'kf-query-api-test-status kf-query-api-test-status-ok';
+    statusEl.textContent = '200 OK — ' + result.rows.length + ' row' + (result.rows.length === 1 ? '' : 's') +
+      (result.truncated ? ' (truncated)' : '');
+    resultEl.textContent = JSON.stringify(result, null, 2);
+  } catch(e){
+    statusEl.className = 'kf-query-api-test-status kf-query-api-test-status-error';
+    statusEl.textContent = 'Request failed';
+    resultEl.textContent = e.message || 'Unknown error';
+  }
 }
 
 function setLoadedSavedQuery(id, name, sql, exposeViaApi){

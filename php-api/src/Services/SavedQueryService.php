@@ -52,6 +52,17 @@ final class SavedQueryService
         return $this->toDto($queryId);
     }
 
+    /** Raw Sql text for the "Test API" button (Controllers/SavedQueriesController.php::test) — the
+     * saved-query CRUD DTO (toDto()) already returns Sql too, but this is a dedicated, minimal
+     * existence+ownership check rather than pulling the whole DTO shape through for one field. */
+    public function getSql(string $projectId, string $queryId): ?string
+    {
+        $stmt = $this->db->prepare('SELECT "Sql" FROM "SavedQueries" WHERE "Id" = :id AND "ProjectId" = :pid');
+        $stmt->execute(['id' => $queryId, 'pid' => $projectId]);
+        $sql = $stmt->fetchColumn();
+        return $sql === false ? null : $sql;
+    }
+
     public function delete(string $projectId, string $queryId): bool
     {
         $stmt = $this->db->prepare('DELETE FROM "SavedQueries" WHERE "Id" = :id AND "ProjectId" = :pid');
