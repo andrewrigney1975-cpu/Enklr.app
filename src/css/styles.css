@@ -1804,6 +1804,14 @@
     display: none;
   }
 
+  #projectSearchSimpleView.hidden {
+    display: none;
+  }
+
+  #projectSearchQueryView.hidden {
+    display: none;
+  }
+
   #deleteReleaseBtn.hidden {
     display: none;
   }
@@ -3006,6 +3014,134 @@
     font-size: 13px;
   }
 
+  /* Project Search — Search/Advanced Query tab bar (modals/project-search.js). Generic enough to
+     reuse for any future two-peer-view modal, though nothing else uses it yet. */
+  .kf-tabbar {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--kf-border);
+    margin-bottom: 14px;
+  }
+
+  .kf-tabbar-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 8px 4px;
+    margin-bottom: -1px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--kf-text-secondary);
+    cursor: pointer;
+  }
+
+  .kf-tabbar-btn:hover {
+    color: var(--kf-text);
+  }
+
+  .kf-tabbar-btn.active {
+    color: var(--kf-blue);
+    border-bottom-color: var(--kf-blue);
+  }
+
+  /* Advanced Query tab */
+  .kf-query-textarea {
+    width: 100%;
+    min-height: 90px;
+    border: 2px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    padding: 8px 10px;
+    color: var(--kf-text);
+    background: var(--kf-input-bg);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 13px;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+
+  .kf-query-textarea:focus {
+    outline: none;
+    border-color: var(--kf-blue);
+    background: var(--kf-input-bg-focus);
+  }
+
+  .kf-query-actions {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .kf-query-schema-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+    max-height: 140px;
+    overflow-y: auto;
+    background: var(--kf-bg);
+    border-radius: var(--kf-radius);
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+
+  .kf-query-schema-panel.hidden {
+    display: none;
+  }
+
+  .kf-query-schema-table-name {
+    font-weight: 700;
+    color: var(--kf-text);
+  }
+
+  .kf-query-schema-table-cols {
+    color: var(--kf-text-secondary);
+  }
+
+  .kf-query-error {
+    font-size: 13px;
+    color: var(--kf-blocked-fg);
+    background: var(--kf-blocked-bg);
+    border-radius: var(--kf-radius);
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+
+  .kf-query-error.hidden {
+    display: none;
+  }
+
+  .kf-query-row-count {
+    font-size: 12px;
+    color: var(--kf-text-faint);
+    margin-bottom: 6px;
+  }
+
+  .kf-query-results-wrap {
+    overflow-x: auto;
+  }
+
+  .kf-query-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .kf-query-results-table th,
+  .kf-query-results-table td {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--kf-border);
+    white-space: nowrap;
+  }
+
+  .kf-query-results-table th {
+    color: var(--kf-text-secondary);
+    font-weight: 700;
+    background: var(--kf-bg);
+    position: sticky;
+    top: 0;
+  }
+
   /* Teams & Committees */
   .kf-tc-expand-row {
     display: flex;
@@ -3906,7 +4042,7 @@
       background: #fff !important;
     }
 
-    body > *:not(#reportOverlay) {
+    body > *:not(#reportOverlay):not(#projectSearchOverlay) {
       display: none !important;
     }
 
@@ -3982,6 +4118,61 @@
     }
 
     .kf-report-item {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    /* Advanced Query results (modals/project-search.js) — same flatten-the-overlay mechanism as
+       #reportOverlay above, just keyed to a second overlay id. Only the results table is meant to
+       print, not the query editor/tab chrome around it. */
+    #projectSearchOverlay {
+      position: static !important;
+      display: block !important;
+      background: #fff !important;
+      padding: 0 !important;
+      color: #172b4d !important;
+      --kf-text: #172b4d;
+      --kf-text-secondary: #6b778c;
+      --kf-text-faint: #8993a4;
+      --kf-border: #dfe1e6;
+      --kf-border-strong: #c1c7d0;
+      --kf-blue: #0c66e4;
+      --kf-good-fg: #216e4e;
+      --kf-good-bg: #dcfff1;
+      --kf-overdue-fg: #974f0c;
+      --kf-overdue-bg: #fff0b3;
+      --kf-blocked-fg: #ae2e24;
+      --kf-blocked-bg: #ffebe6;
+    }
+
+    #projectSearchOverlay .kf-modal {
+      background: #fff !important;
+      box-shadow: none !important;
+      height: auto !important;
+      max-height: none !important;
+      width: 100% !important;
+      max-width: none !important;
+      display: block !important;
+    }
+
+    #projectSearchOverlay .kf-modal-body {
+      overflow: visible !important;
+      height: auto !important;
+      max-height: none !important;
+      flex: none !important;
+    }
+
+    #projectSearchOverlay .kf-modal-header,
+    #projectSearchOverlay .kf-tabbar,
+    #projectSearchOverlay #projectSearchSimpleView,
+    #projectSearchOverlay .kf-query-textarea,
+    #projectSearchOverlay .kf-query-actions,
+    #projectSearchOverlay .kf-query-schema-panel,
+    #projectSearchOverlay .kf-modal-footer {
+      display: none !important;
+    }
+
+    #projectSearchOverlay .kf-query-results-table tr {
       break-inside: avoid;
       page-break-inside: avoid;
     }

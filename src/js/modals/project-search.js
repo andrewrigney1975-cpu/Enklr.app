@@ -1,9 +1,12 @@
 "use strict";
 import { getCurrentProject } from '../store.js';
-import { escapeHTML } from '../views/board.js';
+import { escapeHTML, canCurrentUserManageProject } from '../views/board.js';
 import { hydrateIcons } from '../icons.js';
 import { TEAM_COMMITTEE_TYPES } from '../config.js';
+import { toast } from '../ui.js';
 import { PROJECT_SEARCH_MIN_CHARS, buildProjectSearchGroups, buildSearchSnippetHTML } from '../features/project-search.js';
+import { executeQuery, QueryError, TABLE_SCHEMAS } from '../features/query-engine.js';
+import { csvEscapeValue } from '../views/task-list.js';
 import { openTaskModal } from './task.js';
 import { openTeamModal } from './team.js';
 import { openPrinciplesOverlay, showPrinciplesFormView } from './principles.js';
@@ -14,6 +17,7 @@ import { openDecisionsOverlay, showDecisionsFormView } from './decisions.js';
 import { openTeamsCommitteesOverlay, showTeamCommitteeFormView } from './teams-committees.js';
 
 var projectSearchDebounceId = null;
+var lastQueryResult = null;
 
 var PROJECT_SEARCH_GROUP_ICONS = {
   tasks: 'board', members: 'team', principles: 'compass', objectives: 'target',
@@ -26,6 +30,12 @@ export function openProjectSearchOverlay(){
   if(!project) return;
   document.getElementById('projectSearchInput').value = '';
   renderProjectSearchResults('');
+  // Advanced Query tab is Project-Admin/Org-Admin-only — canCurrentUserManageProject() already
+  // means "Project Admin OR Org Admin" (isProjectAdmin() short-circuits true for Org Admins
+  // internally), same gate every other admin-only entry point in this app uses. Re-evaluated on
+  // every open since admin status can change between opens.
+  document.getElementById('projectSearchTabQueryBtn').classList.toggle('kf-vis-hidden', !canCurrentUserManageProject());
+  showProjectSearchSimpleView();
   document.getElementById('projectSearchOverlay').classList.remove('hidden');
   document.getElementById('projectSearchInput').focus();
 }
@@ -137,4 +147,120 @@ export function handleProjectSearchResultClick(e){
     openTeamsCommitteesOverlay();
     showTeamCommitteeFormView(id);
   }
+}
+
+/* =========================================================
+   ADVANCED QUERY (Project-Admin/Org-Admin only)
+   Two-view toggle modeled on modals/releases.js's showReleasesListView()/showReleasesFormView()
+   pattern (title/footer swap, .hidden class toggle) — not a new tab-widget component.
+   ========================================================= */
+
+export function showProjectSearchSimpleView(){
+  document.getElementById('projectSearchTabSearchBtn').classList.add('active');
+  document.getElementById('projectSearchTabQueryBtn').classList.remove('active');
+  document.getElementById('projectSearchSimpleView').classList.remove('hidden');
+  document.getElementById('projectSearchQueryView').classList.add('hidden');
+  document.getElementById('projectSearchSimpleFooter').classList.remove('hidden');
+  document.getElementById('projectSearchQueryFooter').classList.add('hidden');
+}
+
+export function showProjectSearchQueryView(){
+  // Defense in depth, matching project-storage.js's openProjectStorageModal() — not just relying on
+  // the tab button being hidden — in case this is ever invoked directly while ungated.
+  if(!canCurrentUserManageProject()){
+    toast('Only a Project Administrator or Org Admin can run advanced queries.');
+    return;
+  }
+  document.getElementById('projectSearchTabSearchBtn').classList.remove('active');
+  document.getElementById('projectSearchTabQueryBtn').classList.add('active');
+  document.getElementById('projectSearchSimpleView').classList.add('hidden');
+  document.getElementById('projectSearchQueryView').classList.remove('hidden');
+  document.getElementById('projectSearchSimpleFooter').classList.add('hidden');
+  document.getElementById('projectSearchQueryFooter').classList.remove('hidden');
+  document.getElementById('projectQuerySql').focus();
+}
+
+export function toggleProjectQuerySchemaPanel(){
+  var panel = document.getElementById('projectQuerySchemaPanel');
+  var willShow = panel.classList.contains('hidden');
+  if(willShow){
+    panel.innerHTML = Object.keys(TABLE_SCHEMAS).sort().map(function(table){
+      return '<div class="kf-query-schema-table">' +
+        '<div class="kf-query-schema-table-name">' + escapeHTML(table) + '</div>' +
+        '<div class="kf-query-schema-table-cols">' + TABLE_SCHEMAS[table].map(escapeHTML).join(', ') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+  panel.classList.toggle('hidden', !willShow);
+}
+
+function renderQueryResultsTable(result){
+  var wrap = document.getElementById('projectQueryResultsWrap');
+  var rowCountEl = document.getElementById('projectQueryRowCount');
+  if(result.rows.length === 0){
+    wrap.innerHTML = '<div class="kf-search-empty">Query ran successfully — 0 rows returned.</div>';
+    rowCountEl.textContent = '';
+    return;
+  }
+  rowCountEl.textContent = result.rows.length + (result.rows.length === 1 ? ' row' : ' rows');
+  var theadHTML = '<thead><tr>' + result.columns.map(function(c){ return '<th>' + escapeHTML(c) + '</th>'; }).join('') + '</tr></thead>';
+  var tbodyHTML = '<tbody>' + result.rows.map(function(row){
+    return '<tr>' + result.columns.map(function(c){
+      var v = row[c];
+      return '<td>' + escapeHTML(v == null ? '' : String(v)) + '</td>';
+    }).join('') + '</tr>';
+  }).join('') + '</tbody>';
+  wrap.innerHTML = '<table class="kf-query-results-table">' + theadHTML + tbodyHTML + '</table>';
+}
+
+export function runProjectQuery(){
+  var project = getCurrentProject();
+  var sql = document.getElementById('projectQuerySql').value;
+  var errorEl = document.getElementById('projectQueryError');
+  errorEl.classList.add('hidden');
+  errorEl.textContent = '';
+  try {
+    lastQueryResult = executeQuery(project, sql);
+    renderQueryResultsTable(lastQueryResult);
+  } catch(e){
+    lastQueryResult = null;
+    document.getElementById('projectQueryResultsWrap').innerHTML = '';
+    document.getElementById('projectQueryRowCount').textContent = '';
+    errorEl.textContent = e instanceof QueryError ? e.message : ('Unexpected error: ' + (e && e.message ? e.message : e));
+    errorEl.classList.remove('hidden');
+  }
+}
+
+// Same Blob + <a download> technique as views/task-list.js's exportTaskListAsCsv() /
+// features/svg-export.js's PNG export — each keeps its own tiny copy of this rather than sharing one,
+// matching this codebase's existing convention.
+function downloadBlob(blob, filename){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function exportProjectQueryResultsAsCsv(){
+  if(!lastQueryResult || lastQueryResult.rows.length === 0){
+    toast('Run a query with results first.');
+    return;
+  }
+  var project = getCurrentProject();
+  var lines = [lastQueryResult.columns.map(csvEscapeValue).join(',')];
+  lastQueryResult.rows.forEach(function(row){
+    lines.push(lastQueryResult.columns.map(function(c){ return csvEscapeValue(row[c]); }).join(','));
+  });
+  var blob = new Blob([lines.join('\r\n')], {type: 'text/csv;charset=utf-8;'});
+  var filename = (project ? project.key : 'query') + '-query-' + new Date().toISOString().slice(0,10) + '.csv';
+  downloadBlob(blob, filename);
+  toast('Exported ' + filename);
+}
+
+export function printProjectQueryResults(){
+  window.print();
 }

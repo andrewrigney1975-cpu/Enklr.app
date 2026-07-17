@@ -58,7 +58,7 @@ import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen,
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
 import { openTeamsCommitteesOverlay, closeTeamsCommitteesOverlay, isTeamsCommitteesOverlayOpen, showTeamCommitteeFormView, showTeamsCommitteesListView, renderTeamsCommitteesList, saveTeamCommitteeFromModal, deleteTeamCommitteeFromModal } from './modals/teams-committees.js';
 import { openReportOverlay, closeReportOverlay, isReportOverlayOpen, printReport, openProjectManagementReportOverlay } from './features/reports.js';
-import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick } from './modals/project-search.js';
+import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick, showProjectSearchSimpleView, showProjectSearchQueryView, toggleProjectQuerySchemaPanel, runProjectQuery, exportProjectQueryResultsAsCsv, printProjectQueryResults } from './modals/project-search.js';
 import { openAboutModal, closeAboutModal, isAboutModalOpen } from './modals/about.js';
 import { openProjectStorageModal, closeProjectStorageModal, isProjectStorageModalOpen } from './modals/project-storage.js';
 import { openUfoModal, closeUfoModal, isUfoModalOpen } from './modals/ufo.js';
@@ -524,6 +524,13 @@ function wireEvents(){
     handleProjectSearchInput(e.target.value);
   });
   document.getElementById('projectSearchResults').addEventListener('click', handleProjectSearchResultClick);
+  document.getElementById('projectSearchTabSearchBtn').addEventListener('click', showProjectSearchSimpleView);
+  document.getElementById('projectSearchTabQueryBtn').addEventListener('click', showProjectSearchQueryView);
+  document.getElementById('projectSearchQueryDoneBtn').addEventListener('click', closeProjectSearchOverlay);
+  document.getElementById('projectQueryRunBtn').addEventListener('click', runProjectQuery);
+  document.getElementById('projectQuerySchemaToggleBtn').addEventListener('click', toggleProjectQuerySchemaPanel);
+  document.getElementById('projectQueryExportCsvBtn').addEventListener('click', exportProjectQueryResultsAsCsv);
+  document.getElementById('projectQueryPrintBtn').addEventListener('click', printProjectQueryResults);
 
   document.getElementById('deleteProjectBtn').addEventListener('click', function(){
     var p = getCurrentProject();
