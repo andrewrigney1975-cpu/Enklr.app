@@ -3958,6 +3958,25 @@
     #reportPrintBtn, #reportClose {
       display: none !important;
     }
+
+    /* Page-break behavior for the Project Management Report (and every entity report reusing
+       this same #reportOverlay markup): never split a single item's content (a principle,
+       objective, risk, or decision entry — everything renderReportItem() produces, title
+       through related-entities) across a page boundary, and never leave a section heading
+       stranded alone at the bottom of a page separated from its first item. Together these
+       two rules mean the browser's automatic pagination naturally prefers to start a page
+       right at a section boundary (nothing to gain by breaking mid-section when the next
+       whole item has to move together anyway) without forcing every section onto its own
+       page — a short section still shares a page with its neighbors when there's room. */
+    .kf-report-section-heading {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    .kf-report-item {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
   }
 
   .kf-field input[type=range] {
