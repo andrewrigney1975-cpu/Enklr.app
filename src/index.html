@@ -2461,6 +2461,7 @@
       <div id="projectSearchQueryView" class="hidden">
         <div class="kf-query-top-row">
           <textarea id="projectQuerySql" class="kf-query-textarea" placeholder="SELECT * FROM tasks WHERE priority = 'high'" spellcheck="false"></textarea>
+          <div id="projectQueryIntellisenseDropdown" class="kf-intellisense-dropdown hidden"></div>
           <div id="projectQuerySchemaPanel" class="kf-query-schema-panel hidden">
             <div class="kf-erd-toolbar">
               <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="projectQueryErdZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="14"></span></button>
@@ -2482,9 +2483,10 @@
         </div>
         <div class="kf-query-actions">
           <button type="button" class="kf-btn kf-btn-primary" id="projectQueryRunBtn">Run</button>
-          <button type="button" class="kf-btn kf-btn-ghost" id="projectQuerySchemaToggleBtn">Tables &amp; Columns</button>
+          <button type="button" class="kf-btn kf-btn-ghost" id="projectQueryFormatBtn">Format SQL</button>
           <button type="button" class="kf-btn kf-btn-ghost" id="projectQuerySavedToggleBtn">Saved Queries</button>
           <button type="button" class="kf-btn kf-btn-ghost" id="projectQuerySaveBtn">Save Query</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-query-actions-right" id="projectQuerySchemaToggleBtn">Tables &amp; Columns</button>
         </div>
         <div id="projectQuerySaveRow" class="kf-query-save-row hidden">
           <input type="text" id="projectQuerySaveNameInput" placeholder="Query name" maxlength="200">

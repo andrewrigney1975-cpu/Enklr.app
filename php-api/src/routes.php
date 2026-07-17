@@ -220,10 +220,10 @@ function registerRoutes(App $app): void
         registerEntityRoutes($group, '/documents', DocumentsController::class, 'id');
         registerEntityRoutes($group, '/risks', RisksController::class, 'id');
         registerEntityRoutes($group, '/objectives', ObjectivesController::class, 'id');
-        // SavedQuery has no Update (delete-and-resave covers renaming/editing) — wired manually rather
-        // than through registerEntityRoutes(), which always wires all three POST/PUT/DELETE verbs.
-        $group->post('/saved-queries', [SavedQueriesController::class, 'create']);
-        $group->delete('/saved-queries/{id}', [SavedQueriesController::class, 'delete']);
+        // SavedQuery now supports Update (Advanced Query tab's "Update Query" button, overwriting the
+        // loaded saved query's SQL in place rather than only ever creating a new one) — the standard
+        // POST/PUT/DELETE trio, same as every other simple project-scoped entity.
+        registerEntityRoutes($group, '/saved-queries', SavedQueriesController::class, 'id');
         // Team/committee CRUD (including applying a synced Org Team's membership onto one) is
         // OrgAdmin-only — per product decision, a project member without that flag should neither
         // see nor be able to use the Teams & Committees feature to change membership. Nested in its

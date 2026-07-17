@@ -58,7 +58,7 @@ import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen,
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
 import { openTeamsCommitteesOverlay, closeTeamsCommitteesOverlay, isTeamsCommitteesOverlayOpen, showTeamCommitteeFormView, showTeamsCommitteesListView, renderTeamsCommitteesList, saveTeamCommitteeFromModal, deleteTeamCommitteeFromModal } from './modals/teams-committees.js';
 import { openReportOverlay, closeReportOverlay, isReportOverlayOpen, printReport, openProjectManagementReportOverlay } from './features/reports.js';
-import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick, showProjectSearchSimpleView, showProjectSearchQueryView, toggleProjectQuerySchemaPanel, toggleProjectQuerySavedPanel, handleProjectQuerySavedListClick, showProjectQuerySaveRow, hideProjectQuerySaveRow, confirmSaveProjectQuery, showProjectQueryResultsTableView, showProjectQueryResultsJsonView, runProjectQuery, exportProjectQueryResultsAsCsv, copyProjectQueryResultsAsJson, exportProjectQueryResultsAsJson, printProjectQueryResults, erdZoomState, setProjectQueryErdZoom, resetProjectQueryErdZoom, zoomProjectQueryErdAtPoint } from './modals/project-search.js';
+import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick, showProjectSearchSimpleView, showProjectSearchQueryView, toggleProjectQuerySchemaPanel, toggleProjectQuerySavedPanel, handleProjectQuerySavedListClick, handleProjectQuerySaveOrUpdateClick, hideProjectQuerySaveRow, confirmSaveProjectQuery, showProjectQueryResultsTableView, showProjectQueryResultsJsonView, runProjectQuery, formatProjectQuerySql, exportProjectQueryResultsAsCsv, copyProjectQueryResultsAsJson, exportProjectQueryResultsAsJson, printProjectQueryResults, erdZoomState, setProjectQueryErdZoom, resetProjectQueryErdZoom, zoomProjectQueryErdAtPoint, updateProjectQueryIntellisense, repositionProjectQueryIntellisense, hideProjectQueryIntellisense, isProjectQueryIntellisenseOpen, moveProjectQueryIntellisenseActive, acceptProjectQueryIntellisenseSuggestion, handleProjectQueryIntellisenseClick } from './modals/project-search.js';
 import { openAboutModal, closeAboutModal, isAboutModalOpen } from './modals/about.js';
 import { openProjectStorageModal, closeProjectStorageModal, isProjectStorageModalOpen } from './modals/project-storage.js';
 import { openUfoModal, closeUfoModal, isUfoModalOpen } from './modals/ufo.js';
@@ -528,10 +528,11 @@ function wireEvents(){
   document.getElementById('projectSearchTabQueryBtn').addEventListener('click', showProjectSearchQueryView);
   document.getElementById('projectSearchQueryDoneBtn').addEventListener('click', closeProjectSearchOverlay);
   document.getElementById('projectQueryRunBtn').addEventListener('click', runProjectQuery);
+  document.getElementById('projectQueryFormatBtn').addEventListener('click', formatProjectQuerySql);
   document.getElementById('projectQuerySchemaToggleBtn').addEventListener('click', toggleProjectQuerySchemaPanel);
   document.getElementById('projectQuerySavedToggleBtn').addEventListener('click', toggleProjectQuerySavedPanel);
   document.getElementById('projectQuerySavedList').addEventListener('click', handleProjectQuerySavedListClick);
-  document.getElementById('projectQuerySaveBtn').addEventListener('click', showProjectQuerySaveRow);
+  document.getElementById('projectQuerySaveBtn').addEventListener('click', handleProjectQuerySaveOrUpdateClick);
   document.getElementById('projectQuerySaveCancelBtn').addEventListener('click', hideProjectQuerySaveRow);
   document.getElementById('projectQuerySaveConfirmBtn').addEventListener('click', confirmSaveProjectQuery);
   document.getElementById('projectQueryViewTableBtn').addEventListener('click', showProjectQueryResultsTableView);
@@ -540,6 +541,36 @@ function wireEvents(){
   document.getElementById('projectQueryCopyJsonBtn').addEventListener('click', copyProjectQueryResultsAsJson);
   document.getElementById('projectQueryExportJsonBtn').addEventListener('click', exportProjectQueryResultsAsJson);
   document.getElementById('projectQueryPrintBtn').addEventListener('click', printProjectQueryResults);
+
+  // SQL intellisense (features/sql-intellisense.js) — recompute on every keystroke/click/selection
+  // change, keyboard-drive the dropdown while it's open, and keep it tracking the caret on scroll.
+  var projectQuerySqlEl = document.getElementById('projectQuerySql');
+  projectQuerySqlEl.addEventListener('input', updateProjectQueryIntellisense);
+  projectQuerySqlEl.addEventListener('click', updateProjectQueryIntellisense);
+  projectQuerySqlEl.addEventListener('scroll', repositionProjectQueryIntellisense);
+  projectQuerySqlEl.addEventListener('blur', hideProjectQueryIntellisense);
+  projectQuerySqlEl.addEventListener('keydown', function(e){
+    if(!isProjectQueryIntellisenseOpen()) return;
+    if(e.key === 'Tab'){
+      e.preventDefault();
+      acceptProjectQueryIntellisenseSuggestion();
+    } else if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      moveProjectQueryIntellisenseActive(1);
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      moveProjectQueryIntellisenseActive(-1);
+    } else if(e.key === 'Escape'){
+      e.preventDefault();
+      e.stopPropagation();
+      hideProjectQueryIntellisense();
+    }
+  });
+  // mousedown (not click) so this fires before the textarea's own blur closes the dropdown first.
+  document.getElementById('projectQueryIntellisenseDropdown').addEventListener('mousedown', function(e){
+    e.preventDefault();
+    handleProjectQueryIntellisenseClick(e);
+  });
 
   document.getElementById('projectQueryErdZoomInBtn').addEventListener('click', function(){ setProjectQueryErdZoom(0.1); });
   document.getElementById('projectQueryErdZoomOutBtn').addEventListener('click', function(){ setProjectQueryErdZoom(-0.1); });
@@ -1534,7 +1565,11 @@ function wireEvents(){
 
   document.addEventListener('keydown', function(e){
     if(e.key !== 'Escape') return;
-    if(!document.getElementById('unlockPrivateTaskOverlay').classList.contains('hidden')) closeUnlockPrivateTaskModal();
+    // Second line of defense alongside the textarea's own keydown handler (which stopPropagation's
+    // when it handles Escape itself) — closes just the intellisense dropdown, not the whole Project
+    // Search modal, in case this ever fires first.
+    if(isProjectQueryIntellisenseOpen()) hideProjectQueryIntellisense();
+    else if(!document.getElementById('unlockPrivateTaskOverlay').classList.contains('hidden')) closeUnlockPrivateTaskModal();
     else if(!document.getElementById('setPrivateKeyOverlay').classList.contains('hidden')) closeSetPrivateKeyModal();
     else if(!document.getElementById('taskOverlay').classList.contains('hidden')) closeTaskModal();
     else if(!document.getElementById('columnOverlay').classList.contains('hidden')) closeColumnModal();

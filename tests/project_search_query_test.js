@@ -79,13 +79,17 @@ function makeFakeJwt(payload){
     log('Print button exists and is wired', doc.getElementById('projectQueryPrintBtn') !== null);
 
     // Schema reference panel (sits beside the query textarea in .kf-query-top-row)
-    log('schema panel starts hidden', doc.getElementById('projectQuerySchemaPanel').classList.contains('hidden'));
+    log('schema panel is shown by default when the Advanced Query view opens', !doc.getElementById('projectQuerySchemaPanel').classList.contains('hidden') &&
+        doc.getElementById('projectQuerySchemaPanel').textContent.indexOf('tasks') !== -1);
     log('schema panel lives inside .kf-query-top-row alongside the SQL textarea',
         doc.getElementById('projectQuerySchemaPanel').closest('.kf-query-top-row') !== null &&
         doc.getElementById('projectQuerySchemaPanel').closest('.kf-query-top-row').contains(doc.getElementById('projectQuerySql')));
     doc.getElementById('projectQuerySchemaToggleBtn').click();
     await wait(50);
-    log('schema panel toggles open and lists the tasks table', !doc.getElementById('projectQuerySchemaPanel').classList.contains('hidden') &&
+    log('Tables & Columns toggle button closes the panel', doc.getElementById('projectQuerySchemaPanel').classList.contains('hidden'));
+    doc.getElementById('projectQuerySchemaToggleBtn').click();
+    await wait(50);
+    log('clicking it again reopens the panel and lists the tasks table', !doc.getElementById('projectQuerySchemaPanel').classList.contains('hidden') &&
         doc.getElementById('projectQuerySchemaPanel').textContent.indexOf('tasks') !== -1);
 
     // ── ERD pan/zoom/export ───────────────────────────────────────────────────────────────
@@ -214,6 +218,30 @@ function makeFakeJwt(payload){
     log('clicking a saved query loads its SQL into the textarea', doc.getElementById('projectQuerySql').value === 'SELECT * FROM tasks');
     log('Saved Queries panel closes after loading', doc.getElementById('projectQuerySavedPanel').classList.contains('hidden'));
 
+    // ── Update Query: loading a saved query flips the button label and overwrites in place ──
+    log('Save Query button becomes Update Query once a saved query is loaded', doc.getElementById('projectQuerySaveBtn').textContent === 'Update Query');
+
+    doc.getElementById('projectQuerySql').value = "SELECT * FROM tasks WHERE priority = 'high'";
+    doc.getElementById('projectQuerySaveBtn').click();
+    await wait(20);
+    log('clicking Update Query does NOT reveal the create-new name row', doc.getElementById('projectQuerySaveRow').classList.contains('hidden'));
+    log('clicking Update Query opens a confirm dialog instead of saving immediately',
+        !doc.getElementById('confirmOverlay').classList.contains('hidden'));
+    doc.getElementById('confirmOkBtn').click();
+    await wait(50);
+
+    doc.getElementById('projectQuerySavedToggleBtn').click();
+    await wait(20);
+    log('confirming the update still lists exactly one saved query under the SAME name, not a new one',
+        doc.querySelectorAll('#projectQuerySavedList [data-query-id]').length === 1 &&
+        doc.getElementById('projectQuerySavedList').textContent.indexOf('All tasks') !== -1);
+
+    doc.getElementById('projectQuerySql').value = '';
+    doc.querySelector('#projectQuerySavedList [data-query-id]').click();
+    await wait(20);
+    log('reloading it shows the UPDATED sql, confirming it overwrote in place rather than creating a second entry',
+        doc.getElementById('projectQuerySql').value === "SELECT * FROM tasks WHERE priority = 'high'", doc.getElementById('projectQuerySql').value);
+
     doc.getElementById('projectQuerySavedToggleBtn').click();
     await wait(20);
     const deleteBtn = doc.querySelector('#projectQuerySavedList [data-query-delete-id]');
@@ -221,6 +249,7 @@ function makeFakeJwt(payload){
     await wait(20);
     doc.getElementById('confirmOkBtn') ? doc.getElementById('confirmOkBtn').click() : null;
     await wait(50);
+    log('deleting the currently-loaded saved query reverts the button back to Save Query', doc.getElementById('projectQuerySaveBtn').textContent === 'Save Query');
     log('deleting a saved query removes it from the panel', doc.getElementById('projectQuerySavedList').textContent.indexOf('All tasks') === -1);
 
     // Switching back to Search restores the original view

@@ -24,6 +24,13 @@ public class SavedQueriesController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [HttpPut("{queryId:guid}")]
+    public async Task<IActionResult> Update(Guid projectId, Guid queryId, CreateSavedQueryRequest request)
+    {
+        var result = await _savedQueries.UpdateAsync(projectId, queryId, request);
+        return result is null ? NotFound() : Ok(result);
+    }
+
     [HttpDelete("{queryId:guid}")]
     public async Task<IActionResult> Delete(Guid projectId, Guid queryId)
     {

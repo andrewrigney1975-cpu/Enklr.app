@@ -3084,11 +3084,76 @@
     background: var(--kf-input-bg-focus);
   }
 
+  /* Inline SQL autocomplete (features/sql-intellisense.js) — position: fixed, JS-computed left/top
+     tracking the caret (see positionIntellisenseDropdown() in modals/project-search.js). Sits above
+     the modal's own 1050 z-index tier, matching the "above-modal overlay" band other in-modal popovers
+     already use (e.g. .kf-export-as-panel's context, though that one isn't itself layered this high). */
+  .kf-intellisense-dropdown {
+    position: fixed;
+    z-index: 1090;
+    min-width: 160px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--kf-surface);
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    box-shadow: var(--kf-modal-shadow);
+    padding: 4px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+  }
+
+  .kf-intellisense-dropdown.hidden {
+    display: none;
+  }
+
+  .kf-intellisense-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--kf-text);
+    white-space: nowrap;
+  }
+
+  .kf-intellisense-option:hover,
+  .kf-intellisense-option.active {
+    background: var(--kf-hover-tint);
+  }
+
+  .kf-intellisense-option-type {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    background: var(--kf-chip-bg);
+    color: var(--kf-text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* A "join" suggestion (features/sql-intellisense.js's TABLE_RELATIONSHIPS-derived ON-condition,
+     e.g. "tasks.columnId = columns.id") is a smart, ready-made suggestion rather than a plain
+     identifier — accented so it visually stands out from the T/F/K badges above it in the list. */
+  .kf-intellisense-type-join {
+    background: var(--kf-blue);
+    color: #fff;
+  }
+
   .kf-query-actions {
     display: flex;
     gap: 8px;
     margin: 10px 0;
     flex-wrap: wrap;
+  }
+
+  .kf-query-actions-right {
+    margin-left: auto;
   }
 
   .kf-query-save-row {

@@ -12,9 +12,8 @@ use PDO;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Direct-service-call coverage for SavedQueryService — Create + Delete only, no Update (mirrors
- * api/Enkl.Api.Tests/SavedQueryServiceTests.cs). No transaction wrapping needed (single-statement
- * writes only, no junction tables).
+ * Direct-service-call coverage for SavedQueryService (mirrors api/Enkl.Api.Tests/SavedQueryServiceTests.cs).
+ * No transaction wrapping needed (single-statement writes only, no junction tables).
  */
 final class SavedQueryServiceTest extends TestCase
 {
@@ -56,6 +55,32 @@ final class SavedQueryServiceTest extends TestCase
     {
         $result = self::$savedQueries->create(Uuid::v4(), ['name' => 'Name', 'sql' => 'SELECT 1']);
         self::assertNull($result);
+    }
+
+    public function testUpdateOverwritesNameAndSql(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('user'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
+        $created = self::$savedQueries->create($projectId, ['name' => 'All tasks', 'sql' => 'SELECT * FROM tasks']);
+
+        $updated = self::$savedQueries->update($projectId, $created['id'], ['name' => 'All tasks', 'sql' => "SELECT * FROM tasks WHERE priority = 'high'"]);
+        self::assertNotNull($updated);
+        self::assertSame("SELECT * FROM tasks WHERE priority = 'high'", $updated['sql']);
+
+        $stmt = self::$db->prepare('SELECT "Sql" FROM "SavedQueries" WHERE "Id" = :id');
+        $stmt->execute(['id' => $created['id']]);
+        self::assertSame("SELECT * FROM tasks WHERE priority = 'high'", $stmt->fetchColumn());
+    }
+
+    public function testUpdateReturnsNullForWrongProjectOrMissingId(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('user'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
+        $otherProjectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
+        $created = self::$savedQueries->create($projectId, ['name' => 'Temp', 'sql' => 'SELECT 1']);
+
+        self::assertNull(self::$savedQueries->update($otherProjectId, $created['id'], ['name' => 'Temp', 'sql' => 'SELECT 2']));
+        self::assertNull(self::$savedQueries->update($projectId, Uuid::v4(), ['name' => 'Temp', 'sql' => 'SELECT 2']));
     }
 
     public function testDeleteReturnsFalseForWrongProjectOrMissingId(): void

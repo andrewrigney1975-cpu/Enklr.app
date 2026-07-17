@@ -552,6 +552,14 @@ export function addSavedQuery(project, data){
   saveDB();
   return query;
 }
+export function updateSavedQuery(project, queryId, data){
+  var query = project.savedQueries.find(function(q){ return q.id === queryId; });
+  if(!query) return null;
+  if(data.name !== undefined) query.name = (data.name || '').trim().slice(0, 200) || 'Untitled query';
+  if(data.sql !== undefined) query.sql = data.sql;
+  saveDB();
+  return query;
+}
 export function deleteSavedQuery(project, queryId){
   var before = project.savedQueries.length;
   project.savedQueries = project.savedQueries.filter(function(q){ return q.id !== queryId; });

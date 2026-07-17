@@ -7,8 +7,9 @@ namespace Enkl.Api.Tests;
 
 /// <summary>
 /// SavedQuery is a flat, project-scoped entity (Advanced Query library, features/query-engine.js on
-/// the frontend) — Create + Delete only, no Update (delete-and-resave covers renaming/editing, see
-/// CLAUDE.md's SavedQuery Library plan). Covers the create/delete round trip plus both not-found paths.
+/// the frontend). Originally Create + Delete only; Update was added for the "Update Query" button
+/// (overwriting the loaded saved query's SQL in place). Covers the create/update/delete round trip
+/// plus not-found paths for each.
 /// </summary>
 [Collection("Postgres API collection")]
 public class SavedQueryServiceTests
@@ -50,6 +51,43 @@ public class SavedQueryServiceTests
         var result = await savedQueries.CreateAsync(Guid.NewGuid(), new CreateSavedQueryRequest("Name", "SELECT 1"));
 
         Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_OverwritesNameAndSql()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var savedQueries = scope.ServiceProvider.GetRequiredService<SavedQueryService>();
+
+        var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
+        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("All tasks", "SELECT * FROM tasks"));
+
+        var updated = await savedQueries.UpdateAsync(project.Id, created!.Id, new CreateSavedQueryRequest("All tasks", "SELECT * FROM tasks WHERE priority = 'high'"));
+
+        Assert.NotNull(updated);
+        Assert.Equal("All tasks", updated!.Name);
+        Assert.Equal("SELECT * FROM tasks WHERE priority = 'high'", updated.Sql);
+
+        var row = await db.SavedQueries.FindAsync(created.Id);
+        Assert.Equal("SELECT * FROM tasks WHERE priority = 'high'", row!.Sql);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReturnsNullForWrongProjectOrMissingId()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var savedQueries = scope.ServiceProvider.GetRequiredService<SavedQueryService>();
+
+        var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
+        var otherProject = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
+        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("Temp", "SELECT 1"));
+
+        Assert.Null(await savedQueries.UpdateAsync(otherProject.Id, created!.Id, new CreateSavedQueryRequest("Temp", "SELECT 2")));
+        Assert.Null(await savedQueries.UpdateAsync(project.Id, Guid.NewGuid(), new CreateSavedQueryRequest("Temp", "SELECT 2")));
     }
 
     [Fact]

@@ -32,6 +32,17 @@ public class SavedQueryService
         return ToDto(query);
     }
 
+    public async Task<SavedQueryDto?> UpdateAsync(Guid projectId, Guid queryId, CreateSavedQueryRequest request)
+    {
+        var query = await _db.SavedQueries.FirstOrDefaultAsync(q => q.Id == queryId && q.ProjectId == projectId);
+        if (query is null) return null;
+
+        query.Name = request.Name;
+        query.Sql = request.Sql;
+        await _db.SaveChangesAsync();
+        return ToDto(query);
+    }
+
     public async Task<bool> DeleteAsync(Guid projectId, Guid queryId)
     {
         var query = await _db.SavedQueries.FirstOrDefaultAsync(q => q.Id == queryId && q.ProjectId == projectId);

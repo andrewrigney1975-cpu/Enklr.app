@@ -18,8 +18,10 @@ import { openDecisionsOverlay, showDecisionsFormView } from './decisions.js';
 import { openTeamsCommitteesOverlay, showTeamCommitteeFormView } from './teams-committees.js';
 import { confirmDialog } from './confirm.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
-import { addSavedQuery, deleteSavedQuery } from '../mutations.js';
+import { addSavedQuery, updateSavedQuery, deleteSavedQuery } from '../mutations.js';
 import { savedQueryApi } from '../api.js';
+import { computeIntellisense, getCaretPixelPosition } from '../features/sql-intellisense.js';
+import { formatSql } from '../features/sql-formatter.js';
 
 var projectSearchDebounceId = null;
 var lastQueryResult = null;
@@ -185,9 +187,112 @@ export function showProjectSearchQueryView(){
   document.getElementById('projectSearchQueryFooter').classList.remove('hidden');
   document.getElementById('projectQuerySaveRow').classList.add('hidden');
   document.getElementById('projectQuerySavedPanel').classList.add('hidden');
-  document.getElementById('projectQuerySchemaPanel').classList.add('hidden');
+  openProjectQuerySchemaPanel(); // Tables & Columns is shown by default when the Advanced Query view opens
+  hideProjectQueryIntellisense();
+  clearLoadedSavedQuery();
   showProjectQueryResultsTableView();
   document.getElementById('projectQuerySql').focus();
+}
+
+/* =========================================================
+   SQL INTELLISENSE (inline autocomplete)
+   DOM/keyboard wiring around features/sql-intellisense.js's pure computeIntellisense() — that module
+   owns the suggestion logic and caret-pixel measurement, this file owns the dropdown DOM and how it
+   reacts to typing/keys/mouse. app.js wires the actual input/keydown/mousedown/blur/scroll listeners
+   (matching every other feature's split in this file) and calls the functions below.
+   ========================================================= */
+var intellisenseState = {open: false, options: [], start: 0, end: 0, activeIndex: 0};
+
+// 'join' (a smart TABLE_RELATIONSHIPS-derived ON-condition suggestion) gets its own badge class so it
+// visually stands out from a plain field/table/keyword suggestion — see .kf-intellisense-type-join.
+var INTELLISENSE_KIND_BADGES = {table: 'T', field: 'F', keyword: 'K', join: 'J'};
+
+function renderIntellisenseDropdown(){
+  var dropdown = document.getElementById('projectQueryIntellisenseDropdown');
+  dropdown.innerHTML = intellisenseState.options.map(function(opt, i){
+    var badge = INTELLISENSE_KIND_BADGES[opt.kind] || '';
+    return '<div class="kf-intellisense-option' + (i === intellisenseState.activeIndex ? ' active' : '') + '" data-option-index="' + i + '">' +
+      '<span class="kf-intellisense-option-type kf-intellisense-type-' + opt.kind + '">' + badge + '</span>' +
+      '<span>' + escapeHTML(opt.label) + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function positionIntellisenseDropdown(){
+  var textarea = document.getElementById('projectQuerySql');
+  var dropdown = document.getElementById('projectQueryIntellisenseDropdown');
+  var rect = textarea.getBoundingClientRect();
+  var caret = getCaretPixelPosition(textarea);
+  dropdown.style.left = Math.round(rect.left + caret.left - textarea.scrollLeft) + 'px';
+  dropdown.style.top = Math.round(rect.top + caret.top + caret.lineHeight - textarea.scrollTop) + 'px';
+}
+
+/* Called on every keystroke/click/scroll in the SQL textarea — a context that's no longer valid
+   (computeIntellisense returns null) naturally closes the dropdown, so there's no separate
+   close-tracking needed beyond this one recompute. */
+export function updateProjectQueryIntellisense(){
+  var textarea = document.getElementById('projectQuerySql');
+  var result = computeIntellisense(textarea.value, textarea.selectionStart);
+  if(!result){
+    hideProjectQueryIntellisense();
+    return;
+  }
+  intellisenseState.open = true;
+  intellisenseState.options = result.options;
+  intellisenseState.start = result.start;
+  intellisenseState.end = result.end;
+  intellisenseState.type = result.type;
+  intellisenseState.activeIndex = 0;
+  renderIntellisenseDropdown();
+  positionIntellisenseDropdown();
+  document.getElementById('projectQueryIntellisenseDropdown').classList.remove('hidden');
+}
+
+export function repositionProjectQueryIntellisense(){
+  if(!intellisenseState.open) return;
+  positionIntellisenseDropdown();
+}
+
+export function hideProjectQueryIntellisense(){
+  if(!intellisenseState.open) return;
+  intellisenseState.open = false;
+  intellisenseState.options = [];
+  document.getElementById('projectQueryIntellisenseDropdown').classList.add('hidden');
+}
+
+export function isProjectQueryIntellisenseOpen(){
+  return intellisenseState.open;
+}
+
+export function moveProjectQueryIntellisenseActive(delta){
+  if(!intellisenseState.open || intellisenseState.options.length === 0) return;
+  var n = intellisenseState.options.length;
+  intellisenseState.activeIndex = ((intellisenseState.activeIndex + delta) % n + n) % n;
+  renderIntellisenseDropdown();
+}
+
+function acceptIntellisenseOption(index){
+  if(!intellisenseState.open) return;
+  var option = intellisenseState.options[index];
+  if(!option) return;
+  var textarea = document.getElementById('projectQuerySql');
+  var value = textarea.value;
+  var newValue = value.slice(0, intellisenseState.start) + option.insertText + value.slice(intellisenseState.end);
+  var newCaret = intellisenseState.start + option.insertText.length;
+  textarea.value = newValue;
+  textarea.selectionStart = textarea.selectionEnd = newCaret;
+  hideProjectQueryIntellisense();
+  textarea.focus();
+}
+
+export function acceptProjectQueryIntellisenseSuggestion(){
+  acceptIntellisenseOption(intellisenseState.activeIndex);
+}
+
+export function handleProjectQueryIntellisenseClick(e){
+  var row = e.target.closest('[data-option-index]');
+  if(!row) return;
+  acceptIntellisenseOption(parseInt(row.getAttribute('data-option-index'), 10));
 }
 
 /* =========================================================
@@ -253,23 +358,26 @@ export function zoomProjectQueryErdAtPoint(deltaScale, clientX, clientY){
   scroll.scrollTop = fracY * newHeight - offsetY;
 }
 
+export function openProjectQuerySchemaPanel(){
+  var panel = document.getElementById('projectQuerySchemaPanel');
+  // Regenerated fresh every time the panel opens, straight from query-engine.js's own
+  // TABLE_SCHEMAS/TABLE_RELATIONSHIPS — never a stale cached diagram.
+  var inner = document.getElementById('projectQuerySchemaErdInner');
+  inner.innerHTML = buildSchemaErdSvg();
+  var svg = inner.querySelector('svg');
+  lastErdLayout = svg ? {width: parseFloat(svg.getAttribute('width')), height: parseFloat(svg.getAttribute('height'))} : null;
+  erdZoomState.scale = 1;
+  applyErdZoom();
+  var scroll = document.getElementById('projectQueryErdScroll');
+  if(scroll){ scroll.scrollLeft = 0; scroll.scrollTop = 0; }
+  panel.classList.remove('hidden');
+  document.getElementById('projectQuerySavedPanel').classList.add('hidden');
+}
+
 export function toggleProjectQuerySchemaPanel(){
   var panel = document.getElementById('projectQuerySchemaPanel');
-  var willShow = panel.classList.contains('hidden');
-  if(willShow){
-    // Regenerated fresh every time the panel opens, straight from query-engine.js's own
-    // TABLE_SCHEMAS/TABLE_RELATIONSHIPS — never a stale cached diagram.
-    var inner = document.getElementById('projectQuerySchemaErdInner');
-    inner.innerHTML = buildSchemaErdSvg();
-    var svg = inner.querySelector('svg');
-    lastErdLayout = svg ? {width: parseFloat(svg.getAttribute('width')), height: parseFloat(svg.getAttribute('height'))} : null;
-    erdZoomState.scale = 1;
-    applyErdZoom();
-    var scroll = document.getElementById('projectQueryErdScroll');
-    if(scroll){ scroll.scrollLeft = 0; scroll.scrollTop = 0; }
-  }
-  panel.classList.toggle('hidden', !willShow);
-  if(willShow) document.getElementById('projectQuerySavedPanel').classList.add('hidden');
+  if(panel.classList.contains('hidden')) openProjectQuerySchemaPanel();
+  else panel.classList.add('hidden');
 }
 
 /* =========================================================
@@ -279,6 +387,29 @@ export function toggleProjectQuerySchemaPanel(){
    isServerAuthoritative() branch every other entity mutation in this app uses (see
    modals/risks.js's saveRiskFromModal()).
    ========================================================= */
+
+// Which saved query (if any) is currently loaded into the textarea — once set, the "Save Query"
+// button becomes "Update Query" and overwrites this same saved query (with a confirm first) instead
+// of creating a new one. Cleared whenever the Advanced Query view is (re)opened or the loaded query
+// itself is deleted, so the button always reflects a saved query that still actually exists.
+var loadedSavedQueryId = null;
+var loadedSavedQueryName = null;
+
+function updateSaveQueryButtonLabel(){
+  document.getElementById('projectQuerySaveBtn').textContent = loadedSavedQueryId ? 'Update Query' : 'Save Query';
+}
+
+function setLoadedSavedQuery(id, name){
+  loadedSavedQueryId = id;
+  loadedSavedQueryName = name;
+  updateSaveQueryButtonLabel();
+}
+
+export function clearLoadedSavedQuery(){
+  loadedSavedQueryId = null;
+  loadedSavedQueryName = null;
+  updateSaveQueryButtonLabel();
+}
 
 function renderSavedQueriesList(){
   var project = getCurrentProject();
@@ -320,6 +451,8 @@ export function handleProjectQuerySavedListClick(e){
   if(!query) return;
   document.getElementById('projectQuerySql').value = query.sql;
   document.getElementById('projectQuerySavedPanel').classList.add('hidden');
+  hideProjectQueryIntellisense();
+  setLoadedSavedQuery(query.id, query.name);
 }
 
 function deleteSavedQueryRow(queryId){
@@ -337,6 +470,7 @@ function deleteSavedQueryRow(queryId){
           await refreshProjectFromServer(project.id);
           toast('Deleted "' + query.name + '".');
           renderSavedQueriesList();
+          if(queryId === loadedSavedQueryId) clearLoadedSavedQuery();
         } catch(e){
           toast('Could not delete query on the server: ' + (e.message || 'unknown error'));
         }
@@ -345,6 +479,42 @@ function deleteSavedQueryRow(queryId){
       deleteSavedQuery(project, queryId);
       toast('Deleted "' + query.name + '".');
       renderSavedQueriesList();
+      if(queryId === loadedSavedQueryId) clearLoadedSavedQuery();
+    }
+  );
+}
+
+// Dispatcher for the one Save/Update button: a saved query currently loaded into the textarea means
+// "Update Query" — confirm, then overwrite that same saved query's SQL in place; otherwise "Save
+// Query" — reveal the inline name-input row to create a brand new one, same as before this feature.
+export function handleProjectQuerySaveOrUpdateClick(){
+  if(loadedSavedQueryId) confirmUpdateProjectQuery();
+  else showProjectQuerySaveRow();
+}
+
+function confirmUpdateProjectQuery(){
+  var project = getCurrentProject();
+  if(!project) return;
+  var sql = document.getElementById('projectQuerySql').value;
+  if(!sql.trim()){ toast('Enter a query first.'); return; }
+  var queryId = loadedSavedQueryId;
+  var name = loadedSavedQueryName;
+  confirmDialog(
+    'Update "' + name + '"?',
+    'This will overwrite the saved query with the current SQL. This cannot be undone.',
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await savedQueryApi.update(project.serverProjectId, queryId, {name: name, sql: sql});
+          await refreshProjectFromServer(project.id);
+          toast('Query updated.');
+        } catch(e){
+          toast('Could not update query on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
+      updateSavedQuery(project, queryId, {name: name, sql: sql});
+      toast('Query updated.');
     }
   );
 }
@@ -434,6 +604,14 @@ export function showProjectQueryResultsTableView(){
 export function showProjectQueryResultsJsonView(){
   queryResultViewMode = 'json';
   applyQueryResultViewMode();
+}
+
+export function formatProjectQuerySql(){
+  var textarea = document.getElementById('projectQuerySql');
+  if(!textarea.value.trim()){ toast('Enter a query first.'); return; }
+  textarea.value = formatSql(textarea.value);
+  hideProjectQueryIntellisense(); // the caret position that produced any open suggestion no longer applies
+  textarea.focus();
 }
 
 export function runProjectQuery(){

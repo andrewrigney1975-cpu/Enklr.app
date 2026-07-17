@@ -33,6 +33,23 @@ final class SavedQueryService
         return $this->toDto($id);
     }
 
+    public function update(string $projectId, string $queryId, array $request): ?array
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM "SavedQueries" WHERE "Id" = :id AND "ProjectId" = :pid');
+        $stmt->execute(['id' => $queryId, 'pid' => $projectId]);
+        if ($stmt->fetch() === false) {
+            return null;
+        }
+
+        $this->db->prepare(<<<SQL
+            UPDATE "SavedQueries" SET "Name" = :name, "Sql" = :sql WHERE "Id" = :id
+        SQL)->execute([
+            'name' => $request['name'] ?? '', 'sql' => $request['sql'] ?? '', 'id' => $queryId,
+        ]);
+
+        return $this->toDto($queryId);
+    }
+
     public function delete(string $projectId, string $queryId): bool
     {
         $stmt = $this->db->prepare('DELETE FROM "SavedQueries" WHERE "Id" = :id AND "ProjectId" = :pid');
