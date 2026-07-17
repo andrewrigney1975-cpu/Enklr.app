@@ -2459,15 +2459,49 @@
         <div id="projectSearchResults"></div>
       </div>
       <div id="projectSearchQueryView" class="hidden">
-        <textarea id="projectQuerySql" class="kf-query-textarea" placeholder="SELECT * FROM tasks WHERE priority = 'high'" spellcheck="false"></textarea>
+        <div class="kf-query-top-row">
+          <textarea id="projectQuerySql" class="kf-query-textarea" placeholder="SELECT * FROM tasks WHERE priority = 'high'" spellcheck="false"></textarea>
+          <div id="projectQuerySchemaPanel" class="kf-query-schema-panel hidden">
+            <div class="kf-erd-toolbar">
+              <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="projectQueryErdZoomOutBtn" title="Zoom out"><span class="kf-icon" data-icon="zoomOut" data-size="14"></span></button>
+              <span id="projectQueryErdZoomLabel" class="kf-zoom-label">100%</span>
+              <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="projectQueryErdZoomInBtn" title="Zoom in"><span class="kf-icon" data-icon="zoomIn" data-size="14"></span></button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="projectQueryErdResetBtn" title="Reset view"><span class="kf-icon" data-icon="fit" data-size="14"></span></button>
+              <div class="kf-export-as-wrap kf-erd-export-wrap">
+                <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="projectQueryErdExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+                <div class="kf-export-as-panel hidden" id="projectQueryErdExportAsPanel">
+                  <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+                  <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+                </div>
+              </div>
+            </div>
+            <div class="kf-depmap-scroll kf-erd-scroll" id="projectQueryErdScroll">
+              <div id="projectQuerySchemaErdInner" class="kf-depmap-inner"></div>
+            </div>
+          </div>
+        </div>
         <div class="kf-query-actions">
           <button type="button" class="kf-btn kf-btn-primary" id="projectQueryRunBtn">Run</button>
           <button type="button" class="kf-btn kf-btn-ghost" id="projectQuerySchemaToggleBtn">Tables &amp; Columns</button>
+          <button type="button" class="kf-btn kf-btn-ghost" id="projectQuerySavedToggleBtn">Saved Queries</button>
+          <button type="button" class="kf-btn kf-btn-ghost" id="projectQuerySaveBtn">Save Query</button>
         </div>
-        <div id="projectQuerySchemaPanel" class="kf-query-schema-panel hidden"></div>
+        <div id="projectQuerySaveRow" class="kf-query-save-row hidden">
+          <input type="text" id="projectQuerySaveNameInput" placeholder="Query name" maxlength="200">
+          <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="projectQuerySaveConfirmBtn">Save</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="projectQuerySaveCancelBtn">Cancel</button>
+        </div>
+        <div id="projectQuerySavedPanel" class="kf-query-saved-panel hidden">
+          <div id="projectQuerySavedList"></div>
+        </div>
         <div id="projectQueryError" class="kf-query-error hidden"></div>
+        <div class="kf-query-result-toggle">
+          <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm active" id="projectQueryViewTableBtn">Table</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="projectQueryViewJsonBtn">JSON</button>
+        </div>
         <div id="projectQueryRowCount" class="kf-query-row-count"></div>
         <div id="projectQueryResultsWrap" class="kf-query-results-wrap"></div>
+        <pre id="projectQueryResultsJson" class="kf-query-results-json hidden"></pre>
       </div>
     </div>
     <div class="kf-modal-footer" id="projectSearchSimpleFooter">
@@ -2475,6 +2509,8 @@
     </div>
     <div class="kf-modal-footer hidden" id="projectSearchQueryFooter">
       <button class="kf-btn kf-btn-secondary" id="projectQueryExportCsvBtn"><span class="kf-icon" data-icon="download" data-size="14"></span>Export CSV</button>
+      <button class="kf-btn kf-btn-secondary hidden" id="projectQueryCopyJsonBtn"><span class="kf-icon" data-icon="ty_document" data-size="14"></span>Copy JSON</button>
+      <button class="kf-btn kf-btn-secondary hidden" id="projectQueryExportJsonBtn"><span class="kf-icon" data-icon="download" data-size="14"></span>Export JSON</button>
       <button class="kf-btn kf-btn-secondary" id="projectQueryPrintBtn"><span class="kf-icon" data-icon="printer" data-size="14"></span>Print</button>
       <button class="kf-btn kf-btn-secondary" id="projectSearchQueryDoneBtn">Done</button>
     </div>

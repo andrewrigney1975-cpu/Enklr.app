@@ -361,6 +361,7 @@ export var taskTypeApi = makeEntityApi('task-types');
 export var principleApi = makeEntityApi('principles');
 export var documentApi = makeEntityApi('documents');
 export var riskApi = makeEntityApi('risks');
+export var savedQueryApi = makeEntityApi('saved-queries');
 export var objectiveApi = makeEntityApi('objectives');
 export var teamCommitteeApi = makeEntityApi('teams-committees');
 export var decisionApi = makeEntityApi('decisions');

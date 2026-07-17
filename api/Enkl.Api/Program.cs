@@ -88,6 +88,7 @@ builder.Services.AddScoped<PrincipleService>();
 builder.Services.AddScoped<RetrospectiveService>();
 builder.Services.AddScoped<DocumentService>();
 builder.Services.AddScoped<RiskService>();
+builder.Services.AddScoped<SavedQueryService>();
 builder.Services.AddScoped<ObjectiveService>();
 builder.Services.AddScoped<TeamCommitteeService>();
 builder.Services.AddScoped<PortfolioService>();

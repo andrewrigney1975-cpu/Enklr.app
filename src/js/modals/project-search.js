@@ -16,9 +16,14 @@ import { openDocumentsOverlay, showDocumentsFormView } from './documents.js';
 import { openRisksOverlay, showRisksFormView } from './risks.js';
 import { openDecisionsOverlay, showDecisionsFormView } from './decisions.js';
 import { openTeamsCommitteesOverlay, showTeamCommitteeFormView } from './teams-committees.js';
+import { confirmDialog } from './confirm.js';
+import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+import { addSavedQuery, deleteSavedQuery } from '../mutations.js';
+import { savedQueryApi } from '../api.js';
 
 var projectSearchDebounceId = null;
 var lastQueryResult = null;
+var queryResultViewMode = 'table';
 
 var PROJECT_SEARCH_GROUP_ICONS = {
   tasks: 'board', members: 'team', principles: 'compass', objectives: 'target',
@@ -178,16 +183,207 @@ export function showProjectSearchQueryView(){
   document.getElementById('projectSearchQueryView').classList.remove('hidden');
   document.getElementById('projectSearchSimpleFooter').classList.add('hidden');
   document.getElementById('projectSearchQueryFooter').classList.remove('hidden');
+  document.getElementById('projectQuerySaveRow').classList.add('hidden');
+  document.getElementById('projectQuerySavedPanel').classList.add('hidden');
+  document.getElementById('projectQuerySchemaPanel').classList.add('hidden');
+  showProjectQueryResultsTableView();
   document.getElementById('projectQuerySql').focus();
+}
+
+/* =========================================================
+   ERD PAN / ZOOM / EXPORT
+   Same pan/zoom idiom as views/dependency-map.js's depMapState/applyDepMapZoom/zoomDepMapAtPoint
+   (reused, not reinvented — org-chart.js/gov-map.js/cost-benefit.js all duplicate this same small
+   idiom rather than sharing a helper, matching this codebase's existing convention for this class of
+   view). erdZoomState is exported so app.js's mousedown/mousemove/mouseup wiring can read/mutate its
+   panActive/panMoved/panStart* fields directly, same as depMapState.
+   ========================================================= */
+export var erdZoomState = {scale: 1, panActive: false, panMoved: false, panStartX: 0, panStartY: 0, panStartScrollLeft: 0, panStartScrollTop: 0};
+var ERD_MIN_ZOOM = 0.3;
+var ERD_MAX_ZOOM = 2.5;
+var lastErdLayout = null;
+
+function applyErdZoom(){
+  var svg = document.querySelector('#projectQuerySchemaErdInner svg');
+  var label = document.getElementById('projectQueryErdZoomLabel');
+  if(label) label.textContent = Math.round(erdZoomState.scale * 100) + '%';
+  if(!svg || !lastErdLayout) return;
+  svg.setAttribute('width', Math.round(lastErdLayout.width * erdZoomState.scale));
+  svg.setAttribute('height', Math.round(lastErdLayout.height * erdZoomState.scale));
+}
+
+export function setProjectQueryErdZoom(delta){
+  erdZoomState.scale = Math.max(ERD_MIN_ZOOM, Math.min(ERD_MAX_ZOOM, Math.round((erdZoomState.scale + delta) * 100) / 100));
+  applyErdZoom();
+}
+
+export function resetProjectQueryErdZoom(){
+  erdZoomState.scale = 1;
+  applyErdZoom();
+  var scroll = document.getElementById('projectQueryErdScroll');
+  if(scroll){ scroll.scrollLeft = 0; scroll.scrollTop = 0; }
+}
+
+/* Zoom by `deltaScale`, keeping the point under (clientX, clientY) visually fixed — see
+   zoomDepMapAtPoint()'s own doc comment in views/dependency-map.js for the identical technique. */
+export function zoomProjectQueryErdAtPoint(deltaScale, clientX, clientY){
+  if(!lastErdLayout) return;
+  var scroll = document.getElementById('projectQueryErdScroll');
+  if(!scroll) return;
+
+  var oldScale = erdZoomState.scale;
+  var newScale = Math.max(ERD_MIN_ZOOM, Math.min(ERD_MAX_ZOOM, Math.round((oldScale + deltaScale) * 100) / 100));
+  if(newScale === oldScale) return;
+
+  var rect = scroll.getBoundingClientRect();
+  var offsetX = clientX != null ? clientX - rect.left : rect.width / 2;
+  var offsetY = clientY != null ? clientY - rect.top : rect.height / 2;
+
+  var oldWidth = lastErdLayout.width * oldScale;
+  var oldHeight = lastErdLayout.height * oldScale;
+  var fracX = oldWidth > 0 ? (scroll.scrollLeft + offsetX) / oldWidth : 0;
+  var fracY = oldHeight > 0 ? (scroll.scrollTop + offsetY) / oldHeight : 0;
+
+  erdZoomState.scale = newScale;
+  applyErdZoom();
+
+  var newWidth = lastErdLayout.width * newScale;
+  var newHeight = lastErdLayout.height * newScale;
+  scroll.scrollLeft = fracX * newWidth - offsetX;
+  scroll.scrollTop = fracY * newHeight - offsetY;
 }
 
 export function toggleProjectQuerySchemaPanel(){
   var panel = document.getElementById('projectQuerySchemaPanel');
   var willShow = panel.classList.contains('hidden');
-  // Regenerated fresh every time the panel opens, straight from query-engine.js's own
-  // TABLE_SCHEMAS/TABLE_RELATIONSHIPS — never a stale cached diagram.
-  if(willShow) panel.innerHTML = buildSchemaErdSvg();
+  if(willShow){
+    // Regenerated fresh every time the panel opens, straight from query-engine.js's own
+    // TABLE_SCHEMAS/TABLE_RELATIONSHIPS — never a stale cached diagram.
+    var inner = document.getElementById('projectQuerySchemaErdInner');
+    inner.innerHTML = buildSchemaErdSvg();
+    var svg = inner.querySelector('svg');
+    lastErdLayout = svg ? {width: parseFloat(svg.getAttribute('width')), height: parseFloat(svg.getAttribute('height'))} : null;
+    erdZoomState.scale = 1;
+    applyErdZoom();
+    var scroll = document.getElementById('projectQueryErdScroll');
+    if(scroll){ scroll.scrollLeft = 0; scroll.scrollTop = 0; }
+  }
   panel.classList.toggle('hidden', !willShow);
+  if(willShow) document.getElementById('projectQuerySavedPanel').classList.add('hidden');
+}
+
+/* =========================================================
+   SAVED QUERY LIBRARY
+   Shared, project-scoped entity (local-only: project.savedQueries in localStorage; server-
+   authoritative: SavedQueries table, one shared list every project member sees) — same
+   isServerAuthoritative() branch every other entity mutation in this app uses (see
+   modals/risks.js's saveRiskFromModal()).
+   ========================================================= */
+
+function renderSavedQueriesList(){
+  var project = getCurrentProject();
+  var listEl = document.getElementById('projectQuerySavedList');
+  var queries = (project && project.savedQueries) || [];
+  if(queries.length === 0){
+    listEl.innerHTML = '<div class="kf-query-saved-empty">No saved queries yet.</div>';
+    return;
+  }
+  listEl.innerHTML = queries.map(function(q){
+    return '<div class="kf-query-saved-row" data-query-id="' + q.id + '">' +
+      '<span class="kf-query-saved-row-name">' + escapeHTML(q.name) + '</span>' +
+      '<button type="button" class="kf-query-saved-row-delete" data-query-delete-id="' + q.id + '" title="Delete"><span class="kf-icon" data-icon="trash" data-size="14"></span></button>' +
+    '</div>';
+  }).join('');
+  hydrateIcons(listEl);
+}
+
+export function toggleProjectQuerySavedPanel(){
+  var panel = document.getElementById('projectQuerySavedPanel');
+  var willShow = panel.classList.contains('hidden');
+  if(willShow) renderSavedQueriesList();
+  panel.classList.toggle('hidden', !willShow);
+  if(willShow) document.getElementById('projectQuerySchemaPanel').classList.add('hidden');
+}
+
+export function handleProjectQuerySavedListClick(e){
+  var deleteBtn = e.target.closest('[data-query-delete-id]');
+  if(deleteBtn){
+    e.stopPropagation();
+    deleteSavedQueryRow(deleteBtn.getAttribute('data-query-delete-id'));
+    return;
+  }
+  var row = e.target.closest('[data-query-id]');
+  if(!row) return;
+  var project = getCurrentProject();
+  if(!project) return;
+  var query = (project.savedQueries || []).find(function(q){ return q.id === row.getAttribute('data-query-id'); });
+  if(!query) return;
+  document.getElementById('projectQuerySql').value = query.sql;
+  document.getElementById('projectQuerySavedPanel').classList.add('hidden');
+}
+
+function deleteSavedQueryRow(queryId){
+  var project = getCurrentProject();
+  if(!project) return;
+  var query = (project.savedQueries || []).find(function(q){ return q.id === queryId; });
+  if(!query) return;
+  confirmDialog(
+    'Delete "' + query.name + '"?',
+    'This cannot be undone.',
+    async function(){
+      if(isServerAuthoritative(project)){
+        try {
+          await savedQueryApi.remove(project.serverProjectId, queryId);
+          await refreshProjectFromServer(project.id);
+          toast('Deleted "' + query.name + '".');
+          renderSavedQueriesList();
+        } catch(e){
+          toast('Could not delete query on the server: ' + (e.message || 'unknown error'));
+        }
+        return;
+      }
+      deleteSavedQuery(project, queryId);
+      toast('Deleted "' + query.name + '".');
+      renderSavedQueriesList();
+    }
+  );
+}
+
+export function showProjectQuerySaveRow(){
+  var sql = document.getElementById('projectQuerySql').value.trim();
+  if(!sql){ toast('Enter a query first.'); return; }
+  document.getElementById('projectQuerySaveRow').classList.remove('hidden');
+  var nameInput = document.getElementById('projectQuerySaveNameInput');
+  nameInput.value = '';
+  nameInput.focus();
+}
+
+export function hideProjectQuerySaveRow(){
+  document.getElementById('projectQuerySaveRow').classList.add('hidden');
+}
+
+export async function confirmSaveProjectQuery(){
+  var project = getCurrentProject();
+  if(!project) return;
+  var name = document.getElementById('projectQuerySaveNameInput').value.trim();
+  var sql = document.getElementById('projectQuerySql').value;
+  if(!name){ toast('Please enter a name for the query.'); return; }
+  if(!sql.trim()){ toast('Enter a query first.'); return; }
+
+  if(isServerAuthoritative(project)){
+    try {
+      await savedQueryApi.create(project.serverProjectId, {name: name, sql: sql});
+      await refreshProjectFromServer(project.id);
+      toast('Query saved.');
+      hideProjectQuerySaveRow();
+    } catch(e){
+      toast('Could not save query on the server: ' + (e.message || 'unknown error'));
+    }
+    return;
+  }
+  addSavedQuery(project, {name: name, sql: sql});
+  toast('Query saved.');
+  hideProjectQuerySaveRow();
 }
 
 function renderQueryResultsTable(result){
@@ -209,6 +405,37 @@ function renderQueryResultsTable(result){
   wrap.innerHTML = '<table class="kf-query-results-table">' + theadHTML + tbodyHTML + '</table>';
 }
 
+function renderQueryResultsJson(result){
+  document.getElementById('projectQueryResultsJson').textContent = JSON.stringify(result.rows, null, 2);
+}
+
+/* =========================================================
+   RESULT VIEW MODE (Table / JSON)
+   Same .active-button + .hidden-sibling-pane toggle idiom as showProjectSearchSimpleView()/
+   showProjectSearchQueryView() above, sized down as an icon-button pair.
+   ========================================================= */
+
+function applyQueryResultViewMode(){
+  var isJson = queryResultViewMode === 'json';
+  document.getElementById('projectQueryViewTableBtn').classList.toggle('active', !isJson);
+  document.getElementById('projectQueryViewJsonBtn').classList.toggle('active', isJson);
+  document.getElementById('projectQueryResultsWrap').classList.toggle('hidden', isJson);
+  document.getElementById('projectQueryResultsJson').classList.toggle('hidden', !isJson);
+  document.getElementById('projectQueryExportCsvBtn').classList.toggle('hidden', isJson);
+  document.getElementById('projectQueryCopyJsonBtn').classList.toggle('hidden', !isJson);
+  document.getElementById('projectQueryExportJsonBtn').classList.toggle('hidden', !isJson);
+}
+
+export function showProjectQueryResultsTableView(){
+  queryResultViewMode = 'table';
+  applyQueryResultViewMode();
+}
+
+export function showProjectQueryResultsJsonView(){
+  queryResultViewMode = 'json';
+  applyQueryResultViewMode();
+}
+
 export function runProjectQuery(){
   var project = getCurrentProject();
   var sql = document.getElementById('projectQuerySql').value;
@@ -218,13 +445,16 @@ export function runProjectQuery(){
   try {
     lastQueryResult = executeQuery(project, sql);
     renderQueryResultsTable(lastQueryResult);
+    renderQueryResultsJson(lastQueryResult);
   } catch(e){
     lastQueryResult = null;
     document.getElementById('projectQueryResultsWrap').innerHTML = '';
+    document.getElementById('projectQueryResultsJson').textContent = '';
     document.getElementById('projectQueryRowCount').textContent = '';
     errorEl.textContent = e instanceof QueryError ? e.message : ('Unexpected error: ' + (e && e.message ? e.message : e));
     errorEl.classList.remove('hidden');
   }
+  applyQueryResultViewMode();
 }
 
 // Same Blob + <a download> technique as views/task-list.js's exportTaskListAsCsv() /
@@ -253,6 +483,35 @@ export function exportProjectQueryResultsAsCsv(){
   });
   var blob = new Blob([lines.join('\r\n')], {type: 'text/csv;charset=utf-8;'});
   var filename = (project ? project.key : 'query') + '-query-' + new Date().toISOString().slice(0,10) + '.csv';
+  downloadBlob(blob, filename);
+  toast('Exported ' + filename);
+}
+
+export function copyProjectQueryResultsAsJson(){
+  if(!lastQueryResult || lastQueryResult.rows.length === 0){
+    toast('Run a query with results first.');
+    return;
+  }
+  if(!navigator.clipboard || !navigator.clipboard.writeText){
+    toast('Clipboard access is not available in this browser.');
+    return;
+  }
+  var json = JSON.stringify(lastQueryResult.rows, null, 2);
+  navigator.clipboard.writeText(json).then(function(){
+    toast('Copied results to clipboard.');
+  }, function(){
+    toast('Could not copy to clipboard.');
+  });
+}
+
+export function exportProjectQueryResultsAsJson(){
+  if(!lastQueryResult || lastQueryResult.rows.length === 0){
+    toast('Run a query with results first.');
+    return;
+  }
+  var project = getCurrentProject();
+  var blob = new Blob([JSON.stringify(lastQueryResult.rows, null, 2)], {type: 'application/json'});
+  var filename = (project ? project.key : 'query') + '-query-results-' + new Date().toISOString().slice(0,10) + '.json';
   downloadBlob(blob, filename);
   toast('Exported ' + filename);
 }

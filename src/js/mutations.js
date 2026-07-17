@@ -541,6 +541,24 @@ export function deleteRisk(project, riskId){
   saveDB();
   return true;
 }
+export function addSavedQuery(project, data){
+  var query = {
+    id: uid('sq'),
+    name: (data.name || '').trim().slice(0, 200) || 'Untitled query',
+    sql: data.sql || '',
+    dateCreated: new Date().toISOString()
+  };
+  project.savedQueries.push(query);
+  saveDB();
+  return query;
+}
+export function deleteSavedQuery(project, queryId){
+  var before = project.savedQueries.length;
+  project.savedQueries = project.savedQueries.filter(function(q){ return q.id !== queryId; });
+  if(project.savedQueries.length === before) return false;
+  saveDB();
+  return true;
+}
 
 /* =========================================================
    DECISIONS

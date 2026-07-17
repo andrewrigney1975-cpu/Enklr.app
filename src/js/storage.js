@@ -196,6 +196,7 @@ export function migrateDB(){
     if(typeof p.docCounter !== 'number'){ p.docCounter = 1; changed = true; }
     if(!Array.isArray(p.risks)){ p.risks = []; changed = true; }
     if(typeof p.riskCounter !== 'number'){ p.riskCounter = 1; changed = true; }
+    if(!Array.isArray(p.savedQueries)){ p.savedQueries = []; changed = true; }
     if(!Array.isArray(p.decisions)){ p.decisions = []; changed = true; }
     if(typeof p.decCounter !== 'number'){ p.decCounter = 1; changed = true; }
     if(!Array.isArray(p.principles)){ p.principles = []; changed = true; }
@@ -610,6 +611,7 @@ export function createDefaultProject(name, key){
     docCounter: 1,
     risks: [],
     riskCounter: 1,
+    savedQueries: [],
     decisions: [],
     decCounter: 1,
     principles: [],

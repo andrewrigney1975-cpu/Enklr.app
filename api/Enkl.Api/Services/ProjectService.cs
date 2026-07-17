@@ -67,6 +67,7 @@ public class ProjectService
             .Include(p => p.Retrospectives).ThenInclude(r => r.Participants)
             .Include(p => p.Retrospectives).ThenInclude(r => r.Items)
             .Include(p => p.Retrospectives).ThenInclude(r => r.ActionItems)
+            .Include(p => p.SavedQueries)
             .FirstOrDefaultAsync(p => p.Id == projectId);
 
         if (project is null) return null;
@@ -89,6 +90,7 @@ public class ProjectService
                 d.Id, d.Key, d.Title, d.Description, d.Type, d.Status, d.Outcome, d.OwnerId, d.Approver, d.TaskId,
                 d.Documents.Select(x => x.DocumentId).ToList(), d.Risks.Select(x => x.RiskId).ToList(), d.Principles.Select(x => x.PrincipleId).ToList(), d.Objectives.Select(x => x.ObjectiveId).ToList())).ToList(),
             project.Retrospectives.Select(ToRetrospectiveDto).ToList(),
+            project.SavedQueries.OrderBy(q => q.DateCreated).Select(q => new SavedQueryDto(q.Id, q.Name, q.Sql, q.DateCreated)).ToList(),
             ProjectSettingsSerializer.Parse(project.HeaderButtonVisibilityJson),
             ParseWorkflow(project.WorkflowJson),
             project.StartDate, project.EndDate, project.Description);

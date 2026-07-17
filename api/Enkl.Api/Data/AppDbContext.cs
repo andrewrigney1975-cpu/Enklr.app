@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     public DbSet<PortfolioCategory> PortfolioCategories => Set<PortfolioCategory>();
     public DbSet<PageLoadTiming> PageLoadTimings => Set<PageLoadTiming>();
     public DbSet<ProjectResourcePlaceholder> ProjectResourcePlaceholders => Set<ProjectResourcePlaceholder>();
+    public DbSet<SavedQuery> SavedQueries => Set<SavedQuery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

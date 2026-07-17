@@ -58,7 +58,7 @@ import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen,
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
 import { openTeamsCommitteesOverlay, closeTeamsCommitteesOverlay, isTeamsCommitteesOverlayOpen, showTeamCommitteeFormView, showTeamsCommitteesListView, renderTeamsCommitteesList, saveTeamCommitteeFromModal, deleteTeamCommitteeFromModal } from './modals/teams-committees.js';
 import { openReportOverlay, closeReportOverlay, isReportOverlayOpen, printReport, openProjectManagementReportOverlay } from './features/reports.js';
-import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick, showProjectSearchSimpleView, showProjectSearchQueryView, toggleProjectQuerySchemaPanel, runProjectQuery, exportProjectQueryResultsAsCsv, printProjectQueryResults } from './modals/project-search.js';
+import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick, showProjectSearchSimpleView, showProjectSearchQueryView, toggleProjectQuerySchemaPanel, toggleProjectQuerySavedPanel, handleProjectQuerySavedListClick, showProjectQuerySaveRow, hideProjectQuerySaveRow, confirmSaveProjectQuery, showProjectQueryResultsTableView, showProjectQueryResultsJsonView, runProjectQuery, exportProjectQueryResultsAsCsv, copyProjectQueryResultsAsJson, exportProjectQueryResultsAsJson, printProjectQueryResults, erdZoomState, setProjectQueryErdZoom, resetProjectQueryErdZoom, zoomProjectQueryErdAtPoint } from './modals/project-search.js';
 import { openAboutModal, closeAboutModal, isAboutModalOpen } from './modals/about.js';
 import { openProjectStorageModal, closeProjectStorageModal, isProjectStorageModalOpen } from './modals/project-storage.js';
 import { openUfoModal, closeUfoModal, isUfoModalOpen } from './modals/ufo.js';
@@ -529,8 +529,67 @@ function wireEvents(){
   document.getElementById('projectSearchQueryDoneBtn').addEventListener('click', closeProjectSearchOverlay);
   document.getElementById('projectQueryRunBtn').addEventListener('click', runProjectQuery);
   document.getElementById('projectQuerySchemaToggleBtn').addEventListener('click', toggleProjectQuerySchemaPanel);
+  document.getElementById('projectQuerySavedToggleBtn').addEventListener('click', toggleProjectQuerySavedPanel);
+  document.getElementById('projectQuerySavedList').addEventListener('click', handleProjectQuerySavedListClick);
+  document.getElementById('projectQuerySaveBtn').addEventListener('click', showProjectQuerySaveRow);
+  document.getElementById('projectQuerySaveCancelBtn').addEventListener('click', hideProjectQuerySaveRow);
+  document.getElementById('projectQuerySaveConfirmBtn').addEventListener('click', confirmSaveProjectQuery);
+  document.getElementById('projectQueryViewTableBtn').addEventListener('click', showProjectQueryResultsTableView);
+  document.getElementById('projectQueryViewJsonBtn').addEventListener('click', showProjectQueryResultsJsonView);
   document.getElementById('projectQueryExportCsvBtn').addEventListener('click', exportProjectQueryResultsAsCsv);
+  document.getElementById('projectQueryCopyJsonBtn').addEventListener('click', copyProjectQueryResultsAsJson);
+  document.getElementById('projectQueryExportJsonBtn').addEventListener('click', exportProjectQueryResultsAsJson);
   document.getElementById('projectQueryPrintBtn').addEventListener('click', printProjectQueryResults);
+
+  document.getElementById('projectQueryErdZoomInBtn').addEventListener('click', function(){ setProjectQueryErdZoom(0.1); });
+  document.getElementById('projectQueryErdZoomOutBtn').addEventListener('click', function(){ setProjectQueryErdZoom(-0.1); });
+  document.getElementById('projectQueryErdResetBtn').addEventListener('click', resetProjectQueryErdZoom);
+  document.getElementById('projectQueryErdExportAsBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    toggleExportAsPanel('projectQueryErdExportAsPanel');
+  });
+  document.querySelectorAll('#projectQueryErdExportAsPanel .kf-export-as-option').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      closeAllExportAsPanels();
+      var project = getCurrentProject();
+      var filenameBase = (project ? project.key : 'export') + '-schema-erd';
+      var svgEl = document.querySelector('#projectQuerySchemaErdInner svg');
+      if(!svgEl){ toast('Nothing to export.'); return; }
+      if(btn.getAttribute('data-export-type') === 'svg') exportSvgElementAsSvgFile(svgEl, filenameBase);
+      else exportSvgElementAsPng(svgEl, filenameBase, 4);
+    });
+  });
+  var projectQueryErdScrollEl = document.getElementById('projectQueryErdScroll');
+  projectQueryErdScrollEl.addEventListener('wheel', function(e){
+    e.preventDefault();
+    zoomProjectQueryErdAtPoint(e.deltaY < 0 ? 0.12 : -0.12, e.clientX, e.clientY);
+  }, {passive: false});
+  projectQueryErdScrollEl.addEventListener('mousedown', function(e){
+    if(e.button !== 0) return;
+    erdZoomState.panActive = true;
+    erdZoomState.panMoved = false;
+    erdZoomState.panStartX = e.clientX;
+    erdZoomState.panStartY = e.clientY;
+    erdZoomState.panStartScrollLeft = projectQueryErdScrollEl.scrollLeft;
+    erdZoomState.panStartScrollTop = projectQueryErdScrollEl.scrollTop;
+    projectQueryErdScrollEl.classList.add('kf-depmap-panning');
+  });
+  document.addEventListener('mousemove', function(e){
+    if(!erdZoomState.panActive) return;
+    var dx = e.clientX - erdZoomState.panStartX;
+    var dy = e.clientY - erdZoomState.panStartY;
+    if(Math.abs(dx) > 3 || Math.abs(dy) > 3) erdZoomState.panMoved = true;
+    if(erdZoomState.panMoved){
+      projectQueryErdScrollEl.scrollLeft = erdZoomState.panStartScrollLeft - dx;
+      projectQueryErdScrollEl.scrollTop = erdZoomState.panStartScrollTop - dy;
+    }
+  });
+  document.addEventListener('mouseup', function(){
+    if(erdZoomState.panActive){
+      erdZoomState.panActive = false;
+      projectQueryErdScrollEl.classList.remove('kf-depmap-panning');
+    }
+  });
 
   document.getElementById('deleteProjectBtn').addEventListener('click', function(){
     var p = getCurrentProject();

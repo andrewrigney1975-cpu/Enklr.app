@@ -291,6 +291,7 @@ export function buildProjectFromExportDoc(doc){
     docCounter: 1,
     risks: [],
     riskCounter: 1,
+    savedQueries: [],
     decisions: [],
     decCounter: 1,
     principles: [],

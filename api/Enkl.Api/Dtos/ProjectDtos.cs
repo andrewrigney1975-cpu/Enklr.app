@@ -48,13 +48,18 @@ public record DecisionDto(
     Guid? OwnerId, string? Approver, Guid? TaskId,
     List<Guid> DocumentIds, List<Guid> RiskIds, List<Guid> PrincipleIds, List<Guid> ObjectiveIds);
 
+/// <summary>A saved Advanced Query SQL snippet (features/query-engine.js) — shared across every
+/// member of the project, same as any other project-scoped entity. No display key/counter scheme
+/// (unlike Risk's KEY-RISK-001) — Name is the human identifier.</summary>
+public record SavedQueryDto(Guid Id, string Name, string Sql, DateTime DateCreated);
+
 public record ProjectDetailDto(
     Guid Id, string Name, string Key, Guid OrganisationId,
     List<MemberDto> Members, List<ColumnDto> Columns, List<TaskDto> Tasks,
     List<ReleaseDto> Releases, List<TaskTypeDto> TaskTypes, List<PrincipleDto> Principles,
     List<DocumentDto> Documents, List<RiskDto> Risks, List<ObjectiveDto> Objectives,
     List<TeamCommitteeDto> TeamsCommittees, List<DecisionDto> Decisions,
-    List<RetrospectiveDto> Retrospectives,
+    List<RetrospectiveDto> Retrospectives, List<SavedQueryDto> SavedQueries,
     ProjectSettingsDto HeaderButtonVisibility, JsonElement? Workflow,
     DateOnly? StartDate, DateOnly? EndDate, string? Description);
 
@@ -89,6 +94,8 @@ public record UpdateReleaseRequest(string Name, string Status, Guid? OwnerId, Da
 
 public record CreateTaskTypeRequest(string Name, string? IconName);
 public record UpdateTaskTypeRequest(string Name, string? IconName);
+
+public record CreateSavedQueryRequest(string Name, string Sql);
 
 public record CreatePrincipleRequest(string Title, string? Description, string? DocumentUrl);
 public record UpdatePrincipleRequest(string Title, string? Description, string? DocumentUrl);

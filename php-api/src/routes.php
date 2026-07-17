@@ -27,6 +27,7 @@ use Enkl\Api\Controllers\ProjectsController;
 use Enkl\Api\Controllers\ReleasesController;
 use Enkl\Api\Controllers\RetrospectivesController;
 use Enkl\Api\Controllers\RisksController;
+use Enkl\Api\Controllers\SavedQueriesController;
 use Enkl\Api\Controllers\SamlController;
 use Enkl\Api\Controllers\ScimGroupsController;
 use Enkl\Api\Controllers\ScimUsersController;
@@ -219,6 +220,10 @@ function registerRoutes(App $app): void
         registerEntityRoutes($group, '/documents', DocumentsController::class, 'id');
         registerEntityRoutes($group, '/risks', RisksController::class, 'id');
         registerEntityRoutes($group, '/objectives', ObjectivesController::class, 'id');
+        // SavedQuery has no Update (delete-and-resave covers renaming/editing) — wired manually rather
+        // than through registerEntityRoutes(), which always wires all three POST/PUT/DELETE verbs.
+        $group->post('/saved-queries', [SavedQueriesController::class, 'create']);
+        $group->delete('/saved-queries/{id}', [SavedQueriesController::class, 'delete']);
         // Team/committee CRUD (including applying a synced Org Team's membership onto one) is
         // OrgAdmin-only — per product decision, a project member without that flag should neither
         // see nor be able to use the Teams & Committees feature to change membership. Nested in its

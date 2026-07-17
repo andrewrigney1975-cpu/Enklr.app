@@ -1816,6 +1816,14 @@
     display: none;
   }
 
+  #projectQueryCopyJsonBtn.hidden {
+    display: none;
+  }
+
+  #projectQueryExportJsonBtn.hidden {
+    display: none;
+  }
+
   #documentsListView.hidden {
     display: none;
   }
@@ -3045,9 +3053,20 @@
   }
 
   /* Advanced Query tab */
+  /* Query box + Tables & Columns ERD sit side by side, each taking half the row — the ERD panel
+     collapses to display:none when toggled off (see #projectQuerySchemaPanel.hidden below), at which
+     point the textarea's flex:1 naturally expands it to fill the whole row. */
+  .kf-query-top-row {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
   .kf-query-textarea {
+    flex: 1 1 50%;
     width: 100%;
-    min-height: 90px;
+    height: 340px;
     border: 2px solid var(--kf-border);
     border-radius: var(--kf-radius);
     padding: 8px 10px;
@@ -3055,7 +3074,7 @@
     background: var(--kf-input-bg);
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
     font-size: 13px;
-    resize: vertical;
+    resize: none;
     box-sizing: border-box;
   }
 
@@ -3069,12 +3088,147 @@
     display: flex;
     gap: 8px;
     margin: 10px 0;
+    flex-wrap: wrap;
   }
 
-  /* Holds the hand-rolled SVG ERD (features/schema-erd.js) — sized to scroll in both directions
-     since the diagram is naturally wider AND taller than the modal, rather than trying to squeeze a
-     whole schema diagram into a fixed small box. */
-  .kf-query-schema-panel {
+  .kf-query-save-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .kf-query-save-row.hidden {
+    display: none;
+  }
+
+  .kf-query-save-row input {
+    flex: 1;
+    border: 2px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    padding: 6px 10px;
+    color: var(--kf-text);
+    background: var(--kf-input-bg);
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+
+  .kf-query-save-row input:focus {
+    outline: none;
+    border-color: var(--kf-blue);
+    background: var(--kf-input-bg-focus);
+  }
+
+  .kf-query-saved-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 4px;
+    border-bottom: 1px solid var(--kf-border);
+    cursor: pointer;
+  }
+
+  .kf-query-saved-row:last-child {
+    border-bottom: none;
+  }
+
+  .kf-query-saved-row:hover {
+    background: var(--kf-bg-hover);
+  }
+
+  .kf-query-saved-row-name {
+    font-size: 13px;
+    color: var(--kf-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kf-query-saved-row-delete {
+    flex: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--kf-text-faint);
+    padding: 2px;
+    display: flex;
+  }
+
+  .kf-query-saved-row-delete:hover {
+    color: var(--kf-blocked-fg);
+  }
+
+  .kf-query-saved-empty {
+    font-size: 13px;
+    color: var(--kf-text-faint);
+    padding: 6px 4px;
+  }
+
+  .kf-query-result-toggle {
+    display: flex;
+    gap: 6px;
+    margin-top: 14px;
+    margin-bottom: 8px;
+  }
+
+  .kf-query-results-json {
+    background: var(--kf-bg);
+    border-radius: var(--kf-radius);
+    padding: 10px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    overflow: auto;
+    max-height: 400px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .kf-query-results-json.hidden {
+    display: none;
+  }
+
+  /* Holds the hand-rolled SVG ERD (features/schema-erd.js), pan/zoomable — sits beside the query
+     textarea in .kf-query-top-row (see above), same height, each taking half the row. A fixed-height
+     flex column: .kf-erd-toolbar stays put, #projectQueryErdScroll (flex:1) is the pannable/zoomable
+     viewport, same kf-depmap-scroll/kf-depmap-inner idiom as views/dependency-map.js's own pan/zoom
+     (reused rather than reinvented — org-chart.js, gov-map.js and cost-benefit.js all reuse the same
+     idiom too). ID-scoped (not the plain .kf-query-schema-panel class) so this layout doesn't leak
+     onto the separate Saved Queries panel below, which keeps the old simple scrolling-box look via
+     .kf-query-saved-panel instead. */
+  #projectQuerySchemaPanel {
+    flex: 1 1 50%;
+    height: 340px;
+    display: flex;
+    flex-direction: column;
+    background: var(--kf-bg);
+    border-radius: var(--kf-radius);
+    overflow: hidden;
+  }
+
+  #projectQuerySchemaPanel.hidden {
+    display: none;
+  }
+
+  .kf-erd-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--kf-border);
+    flex-shrink: 0;
+  }
+
+  .kf-erd-export-wrap {
+    margin-left: auto;
+  }
+
+  #projectQueryErdScroll {
+    flex: 1;
+    padding: 16px;
+  }
+
+  .kf-query-saved-panel {
     max-height: 360px;
     overflow: auto;
     background: var(--kf-bg);
@@ -3083,7 +3237,7 @@
     margin-bottom: 10px;
   }
 
-  .kf-query-schema-panel.hidden {
+  .kf-query-saved-panel.hidden {
     display: none;
   }
 
@@ -3108,6 +3262,10 @@
 
   .kf-query-results-wrap {
     overflow-x: auto;
+  }
+
+  .kf-query-results-wrap.hidden {
+    display: none;
   }
 
   .kf-query-results-table {
@@ -4155,9 +4313,11 @@
     #projectSearchOverlay .kf-modal-header,
     #projectSearchOverlay .kf-tabbar,
     #projectSearchOverlay #projectSearchSimpleView,
-    #projectSearchOverlay .kf-query-textarea,
+    #projectSearchOverlay .kf-query-top-row,
     #projectSearchOverlay .kf-query-actions,
-    #projectSearchOverlay .kf-query-schema-panel,
+    #projectSearchOverlay .kf-query-saved-panel,
+    #projectSearchOverlay .kf-query-save-row,
+    #projectSearchOverlay .kf-query-result-toggle,
     #projectSearchOverlay .kf-modal-footer {
       display: none !important;
     }

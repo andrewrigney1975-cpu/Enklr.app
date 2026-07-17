@@ -61,6 +61,7 @@ final class ProjectService
             'documents' => $this->fetchDocuments($projectId),
             'risks' => $this->fetchRisks($projectId),
             'objectives' => $this->fetchObjectives($projectId),
+            'savedQueries' => $this->fetchSavedQueries($projectId),
             'teamsCommittees' => $this->fetchTeamsCommittees($projectId),
             'decisions' => $this->fetchDecisions($projectId),
             'retrospectives' => $this->fetchRetrospectives($projectId),
@@ -475,6 +476,15 @@ final class ProjectService
                 'ownerId' => $d['OwnerId'], 'taskId' => $d['TaskId'], 'relatedDocumentIds' => $relStmt->fetchAll(PDO::FETCH_COLUMN),
             ];
         }, $docs);
+    }
+
+    private function fetchSavedQueries(string $projectId): array
+    {
+        $stmt = $this->db->prepare('SELECT "Id", "Name", "Sql", "DateCreated" FROM "SavedQueries" WHERE "ProjectId" = :pid ORDER BY "DateCreated"');
+        $stmt->execute(['pid' => $projectId]);
+        return array_map(fn($q) => [
+            'id' => $q['Id'], 'name' => $q['Name'], 'sql' => $q['Sql'], 'dateCreated' => $q['DateCreated'],
+        ], $stmt->fetchAll());
     }
 
     private function fetchRisks(string $projectId): array
