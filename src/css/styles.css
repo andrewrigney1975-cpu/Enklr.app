@@ -3829,6 +3829,13 @@
     width: 680px;
   }
 
+  /* Each API Endpoints row packs a Test button + URL text + Copy button + Delete button on one line
+     (.kf-query-api-url-row) — the shared .kf-modal-md width crowds the URL text down to a sliver,
+     same "widen just for this modal" precedent as #teamOverlay above. */
+  #apiEndpointsOverlay .kf-modal {
+    width: 900px;
+  }
+
   .kf-opening-experience-body {
     display: flex;
     flex-direction: column;
