@@ -3309,6 +3309,31 @@
     white-space: pre;
   }
 
+  .kf-api-endpoint-row {
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--kf-border);
+  }
+
+  .kf-api-endpoint-row:last-child {
+    border-bottom: none;
+  }
+
+  .kf-api-endpoint-row-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  .kf-api-endpoint-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .kf-query-saved-row {
     display: flex;
     align-items: center;
@@ -3804,6 +3829,13 @@
     width: 680px;
   }
 
+  /* Each API Endpoints row packs a Test button + URL text + Copy button + Delete button on one line
+     (.kf-query-api-url-row) — the shared .kf-modal-md width crowds the URL text down to a sliver,
+     same "widen just for this modal" precedent as #teamOverlay above. */
+  #apiEndpointsOverlay .kf-modal {
+    width: 900px;
+  }
+
   .kf-opening-experience-body {
     display: flex;
     flex-direction: column;
@@ -3978,6 +4010,7 @@
   .kf-modal-body {
     padding: 18px 20px;
     overflow-y: auto;
+    scrollbar-gutter: stable;
     flex: 1;
   }
 
