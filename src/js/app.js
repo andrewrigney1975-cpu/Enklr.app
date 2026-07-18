@@ -61,6 +61,7 @@ import { openReportOverlay, closeReportOverlay, isReportOverlayOpen, printReport
 import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick, showProjectSearchSimpleView, showProjectSearchQueryView, toggleProjectQuerySchemaPanel, toggleProjectQuerySavedPanel, handleProjectQuerySavedListClick, handleProjectQuerySaveOrUpdateClick, handleProjectQueryNewClick, hideProjectQuerySaveRow, confirmSaveProjectQuery, showProjectQueryResultsTableView, showProjectQueryResultsJsonView, runProjectQuery, formatProjectQuerySql, exportProjectQueryResultsAsCsv, copyProjectQueryResultsAsJson, copyProjectQueryApiUrl, testProjectQueryApi, exportProjectQueryResultsAsJson, printProjectQueryResults, erdZoomState, setProjectQueryErdZoom, resetProjectQueryErdZoom, zoomProjectQueryErdAtPoint, updateProjectQueryIntellisense, repositionProjectQueryIntellisense, hideProjectQueryIntellisense, isProjectQueryIntellisenseOpen, moveProjectQueryIntellisenseActive, acceptProjectQueryIntellisenseSuggestion, handleProjectQueryIntellisenseClick } from './modals/project-search.js';
 import { openAboutModal, closeAboutModal, isAboutModalOpen } from './modals/about.js';
 import { openProjectStorageModal, closeProjectStorageModal, isProjectStorageModalOpen } from './modals/project-storage.js';
+import { openApiEndpointsModal, closeApiEndpointsModal, handleApiEndpointsListClick } from './modals/api-endpoints.js';
 import { openUfoModal, closeUfoModal, isUfoModalOpen } from './modals/ufo.js';
 import { openOpeningExperienceModal, closeOpeningExperienceModal, isOpeningExperienceModalOpen, chooseOpeningExperience, recordDeviceTypeAndMaybeShowPicker } from './modals/opening-experience.js';
 import { randomise } from './features/randomise.js';
@@ -201,6 +202,14 @@ function wireEvents(){
   document.getElementById('projectStorageOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'projectStorageOverlay') closeProjectStorageModal();
   });
+  document.getElementById('apiEndpointsBtn').addEventListener('click', openApiEndpointsModal);
+  document.getElementById('navApiEndpointsBtn').addEventListener('click', openApiEndpointsModal);
+  document.getElementById('apiEndpointsModalClose').addEventListener('click', closeApiEndpointsModal);
+  document.getElementById('apiEndpointsDoneBtn').addEventListener('click', closeApiEndpointsModal);
+  document.getElementById('apiEndpointsOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'apiEndpointsOverlay') closeApiEndpointsModal();
+  });
+  document.getElementById('apiEndpointsList').addEventListener('click', handleApiEndpointsListClick);
   document.getElementById('addReleaseBtn').addEventListener('click', function(){ showReleasesFormView(null); });
   document.getElementById('releaseFormCancelBtn').addEventListener('click', showReleasesListView);
   document.getElementById('releaseFormSaveBtn').addEventListener('click', saveReleaseFromModal);
@@ -1606,6 +1615,7 @@ function wireEvents(){
     else if(isAppSettingsOverlayOpen()) closeAppSettingsOverlay();
     else if(isAboutModalOpen()) closeAboutModal();
     else if(isProjectStorageModalOpen()) closeProjectStorageModal();
+    else if(!document.getElementById('apiEndpointsOverlay').classList.contains('hidden')) closeApiEndpointsModal();
     else if(!document.getElementById('confirmOverlay').classList.contains('hidden')) closeConfirmDialog();
     else if(!document.getElementById('importConflictOverlay').classList.contains('hidden')) closeImportConflictModal();
     else if(!document.getElementById('overdueAlertOverlay').classList.contains('hidden')) closeOverdueAlert();

@@ -1,6 +1,6 @@
 "use strict";
 import { getCurrentProject } from '../store.js';
-import { escapeHTML, canCurrentUserManageProject } from '../views/board.js';
+import { escapeHTML, canCurrentUserManageProject, applyHeaderButtonVisibility } from '../views/board.js';
 import { hydrateIcons } from '../icons.js';
 import { TEAM_COMMITTEE_TYPES } from '../config.js';
 import { toast } from '../ui.js';
@@ -418,8 +418,9 @@ function updateSaveQueryButtonLabel(){
 
 // Builds the public URL a 3rd-party caller would hit for this saved query — same-origin path per
 // api.js's own convention (nginx reverse-proxies /api/* alongside the frontend, see PublicQueryController's
-// own note on the /api/public/v1/ prefix), so no separate base-URL config is needed here.
-function projectQueryApiUrl(queryId){
+// own note on the /api/public/v1/ prefix), so no separate base-URL config is needed here. Exported so
+// modals/api-endpoints.js can build the same URL for every exposed query without duplicating this.
+export function projectQueryApiUrl(queryId){
   return window.location.origin + '/api/public/v1/queries/' + queryId + '/results';
 }
 
@@ -608,6 +609,7 @@ async function performSavedQueryUpdate(onSaved){
     try {
       await savedQueryApi.update(project.serverProjectId, queryId, {name: name, sql: sql, exposeViaApi: exposeViaApi});
       await refreshProjectFromServer(project.id);
+      applyHeaderButtonVisibility();
       toast('Query updated.');
       loadedSavedQuerySql = sql;
       if(exposeViaApi) showProjectQueryApiUrl(queryId);
@@ -700,6 +702,7 @@ export async function confirmSaveProjectQuery(){
     try {
       var created = await savedQueryApi.create(project.serverProjectId, {name: name, sql: sql, exposeViaApi: exposeViaApi});
       await refreshProjectFromServer(project.id);
+      applyHeaderButtonVisibility();
       toast('Query saved.');
       hideProjectQuerySaveRow();
       if(exposeViaApi) showProjectQueryApiUrl(created.id);

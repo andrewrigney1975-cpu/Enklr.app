@@ -3309,6 +3309,31 @@
     white-space: pre;
   }
 
+  .kf-api-endpoint-row {
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--kf-border);
+  }
+
+  .kf-api-endpoint-row:last-child {
+    border-bottom: none;
+  }
+
+  .kf-api-endpoint-row-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  .kf-api-endpoint-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .kf-query-saved-row {
     display: flex;
     align-items: center;
