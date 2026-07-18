@@ -38,12 +38,13 @@ function installFakeFileReader(window){
   log('clicking "Projects..." opens the panel', !doc.getElementById('projectsMenuPanel').classList.contains('hidden'));
 
   // "Migrate to Server", "Project Management Report", and "Save as Template..." were added to
-  // this panel later — it's 6 links now, not the original 3.
+  // this panel later, and "Edit Project"/"Delete Project" were moved in from the header's project
+  // picker (first and last respectively) — it's 8 links now, not the original 3.
   const links = Array.from(doc.querySelectorAll('#projectsMenuPanel a'));
   const linkTexts = links.map(a => a.textContent);
-  log('panel contains exactly 6 links', links.length === 6, linkTexts.join(','));
-  log('links are New Project, Import Project, Export Project, Project Management Report, Migrate to Server, Save as Template..., as plain <a> text links (not buttons)',
-      linkTexts.join(',') === 'New Project,Import Project,Export Project,Project Management Report,Migrate to Server,Save as Template...' && links.every(a => a.tagName === 'A'),
+  log('panel contains exactly 8 links', links.length === 8, linkTexts.join(','));
+  log('links are Edit Project, New Project, Import Project, Export Project, Project Management Report, Migrate to Server, Save as Template..., Delete Project, as plain <a> text links (not buttons)',
+      linkTexts.join(',') === 'Edit Project,New Project,Import Project,Export Project,Project Management Report,Migrate to Server,Save as Template...,Delete Project' && links.every(a => a.tagName === 'A'),
       linkTexts.join(','));
   log('links use the same text-link styling class as the other More-menu links (consistent visual language)',
       links.every(a => a.classList.contains('kf-header-more-link')));
@@ -84,6 +85,38 @@ function installFakeFileReader(window){
   let raw = JSON.parse(window.localStorage.getItem('kanbanflow_v1_db'));
   log('clicking "Import Project" in the dropdown actually imports a project (project count increased)',
       Object.keys(raw.projects).length >= 2, Object.keys(raw.projects).length);
+
+  // ── 5b. Clicking "Edit Project" (moved in from the header's project picker, now the first link)
+  //       opens the real project modal in edit mode ──
+  doc.getElementById('projectsMenuBtn').click();
+  await wait(10);
+  const editLink = Array.from(doc.querySelectorAll('#projectsMenuPanel a')).find(a => a.textContent === 'Edit Project');
+  log('"Edit Project" is the first link in the panel', doc.querySelectorAll('#projectsMenuPanel a')[0].textContent === 'Edit Project');
+  editLink.click();
+  await wait(20);
+  log('clicking "Edit Project" in the dropdown opens the real project modal in edit mode',
+      !doc.getElementById('projectOverlay').classList.contains('hidden') && doc.getElementById('projectModalTitle').textContent === 'Edit project');
+  log('the dropdown panel closes after the click', doc.getElementById('projectsMenuPanel').classList.contains('hidden'));
+  doc.getElementById('projectModalClose').click();
+  await wait(10);
+
+  // ── 5c. Clicking "Delete Project" (moved in from the header's project picker, now the last link)
+  //       opens the existing delete confirmation dialog rather than deleting immediately ──
+  doc.getElementById('projectsMenuBtn').click();
+  await wait(10);
+  const panelLinksBeforeDelete = Array.from(doc.querySelectorAll('#projectsMenuPanel a'));
+  log('"Delete Project" is the last link in the panel', panelLinksBeforeDelete[panelLinksBeforeDelete.length - 1].textContent === 'Delete Project');
+  const deleteLink = panelLinksBeforeDelete.find(a => a.textContent === 'Delete Project');
+  const projectCountBeforeDelete = Object.keys(JSON.parse(window.localStorage.getItem('kanbanflow_v1_db')).projects).length;
+  deleteLink.click();
+  await wait(20);
+  log('clicking "Delete Project" in the dropdown opens a confirmation dialog instead of deleting immediately',
+      !doc.getElementById('confirmOverlay').classList.contains('hidden'));
+  log('nothing was deleted yet (project count unchanged)',
+      Object.keys(JSON.parse(window.localStorage.getItem('kanbanflow_v1_db')).projects).length === projectCountBeforeDelete);
+  doc.getElementById('confirmCancelBtn').click();
+  await wait(10);
+  log('cancelling the confirmation closes the dialog without deleting', doc.getElementById('confirmOverlay').classList.contains('hidden'));
 
   // ── 6. CSS: the 3 originals are hidden on desktop by default, restored on mobile; the dropdown is the reverse ──
   const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1];

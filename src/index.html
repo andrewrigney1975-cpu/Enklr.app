@@ -54,10 +54,8 @@
       <div class="kf-header-divider"></div>
       <div class="kf-project-picker">
         <select id="projectSelect" class="kf-select-dark" aria-label="Select project"></select>
-        <button class="kf-btn kf-btn-ghost" id="projectSearchBtn" title="Project Search" aria-label="Project Search"><span class="kf-icon" data-icon="search" data-size="16"></span>Find</button>
-        <button class="kf-header-btn" id="editProjectBtn" title="Edit project"><span class="kf-icon" data-icon="edit" data-size="14"></span>Edit</button>
+        <button class="kf-header-btn" id="projectSearchBtn" title="Project Search" aria-label="Project Search"><span class="kf-icon" data-icon="search" data-size="16"></span>Find</button>
         <button class="kf-header-btn" id="manageTeamBtn" title="Manage team members"><span class="kf-icon" data-icon="team" data-size="14"></span>Team</button>
-        <button class="kf-header-btn" id="deleteProjectBtn" title="Delete project"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
       </div>
       <div class="kf-header-divider"></div>
       <div class="kf-drawer-action-group">
@@ -88,6 +86,7 @@
       </div>
       <div class="kf-header-spacer"></div>
       <div class="kf-drawer-action-group">
+        <button class="kf-header-btn kf-header-nav-projectaction" id="editProjectBtn" title="Edit project"><span class="kf-icon" data-icon="edit" data-size="14"></span>Edit Project</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="newProjectBtn" title="New Project"><span class="kf-icon" data-icon="plus" data-size="14"></span>New Project</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="importProjectBtn" title="Import a project from an Enkl export file"><span class="kf-icon" data-icon="upload" data-size="14"></span>Import Project</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="exportBtn" title="Export the current project"><span class="kf-icon" data-icon="download" data-size="14"></span>Export Project</button>
@@ -97,15 +96,18 @@
         <button class="kf-header-btn kf-header-nav-projectaction kf-vis-hidden" id="serverLogoutBtn" title="Log out of the server"><span class="kf-icon" data-icon="logout" data-size="14"></span>Logout</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="changePasswordBtn" title="Change your server password"><span class="kf-icon" data-icon="lock" data-size="14"></span>Change Password</button>
         <button class="kf-header-btn kf-header-nav-projectaction kf-vis-hidden" id="myPreferencesBtn" title="Choose what Enkl opens to by default"><span class="kf-icon" data-icon="ty_configure" data-size="14"></span>My Preferences</button>
+        <button class="kf-header-btn kf-header-nav-projectaction" id="deleteProjectBtn" title="Delete project"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete Project</button>
         <div class="kf-export-as-wrap kf-desktop-menu-wrap" id="projectsMenuWrap">
           <button class="kf-header-btn" id="projectsMenuBtn" title="Projects"><span class="kf-icon" data-icon="chevronDown" data-size="14"></span>Projects...</button>
           <div class="kf-export-as-panel hidden kf-header-more-panel" id="projectsMenuPanel">
+            <a href="#" class="kf-header-more-link" data-nav-target="editProjectBtn">Edit Project</a>
             <a href="#" class="kf-header-more-link" data-nav-target="newProjectBtn">New Project</a>
             <a href="#" class="kf-header-more-link" data-nav-target="importProjectBtn">Import Project</a>
             <a href="#" class="kf-header-more-link" data-nav-target="exportBtn">Export Project</a>
             <a href="#" class="kf-header-more-link" data-nav-target="projectMgmtReportBtn">Project Management Report</a>
             <a href="#" class="kf-header-more-link" data-nav-target="migrateToServerBtn">Migrate to Server</a>
             <a href="#" class="kf-header-more-link" id="saveAsTemplateLink">Save as Template...</a>
+            <a href="#" class="kf-header-more-link" data-nav-target="deleteProjectBtn">Delete Project</a>
           </div>
         </div>
       </div>
