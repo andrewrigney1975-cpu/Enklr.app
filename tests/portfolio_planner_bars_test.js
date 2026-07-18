@@ -46,7 +46,11 @@ function makeMockFetch(projects, categories){
       startDate: year + '-01-01', endDate: year + '-12-31'},
     // A single day — narrow enough that no reasonable font/marker combination fits a label in it.
     {id: 'narrow1', key: 'NRW', name: 'Narrow Project', categoryId: null, priority: 'high', isActive: true,
-      startDate: year + '-06-15', endDate: year + '-06-15'}
+      startDate: year + '-06-15', endDate: year + '-06-15'},
+    // Same width as wide1 but inactive — the label should still show (fixed black, not contrast-
+    // computed, since an inactive bar's translucent fill has no resolvable concrete color).
+    {id: 'wideInactive1', key: 'WIN', name: 'Wide Inactive Project', categoryId: null, priority: 'high', isActive: false,
+      startDate: year + '-01-01', endDate: year + '-12-31'}
   ];
   var categories = [];
 
@@ -82,6 +86,13 @@ function makeMockFetch(projects, categories){
   log('narrow project bar rendered', narrowBarGroup !== null);
   const narrowRow = narrowBarGroup && narrowBarGroup.closest('.kf-portfolio-timeline-row');
   log('narrow project bar has no key label (not enough room)', !!narrowRow && narrowRow.querySelector('text') === null);
+
+  const wideInactiveBarGroup = doc.querySelector('.kf-portfolio-timeline-bar[data-project-id="wideInactive1"]');
+  log('wide inactive project bar rendered', wideInactiveBarGroup !== null);
+  const wideInactiveRow = wideInactiveBarGroup && wideInactiveBarGroup.closest('.kf-portfolio-timeline-row');
+  const wideInactiveLabel = wideInactiveRow && wideInactiveRow.querySelector('text');
+  log('wide INACTIVE project bar also shows its key label', !!wideInactiveLabel && wideInactiveLabel.textContent === 'WIN', wideInactiveLabel && wideInactiveLabel.textContent);
+  log('inactive bar\'s key label is always black (fixed, not contrast-computed)', !!wideInactiveLabel && wideInactiveLabel.getAttribute('fill') === '#000000', wideInactiveLabel && wideInactiveLabel.getAttribute('fill'));
 
   // ── Single click still opens the Dates modal (after the new click-delay debounce) ──────────
   wideBarGroup.dispatchEvent(new dom.window.MouseEvent('mousedown', {bubbles: true, clientX: 0, clientY: 0}));

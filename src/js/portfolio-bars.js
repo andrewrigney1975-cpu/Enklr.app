@@ -115,24 +115,26 @@ export function projectBarSVG(p, x, y, width, height, color, handleWidth, priori
         : 'fill="' + prio.accent + '" fill-opacity="0.15" stroke="' + prio.accent + '" stroke-width="1.5"')
     : (isActive ? 'fill="' + color + '"' : inactiveAttrs);
 
-  // Planner-only (priorityColored), and only for an ACTIVE bar: that's the one case whose fill is a
-  // solid, known color (the raw priority accent) a contrast ratio can actually be computed against —
-  // an inactive bar's fill is that same accent at 15% opacity over the chart's own background, which
+  // Planner-only (priorityColored). An ACTIVE bar's fill is a solid, known color (the raw priority
+  // accent), so its label color is picked via a real WCAG contrast check (contrastTextColor below).
+  // An INACTIVE bar's fill is that same accent at 15% opacity over the chart's own background, which
   // this module (deliberately zero-DOM-dependency, see file header) has no way to resolve to a
-  // concrete color, and the marker already remains the priority cue for inactive bars regardless (see
-  // showMarker above). Text is measured with a rough monospace-ish average-char-width estimate (SVG
-  // has no synchronous "will this text fit" query without a real DOM measurement, which would break
-  // this file's purity) — conservative enough that a false negative (room exists, label skipped) is
-  // far more likely than a false positive (label overflows the bar).
+  // concrete color to contrast-check — its label is always black instead (a fixed, explicit choice,
+  // not computed), since the 15%-opacity tint stays light enough in this app's own palette/themes for
+  // black text to read clearly there in practice. Text is measured with a rough monospace-ish
+  // average-char-width estimate (SVG has no synchronous "will this text fit" query without a real DOM
+  // measurement, which would break this file's purity) — conservative enough that a false negative
+  // (room exists, label skipped) is far more likely than a false positive (label overflows the bar).
   var keyLabelHTML = '';
-  if(priorityColored && isActive && p.key){
+  if(priorityColored && p.key){
     var keyLabelX = x + height / 2 + 5 + 4; // marker's right edge (cx + r) + a small gap
     var keyLabelFontSize = 11;
     var estCharWidth = keyLabelFontSize * 0.62;
     var availableWidth = (barEndX - hw / 2 - 4) - keyLabelX; // stop short of the resize-end handle
     if(availableWidth >= p.key.length * estCharWidth){
+      var keyLabelFill = isActive ? contrastTextColor(prio.accent) : '#000000';
       keyLabelHTML = '<text x="' + keyLabelX + '" y="' + (y + height / 2) + '" dominant-baseline="central" ' +
-        'font-size="' + keyLabelFontSize + '" font-weight="600" fill="' + contrastTextColor(prio.accent) + '" ' +
+        'font-size="' + keyLabelFontSize + '" font-weight="600" fill="' + keyLabelFill + '" ' +
         'pointer-events="none">' + escapeHTML(p.key) + '</text>';
     }
   }
