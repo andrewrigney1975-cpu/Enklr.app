@@ -8,7 +8,10 @@ if (!style) {
   process.exit(1);
 }
 
-const mediaStart = style.indexOf('@media (max-width: 1024px)');
+// build.js has minified the bundled CSS (esbuild, no whitespace) since 2026-07-04 — this must match
+// "@media(max-width:1024px)", not the spaced source form, or this test fails on every minified build.
+const mediaQueryMatch = /@media\s*\(\s*max-width\s*:\s*1024px\s*\)/.exec(style);
+const mediaStart = mediaQueryMatch ? mediaQueryMatch.index : -1;
 if (mediaStart === -1) {
   console.error('CRASHED: could not find the mobile/tablet media query');
   process.exit(1);

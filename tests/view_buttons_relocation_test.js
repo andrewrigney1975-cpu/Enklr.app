@@ -4,9 +4,11 @@ const html = fs.readFileSync('../dist/index.html', 'utf8');
 function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 // Governance Map was added to Views later (replacing Workflow's old spot there — Workflow itself
-// moved to Tools), and To-Do was added to Tools since these lists were written.
+// moved to Tools), To-Do was added to Tools since these lists were written, and API Endpoints
+// (toolbar/nav → "API Endpoints", CLAUDE.md's API Endpoints modal entry) landed between Project
+// Storage and Workflow in DOM order (src/index.html) without this list being updated for it.
 const VIEWS_BTN_IDS = ['taskListBtn', 'timelineBtn', 'depMapBtn', 'costBenefitBtn', 'orgChartBtn', 'governanceMapBtn'];
-const TOOLS_BTN_IDS = ['bulkEditBtn', 'todoBtn', 'archivedTasksBtn', 'taskTypesBtn', 'releasesBtn', 'projectStorageBtn', 'workflowBtn'];
+const TOOLS_BTN_IDS = ['bulkEditBtn', 'todoBtn', 'archivedTasksBtn', 'taskTypesBtn', 'releasesBtn', 'projectStorageBtn', 'apiEndpointsBtn', 'workflowBtn'];
 const ALL_RELOCATING_IDS = VIEWS_BTN_IDS.concat(TOOLS_BTN_IDS);
 
 (async () => {
