@@ -151,7 +151,14 @@
   }
 
   /* Side nav (desktop only — hidden below the mobile/tablet breakpoint,
-     where the existing header drawer is used instead). */
+     where the existing header drawer is used instead).
+     Deliberately NO `scrollbar-gutter: stable` here, unlike most other overflow:auto containers in
+     this app (see the app-wide scrollbar-gutter audit) — that reservation only shrinks the width
+     available to CHILDREN, not this element's own border/background, so each .kf-side-nav-section's
+     full-width border-bottom divider (a child, stretched via this flex column's default
+     align-items:stretch) stopped short of the sidebar's real right edge by the reserved gutter width,
+     even with no scrollbar actually showing. Full-width dividers matter more here than avoiding an
+     occasional width shift from a rarely-appearing scrollbar on this narrow, mostly-static list. */
   .kf-side-nav {
     width: 56px;
     flex-shrink: 0;
@@ -160,7 +167,6 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    scrollbar-gutter: stable;
     transition: width .18s ease;
   }
 
