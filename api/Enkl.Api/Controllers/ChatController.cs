@@ -97,6 +97,15 @@ public class ChatController : ControllerBase
         return Ok(result.Value.Message);
     }
 
+    [HttpPost("channels/{channelId:guid}/messages/{messageId:guid}/reactions")]
+    public async Task<IActionResult> ToggleReaction(Guid channelId, Guid messageId, ToggleChatReactionRequest request)
+    {
+        var result = await _chat.ToggleReactionAsync(User.OrgId(), User.UserId(), CallerIsOrgAdmin, channelId, messageId, request.Emoji);
+        if (result is null) return NotFound();
+        await BroadcastReactionAsync(channelId, result.Value.Message, result.Value.ChannelMemberUserIds);
+        return Ok(result.Value.Message);
+    }
+
     // Org-Admin-only manual replacement for a scheduled 180-day purge (see ChatService.TruncateOldMessagesAsync's
     // own doc comment) — hard-deletes, no confirmation beyond the frontend's own confirm dialog.
     [HttpPost("truncate")]
@@ -116,6 +125,22 @@ public class ChatController : ControllerBase
             _broadcaster.BroadcastChatMessage(
                 channelMemberUserIds,
                 new ChatMessageEventDto(channelId, message.Id, message.Text, changeType, message.AuthorUserId, message.AuthorName, message.DateCreated, message.IsDeleted, message.MentionedUserIds),
+                clientSessionId);
+        }
+        catch
+        {
+            // best-effort, see comment above
+        }
+    }
+
+    private async Task BroadcastReactionAsync(Guid channelId, ChatMessageDto message, List<Guid> channelMemberUserIds)
+    {
+        try
+        {
+            var clientSessionId = Request.Headers["X-Client-Session-Id"].FirstOrDefault();
+            _broadcaster.BroadcastChatReaction(
+                channelMemberUserIds,
+                new ChatReactionEventDto(channelId, message.Id, message.Reactions),
                 clientSessionId);
         }
         catch

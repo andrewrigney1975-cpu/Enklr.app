@@ -193,6 +193,17 @@ export function deleteMessage(channelId, messageId){
   });
 }
 
+export function toggleReaction(channelId, messageId, emoji){
+  return chatApi.toggleReaction(channelId, messageId, emoji).then(function(message){
+    appendOrReplaceMessage(channelId, message);
+    notify();
+    return message;
+  }, function(e){
+    toast('Could not react: ' + ((e && e.body && e.body.message) || 'unknown error'));
+    throw e;
+  });
+}
+
 function appendOrReplaceMessage(channelId, message){
   var entry = chatState.messagesByChannel[channelId];
   if(!entry) return;
@@ -235,6 +246,19 @@ export function handleChatMessageEvent(payload){
     });
   }
 
+  notify();
+}
+
+/* Called from features/live-updates.js's dispatchEvent on a "chat-reaction" SSE frame — the tab that
+   made the change already updated itself directly from toggleReaction's own response, so this only
+   ever fires for reactions from OTHER users/tabs. Reactions is the message's full, recomputed
+   summary (not a delta), so it's a plain replace. */
+export function handleChatReactionEvent(payload){
+  var entry = chatState.messagesByChannel[payload.channelId];
+  if(!entry) return;
+  var message = entry.messages.find(function(m){ return m.id === payload.messageId; });
+  if(!message) return;
+  message.reactions = payload.reactions || [];
   notify();
 }
 

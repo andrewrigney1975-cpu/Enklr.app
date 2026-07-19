@@ -4,7 +4,7 @@ import { getCurrentProject } from '../store.js';
 import { refreshProjectFromServer } from './migration.js';
 import { renderBoard } from '../views/board.js';
 import { toastWithAction } from '../ui.js';
-import { handleChatMessageEvent } from './chat.js';
+import { handleChatMessageEvent, handleChatReactionEvent } from './chat.js';
 
 /* Server-Sent Events client for Controllers/EventsController.cs's /api/events/stream — deliberately
    NOT the native EventSource API, since EventSource can't send an Authorization header and this app's
@@ -44,10 +44,11 @@ function handleTaskChangedEvent(payload){
 }
 
 function dispatchEvent(eventName, data){
-  if(eventName !== 'task-changed' && eventName !== 'chat-message') return;
+  if(eventName !== 'task-changed' && eventName !== 'chat-message' && eventName !== 'chat-reaction') return;
   try {
     if(eventName === 'task-changed') handleTaskChangedEvent(JSON.parse(data));
-    else handleChatMessageEvent(JSON.parse(data));
+    else if(eventName === 'chat-message') handleChatMessageEvent(JSON.parse(data));
+    else handleChatReactionEvent(JSON.parse(data));
   } catch(e){ /* malformed event payload — ignore rather than break the stream */ }
 }
 

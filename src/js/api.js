@@ -426,6 +426,9 @@ export var chatApi = {
   deleteMessage: function(channelId, messageId){
     return apiFetch('/chat/channels/' + channelId + '/messages/' + messageId, {method: 'DELETE'});
   },
+  toggleReaction: function(channelId, messageId, emoji){
+    return apiFetch('/chat/channels/' + channelId + '/messages/' + messageId + '/reactions', {method: 'POST', body: JSON.stringify({emoji: emoji})});
+  },
   truncate: function(){
     return apiFetch('/chat/truncate', {method: 'POST'});
   }

@@ -82,4 +82,25 @@ final class Broadcaster
         $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
         $stmt->execute(['channel' => 'chat_message', 'payload' => $payload]);
     }
+
+    /**
+     * @param string[] $channelMemberUserIds
+     * @param array<int, array{emoji: string, count: int, reactedByMe: bool, userNames: string[]}> $reactions
+     */
+    public function broadcastChatReaction(
+        array $channelMemberUserIds,
+        string $channelId,
+        string $messageId,
+        array $reactions,
+        ?string $excludeClientSessionId
+    ): void {
+        $payload = json_encode([
+            'memberUserIds' => $channelMemberUserIds,
+            'excludeClientSessionId' => $excludeClientSessionId,
+            'event' => ['channelId' => $channelId, 'messageId' => $messageId, 'reactions' => $reactions],
+        ]);
+
+        $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
+        $stmt->execute(['channel' => 'chat_reaction', 'payload' => $payload]);
+    }
 }

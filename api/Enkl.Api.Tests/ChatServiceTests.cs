@@ -292,4 +292,62 @@ public class ChatServiceTests
         Assert.Null(await db.ChatMessages.FindAsync(oldInThisOrg.Id));
         Assert.NotNull(await db.ChatMessages.FindAsync(oldInOtherOrg.Id)); // untouched — different org
     }
+
+    [Fact]
+    public async Task ToggleReactionAsync_AddsThenRemovesOnSecondCall()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var chat = scope.ServiceProvider.GetRequiredService<ChatService>();
+
+        var (org, author) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("author"));
+        var reactor = await TestDataHelper.SeedUserInOrgAsync(db, org.Id, TestDataHelper.Unique("reactor"));
+        var channel = await chat.CreateChannelAsync(org.Id, author.Id, author.DisplayName, new CreateChatChannelRequest("General", false, new List<Guid> { reactor.Id }));
+        var posted = await chat.PostMessageAsync(org.Id, author.Id, author.DisplayName, channel.Id, new PostChatMessageRequest("Hello"));
+
+        var emoji = ChatService.AllowedReactionEmoji.First();
+        var afterAdd = await chat.ToggleReactionAsync(org.Id, reactor.Id, false, channel.Id, posted!.Value.Message.Id, emoji);
+        Assert.NotNull(afterAdd);
+        var summary = Assert.Single(afterAdd!.Value.Message.Reactions);
+        Assert.Equal(emoji, summary.Emoji);
+        Assert.Equal(1, summary.Count);
+        Assert.True(summary.ReactedByMe);
+        Assert.Contains(reactor.DisplayName, summary.UserNames);
+
+        var afterRemove = await chat.ToggleReactionAsync(org.Id, reactor.Id, false, channel.Id, posted.Value.Message.Id, emoji);
+        Assert.NotNull(afterRemove);
+        Assert.Empty(afterRemove!.Value.Message.Reactions);
+    }
+
+    [Fact]
+    public async Task ToggleReactionAsync_RejectsAnEmojiOutsideTheAllowedSet()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var chat = scope.ServiceProvider.GetRequiredService<ChatService>();
+
+        var (org, author) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("author"));
+        var channel = await chat.CreateChannelAsync(org.Id, author.Id, author.DisplayName, new CreateChatChannelRequest("General", false, new List<Guid>()));
+        var posted = await chat.PostMessageAsync(org.Id, author.Id, author.DisplayName, channel.Id, new PostChatMessageRequest("Hello"));
+
+        await Assert.ThrowsAsync<ApiValidationException>(() =>
+            chat.ToggleReactionAsync(org.Id, author.Id, false, channel.Id, posted!.Value.Message.Id, "🍕"));
+    }
+
+    [Fact]
+    public async Task ToggleReactionAsync_ReturnsNullForANonMemberNonAdminCaller()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var chat = scope.ServiceProvider.GetRequiredService<ChatService>();
+
+        var (org, author) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("author"));
+        var outsider = await TestDataHelper.SeedUserInOrgAsync(db, org.Id, TestDataHelper.Unique("outsider"));
+        var channel = await chat.CreateChannelAsync(org.Id, author.Id, author.DisplayName, new CreateChatChannelRequest("General", false, new List<Guid>()));
+        var posted = await chat.PostMessageAsync(org.Id, author.Id, author.DisplayName, channel.Id, new PostChatMessageRequest("Hello"));
+
+        var result = await chat.ToggleReactionAsync(org.Id, outsider.Id, false, channel.Id, posted!.Value.Message.Id, ChatService.AllowedReactionEmoji.First());
+
+        Assert.Null(result);
+    }
 }

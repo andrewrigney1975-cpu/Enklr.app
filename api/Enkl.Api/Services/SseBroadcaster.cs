@@ -65,6 +65,15 @@ public class SseBroadcaster
         Broadcast("chat-message", channelMemberUserIds, payload, excludeClientSessionId);
     }
 
+    /// <summary>Notifies every channel member's open connections that a message's reaction summary
+    /// changed — same per-explicit-member-list scoping and self-tab exclusion as BroadcastChatMessage
+    /// (the tab that made the change already updated itself directly from the toggle's own HTTP
+    /// response).</summary>
+    public void BroadcastChatReaction(IEnumerable<Guid> channelMemberUserIds, ChatReactionEventDto payload, string? excludeClientSessionId)
+    {
+        Broadcast("chat-reaction", channelMemberUserIds, payload, excludeClientSessionId);
+    }
+
     private void Broadcast<T>(string eventName, IEnumerable<Guid> memberUserIds, T payload, string? excludeClientSessionId)
     {
         var frame = "event: " + eventName + "\ndata: " + JsonSerializer.Serialize(payload, JsonOptions) + "\n\n";

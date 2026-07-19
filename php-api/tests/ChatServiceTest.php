@@ -194,6 +194,48 @@ final class ChatServiceTest extends TestCase
         self::assertNotNull($deleted);
     }
 
+    public function testToggleReactionAddsThenRemovesOnSecondCall(): void
+    {
+        $author = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('author'));
+        $reactorId = TestDataHelper::seedUserInOrg(self::$db, $author['orgId'], TestDataHelper::unique('reactor'));
+        $channel = self::$chat->createChannel($author['orgId'], $author['userId'], 'Author', ['name' => 'General', 'isDirectMessage' => false, 'memberUserIds' => [$reactorId]]);
+        $posted = self::$chat->postMessage($author['orgId'], $author['userId'], 'Author', $channel['id'], ['text' => 'Hello']);
+
+        $emoji = "\u{1F44D}";
+        $afterAdd = self::$chat->toggleReaction($author['orgId'], $reactorId, false, $channel['id'], $posted['message']['id'], $emoji);
+        self::assertNotNull($afterAdd);
+        self::assertCount(1, $afterAdd['message']['reactions']);
+        self::assertSame($emoji, $afterAdd['message']['reactions'][0]['emoji']);
+        self::assertSame(1, $afterAdd['message']['reactions'][0]['count']);
+        self::assertTrue($afterAdd['message']['reactions'][0]['reactedByMe']);
+
+        $afterRemove = self::$chat->toggleReaction($author['orgId'], $reactorId, false, $channel['id'], $posted['message']['id'], $emoji);
+        self::assertNotNull($afterRemove);
+        self::assertCount(0, $afterRemove['message']['reactions']);
+    }
+
+    public function testToggleReactionRejectsAnEmojiOutsideTheAllowedSet(): void
+    {
+        $author = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('author'));
+        $channel = self::$chat->createChannel($author['orgId'], $author['userId'], 'Author', ['name' => 'General', 'isDirectMessage' => false, 'memberUserIds' => []]);
+        $posted = self::$chat->postMessage($author['orgId'], $author['userId'], 'Author', $channel['id'], ['text' => 'Hello']);
+
+        $this->expectException(ApiValidationException::class);
+        self::$chat->toggleReaction($author['orgId'], $author['userId'], false, $channel['id'], $posted['message']['id'], "\u{1F355}");
+    }
+
+    public function testToggleReactionReturnsNullForANonMemberNonAdminCaller(): void
+    {
+        $author = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('author'));
+        $outsiderId = TestDataHelper::seedUserInOrg(self::$db, $author['orgId'], TestDataHelper::unique('outsider'));
+        $channel = self::$chat->createChannel($author['orgId'], $author['userId'], 'Author', ['name' => 'General', 'isDirectMessage' => false, 'memberUserIds' => []]);
+        $posted = self::$chat->postMessage($author['orgId'], $author['userId'], 'Author', $channel['id'], ['text' => 'Hello']);
+
+        $result = self::$chat->toggleReaction($author['orgId'], $outsiderId, false, $channel['id'], $posted['message']['id'], "\u{1F44D}");
+
+        self::assertNull($result);
+    }
+
     public function testTruncateOldMessagesHardDeletesOnlyMessagesOlderThan180Days(): void
     {
         $author = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('author'));

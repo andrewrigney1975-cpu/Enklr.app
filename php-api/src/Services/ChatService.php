@@ -16,6 +16,11 @@ use PDO;
  */
 final class ChatService
 {
+    /** Fixed set a reaction's Emoji must be one of — plain unconstrained string column, no CHECK
+     * constraint, validated here at the application layer instead. Keep in sync by hand with the
+     * .NET tier's own AllowedReactionEmoji and the frontend's features/chat-emoji.js CHAT_EMOJI. */
+    private const ALLOWED_REACTION_EMOJI = ["\u{1F600}", "\u{1F44D}", "\u{1F44E}", "\u{1F622}", "\u{1F440}", "\u{2753}", "\u{2757}", "\u{1F610}", "\u{1F4AF}"];
+
     public function __construct(private readonly PDO $db)
     {
     }
@@ -212,9 +217,10 @@ final class ChatService
         $page = array_reverse($stmt->fetchAll()); // oldest-first within the page
 
         $memberNames = $this->channelMemberDisplayNames($channelId);
+        $reactionsByMessage = $this->reactionsForMessages(array_column($page, 'Id'), $callerUserId);
         $nextCursor = count($page) === $limit ? $page[0]['DateCreated'] : null;
         return [
-            'messages' => array_map(fn ($m) => $this->toMessageDto($m, $memberNames), $page),
+            'messages' => array_map(fn ($m) => $this->toMessageDto($m, $memberNames, $reactionsByMessage[$m['Id']] ?? []), $page),
             'nextCursor' => $nextCursor,
         ];
     }
@@ -239,7 +245,7 @@ final class ChatService
 
         $memberNames = $this->channelMemberDisplayNames($channelId);
         $message = ['Id' => $messageId, 'ChannelId' => $channelId, 'AuthorUserId' => $callerUserId, 'AuthorName' => $callerDisplayName, 'Text' => $text, 'DateCreated' => $dateCreated, 'IsDeleted' => false, 'DateDeleted' => null];
-        return ['message' => $this->toMessageDto($message, $memberNames), 'channelMemberUserIds' => $memberUserIds];
+        return ['message' => $this->toMessageDto($message, $memberNames, []), 'channelMemberUserIds' => $memberUserIds];
     }
 
     public function updateMessage(string $callerUserId, string $channelId, string $messageId, array $request): ?array
@@ -261,7 +267,8 @@ final class ChatService
 
         $memberUserIds = $this->getChannelMemberUserIds($channelId);
         $memberNames = $this->channelMemberDisplayNames($channelId);
-        return ['message' => $this->toMessageDto($message, $memberNames), 'channelMemberUserIds' => $memberUserIds];
+        $reactions = $this->reactionsForMessages([$messageId], $callerUserId)[$messageId] ?? [];
+        return ['message' => $this->toMessageDto($message, $memberNames, $reactions), 'channelMemberUserIds' => $memberUserIds];
     }
 
     public function deleteMessage(string $organisationId, string $callerUserId, bool $callerIsOrgAdmin, string $channelId, string $messageId): ?array
@@ -292,7 +299,47 @@ final class ChatService
 
         $memberUserIds = $this->getChannelMemberUserIds($channelId);
         $memberNames = $this->channelMemberDisplayNames($channelId);
-        return ['message' => $this->toMessageDto($message, $memberNames), 'channelMemberUserIds' => $memberUserIds];
+        $reactions = $this->reactionsForMessages([$messageId], $callerUserId)[$messageId] ?? [];
+        return ['message' => $this->toMessageDto($message, $memberNames, $reactions), 'channelMemberUserIds' => $memberUserIds];
+    }
+
+    // ---- Reactions ----
+
+    /** Adds the caller's reaction if it doesn't already exist, removes it if it does (a plain
+     * toggle) — same "member or Org Admin" access as viewing the channel (canAccessChannel), since
+     * reacting is just another form of reading/engaging with a channel you can already see. Each
+     * branch below is exactly one write, so no explicit transaction is needed (see php-api/CLAUDE.md's
+     * own note on when a multi-execute() method does NOT need one). */
+    public function toggleReaction(string $organisationId, string $callerUserId, bool $callerIsOrgAdmin, string $channelId, string $messageId, string $emoji): ?array
+    {
+        if (!in_array($emoji, self::ALLOWED_REACTION_EMOJI, true)) {
+            throw new ApiValidationException('Unsupported reaction.');
+        }
+        if (!$this->canAccessChannel($channelId, $organisationId, $callerUserId, $callerIsOrgAdmin)) {
+            return null;
+        }
+
+        $msgStmt = $this->db->prepare('SELECT * FROM "ChatMessages" WHERE "Id" = :id AND "ChannelId" = :cid');
+        $msgStmt->execute(['id' => $messageId, 'cid' => $channelId]);
+        $message = $msgStmt->fetch();
+        if ($message === false) {
+            return null;
+        }
+
+        $existing = $this->db->prepare('SELECT "Id" FROM "ChatMessageReactions" WHERE "MessageId" = :mid AND "UserId" = :uid AND "Emoji" = :emoji');
+        $existing->execute(['mid' => $messageId, 'uid' => $callerUserId, 'emoji' => $emoji]);
+        $row = $existing->fetch();
+        if ($row !== false) {
+            $this->db->prepare('DELETE FROM "ChatMessageReactions" WHERE "Id" = :id')->execute(['id' => $row['Id']]);
+        } else {
+            $this->db->prepare('INSERT INTO "ChatMessageReactions" ("Id", "MessageId", "UserId", "Emoji", "DateCreated") VALUES (:id, :mid, :uid, :emoji, :dc)')
+                ->execute(['id' => Uuid::v4(), 'mid' => $messageId, 'uid' => $callerUserId, 'emoji' => $emoji, 'dc' => gmdate('Y-m-d\TH:i:s\Z')]);
+        }
+
+        $memberUserIds = $this->getChannelMemberUserIds($channelId);
+        $memberNames = $this->channelMemberDisplayNames($channelId);
+        $reactions = $this->reactionsForMessages([$messageId], $callerUserId)[$messageId] ?? [];
+        return ['message' => $this->toMessageDto($message, $memberNames, $reactions), 'channelMemberUserIds' => $memberUserIds];
     }
 
     // ---- Truncate (Org-Admin-only, manual — see the "no scheduled job" decision) ----
@@ -373,14 +420,65 @@ final class ChatService
         return $mentioned;
     }
 
-    /** @param array<string, string> $memberDisplayNames */
-    private function toMessageDto(array $m, array $memberDisplayNames): array
+    /**
+     * Reaction summaries for a batch of messages at once (used for both the message-list page and the
+     * single-message responses from post/update/delete/toggle) — grouped by emoji per message,
+     * reactedByMe computed relative to $callerUserId.
+     *
+     * @param string[] $messageIds
+     * @return array<string, array<int, array{emoji: string, count: int, reactedByMe: bool, userNames: string[]}>>
+     */
+    private function reactionsForMessages(array $messageIds, string $callerUserId): array
+    {
+        $messageIds = array_values(array_unique($messageIds));
+        if (count($messageIds) === 0) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_map(fn ($i) => ":id$i", array_keys($messageIds)));
+        $params = [];
+        foreach ($messageIds as $i => $id) {
+            $params["id$i"] = $id;
+        }
+        $stmt = $this->db->prepare(
+            "SELECT r.\"MessageId\", r.\"Emoji\", r.\"UserId\", u.\"DisplayName\" FROM \"ChatMessageReactions\" r JOIN \"Users\" u ON u.\"Id\" = r.\"UserId\" WHERE r.\"MessageId\" IN ($placeholders)"
+        );
+        $stmt->execute($params);
+
+        $grouped = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $grouped[$row['MessageId']][$row['Emoji']][] = $row;
+        }
+
+        $result = [];
+        foreach ($grouped as $messageId => $byEmoji) {
+            $summaries = [];
+            foreach ($byEmoji as $emoji => $rows) {
+                $summaries[] = [
+                    'emoji' => $emoji,
+                    'count' => count($rows),
+                    'reactedByMe' => in_array($callerUserId, array_column($rows, 'UserId'), true),
+                    'userNames' => array_column($rows, 'DisplayName'),
+                ];
+            }
+            usort($summaries, fn ($a, $b) => $a['emoji'] <=> $b['emoji']);
+            $result[$messageId] = $summaries;
+        }
+        return $result;
+    }
+
+    /**
+     * @param array<string, string> $memberDisplayNames
+     * @param array<int, array{emoji: string, count: int, reactedByMe: bool, userNames: string[]}> $reactions
+     */
+    private function toMessageDto(array $m, array $memberDisplayNames, array $reactions): array
     {
         return [
             'id' => $m['Id'], 'channelId' => $m['ChannelId'], 'authorUserId' => $m['AuthorUserId'],
             'authorName' => $m['AuthorName'], 'text' => $m['Text'], 'dateCreated' => $m['DateCreated'],
             'isDeleted' => (bool) $m['IsDeleted'], 'dateDeleted' => $m['DateDeleted'] ?? null,
             'mentionedUserIds' => $this->parseMentions($m['Text'], $memberDisplayNames),
+            'reactions' => $reactions,
         ];
     }
 

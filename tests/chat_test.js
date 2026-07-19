@@ -60,6 +60,31 @@ function makeChatBackend(){
         return {status: 200, json: channel};
       }
 
+      var reactionMatch = url.match(/^\/api\/chat\/channels\/([^/]+)\/messages\/([^/]+)\/reactions$/);
+      if(reactionMatch && method === 'POST'){
+        var rList = messagesByChannel[reactionMatch[1]] || [];
+        var rMessage = rList.find(function(m){ return m.id === reactionMatch[2]; });
+        if(!rMessage) return {status: 404, json: {message: 'Not found.'}};
+        rMessage.reactions = rMessage.reactions || [];
+        var existingReaction = rMessage.reactions.find(function(r){ return r.emoji === body.emoji; });
+        if(existingReaction && existingReaction.reactedByMe){
+          existingReaction.count -= 1;
+          existingReaction.userNames = existingReaction.userNames.filter(function(n){ return n !== 'Me'; });
+          if(existingReaction.count <= 0){
+            rMessage.reactions = rMessage.reactions.filter(function(r){ return r !== existingReaction; });
+          } else {
+            existingReaction.reactedByMe = false;
+          }
+        } else if(existingReaction){
+          existingReaction.count += 1;
+          existingReaction.reactedByMe = true;
+          existingReaction.userNames = existingReaction.userNames.concat(['Me']);
+        } else {
+          rMessage.reactions.push({emoji: body.emoji, count: 1, reactedByMe: true, userNames: ['Me']});
+        }
+        return {status: 200, json: rMessage};
+      }
+
       var msgMatch = url.match(/^\/api\/chat\/channels\/([^/]+)\/messages(\/([^/?]+))?/);
       if(msgMatch){
         var channelId = msgMatch[1];
@@ -176,6 +201,39 @@ function makeChatBackend(){
   log('accepting via Tab completes "@Bob" to the full "@Bob Smith " mention token with a trailing space', input2.value === '@Bob Smith ', JSON.stringify(input2.value));
   log('mention dropdown closes after accepting', doc.getElementById('chatMentionDropdown').classList.contains('hidden'));
   input2.value = '';
+
+  /* ---- :emoji: autocomplete: typing ":smi" offers the smiley face and inserts the real character ---- */
+  input2.value = 'Great news :smi';
+  input2.selectionStart = input2.selectionEnd = input2.value.length;
+  input2.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+  await wait(10);
+  var emojiDropdown = doc.getElementById('chatMentionDropdown');
+  log('emoji dropdown opens on ":smi" and offers the smiley face', !emojiDropdown.classList.contains('hidden') && emojiDropdown.textContent.indexOf(':smile:') !== -1, emojiDropdown.textContent);
+
+  input2.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Tab', bubbles: true, cancelable: true}));
+  await wait(10);
+  log('accepting inserts the literal emoji character in place of the ":smi" token', input2.value === 'Great news \u{1F600} ', JSON.stringify(input2.value));
+  log('emoji dropdown closes after accepting', doc.getElementById('chatMentionDropdown').classList.contains('hidden'));
+  input2.value = '';
+
+  /* ---- Reactions: hover/click a message's react trigger, pick an emoji from the popover ---- */
+  var reactBtn = doc.querySelector('[data-action="react"]');
+  reactBtn.click();
+  await wait(10);
+  var reactionPopover = doc.getElementById('chatReactionPopover');
+  log('reaction popover opens with the full emoji set', !reactionPopover.classList.contains('hidden') && reactionPopover.querySelectorAll('.kf-chat-reaction-option').length === 9);
+
+  var thumbsUpOption = Array.from(reactionPopover.querySelectorAll('.kf-chat-reaction-option')).find(function(b){ return b.title === 'Thumbs up'; });
+  thumbsUpOption.dispatchEvent(new dom.window.Event('mousedown', {bubbles: true, cancelable: true}));
+  await wait(50);
+  log('reaction popover closes after picking an emoji', doc.getElementById('chatReactionPopover').classList.contains('hidden'));
+  var reactionPill = doc.querySelector('.kf-chat-reaction-pill');
+  log('a reaction pill appears on the message with count 1', !!reactionPill && reactionPill.textContent.indexOf('1') !== -1, reactionPill && reactionPill.textContent);
+  log('the reaction pill reflects that I reacted', !!reactionPill && reactionPill.classList.contains('reacted'));
+
+  reactionPill.click();
+  await wait(50);
+  log('clicking my own reaction pill again removes the reaction', !doc.querySelector('.kf-chat-reaction-pill'));
 
   /* ---- Edit the message ---- */
   var editBtn = doc.querySelector('[data-action="edit"]');

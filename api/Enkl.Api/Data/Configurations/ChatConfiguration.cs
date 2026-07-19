@@ -73,3 +73,25 @@ public class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMessage>
         b.HasIndex(m => m.DateCreated);
     }
 }
+
+public class ChatMessageReactionConfiguration : IEntityTypeConfiguration<ChatMessageReaction>
+{
+    public void Configure(EntityTypeBuilder<ChatMessageReaction> b)
+    {
+        b.HasKey(r => r.Id);
+        b.Property(r => r.Emoji).HasMaxLength(8).IsRequired();
+        b.HasIndex(r => new { r.MessageId, r.UserId, r.Emoji }).IsUnique();
+
+        b.HasOne(r => r.Message)
+            .WithMany()
+            .HasForeignKey(r => r.MessageId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Unlike ChatMessage.AuthorUserId, a reaction has no "attributable historical record" reason
+        // to survive its user leaving the org — cascades outright, same as ChatChannelMember.UserId.
+        b.HasOne(r => r.User)
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}

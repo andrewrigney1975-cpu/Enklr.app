@@ -2,8 +2,9 @@
 import {
   chatState, isChatPanelOpen, openChatPanel, closeChatPanel, totalUnreadCount,
   openChannel, loadOlderMessages, createChannel, sendMessage, editMessage, deleteMessage,
-  truncateHistory, toggleRevealDeletedForAdmin, currentUserCanRevealDeleted, setChatDeps
+  toggleReaction, truncateHistory, toggleRevealDeletedForAdmin, currentUserCanRevealDeleted, setChatDeps
 } from '../features/chat.js';
+import { CHAT_EMOJI } from '../features/chat-emoji.js';
 import { getCurrentUserId, isOrgAdmin } from '../api.js';
 import { isServerLoggedIn } from '../features/migration.js';
 import { escapeHTML } from '../utils.js';
@@ -24,16 +25,18 @@ import { unlockAudio } from '../features/chat-sounds.js';
 var _pendingEditMessageId = null; // set while the compose box is editing an existing message instead of composing a new one
 var _newChatPicker = {isDirectMessage: false, selectedUserIds: []};
 
-/* ---- @mention autocomplete ----
+/* ---- @mention and :emoji: autocomplete ----
    Caret tracking reuses sql-intellisense.js's getCaretPixelPosition mirror-div technique verbatim —
    the only existing plain-<textarea> caret-position mechanism in this app (the rich-text editor's own
    hashtag autocomplete tracks a contenteditable caret instead, a different API entirely). Accept key
    is Tab or Space, matching the rich-text editor's mention/hashtag convention (this is prose
    composition, unlike the board search box's Tab-only convention where Space needs to stay a normal
-   typable character). */
-var _mentionState = null; // {prefixStart, prefixEnd, options: [...], activeIndex} or null when closed
+   typable character). Mention and emoji share one dropdown/state — only one can be "open" at a time,
+   since they're triggered by different, non-overlapping lead characters ("@" vs ":"). */
+var _intellisense = null; // {kind: 'mention'|'emoji', prefixStart, prefixEnd, options: [...], activeIndex} or null when closed
 
 var MENTION_TRIGGER_RE = /(^|\s)@([^\n]{0,60})$/;
+var EMOJI_TRIGGER_RE = /(^|\s):([a-zA-Z0-9]{0,20})$/;
 
 function detectMentionQuery(textarea){
   var caret = textarea.selectionStart;
@@ -44,33 +47,59 @@ function detectMentionQuery(textarea){
   var prefix = m[2];
   if(/\s\s/.test(prefix)) return null; // two consecutive spaces - no longer composing a mention
   var atPos = m.index + m[1].length;
+  // prefixStart sits right AFTER the "@" — accepting a mention keeps the "@" in place and inserts
+  // just the display name after it.
   return {prefix: prefix, prefixStart: atPos + 1, prefixEnd: caret};
 }
 
-function updateMentionDropdown(textarea, channelId){
-  var dropdown = document.getElementById('chatMentionDropdown');
-  if(!dropdown) return;
-  var query = detectMentionQuery(textarea);
-  if(!query){ closeMentionDropdown(); return; }
-
-  var channel = findChannel(channelId);
-  var lowerPrefix = query.prefix.toLowerCase();
-  var options = (channel ? channel.members : []).filter(function(m){
-    return m.userId !== getCurrentUserId() && m.displayName.toLowerCase().indexOf(lowerPrefix) === 0;
-  });
-  if(options.length === 0){ closeMentionDropdown(); return; }
-
-  _mentionState = {prefixStart: query.prefixStart, prefixEnd: query.prefixEnd, options: options, activeIndex: 0};
-  renderMentionDropdown(textarea);
+function detectEmojiQuery(textarea){
+  var caret = textarea.selectionStart;
+  if(caret !== textarea.selectionEnd) return null;
+  var before = textarea.value.slice(0, caret);
+  var m = EMOJI_TRIGGER_RE.exec(before);
+  if(!m) return null;
+  var colonPos = m.index + m[1].length;
+  // prefixStart sits AT the ":" itself — accepting an emoji replaces the whole ":code" token
+  // (colon included) with the literal unicode character.
+  return {prefix: m[2], prefixStart: colonPos, prefixEnd: caret};
 }
 
-function renderMentionDropdown(textarea){
-  var dropdown = document.getElementById('chatMentionDropdown');
-  if(!dropdown || !_mentionState) return;
+function updateComposeIntellisense(textarea, channelId){
+  var mentionQuery = detectMentionQuery(textarea);
+  if(mentionQuery){
+    var channel = findChannel(channelId);
+    var lowerPrefix = mentionQuery.prefix.toLowerCase();
+    var options = (channel ? channel.members : []).filter(function(m){
+      return m.userId !== getCurrentUserId() && m.displayName.toLowerCase().indexOf(lowerPrefix) === 0;
+    });
+    if(options.length > 0){
+      _intellisense = {kind: 'mention', prefixStart: mentionQuery.prefixStart, prefixEnd: mentionQuery.prefixEnd, options: options, activeIndex: 0};
+      renderIntellisenseDropdown(textarea);
+      return;
+    }
+  }
 
-  dropdown.innerHTML = _mentionState.options.map(function(u, i){
-    return '<div class="kf-intellisense-option' + (i === _mentionState.activeIndex ? ' active' : '') + '" data-index="' + i + '">' +
-      escapeHTML(u.displayName) + '</div>';
+  var emojiQuery = detectEmojiQuery(textarea);
+  if(emojiQuery){
+    var lowerCode = emojiQuery.prefix.toLowerCase();
+    var emojiOptions = CHAT_EMOJI.filter(function(e){ return e.code.indexOf(lowerCode) === 0; });
+    if(emojiOptions.length > 0){
+      _intellisense = {kind: 'emoji', prefixStart: emojiQuery.prefixStart, prefixEnd: emojiQuery.prefixEnd, options: emojiOptions, activeIndex: 0};
+      renderIntellisenseDropdown(textarea);
+      return;
+    }
+  }
+
+  closeIntellisenseDropdown();
+}
+
+function renderIntellisenseDropdown(textarea){
+  var dropdown = document.getElementById('chatMentionDropdown');
+  if(!dropdown || !_intellisense) return;
+
+  dropdown.innerHTML = _intellisense.options.map(function(opt, i){
+    var label = _intellisense.kind === 'mention' ? escapeHTML(opt.displayName) : (opt.char + ' :' + escapeHTML(opt.code) + ':');
+    return '<div class="kf-intellisense-option' + (i === _intellisense.activeIndex ? ' active' : '') + '" data-index="' + i + '">' + label + '</div>';
   }).join('');
   dropdown.classList.remove('hidden');
 
@@ -85,21 +114,21 @@ function renderMentionDropdown(textarea){
   } catch(e){ /* jsdom or similar — dropdown still renders, just unpositioned */ }
 }
 
-function closeMentionDropdown(){
-  _mentionState = null;
+function closeIntellisenseDropdown(){
+  _intellisense = null;
   var dropdown = document.getElementById('chatMentionDropdown');
   if(dropdown){ dropdown.classList.add('hidden'); dropdown.innerHTML = ''; }
 }
 
-function acceptMentionOption(textarea, index){
-  if(!_mentionState || !_mentionState.options[index]) return;
-  var name = _mentionState.options[index].displayName;
+function acceptIntellisenseOption(textarea, index){
+  if(!_intellisense || !_intellisense.options[index]) return;
   var value = textarea.value;
-  var newValue = value.slice(0, _mentionState.prefixStart) + name + ' ' + value.slice(_mentionState.prefixEnd);
-  var newCaret = _mentionState.prefixStart + name.length + 1;
+  var insertText = _intellisense.kind === 'mention' ? _intellisense.options[index].displayName : _intellisense.options[index].char;
+  var newValue = value.slice(0, _intellisense.prefixStart) + insertText + ' ' + value.slice(_intellisense.prefixEnd);
+  var newCaret = _intellisense.prefixStart + insertText.length + 1;
   textarea.value = newValue;
   textarea.setSelectionRange(newCaret, newCaret);
-  closeMentionDropdown();
+  closeIntellisenseDropdown();
 }
 
 export function initChatView(){
@@ -130,6 +159,7 @@ export function renderChatPanel(){
   var panel = document.getElementById('chatPanel');
   if(!panel) return;
   panel.classList.toggle('hidden', !isChatPanelOpen());
+  closeReactionPopover();
   if(!isChatPanelOpen()) return;
 
   var body = document.getElementById('chatPanelBody');
@@ -149,7 +179,7 @@ export function renderChatPanel(){
     // silently discarding it.
     var oldInput = document.getElementById('chatComposeInput');
     var preserved = oldInput ? {value: oldInput.value, selStart: oldInput.selectionStart, selEnd: oldInput.selectionEnd} : null;
-    closeMentionDropdown();
+    closeIntellisenseDropdown();
 
     backBtn.classList.remove('kf-vis-hidden');
     title.textContent = channelDisplayName(findChannel(chatState.activeChannelId));
@@ -337,6 +367,7 @@ function messageRowHtml(message, channel){
   var isAuthor = message.authorUserId && message.authorUserId === getCurrentUserId();
   var canEdit = isAuthor && !message.isDeleted;
   var canDelete = (isAuthor || isOrgAdmin()) && !message.isDeleted;
+  var canReact = !message.isDeleted; // any channel member/admin — reacting is a form of viewing, not authorship
   var showRealText = !message.isDeleted || (isOrgAdmin() && chatState.revealDeletedForAdmin);
   var text = showRealText ? highlightMentions(message.text, channel) : 'Message deleted';
 
@@ -350,13 +381,24 @@ function messageRowHtml(message, channel){
           (message.isDeleted ? '<span class="kf-chat-deleted-icon" title="Deleted">' + iconSvg('trash', 11) + '</span>' : '') +
         '</div>' +
         '<div class="kf-chat-message-text">' + text + '</div>' +
-        (canEdit || canDelete ? '<div class="kf-chat-message-actions">' +
+        reactionPillsHtml(message) +
+        (canReact || canEdit || canDelete ? '<div class="kf-chat-message-actions">' +
+          (canReact ? '<button type="button" data-action="react" title="Add reaction">' + iconSvg('smile', 12) + '</button>' : '') +
           (canEdit ? '<button type="button" data-action="edit" title="Edit">' + iconSvg('edit', 12) + '</button>' : '') +
           (canDelete ? '<button type="button" data-action="delete" title="Delete">' + iconSvg('trash', 12) + '</button>' : '') +
         '</div>' : '') +
       '</div>' +
     '</div>'
   );
+}
+
+function reactionPillsHtml(message){
+  var reactions = message.reactions || [];
+  if(reactions.length === 0) return '';
+  return '<div class="kf-chat-reactions">' + reactions.map(function(r){
+    return '<button type="button" class="kf-chat-reaction-pill' + (r.reactedByMe ? ' reacted' : '') + '" data-emoji="' + escapeHTML(r.emoji) + '" title="' + escapeHTML(r.userNames.join(', ')) + '">' +
+      r.emoji + ' <span>' + r.count + '</span></button>';
+  }).join('') + '</div>';
 }
 
 /* Wraps "@FullDisplayName" occurrences (matched against the channel's own member roster, same
@@ -403,6 +445,7 @@ function threadHtml(channelId){
   }
   html += entry.messages.map(function(m){ return messageRowHtml(m, channel); }).join('');
   html += '</div>';
+  html += '<div id="chatReactionPopover" class="kf-chat-reaction-popover hidden"></div>';
   html += '<div class="kf-chat-compose">' +
     '<textarea id="chatComposeInput" placeholder="Message ' + escapeHTML(channelDisplayName(channel)) + '..." rows="2"></textarea>' +
     '<div class="kf-chat-compose-row">' +
@@ -418,6 +461,62 @@ function threadHtml(channelId){
 function scrollMessagesToBottomIfNeeded(root){
   var scroll = root.querySelector('#chatMessagesScroll');
   if(scroll) scroll.scrollTop = scroll.scrollHeight;
+}
+
+/* ---- Reaction popover — hover/click a message's smiley trigger for a horizontal emoji picker.
+   One shared element per open thread (like #chatMentionDropdown above), tracked by which message it's
+   currently open for so a second click on the same trigger toggles it closed. Closes on any outside
+   click via a one-off capture-phase listener, added only while open and always removed on close. */
+var _reactionPopoverMessageId = null;
+var _reactionPopoverOutsideHandler = null;
+
+function openReactionPopover(triggerBtn, channelId, messageId){
+  var popover = document.getElementById('chatReactionPopover');
+  if(!popover) return;
+  if(_reactionPopoverMessageId === messageId){ closeReactionPopover(); return; }
+  closeReactionPopover();
+  _reactionPopoverMessageId = messageId;
+
+  popover.innerHTML = CHAT_EMOJI.map(function(e){
+    return '<button type="button" class="kf-chat-reaction-option" data-emoji="' + escapeHTML(e.char) + '" title="' + escapeHTML(e.label) + '">' + e.char + '</button>';
+  }).join('');
+  popover.classList.remove('hidden');
+
+  // Real-browser-only positioning, same defensive try/catch as the mention/emoji dropdown above.
+  try {
+    var rect = triggerBtn.getBoundingClientRect();
+    popover.style.position = 'fixed';
+    popover.style.left = Math.round(rect.left) + 'px';
+    popover.style.top = Math.round(rect.bottom + 4) + 'px';
+  } catch(e){ /* jsdom or similar */ }
+
+  popover.querySelectorAll('.kf-chat-reaction-option').forEach(function(btn){
+    // mousedown (not click), with preventDefault — same "wins the race against blur" convention as
+    // every other popover/dropdown in this app.
+    btn.addEventListener('mousedown', function(evt){
+      evt.preventDefault();
+      toggleReaction(channelId, messageId, btn.getAttribute('data-emoji'));
+      closeReactionPopover();
+    });
+  });
+
+  _reactionPopoverOutsideHandler = function(evt){
+    if(!popover.contains(evt.target) && evt.target !== triggerBtn) closeReactionPopover();
+  };
+  // Deferred one tick so the very click that opened the popover doesn't also immediately close it.
+  setTimeout(function(){
+    if(_reactionPopoverOutsideHandler) document.addEventListener('mousedown', _reactionPopoverOutsideHandler, true);
+  }, 0);
+}
+
+function closeReactionPopover(){
+  _reactionPopoverMessageId = null;
+  var popover = document.getElementById('chatReactionPopover');
+  if(popover){ popover.classList.add('hidden'); popover.innerHTML = ''; }
+  if(_reactionPopoverOutsideHandler){
+    document.removeEventListener('mousedown', _reactionPopoverOutsideHandler, true);
+    _reactionPopoverOutsideHandler = null;
+  }
 }
 
 function wireThread(root, channelId){
@@ -456,6 +555,23 @@ function wireThread(root, channelId){
     });
   });
 
+  root.querySelectorAll('[data-action="react"]').forEach(function(btn){
+    btn.addEventListener('click', function(evt){
+      evt.stopPropagation();
+      var row = btn.closest('.kf-chat-message-row');
+      var messageId = row.getAttribute('data-message-id');
+      openReactionPopover(btn, channelId, messageId);
+    });
+  });
+
+  root.querySelectorAll('.kf-chat-reaction-pill').forEach(function(pill){
+    pill.addEventListener('click', function(){
+      var row = pill.closest('.kf-chat-message-row');
+      var messageId = row.getAttribute('data-message-id');
+      toggleReaction(channelId, messageId, pill.getAttribute('data-emoji'));
+    });
+  });
+
   var cancelEditBtn = root.querySelector('#chatCancelEditBtn');
   if(cancelEditBtn){
     cancelEditBtn.addEventListener('click', function(){
@@ -479,40 +595,40 @@ function wireThread(root, channelId){
   if(sendBtn) sendBtn.addEventListener('click', submit);
   if(input){
     input.addEventListener('input', function(){
-      updateMentionDropdown(input, channelId);
+      updateComposeIntellisense(input, channelId);
     });
     input.addEventListener('blur', function(){
       // A short delay so a mousedown on a dropdown option (see below) still registers before the
       // dropdown disappears out from under it.
-      setTimeout(closeMentionDropdown, 150);
+      setTimeout(closeIntellisenseDropdown, 150);
     });
     input.addEventListener('keydown', function(e){
-      if(_mentionState){
+      if(_intellisense){
         if(e.key === 'ArrowDown'){
           e.preventDefault();
-          _mentionState.activeIndex = (_mentionState.activeIndex + 1) % _mentionState.options.length;
-          renderMentionDropdown(input);
+          _intellisense.activeIndex = (_intellisense.activeIndex + 1) % _intellisense.options.length;
+          renderIntellisenseDropdown(input);
           return;
         }
         if(e.key === 'ArrowUp'){
           e.preventDefault();
-          _mentionState.activeIndex = (_mentionState.activeIndex - 1 + _mentionState.options.length) % _mentionState.options.length;
-          renderMentionDropdown(input);
+          _intellisense.activeIndex = (_intellisense.activeIndex - 1 + _intellisense.options.length) % _intellisense.options.length;
+          renderIntellisenseDropdown(input);
           return;
         }
         if(e.key === 'Tab' || e.key === ' '){
           e.preventDefault();
-          acceptMentionOption(input, _mentionState.activeIndex);
+          acceptIntellisenseOption(input, _intellisense.activeIndex);
           return;
         }
         if(e.key === 'Escape'){
           e.preventDefault();
           e.stopPropagation();
-          closeMentionDropdown();
+          closeIntellisenseDropdown();
           return;
         }
       }
-      if(e.key === 'Enter' && !e.shiftKey && !_mentionState){
+      if(e.key === 'Enter' && !e.shiftKey && !_intellisense){
         e.preventDefault();
         submit();
       }
@@ -527,7 +643,7 @@ function wireThread(root, channelId){
       var option = e.target.closest('[data-index]');
       if(!option) return;
       e.preventDefault();
-      acceptMentionOption(input, parseInt(option.getAttribute('data-index'), 10));
+      acceptIntellisenseOption(input, parseInt(option.getAttribute('data-index'), 10));
       input.focus();
     });
   }

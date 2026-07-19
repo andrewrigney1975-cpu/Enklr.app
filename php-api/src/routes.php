@@ -151,6 +151,7 @@ function registerRoutes(App $app): void
         $group->post('/channels/{channelId}/messages', [ChatController::class, 'postMessage']);
         $group->put('/channels/{channelId}/messages/{messageId}', [ChatController::class, 'updateMessage']);
         $group->delete('/channels/{channelId}/messages/{messageId}', [ChatController::class, 'deleteMessage']);
+        $group->post('/channels/{channelId}/messages/{messageId}/reactions', [ChatController::class, 'toggleReaction']);
         // Manual replacement for a scheduled 180-day purge — see ChatService::truncateOldMessages's own
         // doc comment — nested in its own sub-group (same "extra check on just these routes" shape as
         // teams-committees above) so only this one route requires OrgAdmin, not the whole /api/chat group.

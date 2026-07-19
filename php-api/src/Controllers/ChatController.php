@@ -108,6 +108,34 @@ final class ChatController extends BaseController
         return $this->json($response, $result['message']);
     }
 
+    public function toggleReaction(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $result = $this->service()->toggleReaction(
+            $this->callerOrgId($request), $this->callerUserId($request), $this->callerIsOrgAdmin($request),
+            $args['channelId'], $args['messageId'], (string) ($body['emoji'] ?? '')
+        );
+        if ($result === null) {
+            return $this->notFound($response);
+        }
+        $this->broadcastReaction($request, $args['channelId'], $result['message'], $result['channelMemberUserIds']);
+        return $this->json($response, $result['message']);
+    }
+
+    // Best-effort — a notification failure must never fail the mutation itself (same convention as
+    // broadcast() above).
+    private function broadcastReaction(Request $request, string $channelId, array $message, array $channelMemberUserIds): void
+    {
+        try {
+            $clientSessionId = $request->getHeaderLine('X-Client-Session-Id') ?: null;
+            (new Broadcaster(Database::connection()))->broadcastChatReaction(
+                $channelMemberUserIds, $channelId, $message['id'], $message['reactions'], $clientSessionId
+            );
+        } catch (\Throwable) {
+            // best-effort, see comment above
+        }
+    }
+
     // Org-Admin-only manual replacement for a scheduled 180-day purge (see ChatService::truncateOldMessages's
     // own doc comment) — hard-deletes, gated by OrgAdminMiddleware in routes.php.
     public function truncate(Request $request, Response $response, array $args): Response

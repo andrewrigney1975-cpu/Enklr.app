@@ -25,6 +25,16 @@ public class ChatService
         _broadcaster = broadcaster;
     }
 
+    /// <summary>Fixed set a reaction's Emoji must be one of — plain unconstrained string column, no
+    /// CHECK constraint (§4's standing convention), validated here at the application layer instead.
+    /// Keep in sync by hand with the PHP tier's own ALLOWED_REACTION_EMOJI and the frontend's
+    /// features/chat-emoji.js CHAT_EMOJI list.</summary>
+    public static readonly HashSet<string> AllowedReactionEmoji = new()
+    {
+        "\U0001F600", "\U0001F44D", "\U0001F44E", "\U0001F622", "\U0001F440",
+        "❓", "❗", "\U0001F610", "\U0001F4AF"
+    };
+
     // ---- Roster (member picker / @mention autocomplete / presence dots) ----
 
     public async Task<List<ChatOrgUserDto>> GetOrgRosterAsync(Guid organisationId)
@@ -174,8 +184,11 @@ public class ChatService
         page.Reverse(); // oldest-first within the page, matching how a chat thread reads top-to-bottom
 
         var memberNames = await GetChannelMemberDisplayNamesAsync(channelId);
+        var reactionsByMessage = await GetReactionsAsync(page.Select(m => m.Id).ToList(), callerUserId);
         var nextCursor = page.Count == limit ? page[0].DateCreated : (DateTime?)null;
-        return new ChatMessagePageDto(page.Select(m => ToMessageDto(m, memberNames)).ToList(), nextCursor);
+        return new ChatMessagePageDto(
+            page.Select(m => ToMessageDto(m, memberNames, reactionsByMessage.GetValueOrDefault(m.Id, new List<ChatReactionSummaryDto>()))).ToList(),
+            nextCursor);
     }
 
     public async Task<(ChatMessageDto Message, List<Guid> ChannelMemberUserIds)?> PostMessageAsync(
@@ -204,7 +217,7 @@ public class ChatService
         await _db.SaveChangesAsync();
 
         var memberNames = await GetChannelMemberDisplayNamesAsync(channelId);
-        return (ToMessageDto(message, memberNames), memberUserIds);
+        return (ToMessageDto(message, memberNames, new List<ChatReactionSummaryDto>()), memberUserIds);
     }
 
     public async Task<(ChatMessageDto Message, List<Guid> ChannelMemberUserIds)?> UpdateMessageAsync(
@@ -223,7 +236,8 @@ public class ChatService
 
         var memberUserIds = await GetChannelMemberUserIdsAsync(channelId);
         var memberNames = await GetChannelMemberDisplayNamesAsync(channelId);
-        return (ToMessageDto(message, memberNames), memberUserIds);
+        var reactions = (await GetReactionsAsync(new List<Guid> { message.Id }, callerUserId)).GetValueOrDefault(message.Id, new List<ChatReactionSummaryDto>());
+        return (ToMessageDto(message, memberNames, reactions), memberUserIds);
     }
 
     public async Task<(ChatMessageDto Message, List<Guid> ChannelMemberUserIds)?> DeleteMessageAsync(
@@ -243,7 +257,46 @@ public class ChatService
 
         var memberUserIds = await GetChannelMemberUserIdsAsync(channelId);
         var memberNames = await GetChannelMemberDisplayNamesAsync(channelId);
-        return (ToMessageDto(message, memberNames), memberUserIds);
+        var reactions = (await GetReactionsAsync(new List<Guid> { message.Id }, callerUserId)).GetValueOrDefault(message.Id, new List<ChatReactionSummaryDto>());
+        return (ToMessageDto(message, memberNames, reactions), memberUserIds);
+    }
+
+    // ---- Reactions ----
+
+    /// <summary>Adds the caller's reaction if it doesn't already exist, removes it if it does (a
+    /// plain toggle) — same "member or Org Admin" access as viewing the channel (CanAccessChannelAsync),
+    /// since reacting is just another form of reading/engaging with a channel you can already see.</summary>
+    public async Task<(ChatMessageDto Message, List<Guid> ChannelMemberUserIds)?> ToggleReactionAsync(
+        Guid organisationId, Guid callerUserId, bool callerIsOrgAdmin, Guid channelId, Guid messageId, string emoji)
+    {
+        if (!AllowedReactionEmoji.Contains(emoji))
+        {
+            throw new ApiValidationException("Unsupported reaction.");
+        }
+        if (!await CanAccessChannelAsync(channelId, organisationId, callerUserId, callerIsOrgAdmin)) return null;
+
+        var message = await _db.ChatMessages.FirstOrDefaultAsync(m => m.Id == messageId && m.ChannelId == channelId);
+        if (message is null) return null;
+
+        var existing = await _db.ChatMessageReactions
+            .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == callerUserId && r.Emoji == emoji);
+        if (existing is not null)
+        {
+            _db.ChatMessageReactions.Remove(existing);
+        }
+        else
+        {
+            _db.ChatMessageReactions.Add(new ChatMessageReaction
+            {
+                Id = Guid.NewGuid(), MessageId = messageId, UserId = callerUserId, Emoji = emoji, DateCreated = DateTime.UtcNow
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        var memberUserIds = await GetChannelMemberUserIdsAsync(channelId);
+        var memberNames = await GetChannelMemberDisplayNamesAsync(channelId);
+        var reactions = (await GetReactionsAsync(new List<Guid> { messageId }, callerUserId)).GetValueOrDefault(messageId, new List<ChatReactionSummaryDto>());
+        return (ToMessageDto(message, memberNames, reactions), memberUserIds);
     }
 
     // ---- Truncate (Org-Admin-only, manual — see the "no scheduled job" decision) ----
@@ -267,6 +320,26 @@ public class ChatService
         if (channel is null) return false;
         if (callerIsOrgAdmin) return true;
         return await _db.ChatChannelMembers.AsNoTracking().AnyAsync(m => m.ChannelId == channelId && m.UserId == callerUserId);
+    }
+
+    /// <summary>Reaction summaries for a batch of messages at once (used for both the message-list
+    /// page and the single-message responses from post/update/delete/toggle) — grouped by emoji per
+    /// message, ReactedByMe computed relative to callerUserId.</summary>
+    private async Task<Dictionary<Guid, List<ChatReactionSummaryDto>>> GetReactionsAsync(List<Guid> messageIds, Guid callerUserId)
+    {
+        if (messageIds.Count == 0) return new Dictionary<Guid, List<ChatReactionSummaryDto>>();
+
+        var rows = await _db.ChatMessageReactions.AsNoTracking()
+            .Where(r => messageIds.Contains(r.MessageId))
+            .Select(r => new { r.MessageId, r.Emoji, r.UserId, r.User.DisplayName })
+            .ToListAsync();
+
+        return rows.GroupBy(r => r.MessageId).ToDictionary(
+            g => g.Key,
+            g => g.GroupBy(r => r.Emoji)
+                .Select(eg => new ChatReactionSummaryDto(eg.Key, eg.Count(), eg.Any(x => x.UserId == callerUserId), eg.Select(x => x.DisplayName).ToList()))
+                .OrderBy(r => r.Emoji)
+                .ToList());
     }
 
     private async Task<Dictionary<Guid, string>> GetChannelMemberDisplayNamesAsync(Guid channelId) =>
@@ -293,9 +366,9 @@ public class ChatService
         return mentioned;
     }
 
-    private static ChatMessageDto ToMessageDto(ChatMessage m, Dictionary<Guid, string> memberDisplayNames) =>
+    private static ChatMessageDto ToMessageDto(ChatMessage m, Dictionary<Guid, string> memberDisplayNames, List<ChatReactionSummaryDto> reactions) =>
         new(m.Id, m.ChannelId, m.AuthorUserId, m.AuthorName, m.Text, m.DateCreated, m.IsDeleted, m.DateDeleted,
-            ParseMentions(m.Text, memberDisplayNames));
+            ParseMentions(m.Text, memberDisplayNames), reactions);
 
     private static ChatChannelDto ToChannelDto(ChatChannel c, IReadOnlyCollection<Guid> onlineUserIds) =>
         new(c.Id, c.Name, c.IsDirectMessage, c.DateCreated,

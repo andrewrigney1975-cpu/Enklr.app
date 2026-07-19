@@ -30,12 +30,19 @@ public record CreateChatChannelRequest(string? Name, bool IsDirectMessage, List<
 /// </summary>
 public record ChatMessageDto(
     Guid Id, Guid ChannelId, Guid? AuthorUserId, string AuthorName, string Text,
-    DateTime DateCreated, bool IsDeleted, DateTime? DateDeleted, List<Guid> MentionedUserIds);
+    DateTime DateCreated, bool IsDeleted, DateTime? DateDeleted, List<Guid> MentionedUserIds,
+    List<ChatReactionSummaryDto> Reactions);
 
 public record ChatMessagePageDto(List<ChatMessageDto> Messages, DateTime? NextCursor);
 
 public record PostChatMessageRequest(string Text);
 public record UpdateChatMessageRequest(string Text);
 public record AddChatChannelMemberRequest(Guid UserId);
+
+/// <summary>One emoji's aggregate on a single message — Count/UserNames are computed across every
+/// reactor, ReactedByMe is specific to whoever is making the current request.</summary>
+public record ChatReactionSummaryDto(string Emoji, int Count, bool ReactedByMe, List<string> UserNames);
+
+public record ToggleChatReactionRequest(string Emoji);
 
 public record ChatTruncateResultDto(int DeletedCount, DateTime CutoffDate);

@@ -20,3 +20,8 @@ public record ChatMessageEventDto(
     Guid ChannelId, Guid MessageId, string Text, string ChangeType,
     Guid? AuthorUserId, string AuthorName, DateTime DateCreated, bool IsDeleted,
     List<Guid> MentionedUserIds);
+
+/// <summary>Pushed over the SSE stream whenever any user's reaction on a message is added or removed
+/// — Reactions is the message's full, recomputed reaction summary (not a delta), so a recipient just
+/// replaces whatever it had cached for MessageId.</summary>
+public record ChatReactionEventDto(Guid ChannelId, Guid MessageId, List<ChatReactionSummaryDto> Reactions);
