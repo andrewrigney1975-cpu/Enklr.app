@@ -465,8 +465,55 @@ export function clearBoardSearch(){
   ui.searchTerm = '';
   updateSearchClearButtonVisibility();
   closeSearchHashtagPanel();
+  updateArchivedSearchMatchesPanel();
   renderBoard();
   input.focus();
+}
+
+/* Archived tasks are excluded from the board entirely (board.js's renderColumn skips them before
+   taskMatchesFilters even runs), so the "Search tasks..." box's live filter never surfaces them no
+   matter what's typed. This panel is the escape hatch: whenever the CURRENT search term also
+   matches at least one archived task (same plain "key + title + description" substring match as
+   taskMatchesFilters' own search branch above -- deliberately not the other filter chips, which
+   don't apply to a side list like this), list them below the search box the same way the Archived
+   Tasks modal itself does (features/archived-tasks.js's renderArchivedTasksList: key, title,
+   priority pill), sorted by key ascending, with the key itself a real "#!/KEY" hashbang link
+   (features/hash-router.js already handles opening/switching-project on any such link via its
+   'hashchange' listener -- no extra click wiring needed here beyond a plain <a href>). */
+export function updateArchivedSearchMatchesPanel(){
+  var panel = document.getElementById('archivedSearchMatchesPanel');
+  if(!panel) return;
+  var project = getCurrentProject();
+  var term = ui.searchTerm;
+  if(!project || !term){
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+    return;
+  }
+
+  var lowerTerm = term.toLowerCase();
+  var matches = getTasksArray(project).filter(function(t){
+    if(!t.archived) return false;
+    var hay = (t.key + ' ' + t.title + ' ' + (t.description || '')).toLowerCase();
+    return hay.indexOf(lowerTerm) !== -1;
+  }).sort(function(a, b){ return a.key.localeCompare(b.key, undefined, {numeric: true}); });
+
+  if(matches.length === 0){
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+    return;
+  }
+
+  panel.innerHTML = '<div class="kf-search-archived-matches-title">Matching Archived Tasks</div>' +
+    matches.map(function(t){
+      var prio = getPriority(t.priority);
+      return '<div class="kf-archived-row">' +
+        '<a class="kf-dep-key kf-search-result-link" href="#!/' + encodeURIComponent(t.key) + '">' + escapeHTML(t.key) + '</a>' +
+        '<span class="kf-archived-row-title">' + escapeHTML(t.title) + '</span>' +
+        '<span class="kf-priority-pill" style="color:' + prio.color + ';background:' + prio.bg + ';">' + iconSvg(prio.icon, 12) + escapeHTML(prio.label) + '</span>' +
+      '</div>';
+    }).join('');
+  panel.classList.remove('hidden');
 }
 
 function renderSearchHashtagPanel(){
@@ -518,6 +565,7 @@ export function acceptSearchHashtagOption(index){
   ui.searchTerm = input.value.trim();
   closeSearchHashtagPanel();
   updateSearchClearButtonVisibility();
+  updateArchivedSearchMatchesPanel();
   renderBoard();
   input.focus();
 }
