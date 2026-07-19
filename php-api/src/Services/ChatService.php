@@ -19,7 +19,7 @@ final class ChatService
     /** Fixed set a reaction's Emoji must be one of — plain unconstrained string column, no CHECK
      * constraint, validated here at the application layer instead. Keep in sync by hand with the
      * .NET tier's own AllowedReactionEmoji and the frontend's features/chat-emoji.js CHAT_EMOJI. */
-    private const ALLOWED_REACTION_EMOJI = ["\u{1F600}", "\u{1F44D}", "\u{1F44E}", "\u{1F622}", "\u{1F440}", "\u{2753}", "\u{2757}", "\u{1F610}", "\u{1F4AF}"];
+    private const ALLOWED_REACTION_EMOJI = ["\u{1F600}", "\u{1F44D}", "\u{1F44E}", "\u{1F622}", "\u{1F440}", "\u{2753}", "\u{2757}", "\u{1F610}", "\u{1F4AF}", "\u{2764}\u{FE0F}", "\u{1F602}"];
 
     public function __construct(private readonly PDO $db)
     {

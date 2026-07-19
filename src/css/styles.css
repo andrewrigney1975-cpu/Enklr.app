@@ -1548,8 +1548,8 @@
   }
 
   .kf-chat-reaction-pill.reacted {
-    background: var(--kf-chip-active-bg, rgba(79, 70, 229, .15));
-    border-color: var(--kf-blue);
+    background: transparent;
+    border-color: var(--kf-border-strong);
     color: var(--kf-text);
   }
 

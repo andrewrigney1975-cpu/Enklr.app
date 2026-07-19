@@ -104,13 +104,27 @@ function renderIntellisenseDropdown(textarea){
   dropdown.classList.remove('hidden');
 
   // Real-browser-only positioning (getCaretPixelPosition's own doc comment: jsdom performs no real
-  // layout) — wrapped defensively so a jsdom/headless test environment never throws here.
+  // layout) — wrapped defensively so a jsdom/headless test environment never throws here. The compose
+  // box sits near the bottom of an already-short floating chat panel, so a below-caret dropdown with
+  // several rows (the emoji list especially, now 11 entries) routinely had nowhere near enough room
+  // and ran off the bottom of the viewport — flip it to open UPWARD from the caret whenever there
+  // isn't enough space below, same "flip if it doesn't fit" rule any other viewport-anchored popover
+  // in this app would want.
   try {
     var pos = getCaretPixelPosition(textarea);
     var rect = textarea.getBoundingClientRect();
+    var caretTop = rect.top + pos.top - textarea.scrollTop;
+    var below = caretTop + pos.lineHeight;
+    var dropdownHeight = dropdown.getBoundingClientRect().height || (_intellisense.options.length * 28 + 8);
+    var margin = 8;
+
     dropdown.style.position = 'fixed';
     dropdown.style.left = Math.round(rect.left + pos.left - textarea.scrollLeft) + 'px';
-    dropdown.style.top = Math.round(rect.top + pos.top + pos.lineHeight - textarea.scrollTop) + 'px';
+    if(below + dropdownHeight + margin > window.innerHeight && caretTop - dropdownHeight >= margin){
+      dropdown.style.top = Math.round(caretTop - dropdownHeight) + 'px';
+    } else {
+      dropdown.style.top = Math.round(Math.min(below, window.innerHeight - dropdownHeight - margin)) + 'px';
+    }
   } catch(e){ /* jsdom or similar — dropdown still renders, just unpositioned */ }
 }
 
@@ -483,11 +497,22 @@ function openReactionPopover(triggerBtn, channelId, messageId){
   popover.classList.remove('hidden');
 
   // Real-browser-only positioning, same defensive try/catch as the mention/emoji dropdown above.
+  // The chat panel itself sits near the viewport's right edge (see .kf-chat-panel's own right:24px),
+  // and an own-message's trigger is further right still (row-reverse layout) — naively anchoring the
+  // popover's LEFT edge to the trigger's left edge routinely pushed it half off-screen. Anchor to the
+  // trigger's RIGHT edge instead (growing leftward, which is where the room actually is) and clamp
+  // both edges against the viewport as a second line of defense.
   try {
     var rect = triggerBtn.getBoundingClientRect();
     popover.style.position = 'fixed';
-    popover.style.left = Math.round(rect.left) + 'px';
     popover.style.top = Math.round(rect.bottom + 4) + 'px';
+    popover.style.left = '0px'; // measure natural width first, then position
+    var popoverWidth = popover.getBoundingClientRect().width;
+    var margin = 8;
+    var left = rect.right - popoverWidth;
+    left = Math.min(left, window.innerWidth - popoverWidth - margin);
+    left = Math.max(left, margin);
+    popover.style.left = Math.round(left) + 'px';
   } catch(e){ /* jsdom or similar */ }
 
   popover.querySelectorAll('.kf-chat-reaction-option').forEach(function(btn){

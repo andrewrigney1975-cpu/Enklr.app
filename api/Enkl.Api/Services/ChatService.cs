@@ -32,7 +32,7 @@ public class ChatService
     public static readonly HashSet<string> AllowedReactionEmoji = new()
     {
         "\U0001F600", "\U0001F44D", "\U0001F44E", "\U0001F622", "\U0001F440",
-        "❓", "❗", "\U0001F610", "\U0001F4AF"
+        "❓", "❗", "\U0001F610", "\U0001F4AF", "❤️", "\U0001F602"
     };
 
     // ---- Roster (member picker / @mention autocomplete / presence dots) ----

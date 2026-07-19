@@ -15,5 +15,7 @@ export var CHAT_EMOJI = [
   {code: 'question', char: '\u{2753}', label: 'Question mark'},
   {code: 'exclamation', char: '\u{2757}', label: 'Exclamation mark'},
   {code: 'neutral', char: '\u{1F610}', label: 'Neutral face'},
-  {code: '100', char: '\u{1F4AF}', label: '100'}
+  {code: '100', char: '\u{1F4AF}', label: '100'},
+  {code: 'heart', char: '\u{2764}\u{FE0F}', label: 'Love heart'},
+  {code: 'laughing', char: '\u{1F602}', label: 'Laughing (LOL)'}
 ];

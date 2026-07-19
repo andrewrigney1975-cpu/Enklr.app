@@ -221,7 +221,7 @@ function makeChatBackend(){
   reactBtn.click();
   await wait(10);
   var reactionPopover = doc.getElementById('chatReactionPopover');
-  log('reaction popover opens with the full emoji set', !reactionPopover.classList.contains('hidden') && reactionPopover.querySelectorAll('.kf-chat-reaction-option').length === 9);
+  log('reaction popover opens with the full emoji set', !reactionPopover.classList.contains('hidden') && reactionPopover.querySelectorAll('.kf-chat-reaction-option').length === 11);
 
   var thumbsUpOption = Array.from(reactionPopover.querySelectorAll('.kf-chat-reaction-option')).find(function(b){ return b.title === 'Thumbs up'; });
   thumbsUpOption.dispatchEvent(new dom.window.Event('mousedown', {bubbles: true, cancelable: true}));
