@@ -4,27 +4,40 @@
  * Ordered scenarios sharing one `ctx` across the run (tokens/ids seeded by earlier scenarios feed
  * later ones — a fresh org/project only exists once the migration-bootstrap scenario has run).
  *
- * Each `run(ctx)` fires the SAME logical request at both tiers via ctx.net.client/ctx.php.client and
- * returns { netResult: {status, body}, phpResult: {status, body}, exactFields? }. The runner (see
- * run-parity.js) does the actual status/shape diffing — scenarios just describe what to call and,
- * optionally, which response fields should be byte-for-byte identical (only true for values the
- * harness itself set identically on both tiers, like a task title).
+ * Each `run(ctx)` fires the SAME logical request at every tier in `ctx.tiers` (whichever of
+ * net/php/mariadb actually have a *_BASE_URL set — see run-parity.js) via `ctx[tier].client`, and
+ * returns `{ results, exactFields? }` where `results` is an object keyed by tier name
+ * (`{net: {status,body}, php: {status,body}, ...}`). The runner does the actual status/shape diffing,
+ * comparing every non-reference tier against "net" — scenarios just describe what to call and,
+ * optionally, which response fields should be byte-for-byte identical across tiers (only true for
+ * values the harness itself set identically on every tier, like a task title).
  *
  * To add a scenario: push a new { name, run } onto this array. It runs after everything already
- * here, with ctx already carrying whatever earlier scenarios stashed on it.
+ * here, with ctx already carrying whatever earlier scenarios stashed on it. Use `requestAllTiers`
+ * for the common "fire the identical request at every active tier" case; hand-loop over `ctx.tiers`
+ * for anything that needs per-tier-varying request bodies (see migration-bootstrap/login below).
  *
  * Deliberately NOT covered yet (documented, not attempted, this pass): the SSE stream endpoint
  * (long-lived connection, a different testing shape entirely) and SAML/SCIM (need an external
  * IdP/SCIM client to exercise meaningfully).
  */
 
+/** Fires the same request (built from `requestFn(tierState, tier)`) at every active tier in parallel. */
+async function requestAllTiers(ctx, requestFn) {
+  const results = {};
+  await Promise.all(ctx.tiers.map(async (tier) => {
+    results[tier] = await requestFn(ctx[tier], tier);
+  }));
+  return results;
+}
+
 function migrationFixture(runSuffix, keySuffix) {
   const key = `CP${keySuffix}`;
   return {
     organisationName: `ContractParity-${runSuffix}`,
-    // Project.Key has a GLOBAL unique index (IX_Projects_Key on both tiers' schemas — not scoped per
-    // organisation), so this has to vary per run just like the org/member names below, or a repeat
-    // run against a persistent DB 409s on the second attempt.
+    // Project.Key has a GLOBAL unique index (IX_Projects_Key-equivalent on every tier's schema — not
+    // scoped per organisation), so this has to vary per run just like the org/member names below, or
+    // a repeat run against a persistent DB 409s on the second attempt.
     project: { name: 'Contract Parity Project', key },
     // Member name must be unique per run, not just the org name: username lookup at login is global,
     // not org-scoped (AuthController matches on NormalizedUsername alone) — a repeat run reusing
@@ -56,8 +69,8 @@ export const scenarios = [
   {
     name: 'health-check',
     async run(ctx) {
-      const [netResult, phpResult] = await Promise.all([ctx.net.client.get('/health'), ctx.php.client.get('/health')]);
-      return { netResult, phpResult };
+      const results = await requestAllTiers(ctx, (t) => t.client.get('/health'));
+      return { results };
     },
   },
 
@@ -66,100 +79,89 @@ export const scenarios = [
     async run(ctx) {
       const runId = Date.now();
       const keySuffix = runId.toString(36).toUpperCase();
-      ctx.net.username = `net-${runId}`;
-      ctx.php.username = `php-${runId}`;
-      const netResult = await ctx.net.client.post('/api/migration/projects', migrationFixture(ctx.net.username, `${keySuffix}N`));
-      const phpResult = await ctx.php.client.post('/api/migration/projects', migrationFixture(ctx.php.username, `${keySuffix}P`));
-
-      if (netResult.status === 200) ctx.net.projectId = netResult.body?.projectId;
-      if (phpResult.status === 200) ctx.php.projectId = phpResult.body?.projectId;
-
-      return { netResult, phpResult };
+      const results = {};
+      for (const tier of ctx.tiers) {
+        ctx[tier].username = `${tier}-${runId}`;
+        // First letter of the tier name as the per-tier project-key suffix (n/p/m) — keeps every
+        // tier's seeded key globally distinct, same reasoning as the original net/php-only "N"/"P".
+        const result = await ctx[tier].client.post('/api/migration/projects', migrationFixture(ctx[tier].username, `${keySuffix}${tier[0].toUpperCase()}`));
+        results[tier] = result;
+        if (result.status === 200) ctx[tier].projectId = result.body?.projectId;
+      }
+      return { results };
     },
   },
 
   {
     name: 'login',
     async run(ctx) {
-      const netResult = await ctx.net.client.post('/api/auth/login', { username: `Parity Tester ${ctx.net.username}`, password: 'enklUserPassword' });
-      const phpResult = await ctx.php.client.post('/api/auth/login', { username: `Parity Tester ${ctx.php.username}`, password: 'enklUserPassword' });
-
-      if (netResult.status === 200) {
-        ctx.net.client.setToken(netResult.body?.token);
-        ctx.net.currentPassword = 'enklUserPassword';
+      const results = {};
+      for (const tier of ctx.tiers) {
+        const result = await ctx[tier].client.post('/api/auth/login', { username: `Parity Tester ${ctx[tier].username}`, password: 'enklUserPassword' });
+        results[tier] = result;
+        if (result.status === 200) {
+          ctx[tier].client.setToken(result.body?.token);
+          ctx[tier].currentPassword = 'enklUserPassword';
+        }
       }
-      if (phpResult.status === 200) {
-        ctx.php.client.setToken(phpResult.body?.token);
-        ctx.php.currentPassword = 'enklUserPassword';
-      }
-
-      return { netResult, phpResult };
+      return { results };
     },
   },
 
   {
     name: 'change-password',
     async run(ctx) {
-      // Migration-seeded users always have MustChangePassword: true on both tiers (confirmed
-      // identical in MigrationService.cs/.php) — this scenario always fires, not conditionally.
+      // Migration-seeded users always have MustChangePassword: true on every tier (confirmed
+      // identical across all Service ports) — this scenario always fires, not conditionally.
       const body = { currentPassword: 'enklUserPassword', newPassword: 'enklUserPasswordChanged1' };
-      const netResult = await ctx.net.client.post('/api/auth/change-password', body);
-      const phpResult = await ctx.php.client.post('/api/auth/change-password', body);
-
-      if (netResult.status === 200) ctx.net.client.setToken(netResult.body?.token);
-      if (phpResult.status === 200) ctx.php.client.setToken(phpResult.body?.token);
-
-      return { netResult, phpResult };
+      const results = {};
+      for (const tier of ctx.tiers) {
+        const result = await ctx[tier].client.post('/api/auth/change-password', body);
+        results[tier] = result;
+        if (result.status === 200) ctx[tier].client.setToken(result.body?.token);
+      }
+      return { results };
     },
   },
 
   {
     name: 'list-projects',
     async run(ctx) {
-      const [netResult, phpResult] = await Promise.all([ctx.net.client.get('/api/projects'), ctx.php.client.get('/api/projects')]);
-      return { netResult, phpResult };
+      const results = await requestAllTiers(ctx, (t) => t.client.get('/api/projects'));
+      return { results };
     },
   },
 
   {
     name: 'project-detail',
     async run(ctx) {
-      const [netResult, phpResult] = await Promise.all([
-        ctx.net.client.get(`/api/projects/${ctx.net.projectId}`),
-        ctx.php.client.get(`/api/projects/${ctx.php.projectId}`),
-      ]);
-
-      if (netResult.status === 200) ctx.net.columnId = netResult.body?.columns?.[0]?.id;
-      if (phpResult.status === 200) ctx.php.columnId = phpResult.body?.columns?.[0]?.id;
-
-      return { netResult, phpResult };
+      const results = await requestAllTiers(ctx, (t) => t.client.get(`/api/projects/${t.projectId}`));
+      for (const tier of ctx.tiers) {
+        if (results[tier].status === 200) ctx[tier].columnId = results[tier].body?.columns?.[0]?.id;
+      }
+      return { results };
     },
   },
 
   {
     name: 'create-task',
     async run(ctx) {
-      const body = (columnId) => ({ title: 'Contract parity test task', priority: 'medium', columnId });
-      const [netResult, phpResult] = await Promise.all([
-        ctx.net.client.post(`/api/projects/${ctx.net.projectId}/tasks`, body(ctx.net.columnId)),
-        ctx.php.client.post(`/api/projects/${ctx.php.projectId}/tasks`, body(ctx.php.columnId)),
-      ]);
-      return { netResult, phpResult, exactFields: ['title'] };
+      const results = await requestAllTiers(ctx, (t) =>
+        t.client.post(`/api/projects/${t.projectId}/tasks`, { title: 'Contract parity test task', priority: 'medium', columnId: t.columnId })
+      );
+      return { results, exactFields: ['title'] };
     },
   },
 
   {
     name: 'create-task-validation-error',
     async run(ctx) {
-      // A well-formed but nonexistent columnId — both tiers' TaskService.create resolves the column
-      // by (id, projectId) and returns null when it doesn't match, which both controllers turn into
-      // a 400 {"message":"Invalid column."} (confirmed identical in TaskService.cs/.php).
+      // A well-formed but nonexistent columnId — every tier's TaskService.create resolves the column
+      // by (id, projectId) and returns null when it doesn't match, which every controller turns into
+      // a 400 {"message":"Invalid column."} (confirmed identical across all three ports).
       const body = { title: 'Should be rejected', priority: 'medium', columnId: '00000000-0000-0000-0000-000000000000' };
-      const [netResult, phpResult] = await Promise.all([
-        ctx.net.client.post(`/api/projects/${ctx.net.projectId}/tasks`, body),
-        ctx.php.client.post(`/api/projects/${ctx.php.projectId}/tasks`, body),
-      ]);
-      return { netResult, phpResult };
+      const results = await requestAllTiers(ctx, (t) => t.client.post(`/api/projects/${t.projectId}/tasks`, body));
+      return { results };
     },
   },
 ];

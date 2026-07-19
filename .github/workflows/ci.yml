@@ -35,6 +35,22 @@ jobs:
         working-directory: php-api
         run: find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
 
+  mariadb-lint:
+    name: MariaDB API lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, mysqli
+      - name: Composer install
+        working-directory: mariadb-api
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Lint every PHP file
+        working-directory: mariadb-api
+        run: find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+
   frontend-build-and-test:
     name: Frontend build + test suite
     runs-on: ubuntu-latest
@@ -80,6 +96,16 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U enkl"
           --health-interval 5s --health-timeout 3s --health-retries 10
+      db-mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: enkl
+          MARIADB_ROOT_PASSWORD: enkl_dev_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=5s --health-timeout=3s --health-retries=10
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
@@ -88,7 +114,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo, pgsql
+          extensions: pdo, pgsql, pdo_mysql, mysqli
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
@@ -97,11 +123,15 @@ jobs:
         working-directory: php-api
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      # Both tiers run in Development/development mode — the same "zero-setup local run" exemption
-      # both already document, which skips the production-secrets guard entirely rather than fighting
-      # it with fake-but-real-looking values. .NET's default appsettings.json connection string
-      # already points at localhost:5432/enkl, matching db-net, so no extra env vars are needed there
-      # beyond the URL.
+      - name: Composer install (mariadb-api)
+        working-directory: mariadb-api
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      # All three tiers run in Development/development mode — the same "zero-setup local run"
+      # exemption each already documents, which skips the production-secrets guard entirely rather
+      # than fighting it with fake-but-real-looking values. .NET's default appsettings.json
+      # connection string already points at localhost:5432/enkl, matching db-net, so no extra env
+      # vars are needed there beyond the URL.
       - name: Start .NET API tier (background)
         working-directory: api/Enkl.Api
         env:
@@ -128,11 +158,30 @@ jobs:
           PUBLIC_BASE_URL: http://localhost:8081
         run: nohup php -S localhost:8081 -t public > /tmp/php-parity.log 2>&1 &
 
-      - name: Wait for both tiers to be healthy
+      - name: Start MariaDB API tier (background)
+        working-directory: mariadb-api
+        env:
+          DB_HOST: localhost
+          DB_PORT: 3306
+          DB_NAME: enkl
+          DB_USER: root
+          DB_PASSWORD: enkl_dev_password
+          # Placeholder from .env.example — fine functionally, the guard that rejects it is skipped
+          # entirely in APP_ENV=development.
+          JWT_SIGNING_KEY: change-me-to-a-random-32-plus-character-string
+          JWT_ISSUER: Enkl.Api
+          JWT_AUDIENCE: Enkl.App
+          JWT_EXPIRY_HOURS: '8'
+          RUN_MIGRATIONS_ON_STARTUP: 'true'
+          APP_ENV: development
+          PUBLIC_BASE_URL: http://localhost:8082
+        run: nohup php -S localhost:8082 -t public > /tmp/mariadb-parity.log 2>&1 &
+
+      - name: Wait for all tiers to be healthy
         run: |
           # Generous timeout: a cold `dotnet run` (fresh NuGet restore + build, no cache configured
           # in this job) can take a while before it starts listening.
-          for url in http://localhost:8080/health http://localhost:8081/health; do
+          for url in http://localhost:8080/health http://localhost:8081/health http://localhost:8082/health; do
             echo "Waiting for $url..."
             for i in $(seq 1 60); do
               if curl -sf "$url" >/dev/null; then echo "$url is up"; break; fi
@@ -146,6 +195,7 @@ jobs:
         env:
           NET_BASE_URL: http://localhost:8080
           PHP_BASE_URL: http://localhost:8081
+          MARIADB_BASE_URL: http://localhost:8082
         run: node run-parity.js
 
       - name: Dump backend logs
@@ -155,3 +205,5 @@ jobs:
           cat /tmp/net-parity.log || true
           echo "===== PHP tier log ====="
           cat /tmp/php-parity.log || true
+          echo "===== MariaDB tier log ====="
+          cat /tmp/mariadb-parity.log || true
