@@ -10,9 +10,12 @@ security notes) — this doc assumes that context and doesn't repeat it.
 **This guide describes the ECS Fargate + ALB architecture** — the right target once real HA/scaling
 matters. The actual currently-running production instance was built differently (a single free-tier
 EC2 instance + RDS, no ALB/Fargate/NAT — those three have no free tier at all and would have defeated
-the point) — see [`DEPLOYMENT-AWS-DETAILS.md`](DEPLOYMENT-AWS-DETAILS.md) for the as-built record of
-what's actually deployed, with real resource IDs and the exact TLS/domain/deploy procedure in use
-today. Treat this file as the design to migrate *toward*, not a description of the current instance.
+the point). There is a local, **not committed** `DEPLOYMENT-AWS-DETAILS.md` (gitignored — see its own
+entry in `.gitignore`) with the as-built record of what's actually deployed: real account/resource
+IDs, the exact TLS/domain/deploy procedure in use today, etc. It's deliberately kept out of this
+public repo (real AWS account ID, resource IDs, and IP with no offsetting benefit to publishing them)
+— ask whoever maintains this deployment for a copy if you need it. Treat this file (`DEPLOYMENT-AWS.md`)
+as the design to migrate *toward*, not a description of the current instance.
 
 **Scope**: the .NET API tier (`api/Enkl.Api`) + PostgreSQL only — not the PHP or MariaDB tiers (they
 have their own bare-metal `DEPLOYMENT-PHP.md`/`DEPLOYMENT-MARIADB.md` guides, not AWS-specific).
