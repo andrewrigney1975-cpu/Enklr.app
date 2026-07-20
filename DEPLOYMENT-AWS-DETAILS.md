@@ -124,7 +124,10 @@ ssh -i ~/.ssh/enkl-key.pem ec2-user@107.21.99.255
 ## 5. Application deployment
 
 **Layout on the EC2 instance** (`/home/ec2-user/Enkl.app/`, a full clone of
-`https://github.com/andrewrigney1975-cpu/Enkl.app.git`):
+`https://github.com/andrewrigney1975-cpu/Enklr.app.git` — renamed from `Enkl.app` on 2026-07-20,
+matching the app's own Enklr rebrand; GitHub redirects the old URL, but the EC2 checkout's own git
+remote and this doc were both updated to the real name rather than relying on that redirect
+indefinitely):
 
 | Path | What it is | Tracked in git? |
 |---|---|---|
