@@ -7,6 +7,13 @@ this doc is the actual `aws` CLI commands to get there. Read `DEPLOYMENT-NET-DOC
 *why* behind the architecture (non-root containers, `api`/`db` never public, rate-limiter/JWT
 security notes) — this doc assumes that context and doesn't repeat it.
 
+**This guide describes the ECS Fargate + ALB architecture** — the right target once real HA/scaling
+matters. The actual currently-running production instance was built differently (a single free-tier
+EC2 instance + RDS, no ALB/Fargate/NAT — those three have no free tier at all and would have defeated
+the point) — see [`DEPLOYMENT-AWS-DETAILS.md`](DEPLOYMENT-AWS-DETAILS.md) for the as-built record of
+what's actually deployed, with real resource IDs and the exact TLS/domain/deploy procedure in use
+today. Treat this file as the design to migrate *toward*, not a description of the current instance.
+
 **Scope**: the .NET API tier (`api/Enkl.Api`) + PostgreSQL only — not the PHP or MariaDB tiers (they
 have their own bare-metal `DEPLOYMENT-PHP.md`/`DEPLOYMENT-MARIADB.md` guides, not AWS-specific).
 
