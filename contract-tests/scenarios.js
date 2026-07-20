@@ -97,11 +97,11 @@ export const scenarios = [
     async run(ctx) {
       const results = {};
       for (const tier of ctx.tiers) {
-        const result = await ctx[tier].client.post('/api/auth/login', { username: `Parity Tester ${ctx[tier].username}`, password: 'enklUserPassword' });
+        const result = await ctx[tier].client.post('/api/auth/login', { username: `Parity Tester ${ctx[tier].username}`, password: 'EnklrTask9999!' });
         results[tier] = result;
         if (result.status === 200) {
           ctx[tier].client.setToken(result.body?.token);
-          ctx[tier].currentPassword = 'enklUserPassword';
+          ctx[tier].currentPassword = 'EnklrTask9999!';
         }
       }
       return { results };
@@ -113,7 +113,7 @@ export const scenarios = [
     async run(ctx) {
       // Migration-seeded users always have MustChangePassword: true on every tier (confirmed
       // identical across all Service ports) — this scenario always fires, not conditionally.
-      const body = { currentPassword: 'enklUserPassword', newPassword: 'enklUserPasswordChanged1' };
+      const body = { currentPassword: 'EnklrTask9999!', newPassword: 'enklUserPasswordChanged1' };
       const results = {};
       for (const tier of ctx.tiers) {
         const result = await ctx[tier].client.post('/api/auth/change-password', body);

@@ -26,7 +26,7 @@ use Slim\Psr7\Response;
  *    under a state that's since changed, so it's rejected outright.
  *
  * 2. MustChangePassword enforcement (security review finding C4): the flag was being set at account
- *    creation (e.g. MigrationService's default "enklUserPassword" accounts) and returned in the
+ *    creation (e.g. MigrationService's default-password accounts, see PasswordHasher::GLOBAL_DEFAULT_NEW_USER_PASSWORD) and returned in the
  *    login response, but nothing previously stopped the account from being used indefinitely
  *    without ever actually changing it. Only mutating requests (POST/PUT/PATCH/DELETE) are blocked
  *    — reads still work so a signed-in client isn't broken while the change-password prompt is up.

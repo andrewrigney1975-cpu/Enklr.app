@@ -1,7 +1,8 @@
 namespace Enkl.Api.Dtos;
 
 public record OrgUserDto(Guid Id, string Username, string? EmailAddress, string DisplayName, bool IsOrgAdmin, bool IsActive, DateTime CreatedAt, bool IsOnline);
-public record OrganisationDetailDto(Guid Id, string Name, List<OrgUserDto> Users);
+public record OrganisationDetailDto(Guid Id, string Name, bool HasCustomDefaultPassword, List<OrgUserDto> Users);
 public record SetOrgAdminRequest(bool IsOrgAdmin);
 public record CreateUserRequest(string Username, string DisplayName, string Password, string EmailAddress);
 public record SetUserEmailRequest(string EmailAddress);
+public record SetDefaultNewUserPasswordRequest(string Password);

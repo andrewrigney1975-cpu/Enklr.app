@@ -47,4 +47,11 @@ final class OrganisationsController extends BaseController
     {
         return $this->json($response, $this->service()->getOrgTeams($this->callerOrgId($request)));
     }
+
+    public function setDefaultNewUserPassword(Request $request, Response $response): Response
+    {
+        $body = $this->body($request);
+        $ok = $this->service()->setDefaultNewUserPassword($this->callerOrgId($request), (string) ($body['password'] ?? ''));
+        return $ok ? $this->noContent($response) : $this->notFound($response);
+    }
 }

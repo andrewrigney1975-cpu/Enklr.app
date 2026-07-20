@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Enkl\Api\Tests;
 
+use Enkl\Api\Auth\PasswordHasher;
 use Enkl\Api\Db\Database;
 use Enkl\Api\Services\MemberService;
+use Enkl\Api\Services\OrganisationService;
 use Enkl\Api\Services\ProjectService;
 use Enkl\Api\Support\Uuid;
 use Enkl\Api\Tests\Support\TestDataHelper;
@@ -29,12 +31,14 @@ final class MemberServiceTest extends TestCase
     private static PDO $db;
     private static MemberService $members;
     private static ProjectService $projects;
+    private static OrganisationService $organisations;
 
     public static function setUpBeforeClass(): void
     {
         self::$db = Database::connection();
         self::$members = new MemberService(self::$db);
         self::$projects = new ProjectService(self::$db);
+        self::$organisations = new OrganisationService(self::$db);
     }
 
     public function testCreateUpdateDeleteRoundTrip(): void
@@ -196,5 +200,27 @@ final class MemberServiceTest extends TestCase
         $stmt = self::$db->prepare('SELECT "Id" FROM "ProjectMembers" WHERE "ProjectId" = :pid AND "UserId" = :uid');
         $stmt->execute(['pid' => $projectId, 'uid' => $userId]);
         return $stmt->fetchColumn();
+    }
+
+    /** The org-configurable replacement for the previously hardcoded 'enklUserPassword' literal —
+     * an implicitly-created User (via "Add a team member") must get the org's own configured
+     * default password when one has been set via OrganisationService::setDefaultNewUserPassword. */
+    public function testCreateWithOrgConfiguredDefaultPasswordUsesItForNewUser(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('owner'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('PRJ'));
+        self::$organisations->setDefaultNewUserPassword($seeded['orgId'], 'OrgChosenPassword2!');
+
+        $memberName = TestDataHelper::unique('Brand New Person');
+        $created = self::$members->create($projectId, ['name' => $memberName, 'email' => TestDataHelper::unique('newperson') . '@example.com']);
+        self::assertNotNull($created);
+
+        $stmt = self::$db->prepare('SELECT "PasswordHash", "MustChangePassword" FROM "Users" WHERE "Id" = :id');
+        $stmt->execute(['id' => $created['userId']]);
+        $row = $stmt->fetch();
+
+        self::assertTrue(PasswordHasher::verify('OrgChosenPassword2!', $row['PasswordHash']));
+        self::assertFalse(PasswordHasher::verify(PasswordHasher::GLOBAL_DEFAULT_NEW_USER_PASSWORD, $row['PasswordHash']));
+        self::assertTrue((bool) $row['MustChangePassword']);
     }
 }

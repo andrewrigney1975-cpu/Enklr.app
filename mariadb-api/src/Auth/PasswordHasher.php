@@ -18,6 +18,14 @@ final class PasswordHasher
     // PasswordHasher.
     private const WORK_FACTOR = 12;
 
+    // The password every implicitly-created User account (MemberService::create's "add a member by
+    // name" path, MigrationService's import path) gets when the Organisation hasn't configured its
+    // own default via Organisations."DefaultNewUserPasswordHash" — see each of those classes' own
+    // resolveDefaultNewUserPasswordHash() method, the only consumers of this constant.
+    // MustChangePassword is always set alongside it, so this being a known, documented literal is by
+    // design, not a leak.
+    public const GLOBAL_DEFAULT_NEW_USER_PASSWORD = 'EnklrTask9999!';
+
     public static function hash(string $plainTextPassword): string
     {
         return password_hash($plainTextPassword, PASSWORD_BCRYPT, ['cost' => self::WORK_FACTOR]);

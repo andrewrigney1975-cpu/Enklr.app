@@ -115,7 +115,7 @@ final class MemberService
             $stmt->execute([
                 'id' => $userId, 'orgId' => $project['OrganisationId'], 'username' => $usernameToUse,
                 'normalized' => $usernameToUse, 'email' => $email, 'normalizedEmail' => $normalizedEmail,
-                'hash' => PasswordHasher::hash('enklUserPassword'), 'displayName' => $trimmedName,
+                'hash' => $this->resolveDefaultNewUserPasswordHash($project['OrganisationId']), 'displayName' => $trimmedName,
                 'securityStamp' => Uuid::v4(),
             ]);
             $user = ['Id' => $userId, 'DisplayName' => $trimmedName, 'EmailAddress' => $email];
@@ -330,5 +330,18 @@ final class MemberService
             $candidate = $baseUsername . $suffix;
         } while (true);
         return $candidate;
+    }
+
+    /** Duplicated (not shared via a DI container — this tier has none, see mariadb-api/CLAUDE.md)
+     * with MigrationService's identical private method. Resolves what a newly implicitly-created
+     * User's PasswordHash should be: the org's own configured default if an OrgAdmin has set one via
+     * OrganisationService::setDefaultNewUserPassword, otherwise the system-wide fallback. Returns the
+     * HASH directly (never re-hashes an already-hashed value). */
+    private function resolveDefaultNewUserPasswordHash(string $organisationId): string
+    {
+        $stmt = $this->db->prepare('SELECT "DefaultNewUserPasswordHash" FROM "Organisations" WHERE "Id" = :id');
+        $stmt->execute(['id' => $organisationId]);
+        $hash = $stmt->fetchColumn();
+        return $hash !== false && $hash !== null ? $hash : PasswordHasher::hash(PasswordHasher::GLOBAL_DEFAULT_NEW_USER_PASSWORD);
     }
 }

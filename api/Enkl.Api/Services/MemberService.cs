@@ -20,6 +20,7 @@ public class MemberService
 {
     private readonly AppDbContext _db;
     private readonly IValidator<CreateMemberRequest> _createValidator;
+    private readonly OrganisationService _organisations;
 
     // Mirrors MEMBER_PALETTE in src/js/config.js exactly, so a member added from a browser and one
     // added via a fresh migration land on the same color for the same position.
@@ -29,10 +30,11 @@ public class MemberService
         "#006644", "#5243AA", "#B04632", "#1B5E20", "#8777D9"
     };
 
-    public MemberService(AppDbContext db, IValidator<CreateMemberRequest> createValidator)
+    public MemberService(AppDbContext db, IValidator<CreateMemberRequest> createValidator, OrganisationService organisations)
     {
         _db = db;
         _createValidator = createValidator;
+        _organisations = organisations;
     }
 
     /// <summary>Backs the "Add a team member" combobox — the project's whole Organisation roster
@@ -84,7 +86,7 @@ public class MemberService
                 NormalizedUsername = usernameToUse,
                 EmailAddress = email,
                 NormalizedEmailAddress = normalizedEmail,
-                PasswordHash = PasswordHasher.Hash("enklUserPassword"),
+                PasswordHash = await _organisations.ResolveDefaultNewUserPasswordHashAsync(project.OrganisationId),
                 DisplayName = trimmedName,
                 MustChangePassword = true,
                 IsOrgAdmin = false,

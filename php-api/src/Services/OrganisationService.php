@@ -19,7 +19,7 @@ final class OrganisationService
 
     public function getOrganisation(string $organisationId): ?array
     {
-        $stmt = $this->db->prepare('SELECT "Id", "Name" FROM "Organisations" WHERE "Id" = :id');
+        $stmt = $this->db->prepare('SELECT "Id", "Name", "DefaultNewUserPasswordHash" FROM "Organisations" WHERE "Id" = :id');
         $stmt->execute(['id' => $organisationId]);
         $org = $stmt->fetch();
         if ($org === false) {
@@ -42,7 +42,36 @@ final class OrganisationService
             'isOnline' => in_array($u['Id'], $online, true),
         ], $stmt->fetchAll());
 
-        return ['id' => $org['Id'], 'name' => $org['Name'], 'users' => $users];
+        return [
+            'id' => $org['Id'],
+            'name' => $org['Name'],
+            'hasCustomDefaultPassword' => $org['DefaultNewUserPasswordHash'] !== null,
+            'users' => $users,
+        ];
+    }
+
+    /**
+     * Lets an OrgAdmin configure the password newly (implicitly) created users in their org get,
+     * instead of the hardcoded PasswordHasher::GLOBAL_DEFAULT_NEW_USER_PASSWORD every org used to
+     * share. Only the bcrypt HASH is ever persisted — there is deliberately no corresponding "get the
+     * current default password" endpoint; an admin who forgets what they set can only overwrite it
+     * with a new one, never read it back.
+     */
+    public function setDefaultNewUserPassword(string $organisationId, string $password): bool
+    {
+        if (strlen($password) < 8) {
+            throw new ApiValidationException('Password must be at least 8 characters.');
+        }
+
+        $stmt = $this->db->prepare('SELECT 1 FROM "Organisations" WHERE "Id" = :id');
+        $stmt->execute(['id' => $organisationId]);
+        if ($stmt->fetch() === false) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare('UPDATE "Organisations" SET "DefaultNewUserPasswordHash" = :hash WHERE "Id" = :id');
+        $stmt->execute(['hash' => PasswordHasher::hash($password), 'id' => $organisationId]);
+        return true;
     }
 
     /** @return string[] Same query/grace-window as ChatService::onlineUserIds — duplicated rather

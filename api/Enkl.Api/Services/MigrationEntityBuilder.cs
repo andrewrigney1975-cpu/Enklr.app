@@ -21,10 +21,12 @@ namespace Enkl.Api.Services;
 public class MigrationEntityBuilder
 {
     private readonly AppDbContext _db;
+    private readonly OrganisationService _organisations;
 
-    public MigrationEntityBuilder(AppDbContext db)
+    public MigrationEntityBuilder(AppDbContext db, OrganisationService organisations)
     {
         _db = db;
+        _organisations = organisations;
     }
 
     public async Task<(Dictionary<string, ProjectMember> MemberByOldId, int UsersCreated, int UsersMatched)> CreateUsersAndMembersAsync(
@@ -35,6 +37,12 @@ public class MigrationEntityBuilder
         var userIdByNormalizedKey = new Dictionary<string, Guid>();
         var memberByOldId = new Dictionary<string, ProjectMember>();
         var firstAdminAssigned = false;
+        // Resolved once per batch, not per user — every implicitly-created User in this import gets
+        // the same org-configured default (or global fallback) password hash. Harmless when
+        // organisationCreated is true (a brand-new org has no configured default yet, so this is
+        // just the global fallback), and correctly picks up an existing org's configured default
+        // when migrating more members into an org that already exists.
+        var defaultPasswordHash = await _organisations.ResolveDefaultNewUserPasswordHashAsync(organisationId);
         // The first member listed in the export is treated as this project's "owner" — same
         // always-a-Project-Admin default ProjectService.CreateAsync gives a freshly created
         // project's creator, applied here so a migrated project isn't immediately locked out of
@@ -110,7 +118,7 @@ public class MigrationEntityBuilder
                         NormalizedUsername = usernameToUse,
                         EmailAddress = email,
                         NormalizedEmailAddress = normalizedEmail,
-                        PasswordHash = PasswordHasher.Hash("enklUserPassword"),
+                        PasswordHash = defaultPasswordHash,
                         DisplayName = m.Name,
                         MustChangePassword = true,
                         IsOrgAdmin = isFirstAdminOfNewOrg,

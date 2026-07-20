@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Enkl\Api\Tests;
 
+use Enkl\Api\Auth\PasswordHasher;
 use Enkl\Api\Db\Database;
 use Enkl\Api\Services\OrganisationService;
 use Enkl\Api\Tests\Support\TestDataHelper;
@@ -71,5 +72,38 @@ final class OrganisationServiceTest extends TestCase
         self::$organisations->createUser($seeded['orgId'], [
             'displayName' => 'Short Pw', 'username' => TestDataHelper::unique('shortpw'), 'password' => 'short', 'emailAddress' => TestDataHelper::unique('c') . '@example.com',
         ]);
+    }
+
+    public function testGetOrganisationHasCustomDefaultPasswordFalseByDefault(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+
+        $org = self::$organisations->getOrganisation($seeded['orgId']);
+
+        self::assertFalse($org['hasCustomDefaultPassword']);
+    }
+
+    public function testSetDefaultNewUserPasswordUpdatesHashAndFlag(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+
+        $ok = self::$organisations->setDefaultNewUserPassword($seeded['orgId'], 'OrgChosenPassword1!');
+        self::assertTrue($ok);
+
+        $org = self::$organisations->getOrganisation($seeded['orgId']);
+        self::assertTrue($org['hasCustomDefaultPassword']);
+
+        $stmt = self::$db->prepare('SELECT "DefaultNewUserPasswordHash" FROM "Organisations" WHERE "Id" = :id');
+        $stmt->execute(['id' => $seeded['orgId']]);
+        $hash = $stmt->fetchColumn();
+        self::assertTrue(PasswordHasher::verify('OrgChosenPassword1!', $hash));
+    }
+
+    public function testSetDefaultNewUserPasswordWithShortPasswordThrowsValidationException(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+
+        $this->expectException(ApiValidationException::class);
+        self::$organisations->setDefaultNewUserPassword($seeded['orgId'], 'short');
     }
 }

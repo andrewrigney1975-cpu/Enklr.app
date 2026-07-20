@@ -51,4 +51,11 @@ public class OrganisationsController : ControllerBase
     {
         return Ok(await _organisations.GetOrgTeamsAsync(User.OrgId()));
     }
+
+    [HttpPut("default-password")]
+    public async Task<IActionResult> SetDefaultNewUserPassword(SetDefaultNewUserPasswordRequest request)
+    {
+        var ok = await _organisations.SetDefaultNewUserPasswordAsync(User.OrgId(), request.Password);
+        return ok ? NoContent() : NotFound();
+    }
 }

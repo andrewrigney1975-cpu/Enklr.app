@@ -168,6 +168,12 @@ final class MigrationService
         // creator, applied here so a migrated project isn't immediately locked out of column/
         // settings/workflow/member management either.
         $isFirstProjectMember = true;
+        // Resolved once per batch, not per user — every implicitly-created User in this import gets
+        // the same org-configured default (or global fallback) password hash. Harmless when
+        // organisationCreated is true (a brand-new org has no configured default yet, so this is
+        // just the global fallback), and correctly picks up an existing org's configured default
+        // when migrating more members into an org that already exists.
+        $defaultPasswordHash = $this->resolveDefaultNewUserPasswordHash($organisationId);
 
         $findInOrgStmt = $this->db->prepare('SELECT "Id", "EmailAddress" FROM "Users" WHERE "NormalizedUsername" = :n AND "OrganisationId" = :org');
         $findAnywhereStmt = $this->db->prepare('SELECT 1 FROM "Users" WHERE "NormalizedUsername" = :n');
@@ -230,7 +236,7 @@ final class MigrationService
                     $insertUserStmt->execute([
                         'id' => $userId, 'orgId' => $organisationId, 'username' => $usernameToUse, 'normalized' => $usernameToUse,
                         'email' => $email, 'normalizedEmail' => $normalizedEmail,
-                        'hash' => PasswordHasher::hash('enklUserPassword'), 'displayName' => $m['name'], 'isAdmin' => (int) $isFirstAdminOfNewOrg,
+                        'hash' => $defaultPasswordHash, 'displayName' => $m['name'], 'isAdmin' => (int) $isFirstAdminOfNewOrg,
                     ]);
                     $usersCreated++;
                     if ($isFirstAdminOfNewOrg) {
@@ -762,5 +768,18 @@ final class MigrationService
     {
         $parsed = $this->parseDateTime($value);
         return $parsed === null ? null : date('Y-m-d', strtotime($parsed));
+    }
+
+    /** Duplicated (not shared via a DI container — this tier has none, see php-api/CLAUDE.md) with
+     * MemberService's identical private method. Resolves what a newly implicitly-created User's
+     * PasswordHash should be: the org's own configured default if an OrgAdmin has set one via
+     * OrganisationService::setDefaultNewUserPassword, otherwise the system-wide fallback. Returns the
+     * HASH directly (never re-hashes an already-hashed value). */
+    private function resolveDefaultNewUserPasswordHash(string $organisationId): string
+    {
+        $stmt = $this->db->prepare('SELECT "DefaultNewUserPasswordHash" FROM "Organisations" WHERE "Id" = :id');
+        $stmt->execute(['id' => $organisationId]);
+        $hash = $stmt->fetchColumn();
+        return $hash !== false && $hash !== null ? $hash : PasswordHasher::hash(PasswordHasher::GLOBAL_DEFAULT_NEW_USER_PASSWORD);
     }
 }

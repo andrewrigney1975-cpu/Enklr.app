@@ -41,9 +41,18 @@ export async function migrateProjectToServer(project, organisationName){
     }
     saveDB();
 
+    // A brand-new org has no admin-configured default password yet (nothing to configure it with
+    // before this call created the org), so the global default is guaranteed to be what was
+    // actually used — safe to state outright. Migrating into an org that already existed may have
+    // used that org's own configured default instead (never exposed back to the client — see
+    // OrganisationService.ResolveDefaultNewUserPasswordHashAsync's own comment on why), so the
+    // message stays generic there rather than naming a password that might be wrong.
+    var passwordNote = result.organisationCreated
+      ? 'Default password: EnklrTask9999!.'
+      : 'New accounts use this organisation\'s configured default password.';
     var message =
       'Migrated to server: ' + result.usersCreated + ' user account(s) created, ' +
-      result.usersMatched + ' matched to existing accounts. Default password: enklUserPassword.';
+      result.usersMatched + ' matched to existing accounts. ' + passwordNote;
     if(result.warnings && result.warnings.length){
       message += ' ' + result.warnings.join(' ');
       console.warn('Migration warnings:', result.warnings);

@@ -42,7 +42,7 @@ import { closeUnlockPrivateTaskModal, confirmUnlockFromModal, continueWithoutKey
 import { openColumnModal, closeColumnModal, saveColumnFromModal, deleteColumnFromModal } from './modals/column.js';
 import { openProjectModal, closeProjectModal, saveProjectFromModal } from './modals/project.js';
 import { openTeamModal, closeTeamModal, addMemberFromModal, wireAddMemberCombobox } from './modals/team.js';
-import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal } from './modals/organisation.js';
+import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal, saveOrgDefaultPasswordFromModal } from './modals/organisation.js';
 import { openSsoConfigModal, closeSsoConfigModal, saveSsoConfigFromModal, generateScimTokenFromModal, generateApiKeyFromModal, revokeApiKeyFromModal } from './modals/sso.js';
 import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromModal, openTemplatesModal, closeTemplatesModal } from './modals/templates.js';
 import { openTodoOverlay, closeTodoOverlay, isTodoOverlayOpen, addTodoListFromModal } from './modals/todo.js';
@@ -1358,6 +1358,10 @@ function wireEvents(){
   document.getElementById('createOrgUserBtn').addEventListener('click', createOrgUserFromModal);
   document.getElementById('newOrgUserPasswordInput').addEventListener('keydown', function(e){
     if(e.key === 'Enter'){ e.preventDefault(); createOrgUserFromModal(); }
+  });
+  document.getElementById('saveOrgDefaultPasswordBtn').addEventListener('click', saveOrgDefaultPasswordFromModal);
+  document.getElementById('orgDefaultPasswordInput').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); saveOrgDefaultPasswordFromModal(); }
   });
 
   document.getElementById('refreshBtn').addEventListener('click', function(){ window.location.reload(); });

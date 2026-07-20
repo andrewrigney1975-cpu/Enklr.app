@@ -131,6 +131,7 @@ function registerRoutes(App $app): void
         $group->put('/users/{userId}/email', [OrganisationsController::class, 'setUserEmail']);
         $group->post('/users', [OrganisationsController::class, 'createUser']);
         $group->get('/org-teams', [OrganisationsController::class, 'getOrgTeams']);
+        $group->put('/default-password', [OrganisationsController::class, 'setDefaultNewUserPassword']);
         $group->get('/sso-config', [OrganisationSsoConfigController::class, 'get']);
         $group->put('/sso-config', [OrganisationSsoConfigController::class, 'update']);
         $group->post('/sso-config/scim-token', [OrganisationSsoConfigController::class, 'generateScimToken']);

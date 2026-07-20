@@ -1,7 +1,7 @@
 "use strict";
 import { toast } from '../ui.js';
 import { escapeHTML, renderBoard, renderAssigneeFilterChips } from '../views/board.js';
-import { getMyOrganisationApi, createOrgUserApi, setOrgUserAdminApi, setOrgUserEmailApi, isOrgAdmin, memberApi } from '../api.js';
+import { getMyOrganisationApi, createOrgUserApi, setOrgUserAdminApi, setOrgUserEmailApi, setOrgDefaultPasswordApi, isOrgAdmin, memberApi } from '../api.js';
 import { getCurrentProject } from '../store.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
 
@@ -21,6 +21,7 @@ export function openOrgUsersModal(){
   document.getElementById('newOrgUserDisplayNameInput').value = '';
   document.getElementById('newOrgUserEmailInput').value = '';
   document.getElementById('newOrgUserPasswordInput').value = '';
+  document.getElementById('orgDefaultPasswordInput').value = '';
   renderOrgUsersList();
   document.getElementById('orgUsersOverlay').classList.remove('hidden');
   document.getElementById('newOrgUserUsernameInput').focus();
@@ -36,7 +37,12 @@ var SIMPLE_EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export function renderOrgUsersList(){
   var listEl = document.getElementById('orgUsersList');
   listEl.innerHTML = '<div class="kf-member-empty">Loading…</div>';
+  var statusEl = document.getElementById('orgDefaultPasswordStatus');
+  statusEl.textContent = 'Loading…';
   getMyOrganisationApi().then(function(org){
+    statusEl.textContent = org.hasCustomDefaultPassword
+      ? 'A custom default password is currently set for this organisation.'
+      : 'Using the system default password — no custom one has been set for this organisation.';
     if(!org.users || org.users.length === 0){
       listEl.innerHTML = '<div class="kf-member-empty">No users yet.</div>';
       return;
@@ -85,7 +91,22 @@ export function renderOrgUsersList(){
     });
   }, function(e){
     listEl.innerHTML = '<div class="kf-member-empty">Could not load users.</div>';
+    statusEl.textContent = '';
     toast('Could not load organisation users: ' + (e.message || 'unknown error'));
+  });
+}
+
+export function saveOrgDefaultPasswordFromModal(){
+  var passwordInput = document.getElementById('orgDefaultPasswordInput');
+  var password = passwordInput.value;
+  if(!password || password.length < 8){ toast('Password must be at least 8 characters.'); return; }
+
+  setOrgDefaultPasswordApi(password).then(function(){
+    passwordInput.value = '';
+    toast('Default password updated. It applies to accounts created from now on.');
+    renderOrgUsersList();
+  }, function(e){
+    toast('Could not update default password: ' + (e.message || 'unknown error'));
   });
 }
 

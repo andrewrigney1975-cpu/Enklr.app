@@ -33,7 +33,44 @@ public class OrganisationService
         var online = _broadcaster.GetOnlineUserIds();
         return new OrganisationDetailDto(
             org.Id, org.Name,
+            org.DefaultNewUserPasswordHash is not null,
             org.Users.Select(u => new OrgUserDto(u.Id, u.Username, u.EmailAddress, u.DisplayName, u.IsOrgAdmin, u.IsActive, u.CreatedAt, online.Contains(u.Id))).ToList());
+    }
+
+    /// <summary>
+    /// Lets an OrgAdmin configure the password newly (implicitly) created users in their org get,
+    /// instead of the hardcoded PasswordHasher.GlobalDefaultNewUserPassword every org used to share.
+    /// Only the bcrypt HASH is ever persisted (see Organisation.DefaultNewUserPasswordHash's own
+    /// comment) — there is deliberately no corresponding "get the current default password" endpoint;
+    /// an admin who forgets what they set can only overwrite it with a new one, never read it back.
+    /// </summary>
+    public async Task<bool> SetDefaultNewUserPasswordAsync(Guid organisationId, string password)
+    {
+        if (string.IsNullOrEmpty(password) || password.Length < 8)
+        {
+            throw new ApiValidationException("Password must be at least 8 characters.");
+        }
+
+        var org = await _db.Organisations.FirstOrDefaultAsync(o => o.Id == organisationId);
+        if (org is null) return false;
+
+        org.DefaultNewUserPasswordHash = PasswordHasher.Hash(password);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>The single place every implicit-account-creation path (MemberService.CreateAsync,
+    /// MigrationEntityBuilder) resolves what a new User's PasswordHash should be — the org's own
+    /// configured default if an OrgAdmin has set one, otherwise the system-wide fallback. Returns the
+    /// HASH directly (never re-hashes an already-hashed value), same as CreateUserAsync's own
+    /// PasswordHasher.Hash(request.Password) call one level up.</summary>
+    public async Task<string> ResolveDefaultNewUserPasswordHashAsync(Guid organisationId)
+    {
+        var existingHash = await _db.Organisations
+            .Where(o => o.Id == organisationId)
+            .Select(o => o.DefaultNewUserPasswordHash)
+            .FirstOrDefaultAsync();
+        return existingHash ?? PasswordHasher.Hash(PasswordHasher.GlobalDefaultNewUserPassword);
     }
 
     /// <summary>Returns false if the target user doesn't exist or belongs to a different Organisation
@@ -55,9 +92,10 @@ public class OrganisationService
     /// <summary>
     /// Explicit account creation by an OrgAdmin, distinct from the implicit account-per-name creation
     /// MemberService/MigrationService do when adding a project member — here the admin sets a real
-    /// username and an initial password directly (not the hardcoded "enklUserPassword" those other
-    /// paths use), and the new user is required to change it on first login, same as everywhere else
-    /// a password gets set on someone's behalf. Usernames are unique across the whole system, not
+    /// username and an initial password directly (not the org's configured default/global fallback
+    /// those other paths use — see ResolveDefaultNewUserPasswordHashAsync), and the new user is
+    /// required to change it on first login, same as everywhere else a password gets set on someone's
+    /// behalf. Usernames are unique across the whole system, not
     /// just this Organisation — matches how login (AuthController) resolves a username with no org
     /// scoping at all. Email is required here (unlike the implicit-creation paths, which can fall
     /// back to leaving it blank and flagging it for later) since an OrgAdmin explicitly filling out
