@@ -303,7 +303,7 @@ export async function renderDashboard(root){
 
   root.innerHTML =
     '<div class="kf-view">' +
-      '<div class="kf-view-header"><h1 class="kf-view-title">Dashboard</h1></div>' +
+      '<div class="kf-view-header"><h1 class="kf-view-title">Enklr Vendor Portal</h1></div>' +
       '<div class="kf-stat-grid">' + tiles.map(statTileHTML).join('') + '</div>' +
       '<div class="kf-stat-grid">' + projectTiles.map(statTileHTML).join('') + '</div>' +
       '<div class="kf-panel kf-chart-panel">' +
