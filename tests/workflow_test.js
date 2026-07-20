@@ -337,6 +337,21 @@ function installFakeFileReader(window){
   let colOptionIds = Array.from(doc.querySelectorAll('#taskColumnSelect option')).map(o => o.value);
   log('while unassigned, Done is excluded from the Column dropdown (condition currently fails)', colOptionIds.indexOf(doneCol.id) === -1, colOptionIds.join(','));
 
+  // Seed data no longer includes any members (see storage.js's createSeedDB() comment) — add one so
+  // there's a real assignee option to pick here.
+  doc.getElementById('taskCancelBtn').click();
+  await wait(10);
+  doc.getElementById('manageTeamBtn').click();
+  await wait(50);
+  doc.getElementById('newMemberNameInput').value = 'Test Member';
+  doc.getElementById('addMemberBtn').click();
+  await wait(50);
+  doc.getElementById('teamDoneBtn').click();
+  await wait(50);
+  t1Card = doc.querySelector('.kf-card[data-task-id="' + t1.id + '"]');
+  t1Card.click();
+  await wait(10);
+
   const assigneeOptions = Array.from(doc.querySelectorAll('#taskAssigneeSelect option'));
   const firstRealAssignee = assigneeOptions.find(o => o.value);
   doc.getElementById('taskAssigneeSelect').value = firstRealAssignee.value;

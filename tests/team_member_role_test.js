@@ -29,23 +29,23 @@ function installFakeFileReader(window){
   // originally written against, via the same add-member + role-input UI this test itself exercises
   // below for Jordan Park/Casey Wu.
   doc.getElementById('manageTeamBtn').click();
-  await wait(20);
+  await wait(50);
   doc.getElementById('newMemberNameInput').value = 'John Brown';
   doc.getElementById('addMemberBtn').click();
-  await wait(10);
+  await wait(50);
   let johnSetupRow = Array.from(doc.querySelectorAll('.kf-member-row')).find(r => r.querySelector('.kf-member-name-input').value === 'John Brown');
   johnSetupRow.querySelector('.kf-member-role-input').value = 'Project Manager';
   johnSetupRow.querySelector('.kf-member-role-input').dispatchEvent(new window.Event('change', { bubbles: true }));
-  await wait(10);
+  await wait(50);
   doc.getElementById('newMemberNameInput').value = 'Jan Smith';
   doc.getElementById('addMemberBtn').click();
-  await wait(10);
+  await wait(50);
   let janSetupRow = Array.from(doc.querySelectorAll('.kf-member-row')).find(r => r.querySelector('.kf-member-name-input').value === 'Jan Smith');
   janSetupRow.querySelector('.kf-member-role-input').value = 'Developer';
   janSetupRow.querySelector('.kf-member-role-input').dispatchEvent(new window.Event('change', { bubbles: true }));
-  await wait(10);
+  await wait(50);
   doc.getElementById('teamDoneBtn').click();
-  await wait(10);
+  await wait(50);
 
   let raw = JSON.parse(window.localStorage.getItem('kanbanflow_v1_db'));
   let proj = raw.projects[raw.currentProjectId];

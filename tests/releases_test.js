@@ -24,6 +24,20 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   const doc = window.document;
   function log(label, ok, extra){ console.log((ok?'PASS':'FAIL') + ' - ' + label + (extra?' :: '+extra:'')); }
 
+  // Seed data no longer includes any members (see storage.js's createSeedDB() comment) — add two so
+  // the owner-select assertion below (which just needs "at least 2 real members exist", not specific
+  // names) still has something to find.
+  doc.getElementById('manageTeamBtn').click();
+  await wait(20);
+  doc.getElementById('newMemberNameInput').value = 'Test Member One';
+  doc.getElementById('addMemberBtn').click();
+  await wait(20);
+  doc.getElementById('newMemberNameInput').value = 'Test Member Two';
+  doc.getElementById('addMemberBtn').click();
+  await wait(20);
+  doc.getElementById('teamDoneBtn').click();
+  await wait(20);
+
   // ── 1. Toolbar: Releases is part of the "Tools" group, now in row 1 ──────
   Object.defineProperty(window, 'innerWidth', { value: 1400, configurable: true });
   window.dispatchEvent(new window.Event('resize'));

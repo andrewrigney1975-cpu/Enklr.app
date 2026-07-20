@@ -10,6 +10,25 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   const doc = window.document;
   function log(label, ok, extra){ console.log((ok?'PASS':'FAIL') + ' - ' + label + (extra?' :: '+extra:'')); }
 
+  // Seed data no longer includes any members or assignments (see storage.js's createSeedDB()
+  // comment) — recreate "Configure project modules..." assigned to a real member, which is what
+  // this test's avatar assertions below actually need.
+  doc.getElementById('manageTeamBtn').click();
+  await wait(50);
+  doc.getElementById('newMemberNameInput').value = 'Test Member';
+  doc.getElementById('addMemberBtn').click();
+  await wait(50);
+  doc.getElementById('teamDoneBtn').click();
+  await wait(50);
+  const setupCard = Array.from(doc.querySelectorAll('.kf-card')).find(c => c.textContent.indexOf('Configure project modules, columns and details') !== -1);
+  setupCard.click();
+  await wait(50);
+  const setupSelect = doc.getElementById('taskAssigneeSelect');
+  const setupOpt = Array.from(setupSelect.options).find(o => o.textContent === 'Test Member');
+  setupSelect.value = setupOpt.value;
+  doc.getElementById('taskSaveBtn').click();
+  await wait(50);
+
   doc.getElementById('timelineBtn').click();
   await wait(20);
 

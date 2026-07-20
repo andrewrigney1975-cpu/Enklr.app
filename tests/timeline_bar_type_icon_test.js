@@ -42,6 +42,24 @@ function setTaskType(doc, taskTitle, typeName){
   setTaskType(doc, 'Draft project objectives', 'Chore');
   await wait(20);
 
+  // Seed data no longer includes any members or assignments (see storage.js's createSeedDB()
+  // comment) — the "avatar AND type icon together" assertion below needs a real assignee too.
+  doc.getElementById('manageTeamBtn').click();
+  await wait(50);
+  doc.getElementById('newMemberNameInput').value = 'Test Member';
+  doc.getElementById('addMemberBtn').click();
+  await wait(50);
+  doc.getElementById('teamDoneBtn').click();
+  await wait(50);
+  const setupCard = Array.from(doc.querySelectorAll('.kf-card')).find(c => c.textContent.indexOf('Configure project modules, columns and details') !== -1);
+  setupCard.click();
+  await wait(50);
+  const setupSelect = doc.getElementById('taskAssigneeSelect');
+  const setupOpt = Array.from(setupSelect.options).find(o => o.textContent === 'Test Member');
+  setupSelect.value = setupOpt.value;
+  doc.getElementById('taskSaveBtn').click();
+  await wait(50);
+
   doc.getElementById('timelineBtn').click();
   await wait(20);
 

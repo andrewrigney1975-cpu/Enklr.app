@@ -19,6 +19,19 @@ const OrigBlob = window.Blob;
 window.Blob = function(parts, opts){ lastBlobText = parts[0]; return new OrigBlob(parts, opts); };
 
 function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
+// Polls until `fn()` returns a truthy value, instead of guessing a fixed delay — under heavier
+// system load a fixed wait(N) can be too short, non-deterministically, even at values that are
+// normally generous; this waits exactly as long as actually needed (up to timeoutMs) and returns
+// the truthy value itself.
+async function waitFor(fn, timeoutMs){
+  var deadline = Date.now() + (timeoutMs || 2000);
+  while(Date.now() < deadline){
+    var result = fn();
+    if(result) return result;
+    await wait(10);
+  }
+  return fn();
+}
 
 (async () => {
   await wait(300);
@@ -30,23 +43,22 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   // 'Look at Project and App Settings' left unassigned" shape this test was originally written
   // against, via the same UI actions team_test.js already exercises.
   doc.getElementById('manageTeamBtn').click();
-  await wait(20);
+  await wait(50);
   doc.getElementById('newMemberNameInput').value = 'John Brown';
   doc.getElementById('addMemberBtn').click();
-  await wait(20);
+  await wait(50);
   doc.getElementById('newMemberNameInput').value = 'Jan Smith';
   doc.getElementById('addMemberBtn').click();
-  await wait(20);
+  await wait(50);
   doc.getElementById('teamDoneBtn').click();
-  await wait(20);
-  const setupCard = Array.from(doc.querySelectorAll('.kf-card')).find(c => c.textContent.indexOf('Configure project modules, columns and details') !== -1);
+  await wait(50);
+  const setupCard = await waitFor(() => Array.from(doc.querySelectorAll('.kf-card')).find(c => c.textContent.indexOf('Configure project modules, columns and details') !== -1));
   setupCard.click();
-  await wait(20);
   const setupSelect = doc.getElementById('taskAssigneeSelect');
-  const setupOpt = Array.from(setupSelect.options).find(o => o.textContent === 'John Brown');
+  const setupOpt = await waitFor(() => Array.from(setupSelect.options).find(o => o.textContent === 'John Brown'));
   setupSelect.value = setupOpt.value;
   doc.getElementById('taskSaveBtn').click();
-  await wait(20);
+  await wait(50);
 
   // --- 1. Export the seeded Sample Project and inspect the raw doc shape ---
   doc.getElementById('exportBtn').click();

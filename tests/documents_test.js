@@ -10,6 +10,17 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   const doc = window.document;
   function log(label, ok, extra){ console.log((ok?'PASS':'FAIL') + ' - ' + label + (extra?' :: '+extra:'')); }
 
+  // Seed data no longer includes any members (see storage.js's createSeedDB() comment) — add one so
+  // the owner-select assertion below (which just needs "at least one real member exists", not a
+  // specific name) still has something to find.
+  doc.getElementById('manageTeamBtn').click();
+  await wait(20);
+  doc.getElementById('newMemberNameInput').value = 'Test Member';
+  doc.getElementById('addMemberBtn').click();
+  await wait(20);
+  doc.getElementById('teamDoneBtn').click();
+  await wait(20);
+
   log('Documents button exists in the header', !!doc.getElementById('documentsBtn'));
   doc.getElementById('documentsBtn').click();
   await wait(20);
