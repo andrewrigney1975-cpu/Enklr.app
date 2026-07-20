@@ -195,7 +195,14 @@ jobs:
       - name: Start MariaDB API tier (background)
         working-directory: mariadb-api
         env:
-          DB_HOST: localhost
+          # NOT "localhost" — MySQL/MariaDB client libraries (mysqlnd/PDO_MYSQL) special-case the
+          # literal string "localhost" to mean "connect via the local Unix socket," silently
+          # ignoring the port entirely, unlike Postgres's libpq. The db-mariadb service here is a
+          # separate container only reachable via TCP through the mapped port, so "localhost" can
+          # never work — 127.0.0.1 forces a real TCP connection. Confirmed live: this exact DSN
+          # (mysql:host=localhost;port=3306;...) failed with "SQLSTATE[HY000] [2002] No such file or
+          # directory" — a Unix-socket-not-found error, not a networking/port problem.
+          DB_HOST: 127.0.0.1
           DB_PORT: 3306
           DB_NAME: enkl
           DB_USER: root
