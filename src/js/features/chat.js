@@ -224,7 +224,12 @@ export function handleChatMessageEvent(payload){
   };
   appendOrReplaceMessage(payload.channelId, message);
 
-  if(payload.changeType === 'created') playReceiveSound();
+  // Muted channels: no sound, no toast — but the unread badge below is deliberately NOT gated on
+  // this, so a muted channel still shows the caller it has unread activity, just silently.
+  var mutedChannel = findChannel(payload.channelId);
+  var isMuted = !!(mutedChannel && mutedChannel.isMuted);
+
+  if(payload.changeType === 'created' && !isMuted) playReceiveSound();
 
   var isActiveAndOpen = chatState.isOpen && chatState.activeChannelId === payload.channelId;
   if(!isActiveAndOpen && payload.changeType === 'created'){
@@ -232,13 +237,13 @@ export function handleChatMessageEvent(payload){
   }
 
   var iAmMentioned = payload.changeType !== 'deleted' && (payload.mentionedUserIds || []).indexOf(getCurrentUserId()) !== -1;
-  if(iAmMentioned){
+  if(!isMuted && iAmMentioned){
     var channel = findChannel(payload.channelId);
     toastWithAction((payload.authorName || 'Someone') + ' mentioned you' + (channel && channel.name ? ' in "' + channel.name + '"' : '') + '.', 'Open', function(){
       openChatPanel();
       openChannel(payload.channelId);
     });
-  } else if(payload.changeType === 'created' && !isActiveAndOpen){
+  } else if(!isMuted && payload.changeType === 'created' && !isActiveAndOpen){
     var ch = findChannel(payload.channelId);
     toastWithAction((payload.authorName || 'Someone') + ' sent a new message' + (ch && ch.name ? ' in "' + ch.name + '"' : '') + '.', 'Open', function(){
       openChatPanel();
@@ -247,6 +252,22 @@ export function handleChatMessageEvent(payload){
   }
 
   notify();
+}
+
+/* Optimistic toggle, revert on failure — same shape as toggleReaction above. Only ever called for a
+   channel the caller is a real member of (views/chat.js gates the control's visibility on that), so
+   the server-side 404 path (non-member) should never actually trigger from this UI. */
+export function toggleChannelMute(channelId){
+  var channel = findChannel(channelId);
+  if(!channel) return Promise.resolve();
+  var previous = channel.isMuted;
+  channel.isMuted = !previous;
+  notify();
+  return chatApi.setChannelMuted(channelId, channel.isMuted).catch(function(){
+    channel.isMuted = previous;
+    toast('Could not update mute setting.');
+    notify();
+  });
 }
 
 /* Called from features/live-updates.js's dispatchEvent on a "chat-reaction" SSE frame — the tab that

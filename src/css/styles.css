@@ -1489,9 +1489,16 @@
     flex-shrink: 0;
   }
 
-  .kf-chat-thread-toolbar #chatExportBtn {
+  .kf-chat-thread-toolbar #chatExportBtn,
+  .kf-chat-thread-toolbar #chatMuteBtn {
     font-size: 12px;
     padding: 5px 8px;
+  }
+
+  .kf-chat-muted-indicator {
+    display: inline-flex;
+    color: var(--kf-text-faint);
+    flex-shrink: 0;
   }
 
   .kf-chat-reveal-deleted-toggle {

@@ -10,9 +10,12 @@ public record ChatOrgUserDto(Guid Id, string DisplayName, bool IsOnline);
 
 public record ChatChannelMemberDto(Guid UserId, string DisplayName, bool IsOnline, bool IsActive);
 
+/// <summary>IsMuted reflects the CALLING user's own membership row only (false for an org-admin's
+/// admin-only view of a channel they don't belong to — there's no membership row to mute there, see
+/// ChatService.ToChannelDto).</summary>
 public record ChatChannelDto(
     Guid Id, string? Name, bool IsDirectMessage, DateTime DateCreated,
-    List<ChatChannelMemberDto> Members);
+    List<ChatChannelMemberDto> Members, bool IsMuted);
 
 /// <summary>Channels bucket into two lists rather than one flat list with an IsMember flag — Channels
 /// is what the caller actually belongs to (the normal chat panel view); AdminVisibleChannels is only
@@ -46,3 +49,12 @@ public record ChatReactionSummaryDto(string Emoji, int Count, bool ReactedByMe, 
 public record ToggleChatReactionRequest(string Emoji);
 
 public record ChatTruncateResultDto(int DeletedCount, DateTime CutoffDate);
+
+public record SetChatChannelMuteRequest(bool IsMuted);
+
+/// <summary>One "Find"/Project Search match — either a channel-name hit (Text mirrors the channel
+/// name, MessageId null) or a message-content hit (Text is that message's own text, MessageId set).
+/// Grouped by the frontend into result rows the same shape as every other search-result type.</summary>
+public record ChatSearchResultDto(Guid ChannelId, string ChannelName, bool IsDirectMessage, Guid? MessageId, string Text, DateTime DateCreated);
+
+public record ChatSearchResponseDto(List<ChatSearchResultDto> Results);

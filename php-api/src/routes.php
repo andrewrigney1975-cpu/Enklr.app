@@ -149,6 +149,8 @@ function registerRoutes(App $app): void
         $group->post('/channels', [ChatController::class, 'createChannel']);
         $group->post('/channels/{channelId}/members', [ChatController::class, 'addMember']);
         $group->delete('/channels/{channelId}/members/{userId}', [ChatController::class, 'removeMember']);
+        $group->put('/channels/{channelId}/mute', [ChatController::class, 'setMuted']);
+        $group->get('/search', [ChatController::class, 'search']);
         $group->get('/channels/{channelId}/messages', [ChatController::class, 'getMessages']);
         $group->post('/channels/{channelId}/messages', [ChatController::class, 'postMessage']);
         $group->put('/channels/{channelId}/messages/{messageId}', [ChatController::class, 'updateMessage']);

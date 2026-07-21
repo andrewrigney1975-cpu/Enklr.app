@@ -4,7 +4,7 @@ import { escapeHTML, canCurrentUserManageProject, applyHeaderButtonVisibility } 
 import { hydrateIcons } from '../icons.js';
 import { TEAM_COMMITTEE_TYPES } from '../config.js';
 import { toast } from '../ui.js';
-import { PROJECT_SEARCH_MIN_CHARS, buildProjectSearchGroups, buildSearchSnippetHTML } from '../features/project-search.js';
+import { PROJECT_SEARCH_MIN_CHARS, PROJECT_SEARCH_GROUP_CAP, buildProjectSearchGroups, buildSearchSnippetHTML } from '../features/project-search.js';
 import { executeQuery, QueryError } from '../features/query-engine.js';
 import { buildSchemaErdSvg } from '../features/schema-erd.js';
 import { csvEscapeValue } from '../views/task-list.js';
@@ -17,7 +17,9 @@ import { openRisksOverlay, showRisksFormView } from './risks.js';
 import { openDecisionsOverlay, showDecisionsFormView } from './decisions.js';
 import { openTeamsCommitteesOverlay, showTeamCommitteeFormView } from './teams-committees.js';
 import { confirmDialog } from './confirm.js';
-import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+import { isServerAuthoritative, refreshProjectFromServer, isServerLoggedIn } from '../features/migration.js';
+import { chatApi } from '../api.js';
+import { openChatPanel, openChannel } from '../features/chat.js';
 import { addSavedQuery, updateSavedQuery, deleteSavedQuery } from '../mutations.js';
 import { savedQueryApi, testSavedQueryApi } from '../api.js';
 import { computeIntellisense, getCaretPixelPosition } from '../features/sql-intellisense.js';
@@ -30,8 +32,16 @@ var queryResultViewMode = 'table';
 var PROJECT_SEARCH_GROUP_ICONS = {
   tasks: 'board', members: 'team', principles: 'compass', objectives: 'target',
   documents: 'ty_document', risks: 'warning', decisions: 'ty_approve',
-  teamsCommittees: 'orgChart'
+  teamsCommittees: 'orgChart', chats: 'chat'
 };
+
+/* Chat isn't part of the client's in-memory `project` object (it's org-wide, not project-scoped —
+   see features/chat.js's own doc comment) and message bodies are only ever fetched lazily per-
+   channel, so unlike every other group above there's no local data to search — this one genuinely
+   needs a server round trip (ChatService.SearchAsync, scoped server-side to the caller's own channel
+   access). Fired alongside the synchronous local search below, never blocking it; a plain
+   incrementing token guards against a slow, now-stale response clobbering a newer, faster one. */
+var chatSearchRequestToken = 0;
 
 export function openProjectSearchOverlay(){
   var project = getCurrentProject();
@@ -66,6 +76,10 @@ export function getProjectSearchDebounceId(){ return projectSearchDebounceId; }
 export function setProjectSearchDebounceId(id){ projectSearchDebounceId = id; }
 
 function renderProjectSearchResults(rawTerm){
+  // Bumped unconditionally, even on the too-short-term/no-project early returns below, so a chat
+  // search response from a previous, now-abandoned term can never land after this call.
+  var requestToken = ++chatSearchRequestToken;
+
   var project = getCurrentProject();
   var resultsEl = document.getElementById('projectSearchResults');
   if(!project){ resultsEl.innerHTML = ''; return; }
@@ -74,6 +88,15 @@ function renderProjectSearchResults(rawTerm){
   if(term.length < PROJECT_SEARCH_MIN_CHARS){
     resultsEl.innerHTML = '<div class="kf-search-empty">Type at least ' + PROJECT_SEARCH_MIN_CHARS + ' characters to search.</div>';
     return;
+  }
+
+  // Chat requires a real org/login (same gate the Chat feature itself uses) — fired alongside the
+  // synchronous local search below, layered on top once it resolves, never blocking the fast path.
+  if(isServerAuthoritative(project) && isServerLoggedIn()){
+    chatApi.search(term).then(function(response){
+      if(requestToken !== chatSearchRequestToken) return; // a newer search has since started
+      appendChatSearchGroup(resultsEl, (response && response.results) || [], term);
+    }).catch(function(){ /* best-effort — chat search is a nicety layered on top of local search */ });
   }
 
   var groups = buildProjectSearchGroups(project, term).filter(function(g){ return g.results.length > 0; });
@@ -120,6 +143,36 @@ function renderProjectSearchResults(rawTerm){
   hydrateIcons(resultsEl);
 }
 
+/* Appended after the synchronous local groups have already rendered (or, if this arrives while the
+   "no results" empty-state is showing, replaces it) — never blocks/replaces the fast local search
+   above. One row per channel-name match and one row per message-content match; both navigate to the
+   channel (there's no per-message deep link in Chat today). */
+function appendChatSearchGroup(resultsEl, chatResults, term){
+  if(!chatResults || chatResults.length === 0) return;
+
+  var emptyEl = resultsEl.querySelector('.kf-search-empty');
+  if(emptyEl) resultsEl.innerHTML = '';
+
+  var shown = chatResults.slice(0, PROJECT_SEARCH_GROUP_CAP);
+  var rowsHTML = shown.map(function(r){
+    var title = r.channelName || (r.isDirectMessage ? 'Direct message' : 'Channel');
+    var fieldLabel = r.messageId ? 'Message' : 'Channel';
+    return '<div class="kf-search-result-row" data-result-type="chats" data-result-id="' + r.channelId + '">' +
+      '<div class="kf-search-result-top">' +
+        '<a class="kf-search-result-link" data-result-type="chats" data-result-id="' + r.channelId + '">' + escapeHTML(title) + '</a>' +
+      '</div>' +
+      '<div class="kf-search-result-snippet"><span class="kf-search-result-field-label">' + fieldLabel + ':</span> ' + buildSearchSnippetHTML(r.text, term) + '</div>' +
+    '</div>';
+  }).join('');
+  var moreNote = chatResults.length > shown.length ? '<div class="kf-search-more-note">+' + (chatResults.length - shown.length) + ' more in Chats</div>' : '';
+  var groupHTML = '<div class="kf-search-group">' +
+    '<h3 class="kf-search-group-title"><span class="kf-icon" data-icon="' + PROJECT_SEARCH_GROUP_ICONS.chats + '" data-size="13"></span>Chats (' + chatResults.length + ')</h3>' +
+    rowsHTML + moreNote +
+  '</div>';
+  resultsEl.insertAdjacentHTML('beforeend', groupHTML);
+  hydrateIcons(resultsEl);
+}
+
 export function handleProjectSearchInput(value){
   clearTimeout(projectSearchDebounceId);
   projectSearchDebounceId = setTimeout(function(){ renderProjectSearchResults(value); }, 200);
@@ -159,6 +212,9 @@ export function handleProjectSearchResultClick(e){
   } else if(type === 'teamsCommittees'){
     openTeamsCommitteesOverlay();
     showTeamCommitteeFormView(id);
+  } else if(type === 'chats'){
+    openChatPanel();
+    openChannel(id);
   }
 }
 

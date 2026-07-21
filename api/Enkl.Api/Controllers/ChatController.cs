@@ -63,6 +63,21 @@ public class ChatController : ControllerBase
         return ok ? NoContent() : NotFound();
     }
 
+    // Caller's own membership row only — 404 doubles as "not a member" and "channel doesn't exist",
+    // same no-enumeration-oracle rule every other cross-tenant-ish check in this app follows.
+    [HttpPut("channels/{channelId:guid}/mute")]
+    public async Task<IActionResult> SetMuted(Guid channelId, SetChatChannelMuteRequest request)
+    {
+        var ok = await _chat.SetChannelMutedAsync(User.OrgId(), User.UserId(), channelId, request.IsMuted);
+        return ok ? NoContent() : NotFound();
+    }
+
+    [HttpGet("search")]
+    public async Task<IActionResult> Search([FromQuery] string q, [FromQuery] int limit = 20)
+    {
+        return Ok(await _chat.SearchAsync(User.OrgId(), User.UserId(), CallerIsOrgAdmin, q, limit));
+    }
+
     [HttpGet("channels/{channelId:guid}/messages")]
     public async Task<IActionResult> GetMessages(Guid channelId, [FromQuery] DateTime? before, [FromQuery] int limit = 50)
     {

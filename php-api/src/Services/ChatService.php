@@ -57,13 +57,23 @@ final class ChatService
         $stmt->execute(['orgId' => $organisationId]);
         $channels = $stmt->fetchAll();
 
+        // Caller's own per-channel mute flags, fetched once rather than per-row — an org-admin's
+        // admin-only (non-member) channels simply have no row here, so isMuted defaults to false for
+        // them, matching the "nothing to mute" reasoning in setChannelMuted's own doc comment.
+        $mutedStmt = $this->db->prepare('SELECT "ChannelId", "IsMuted" FROM "ChatChannelMembers" WHERE "UserId" = :uid');
+        $mutedStmt->execute(['uid' => $callerUserId]);
+        $mutedByChannel = [];
+        foreach ($mutedStmt->fetchAll() as $row) {
+            $mutedByChannel[$row['ChannelId']] = (bool) $row['IsMuted'];
+        }
+
         $online = $this->onlineUserIds();
         $memberChannels = [];
         $adminOnlyChannels = [];
         foreach ($channels as $c) {
             $members = $this->channelMembers($c['Id'], $online);
             $isMember = in_array($callerUserId, array_column($members, 'userId'), true);
-            $dto = $this->toChannelDto($c, $members);
+            $dto = $this->toChannelDto($c, $members, $mutedByChannel[$c['Id']] ?? false);
             if ($isMember) {
                 $memberChannels[] = $dto;
             } elseif ($callerIsOrgAdmin) {
@@ -72,6 +82,20 @@ final class ChatService
         }
 
         return ['channels' => $memberChannels, 'adminVisibleChannels' => $adminOnlyChannels];
+    }
+
+    /** The caller must already be a real member (their own ChatChannelMember row is what gets
+     * updated) — an org-admin viewing an admin-only channel they don't belong to has nothing to mute,
+     * matching the frontend's own "no mute control offered there" gating. */
+    public function setChannelMuted(string $organisationId, string $callerUserId, string $channelId, bool $isMuted): bool
+    {
+        $stmt = $this->db->prepare(<<<SQL
+            UPDATE "ChatChannelMembers" m SET "IsMuted" = :muted
+            FROM "ChatChannels" c
+            WHERE m."ChannelId" = c."Id" AND m."ChannelId" = :cid AND m."UserId" = :uid AND c."OrganisationId" = :orgId
+        SQL);
+        $stmt->execute(['muted' => $isMuted ? 't' : 'f', 'cid' => $channelId, 'uid' => $callerUserId, 'orgId' => $organisationId]);
+        return $stmt->rowCount() > 0;
     }
 
     public function createChannel(string $organisationId, string $callerUserId, string $callerDisplayName, array $request): array
@@ -95,7 +119,7 @@ final class ChatService
                 throw new ApiValidationException('A direct message must have exactly two members.');
             }
 
-            $existing = $this->findExistingDirectMessage($organisationId, $validMemberIds);
+            $existing = $this->findExistingDirectMessage($organisationId, $validMemberIds, $callerUserId);
             if ($existing !== null) {
                 return $existing;
             }
@@ -127,10 +151,10 @@ final class ChatService
         }
 
         $online = $this->onlineUserIds();
-        return $this->toChannelDto(['Id' => $channelId, 'Name' => $name, 'IsDirectMessage' => $isDirectMessage, 'DateCreated' => $dateCreated], $this->channelMembers($channelId, $online));
+        return $this->toChannelDto(['Id' => $channelId, 'Name' => $name, 'IsDirectMessage' => $isDirectMessage, 'DateCreated' => $dateCreated], $this->channelMembers($channelId, $online), false);
     }
 
-    private function findExistingDirectMessage(string $organisationId, array $memberIds): ?array
+    private function findExistingDirectMessage(string $organisationId, array $memberIds, string $callerUserId): ?array
     {
         $stmt = $this->db->prepare(<<<SQL
             SELECT c."Id", c."Name", c."IsDirectMessage", c."DateCreated"
@@ -146,8 +170,13 @@ final class ChatService
         if ($row === false) {
             return null;
         }
+        $mutedStmt = $this->db->prepare('SELECT "IsMuted" FROM "ChatChannelMembers" WHERE "ChannelId" = :cid AND "UserId" = :uid');
+        $mutedStmt->execute(['cid' => $row['Id'], 'uid' => $callerUserId]);
+        $mutedRow = $mutedStmt->fetch();
+        $isMuted = $mutedRow !== false && (bool) $mutedRow['IsMuted'];
+
         $online = $this->onlineUserIds();
-        return $this->toChannelDto($row, $this->channelMembers($row['Id'], $online));
+        return $this->toChannelDto($row, $this->channelMembers($row['Id'], $online), $isMuted);
     }
 
     public function addMember(string $organisationId, string $callerUserId, bool $callerIsOrgAdmin, string $channelId, string $targetUserId): bool
@@ -487,11 +516,77 @@ final class ChatService
     }
 
     /** @param array<int, array{userId: string, displayName: string, isOnline: bool}> $members */
-    private function toChannelDto(array $c, array $members): array
+    private function toChannelDto(array $c, array $members, bool $isMuted): array
     {
         return [
             'id' => $c['Id'], 'name' => $c['Name'], 'isDirectMessage' => (bool) $c['IsDirectMessage'],
-            'dateCreated' => $c['DateCreated'], 'members' => $members,
+            'dateCreated' => $c['DateCreated'], 'members' => $members, 'isMuted' => $isMuted,
         ];
+    }
+
+    // ---- Search ("Find" / Project Search integration) ----
+
+    /** Scoped to exactly the channels the caller may already see (their own memberships, plus every
+     * org channel if they're an Org Admin) — never a client-supplied channel list, same standing rule
+     * as PortfolioService's cross-org isolation. Channel-name and message-content matches are merged
+     * into one flat, most-recent-first list, capped, for the frontend to group/render. */
+    public function search(string $organisationId, string $callerUserId, bool $callerIsOrgAdmin, string $term, int $limit = 20): array
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return ['results' => []];
+        }
+        $limit = max(1, min(100, $limit));
+
+        if ($callerIsOrgAdmin) {
+            $stmt = $this->db->prepare('SELECT "Id", "Name", "IsDirectMessage" FROM "ChatChannels" WHERE "OrganisationId" = :orgId');
+            $stmt->execute(['orgId' => $organisationId]);
+        } else {
+            $stmt = $this->db->prepare(
+                'SELECT c."Id", c."Name", c."IsDirectMessage" FROM "ChatChannels" c JOIN "ChatChannelMembers" m ON m."ChannelId" = c."Id" WHERE c."OrganisationId" = :orgId AND m."UserId" = :uid'
+            );
+            $stmt->execute(['orgId' => $organisationId, 'uid' => $callerUserId]);
+        }
+        $accessibleChannels = $stmt->fetchAll();
+        if (count($accessibleChannels) === 0) {
+            return ['results' => []];
+        }
+        $channelIds = array_column($accessibleChannels, 'Id');
+        $namesById = [];
+        $dmById = [];
+        foreach ($accessibleChannels as $c) {
+            $namesById[$c['Id']] = $c['Name'] ?? '';
+            $dmById[$c['Id']] = (bool) $c['IsDirectMessage'];
+        }
+
+        $results = [];
+        foreach ($accessibleChannels as $c) {
+            if ($c['Name'] !== null && mb_stripos($c['Name'], $term) !== false) {
+                $results[] = ['channelId' => $c['Id'], 'channelName' => $c['Name'], 'isDirectMessage' => (bool) $c['IsDirectMessage'], 'messageId' => null, 'text' => $c['Name'], 'dateCreated' => null];
+            }
+        }
+
+        $placeholders = implode(',', array_map(fn ($i) => ":c$i", array_keys($channelIds)));
+        $params = ['term' => '%' . $term . '%'];
+        foreach (array_values($channelIds) as $i => $id) {
+            $params["c$i"] = $id;
+        }
+        $stmt = $this->db->prepare(
+            "SELECT \"Id\", \"ChannelId\", \"Text\", \"DateCreated\" FROM \"ChatMessages\" WHERE \"ChannelId\" IN ($placeholders) AND \"IsDeleted\" = false AND \"Text\" ILIKE :term ORDER BY \"DateCreated\" DESC LIMIT :limit"
+        );
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        foreach ($stmt->fetchAll() as $m) {
+            $results[] = [
+                'channelId' => $m['ChannelId'], 'channelName' => $namesById[$m['ChannelId']] ?? '',
+                'isDirectMessage' => $dmById[$m['ChannelId']] ?? false, 'messageId' => $m['Id'],
+                'text' => $m['Text'], 'dateCreated' => $m['DateCreated'],
+            ];
+        }
+
+        return ['results' => array_slice($results, 0, $limit)];
     }
 }

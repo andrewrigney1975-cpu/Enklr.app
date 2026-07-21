@@ -14,4 +14,10 @@ public class ChatChannelMember
     public Guid UserId { get; set; }
     public User User { get; set; } = null!;
     public DateTime DateJoined { get; set; }
+
+    /// <summary>Per-(channel,user) mute — suppresses this caller's own sound/toast notifications for
+    /// the channel (badges still update, see ChatService.SetChannelMutedAsync's own doc comment).
+    /// Deliberately NOT on ChatChannel itself: muting is a personal preference, not a channel-wide
+    /// setting.</summary>
+    public bool IsMuted { get; set; }
 }

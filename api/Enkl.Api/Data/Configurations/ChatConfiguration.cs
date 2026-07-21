@@ -32,6 +32,10 @@ public class ChatChannelMemberConfiguration : IEntityTypeConfiguration<ChatChann
     {
         b.HasKey(m => m.Id);
         b.HasIndex(m => new { m.ChannelId, m.UserId }).IsUnique();
+        // EF Core does NOT read a C# property initializer as a SQL default (see api/Enkl.Api/CLAUDE.md's
+        // sibling note in root CLAUDE.md §3) — HasDefaultValue is required or the migration comes out
+        // defaulting to false anyway by luck of bool's zero-value, but without an actual DB-level default.
+        b.Property(m => m.IsMuted).HasDefaultValue(false);
 
         b.HasOne(m => m.Channel)
             .WithMany(c => c.Members)

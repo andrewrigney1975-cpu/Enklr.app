@@ -1,0 +1,1 @@
+ALTER TABLE "ChatChannelMembers" ADD COLUMN "IsMuted" TINYINT(1) NOT NULL DEFAULT 0;

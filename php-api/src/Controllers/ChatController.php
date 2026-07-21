@@ -62,6 +62,26 @@ final class ChatController extends BaseController
         return $ok ? $this->noContent($response) : $this->notFound($response);
     }
 
+    // Caller's own membership row only — 404 doubles as "not a member" and "channel doesn't exist",
+    // same no-enumeration-oracle rule every other cross-tenant-ish check in this app follows.
+    public function setMuted(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $ok = $this->service()->setChannelMuted(
+            $this->callerOrgId($request), $this->callerUserId($request), $args['channelId'], (bool) ($body['isMuted'] ?? false)
+        );
+        return $ok ? $this->noContent($response) : $this->notFound($response);
+    }
+
+    public function search(Request $request, Response $response, array $args): Response
+    {
+        $query = $request->getQueryParams();
+        $term = (string) ($query['q'] ?? '');
+        $limit = isset($query['limit']) ? (int) $query['limit'] : 20;
+        $result = $this->service()->search($this->callerOrgId($request), $this->callerUserId($request), $this->callerIsOrgAdmin($request), $term, $limit);
+        return $this->json($response, $result);
+    }
+
     public function getMessages(Request $request, Response $response, array $args): Response
     {
         $query = $request->getQueryParams();

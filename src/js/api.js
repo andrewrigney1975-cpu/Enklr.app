@@ -437,6 +437,12 @@ export var chatApi = {
   },
   truncate: function(){
     return apiFetch('/chat/truncate', {method: 'POST'});
+  },
+  setChannelMuted: function(channelId, isMuted){
+    return apiFetch('/chat/channels/' + channelId + '/mute', {method: 'PUT', body: JSON.stringify({isMuted: isMuted})});
+  },
+  search: function(term){
+    return apiFetch('/chat/search?q=' + encodeURIComponent(term), {method: 'GET'});
   }
 };
 

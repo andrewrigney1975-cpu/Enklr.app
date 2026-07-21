@@ -67,8 +67,24 @@ public class ChatService
             : new List<ChatChannel>();
 
         return new ChatChannelListDto(
-            memberChannels.Select(c => ToChannelDto(c, online)).ToList(),
-            adminOnlyChannels.Select(c => ToChannelDto(c, online)).ToList());
+            memberChannels.Select(c => ToChannelDto(c, online, callerUserId)).ToList(),
+            adminOnlyChannels.Select(c => ToChannelDto(c, online, callerUserId)).ToList());
+    }
+
+    /// <summary>The caller must already be a real member (their own ChatChannelMember row is what
+    /// gets updated) — an org-admin viewing an admin-only channel they don't belong to has nothing to
+    /// mute, so this returns false for them, matching the frontend's own "no mute control offered
+    /// there" gating.</summary>
+    public async Task<bool> SetChannelMutedAsync(Guid organisationId, Guid callerUserId, Guid channelId, bool isMuted)
+    {
+        var membership = await _db.ChatChannelMembers
+            .FirstOrDefaultAsync(m => m.ChannelId == channelId && m.UserId == callerUserId
+                && m.Channel.OrganisationId == organisationId);
+        if (membership is null) return false;
+
+        membership.IsMuted = isMuted;
+        await _db.SaveChangesAsync();
+        return true;
     }
 
     public async Task<ChatChannelDto> CreateChannelAsync(Guid organisationId, Guid callerUserId, string callerDisplayName, CreateChatChannelRequest request)
@@ -97,7 +113,7 @@ public class ChatService
                     && c.Members.Count == 2
                     && c.Members.All(m => validMemberIds.Contains(m.UserId)))
                 .FirstOrDefaultAsync();
-            if (existing is not null) return ToChannelDto(existing, _broadcaster.GetOnlineUserIds());
+            if (existing is not null) return ToChannelDto(existing, _broadcaster.GetOnlineUserIds(), callerUserId);
         }
 
         var channel = new ChatChannel
@@ -130,7 +146,7 @@ public class ChatService
         var reloaded = await _db.ChatChannels.AsNoTracking()
             .Include(c => c.Members).ThenInclude(m => m.User)
             .FirstAsync(c => c.Id == channel.Id);
-        return ToChannelDto(reloaded, _broadcaster.GetOnlineUserIds());
+        return ToChannelDto(reloaded, _broadcaster.GetOnlineUserIds(), callerUserId);
     }
 
     public async Task<bool> AddMemberAsync(Guid organisationId, Guid callerUserId, bool callerIsOrgAdmin, Guid channelId, Guid targetUserId)
@@ -370,7 +386,48 @@ public class ChatService
         new(m.Id, m.ChannelId, m.AuthorUserId, m.AuthorName, m.Text, m.DateCreated, m.IsDeleted, m.DateDeleted,
             ParseMentions(m.Text, memberDisplayNames), reactions);
 
-    private static ChatChannelDto ToChannelDto(ChatChannel c, IReadOnlyCollection<Guid> onlineUserIds) =>
+    private static ChatChannelDto ToChannelDto(ChatChannel c, IReadOnlyCollection<Guid> onlineUserIds, Guid callerUserId) =>
         new(c.Id, c.Name, c.IsDirectMessage, c.DateCreated,
-            c.Members.Select(m => new ChatChannelMemberDto(m.UserId, m.User.DisplayName, onlineUserIds.Contains(m.UserId), m.User.IsActive)).ToList());
+            c.Members.Select(m => new ChatChannelMemberDto(m.UserId, m.User.DisplayName, onlineUserIds.Contains(m.UserId), m.User.IsActive)).ToList(),
+            c.Members.FirstOrDefault(m => m.UserId == callerUserId)?.IsMuted ?? false);
+
+    // ---- Search ("Find" / Project Search integration) ----
+
+    /// <summary>Scoped to exactly the channels the caller may already see (their own memberships, plus
+    /// every org channel if they're an Org Admin) — never a client-supplied channel list, same standing
+    /// rule as PortfolioService's cross-org isolation. Channel-name and message-content matches are
+    /// merged into one flat, most-recent-first list, capped, for the frontend to group/render.</summary>
+    public async Task<ChatSearchResponseDto> SearchAsync(Guid organisationId, Guid callerUserId, bool callerIsOrgAdmin, string term, int limit = 20)
+    {
+        term = (term ?? "").Trim();
+        if (term.Length == 0) return new ChatSearchResponseDto(new List<ChatSearchResultDto>());
+        limit = Math.Clamp(limit, 1, 100);
+
+        var accessibleChannels = await _db.ChatChannels.AsNoTracking()
+            .Where(c => c.OrganisationId == organisationId
+                && (callerIsOrgAdmin || c.Members.Any(m => m.UserId == callerUserId)))
+            .Select(c => new { c.Id, c.Name, c.IsDirectMessage })
+            .ToListAsync();
+        var accessibleIds = accessibleChannels.Select(c => c.Id).ToList();
+        if (accessibleIds.Count == 0) return new ChatSearchResponseDto(new List<ChatSearchResultDto>());
+
+        var channelNameMatches = accessibleChannels
+            .Where(c => c.Name != null && c.Name.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .Select(c => new ChatSearchResultDto(c.Id, c.Name ?? "", c.IsDirectMessage, null, c.Name ?? "", DateTime.MinValue))
+            .ToList();
+
+        var messageMatches = await _db.ChatMessages.AsNoTracking()
+            .Where(m => accessibleIds.Contains(m.ChannelId) && !m.IsDeleted && EF.Functions.ILike(m.Text, "%" + term + "%"))
+            .OrderByDescending(m => m.DateCreated)
+            .Take(limit)
+            .Select(m => new { m.Id, m.ChannelId, m.Text, m.DateCreated })
+            .ToListAsync();
+        var channelNamesById = accessibleChannels.ToDictionary(c => c.Id, c => c.Name ?? "");
+        var channelIsDmById = accessibleChannels.ToDictionary(c => c.Id, c => c.IsDirectMessage);
+        var messageResults = messageMatches
+            .Select(m => new ChatSearchResultDto(m.ChannelId, channelNamesById.GetValueOrDefault(m.ChannelId, ""), channelIsDmById.GetValueOrDefault(m.ChannelId), m.Id, m.Text, m.DateCreated))
+            .ToList();
+
+        return new ChatSearchResponseDto(channelNameMatches.Concat(messageResults).Take(limit).ToList());
+    }
 }

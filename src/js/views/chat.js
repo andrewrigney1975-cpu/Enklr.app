@@ -2,7 +2,8 @@
 import {
   chatState, isChatPanelOpen, openChatPanel, closeChatPanel, totalUnreadCount,
   openChannel, loadOlderMessages, createChannel, sendMessage, editMessage, deleteMessage,
-  toggleReaction, truncateHistory, toggleRevealDeletedForAdmin, currentUserCanRevealDeleted, setChatDeps
+  toggleReaction, truncateHistory, toggleRevealDeletedForAdmin, currentUserCanRevealDeleted, setChatDeps,
+  toggleChannelMute
 } from '../features/chat.js';
 import { CHAT_EMOJI } from '../features/chat-emoji.js';
 import { getCurrentUserId, isOrgAdmin } from '../api.js';
@@ -385,6 +386,9 @@ function channelRowHtml(channel, isAdminOnly){
     '<div class="kf-chat-channel-row' + (isAdminOnly ? ' kf-chat-channel-row-admin' : '') + '" data-channel-id="' + channel.id + '">' +
       '<span class="kf-chat-presence-dot' + (anyOnline ? ' online' : '') + '"></span>' +
       '<span class="kf-chat-channel-name">' + (channel.isDirectMessage ? '' : '# ') + escapeHTML(channelDisplayName(channel)) + '</span>' +
+      // Passive indicator only (not itself clickable — the actual toggle lives in the thread
+      // toolbar) — keeps the row's own click target simple, same as the presence dot beside it.
+      (channel.isMuted ? '<span class="kf-chat-muted-indicator" title="Muted">' + iconSvg('bellOff', 13) + '</span>' : '') +
       (unread > 0 ? '<span class="kf-chat-unread-badge">' + (unread > 99 ? '99+' : unread) + '</span>' : '') +
     '</div>'
   );
@@ -591,6 +595,14 @@ function threadHtml(channelId){
 
   html += '<div class="kf-chat-thread-toolbar">' +
     '<button type="button" class="kf-btn kf-btn-ghost" id="chatExportBtn" title="Export this conversation as a text file">' + iconSvg('download', 13) + ' Export</button>';
+  // Only offered to an actual member — an org-admin viewing an admin-only channel they don't belong
+  // to has no ChatChannelMember row to mute (see ChatService.SetChannelMutedAsync's own doc comment).
+  var isRealMember = channel && channel.members.some(function(m){ return m.userId === getCurrentUserId(); });
+  if(isRealMember){
+    html += '<button type="button" class="kf-btn kf-btn-ghost" id="chatMuteBtn" title="' + (channel.isMuted ? 'Unmute this chat' : 'Mute this chat — no sounds or notifications') + '">' +
+      iconSvg(channel.isMuted ? 'bellOff' : 'bell', 13) + ' ' + (channel.isMuted ? 'Unmute' : 'Mute') +
+    '</button>';
+  }
   if(currentUserCanRevealDeleted()){
     html += '<label class="kf-chat-reveal-deleted-toggle" title="Org Admin only: show the original text of deleted messages instead of the placeholder">' +
       '<input type="checkbox" id="chatRevealDeletedCheckbox"' + (chatState.revealDeletedForAdmin ? ' checked' : '') + '>' +
@@ -700,6 +712,9 @@ function wireThread(root, channelId){
 
   var exportBtn = root.querySelector('#chatExportBtn');
   if(exportBtn) exportBtn.addEventListener('click', chatExportChannelClicked);
+
+  var muteBtn = root.querySelector('#chatMuteBtn');
+  if(muteBtn) muteBtn.addEventListener('click', function(){ toggleChannelMute(channelId); });
 
   var revealCheckbox = root.querySelector('#chatRevealDeletedCheckbox');
   if(revealCheckbox) revealCheckbox.addEventListener('change', chatToggleRevealDeleted);
