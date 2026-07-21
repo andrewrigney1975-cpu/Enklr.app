@@ -1224,6 +1224,13 @@
      CSS state toggle on the existing panel, same convention as the Tables & Columns ERD panel's own
      #projectQuerySchemaPanel.kf-erd-fullscreen: no separate overlay/modal element, no second copy of
      the thread/picker markup. z-index matches the mobile full-screen tier below. */
+  /* transition: none — the base .kf-chat-panel rule animates `right` (for the small floating panel
+     sliding clear of a docked Task modal), but that same transition would otherwise still apply here
+     too, meaning fitBoardForChatPinned()'s getBoundingClientRect() measurement (board-layout.js) can
+     land mid-animation and compute a stale width — a real bug, only visible in a real browser (jsdom
+     doesn't run CSS transitions at all), that only self-corrected once some unrelated later re-render
+     happened to fire after the transition had actually finished. Snapping instantly removes the race
+     entirely rather than trying to time around it. */
   .kf-chat-panel.kf-chat-fullscreen {
     position: fixed;
     inset: 0;
@@ -1233,6 +1240,7 @@
     border-radius: 0;
     border: none;
     z-index: 1200;
+    transition: none;
   }
 
   /* "Open in New Tab" (#chatOpenNewTabBtn) only makes sense from the small windowed panel — once
@@ -1241,10 +1249,35 @@
     display: none;
   }
 
-  /* Full screen covers the whole viewport regardless of the docked task panel — it's no longer a
-     small floating panel that needs to dodge it, so this must out-specificity the rule above. */
-  body.kf-task-panel-docked .kf-chat-panel.kf-chat-fullscreen {
+  /* Chat's own pinned-right mode — the widescreen (2560px+) equivalent of full-screen chat, sharing
+     the exact dock slot #taskOverlay's own min-width:2560px rules give the Task modal (same 700px
+     width, full height, flush right, no backdrop). Only ever applied when no Task currently occupies
+     that slot — views/chat.js's computeChatUiState() falls back to the small floating panel instead
+     the instant body.kf-task-panel-docked appears, so this never needs to fight that class for
+     placement the way the old fullscreen-vs-docked override once did. Reuses the exact same two-pane
+     markup AND left-to-right rail/main order as full-screen chat (.kf-chat-fullscreen-body/-rail/-main
+     below, unchanged) — only the outer panel's own position/size differ (docked to a 700px-wide
+     right-edge slot instead of covering the whole viewport). */
+  .kf-chat-panel.kf-chat-pinned {
+    position: fixed;
+    top: 0;
     right: 0;
+    bottom: auto;
+    width: 700px;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    border: none;
+    border-left: 1px solid var(--kf-border);
+    z-index: 1200;
+    /* See the identical note on .kf-chat-panel.kf-chat-fullscreen — the base .kf-chat-panel rule's
+       `transition: right .2s ease` must not apply here either, or board-layout.js's
+       fitBoardForChatPinned() can measure this panel mid-animation and compute a stale header width. */
+    transition: none;
+  }
+
+  .kf-chat-panel.kf-chat-pinned #chatOpenNewTabBtn {
+    display: none;
   }
 
   .kf-chat-fullscreen-body {

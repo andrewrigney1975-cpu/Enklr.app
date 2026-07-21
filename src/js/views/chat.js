@@ -15,6 +15,7 @@ import { confirmDialog } from '../modals/confirm.js';
 import { downloadBlob } from '../features/svg-export.js';
 import { getCaretPixelPosition } from '../features/sql-intellisense.js';
 import { unlockAudio } from '../features/chat-sounds.js';
+import { WIDESCREEN_TASK_DOCK_QUERY, fitBoardForChatPinned, restoreBoardAfterChatPinned } from './board-layout.js';
 
 /* Non-blocking chat panel — single-pane, navigable (channel list <-> thread <-> new-chat picker),
    mirroring a mobile chat app's own navigation shape per the original ask, rather than a Slack-style
@@ -147,6 +148,14 @@ function acceptIntellisenseOption(textarea, index){
 
 export function initChatView(){
   setChatDeps({onUpdate: renderChatPanel});
+  // Chat's pinned-right mode shares the exact same widescreen slot the docked Task modal uses (see
+  // chatUiState below) — both a window resize crossing the 2560px breakpoint and a Task claiming/
+  // freeing that dock (board-layout.js's kf-task-dock-changed event, deliberately a DOM event rather
+  // than an import so that file can stay import-free) need to re-derive chat's current size.
+  // renderChatPanel() is a no-op cost-wise whenever the panel is actually closed, so no extra guard
+  // is needed here — matches every other "just re-render" convention in this file.
+  window.addEventListener('resize', renderChatPanel);
+  window.addEventListener('kf-task-dock-changed', renderChatPanel);
 }
 
 export function toggleChatPanel(){
@@ -168,18 +177,50 @@ function updateChatBubbleBadge(){
   badge.classList.toggle('kf-vis-hidden', count === 0);
 }
 
-/* Full-screen chat: a pure CSS state toggle (see #chatPanel.kf-chat-fullscreen in styles.css),
-   same convention as the Tables & Columns ERD panel's own full-screen mode
+/* Full-screen chat: a pure CSS state toggle (see #chatPanel.kf-chat-fullscreen/.kf-chat-pinned in
+   styles.css), same convention as the Tables & Columns ERD panel's own full-screen mode
    (modals/project-search.js's erdFullscreenActive/isProjectQueryErdFullscreenOpen) — no separate
    overlay/modal element, no second copy of the thread/picker markup to keep in sync. The flag lives
    here (not in features/chat.js's chatState) since it's a pure view/display concern, matching where
    this file's other view-only state (_pendingEditMessageId, _newChatPicker) already lives. Never
    persists across a close/reopen — renderChatPanel() resets it the moment the panel is hidden, same
-   as the ERD toggle never remembering fullscreen across a fresh open. */
-var _chatFullscreen = false;
+   as the ERD toggle never remembering fullscreen across a fresh open.
+
+   _chatExpanded is the user's own sticky intent (the Full Screen button's on/off state) — it survives
+   an automatic shrink caused by a Task claiming the same widescreen dock slot. chatUiState is the
+   CURRENTLY RENDERED size, recomputed fresh on every render from _chatExpanded plus the live screen
+   width and dock-availability check in computeChatUiState() below — this is what actually decides
+   which markup/CSS class gets applied, and is exposed via getChatUiState() for anything that needs
+   to know the concrete rendered mode rather than just "is the toggle on":
+     - 'normal'     — the small floating panel (toggle off, OR toggle on but a Task currently
+                      occupies the widescreen dock this mode would otherwise claim)
+     - 'fullscreen' — true full-viewport overlay (toggle on, screen narrower than the widescreen
+                      Task-dock breakpoint — unchanged legacy behavior)
+     - 'pinned'     — right-pinned panel sharing the Task modal's own dock slot (toggle on, screen
+                      wide enough, and no Task currently docked there) */
+var _chatExpanded = false;
+var chatUiState = 'normal';
+
+export function getChatUiState(){
+  return chatUiState;
+}
+
+function isWidescreenDockQuery(){
+  return !!(window.matchMedia && window.matchMedia(WIDESCREEN_TASK_DOCK_QUERY).matches);
+}
+
+function computeChatUiState(){
+  if(!_chatExpanded) return 'normal';
+  if(!isWidescreenDockQuery()) return 'fullscreen';
+  // A Task modal has first claim on the shared dock slot — chat shrinks back to its normal size
+  // until the Task closes (or the window narrows below the breakpoint entirely), at which point the
+  // very next render (triggered by board-layout.js's kf-task-dock-changed event) recomputes this
+  // fresh and finds the dock free again, so no separate "restore" bookkeeping is needed here.
+  return document.body.classList.contains('kf-task-panel-docked') ? 'normal' : 'pinned';
+}
 
 export function isChatFullscreenOpen(){
-  return _chatFullscreen;
+  return _chatExpanded;
 }
 
 function updateFullscreenButtonState(){
@@ -187,28 +228,28 @@ function updateFullscreenButtonState(){
   if(!btn) return;
   var icon = btn.querySelector('.kf-icon');
   if(icon){
-    icon.setAttribute('data-icon', _chatFullscreen ? 'collapse' : 'expand');
+    icon.setAttribute('data-icon', _chatExpanded ? 'collapse' : 'expand');
     hydrateIcons(btn);
   }
-  btn.title = _chatFullscreen ? 'Exit Full Screen' : 'Full Screen';
+  btn.title = _chatExpanded ? 'Exit Full Screen' : 'Full Screen';
 }
 
 export function openChatFullscreen(){
-  if(_chatFullscreen) return;
-  _chatFullscreen = true;
+  if(_chatExpanded) return;
+  _chatExpanded = true;
   updateFullscreenButtonState();
   renderChatPanel();
 }
 
 export function closeChatFullscreen(){
-  if(!_chatFullscreen) return;
-  _chatFullscreen = false;
+  if(!_chatExpanded) return;
+  _chatExpanded = false;
   updateFullscreenButtonState();
   renderChatPanel();
 }
 
 export function toggleChatFullscreen(){
-  if(_chatFullscreen) closeChatFullscreen(); else openChatFullscreen();
+  if(_chatExpanded) closeChatFullscreen(); else openChatFullscreen();
 }
 
 export function renderChatPanel(){
@@ -218,11 +259,22 @@ export function renderChatPanel(){
   panel.classList.toggle('hidden', !isChatPanelOpen());
   closeReactionPopover();
   if(!isChatPanelOpen()){
-    _chatFullscreen = false;
+    _chatExpanded = false;
+    chatUiState = 'normal';
+    restoreBoardAfterChatPinned();
     return;
   }
-  panel.classList.toggle('kf-chat-fullscreen', _chatFullscreen);
+  chatUiState = computeChatUiState();
+  var isExpandedLayout = chatUiState === 'fullscreen' || chatUiState === 'pinned';
+  panel.classList.toggle('kf-chat-fullscreen', chatUiState === 'fullscreen');
+  panel.classList.toggle('kf-chat-pinned', chatUiState === 'pinned');
   updateFullscreenButtonState();
+  // Same header/main-content narrowing the widescreen-docked Task modal uses (board-layout.js) — the
+  // class toggle above already gave #chatPanel its final pinned geometry (and styles.css sets
+  // transition:none on both this and .kf-chat-fullscreen specifically so that geometry is never
+  // mid-animation), so measuring it now reflects the real final layout, not a stale pre-toggle one.
+  if(chatUiState === 'pinned') fitBoardForChatPinned();
+  else restoreBoardAfterChatPinned();
 
   var body = document.getElementById('chatPanelBody');
   var title = document.getElementById('chatPanelTitle');
@@ -230,7 +282,8 @@ export function renderChatPanel(){
 
   // Same three-way branch as before full screen existed — it still decides the contextual title
   // and whether "back" would apply, just no longer writes straight into `body`/`backBtn` itself
-  // (that happens once, below, so both the docked and full-screen layouts share this logic).
+  // (that happens once, below, so both the docked and expanded (fullscreen/pinned) layouts share
+  // this logic).
   var titleText, showBack, mainHtml, wireMain;
   if(chatState.newChatPickerOpen){
     titleText = _newChatPicker.isDirectMessage ? 'New direct message' : 'New channel';
@@ -245,15 +298,15 @@ export function renderChatPanel(){
   } else {
     titleText = 'Chat';
     showBack = false;
-    // In full screen the rail already shows the channel list permanently, so the main pane gets a
-    // simple empty state instead of a second copy of it.
-    mainHtml = _chatFullscreen ? '<div class="kf-chat-fullscreen-empty">Select a chat to get started.</div>' : channelListHtml();
-    wireMain = _chatFullscreen ? null : wireChannelList;
+    // In an expanded layout (fullscreen or pinned) the rail already shows the channel list
+    // permanently, so the main pane gets a simple empty state instead of a second copy of it.
+    mainHtml = isExpandedLayout ? '<div class="kf-chat-fullscreen-empty">Select a chat to get started.</div>' : channelListHtml();
+    wireMain = isExpandedLayout ? null : wireChannelList;
   }
 
   title.textContent = titleText;
-  // The rail replaces "back" entirely in full screen — you click a different row instead.
-  backBtn.classList.toggle('kf-vis-hidden', !showBack || _chatFullscreen);
+  // The rail replaces "back" entirely in an expanded layout — you click a different row instead.
+  backBtn.classList.toggle('kf-vis-hidden', !showBack || isExpandedLayout);
 
   // A re-render can be triggered by an incoming SSE message while the user is mid-sentence in the
   // compose box (this whole panel re-renders wholesale, no partial DOM diffing anywhere in this
@@ -265,7 +318,7 @@ export function renderChatPanel(){
   var preserved = oldInput ? {value: oldInput.value, selStart: oldInput.selectionStart, selEnd: oldInput.selectionEnd} : null;
   closeIntellisenseDropdown();
 
-  if(_chatFullscreen){
+  if(isExpandedLayout){
     body.innerHTML =
       '<div class="kf-chat-fullscreen-body">' +
         '<div class="kf-chat-fullscreen-rail">' + channelListHtml() + '</div>' +
