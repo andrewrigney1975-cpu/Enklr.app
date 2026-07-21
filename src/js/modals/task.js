@@ -231,6 +231,7 @@ function populateFullForm(project, task, descriptionValue){
   renderParentTaskSelect(project);
   renderSubtaskPicker(project);
   renderDependencyPicker();
+  auditSortDesc = false;
   renderAuditTrail(project, task);
   resetCommentComposer();
   renderComments(project, task);
@@ -276,16 +277,27 @@ function formatAuditValue(project, field, value){
    recorded on this task) is hidden whenever the setting is off, same
    as Time Tracking's fields above. Always starts collapsed; re-opening
    the modal doesn't remember the previous expand state. */
-function renderAuditTrail(project, task){
+/* Ephemeral, module-level sort state — reset to the default (oldest first) every time the task
+   modal opens, same convention as commentsSortDesc just below. */
+var auditSortDesc = false;
+
+function renderAuditTrail(project, task, resetCollapse){
   var section = document.getElementById('taskAuditSection');
   var enabled = normalizeHeaderButtonVisibility(project.headerButtonVisibility).changeAuditing;
   section.classList.toggle('kf-vis-hidden', !enabled);
-  document.getElementById('taskAuditBody').classList.add('kf-vis-hidden');
-  document.getElementById('taskAuditChevron').classList.remove('expanded');
+  if(resetCollapse !== false){
+    document.getElementById('taskAuditBody').classList.add('kf-vis-hidden');
+    document.getElementById('taskAuditChevron').classList.remove('expanded');
+  }
   if(!enabled) return;
 
-  var entries = (task && Array.isArray(task.auditLog)) ? task.auditLog : [];
+  var entries = ((task && Array.isArray(task.auditLog)) ? task.auditLog.slice() : []).sort(function(a, b){
+    var d = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    return auditSortDesc ? -d : d;
+  });
   document.getElementById('taskAuditCount').textContent = entries.length > 0 ? '(' + entries.length + ')' : '';
+  document.getElementById('taskAuditSortLabel').textContent = auditSortDesc ? 'Newest first' : 'Oldest first';
+  document.getElementById('taskAuditSortBtn').classList.toggle('kf-comments-sort-desc', auditSortDesc);
 
   var body = document.getElementById('taskAuditBody');
   if(entries.length === 0){
@@ -312,6 +324,12 @@ export function toggleAuditTrail(){
   var wasHidden = body.classList.contains('kf-vis-hidden');
   body.classList.toggle('kf-vis-hidden', !wasHidden);
   document.getElementById('taskAuditChevron').classList.toggle('expanded', wasHidden);
+}
+
+export function toggleAuditSortOrder(){
+  auditSortDesc = !auditSortDesc;
+  var project = getCurrentProject();
+  renderAuditTrail(project, project.tasks[ui.editingTaskId], false);
 }
 
 /* Comments — ephemeral, module-level UI state (sort direction, which comment is mid-edit), reset to

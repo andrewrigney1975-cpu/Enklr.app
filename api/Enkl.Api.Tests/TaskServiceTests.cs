@@ -4,6 +4,7 @@ using Enkl.Api.Dtos;
 using Enkl.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 
 namespace Enkl.Api.Tests;
 
@@ -135,5 +136,54 @@ public class TaskServiceTests
         Assert.Equal(12.5m, reloaded.EstimatedEffort);
         Assert.Equal(3.5m, reloaded.ActualEffort);
         Assert.False(reloaded.Archived);
+    }
+
+    // Regression test: ToTaskDto's AuditLog projection had no ORDER BY at all (unlike Comments, which
+    // was always explicitly OrderBy(DateCreated) a few lines below it in ProjectService.cs) — EF Core
+    // gives no ordering guarantee for an unordered collection navigation, so the audit trail could
+    // come back in whatever order the query planner happened to produce, reported by the user as
+    // "audit trail order seems random." Seeds entries with out-of-chronological-order Timestamps
+    // directly (bypassing RecordAuditEntries, which always appends in real time order and so
+    // wouldn't itself reproduce the bug) to prove the DTO projection now sorts them regardless of
+    // insertion/storage order.
+    [Fact]
+    public async Task GetProjectDetailAsync_ReturnsAuditLogEntriesOrderedOldestFirst()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var projects = scope.ServiceProvider.GetRequiredService<ProjectService>();
+
+        var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
+
+        var column = new Column { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "To Do", Done = false, Order = 0 };
+        db.Columns.Add(column);
+        var task = new TaskItem
+        {
+            Id = Guid.NewGuid(), ProjectId = project.Id, Key = $"{project.Key}-1", Title = "Audit order test",
+            ColumnId = column.Id, DateCreated = DateTime.UtcNow, DateLastModified = DateTime.UtcNow
+        };
+        db.Tasks.Add(task);
+        await db.SaveChangesAsync();
+
+        var baseTime = DateTime.UtcNow;
+        // Inserted deliberately out of chronological order (newest row first) so a query with no
+        // ORDER BY has every opportunity to return them in this same, wrong order.
+        db.TaskAuditLogEntries.AddRange(
+            new TaskAuditLogEntry { Id = Guid.NewGuid(), TaskId = task.Id, Timestamp = baseTime.AddMinutes(20), Field = "priority", OldValue = "medium", NewValue = "high" },
+            new TaskAuditLogEntry { Id = Guid.NewGuid(), TaskId = task.Id, Timestamp = baseTime, Field = "title", OldValue = "old", NewValue = "new" },
+            new TaskAuditLogEntry { Id = Guid.NewGuid(), TaskId = task.Id, Timestamp = baseTime.AddMinutes(10), Field = "progress", OldValue = "0", NewValue = "50" });
+        await db.SaveChangesAsync();
+
+        var detail = await projects.GetProjectDetailAsync(project.Id);
+        Assert.NotNull(detail);
+        var returnedTask = detail!.Tasks.Single(t => t.Id == task.Id);
+
+        Assert.Equal(3, returnedTask.AuditLog.Count);
+        Assert.Equal("title", returnedTask.AuditLog[0].Field);
+        Assert.Equal("progress", returnedTask.AuditLog[1].Field);
+        Assert.Equal("priority", returnedTask.AuditLog[2].Field);
+        Assert.True(returnedTask.AuditLog[0].Timestamp < returnedTask.AuditLog[1].Timestamp);
+        Assert.True(returnedTask.AuditLog[1].Timestamp < returnedTask.AuditLog[2].Timestamp);
     }
 }

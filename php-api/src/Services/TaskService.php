@@ -276,7 +276,7 @@ final class TaskService
         $tasks = $stmt->fetchAll();
 
         $depStmt = $db->prepare('SELECT "DependsOnTaskId" FROM "TaskDependencies" WHERE "TaskId" = :id');
-        $auditStmt = $db->prepare('SELECT * FROM "TaskAuditLogEntries" WHERE "TaskId" = :id ORDER BY "Timestamp" DESC');
+        $auditStmt = $db->prepare('SELECT * FROM "TaskAuditLogEntries" WHERE "TaskId" = :id ORDER BY "Timestamp" ASC');
         $commentStmt = $db->prepare('SELECT * FROM "TaskComments" WHERE "TaskId" = :id ORDER BY "DateCreated" ASC');
 
         return array_map(function (array $t) use ($depStmt, $auditStmt, $commentStmt): array {
@@ -302,7 +302,7 @@ final class TaskService
         $depStmt = $this->db->prepare('SELECT "DependsOnTaskId" FROM "TaskDependencies" WHERE "TaskId" = :id');
         $depStmt->execute(['id' => $taskId]);
 
-        $auditStmt = $this->db->prepare('SELECT * FROM "TaskAuditLogEntries" WHERE "TaskId" = :id ORDER BY "Timestamp" DESC');
+        $auditStmt = $this->db->prepare('SELECT * FROM "TaskAuditLogEntries" WHERE "TaskId" = :id ORDER BY "Timestamp" ASC');
         $auditStmt->execute(['id' => $taskId]);
 
         $commentStmt = $this->db->prepare('SELECT * FROM "TaskComments" WHERE "TaskId" = :id ORDER BY "DateCreated" ASC');

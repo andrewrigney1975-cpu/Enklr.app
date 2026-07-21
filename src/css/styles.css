@@ -5546,6 +5546,13 @@
     padding-top: 10px;
   }
 
+  .kf-audit-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   .kf-audit-toggle {
     display: flex;
     align-items: center;
@@ -5557,7 +5564,8 @@
     font-size: 13px;
     font-weight: 600;
     color: var(--kf-text);
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     text-align: left;
   }
 

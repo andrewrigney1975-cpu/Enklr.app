@@ -419,13 +419,19 @@
         <label for="taskPrivateCheckbox" style="text-transform:none;font-weight:500;">Private <span style="color:var(--kf-text-faint);">(hides all details behind a key you set — cannot be recovered if forgotten)</span></label>
       </div>
       <div id="taskAuditSection" class="kf-vis-hidden kf-audit-section">
-        <button type="button" class="kf-audit-toggle" id="taskAuditToggleBtn">
-          <span class="kf-tasklist-chevron" id="taskAuditChevron">
-            <span class="kf-icon" data-icon="chevronDown" data-size="14"></span>
-          </span>
-          <span>Audit Trail</span>
-          <span class="kf-audit-count" id="taskAuditCount"></span>
-        </button>
+        <div class="kf-audit-header">
+          <button type="button" class="kf-audit-toggle" id="taskAuditToggleBtn">
+            <span class="kf-tasklist-chevron" id="taskAuditChevron">
+              <span class="kf-icon" data-icon="chevronDown" data-size="14"></span>
+            </span>
+            <span>Audit Trail</span>
+            <span class="kf-audit-count" id="taskAuditCount"></span>
+          </button>
+          <button type="button" class="kf-comments-sort-btn" id="taskAuditSortBtn" title="Toggle sort order">
+            <span class="kf-icon" data-icon="chevronDown" data-size="12" id="taskAuditSortIcon"></span>
+            <span id="taskAuditSortLabel">Oldest first</span>
+          </button>
+        </div>
         <div class="kf-audit-body kf-vis-hidden" id="taskAuditBody"></div>
       </div>
       </div>

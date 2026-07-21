@@ -36,7 +36,7 @@ import { closeAllExportAsPanels, toggleExportAsPanel, exportSvgElementAsSvgFile,
 
 /* ---- Modals ---- */
 import { confirmDialog, closeConfirmDialog, getPendingConfirmAction, getPendingCancelAction } from './modals/confirm.js';
-import { openTaskModal, closeTaskModal, saveTaskFromModal, deleteTaskFromModal, updatePriorityIcon, updateDocUrlOpenButtonVisibility, openDocUrlInNewTab, renderDependencyPicker, toggleAuditTrail, onParentTaskSelectChange, renderSubtaskPicker, toggleCommentsSortOrder, submitTaskComment, cancelEditTaskComment } from './modals/task.js';
+import { openTaskModal, closeTaskModal, saveTaskFromModal, deleteTaskFromModal, updatePriorityIcon, updateDocUrlOpenButtonVisibility, openDocUrlInNewTab, renderDependencyPicker, toggleAuditTrail, toggleAuditSortOrder, onParentTaskSelectChange, renderSubtaskPicker, toggleCommentsSortOrder, submitTaskComment, cancelEditTaskComment } from './modals/task.js';
 import { closeSetPrivateKeyModal, confirmSetPrivateKeyFromModal } from './modals/private-key-set.js';
 import { closeUnlockPrivateTaskModal, confirmUnlockFromModal, continueWithoutKeyFromModal } from './modals/private-key-unlock.js';
 import { openColumnModal, closeColumnModal, saveColumnFromModal, deleteColumnFromModal } from './modals/column.js';
@@ -1529,6 +1529,7 @@ function wireEvents(){
   document.getElementById('taskDocUrlInput').addEventListener('input', updateDocUrlOpenButtonVisibility);
   document.getElementById('taskDocUrlOpenBtn').addEventListener('click', openDocUrlInNewTab);
   document.getElementById('taskAuditToggleBtn').addEventListener('click', toggleAuditTrail);
+  document.getElementById('taskAuditSortBtn').addEventListener('click', toggleAuditSortOrder);
   document.getElementById('taskCommentsSortBtn').addEventListener('click', toggleCommentsSortOrder);
   document.getElementById('taskCommentSubmitBtn').addEventListener('click', submitTaskComment);
   document.getElementById('taskCommentCancelEditBtn').addEventListener('click', cancelEditTaskComment);
