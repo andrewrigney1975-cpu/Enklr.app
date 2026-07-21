@@ -1,5 +1,6 @@
 using Enkl.Api.Data;
 using Enkl.Api.Domain.Entities;
+using Enkl.Api.Dtos;
 using Enkl.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -89,5 +90,50 @@ public class TaskServiceTests
 
         Assert.NotNull(result);
         Assert.Equal(200, result!.PageSize);
+    }
+
+    // Regression test: CreateTaskRequest originally only carried the identity/relation fields
+    // (title/priority/columnId/assigneeId/releaseId/typeId/parentTaskId/dependsOnTaskIds) — dates,
+    // effort, value/cost, documentationUrl, progress, and archived were silently dropped by model
+    // binding on create (present in UpdateTaskRequest, absent here), even though the frontend always
+    // sent them. A brand-new task with any of those fields set lost them the instant
+    // refreshProjectFromServer() re-fetched the just-created task missing everything Create never
+    // persisted. Fixed by adding the missing fields (with safe defaults) to CreateTaskRequest and
+    // actually assigning them in CreateAsync.
+    [Fact]
+    public async Task CreateAsync_PersistsDatesEffortValueCostProgressAndDocumentationUrl()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var tasks = scope.ServiceProvider.GetRequiredService<TaskService>();
+
+        var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
+
+        var column = new Column { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "To Do", Done = false, Order = 0 };
+        db.Columns.Add(column);
+        await db.SaveChangesAsync();
+
+        var request = new CreateTaskRequest(
+            Title: "Test task with all fields", Description: null, Priority: "high", ColumnId: column.Id,
+            AssigneeId: null, ReleaseId: null, TypeId: null, ParentTaskId: null, DependsOnTaskIds: null,
+            DocumentationUrl: "https://example.com/spec", StartDate: new DateOnly(2026, 8, 1), EndDate: new DateOnly(2026, 8, 15),
+            BusinessValue: 750, TaskCost: 300, Progress: 25, EstimatedEffort: 12.5m, ActualEffort: 3.5m, Archived: false);
+
+        var created = await tasks.CreateAsync(project.Id, request);
+        Assert.NotNull(created);
+
+        // Re-fetch fresh from the DB, not the in-memory return value, to prove the values actually
+        // persisted rather than just being echoed back from the request.
+        var reloaded = await db.Tasks.AsNoTracking().FirstAsync(t => t.Id == created!.Id);
+        Assert.Equal("https://example.com/spec", reloaded.DocumentationUrl);
+        Assert.Equal(new DateOnly(2026, 8, 1), reloaded.StartDate);
+        Assert.Equal(new DateOnly(2026, 8, 15), reloaded.EndDate);
+        Assert.Equal(750, reloaded.BusinessValue);
+        Assert.Equal(300, reloaded.TaskCost);
+        Assert.Equal(25, reloaded.Progress);
+        Assert.Equal(12.5m, reloaded.EstimatedEffort);
+        Assert.Equal(3.5m, reloaded.ActualEffort);
+        Assert.False(reloaded.Archived);
     }
 }

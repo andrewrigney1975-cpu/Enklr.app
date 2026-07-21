@@ -83,12 +83,20 @@ public class TaskService
             ReleaseId = request.ReleaseId,
             TypeId = request.TypeId,
             ParentTaskId = request.ParentTaskId,
+            DocumentationUrl = request.DocumentationUrl,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            BusinessValue = request.BusinessValue,
+            TaskCost = request.TaskCost,
+            EstimatedEffort = request.EstimatedEffort,
+            ActualEffort = request.ActualEffort,
+            Archived = request.Archived,
             DateCreated = now,
             DateLastModified = now,
             // A task created directly into a Done column counts as transitioning to Done immediately,
             // same rule as mutations.js's addTask (mutations.js:1056).
             DateDone = column.Done ? now : null,
-            Progress = 0
+            Progress = request.Progress
         };
         project.TaskCounter++;
 

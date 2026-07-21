@@ -98,7 +98,10 @@ public record UpdateColumnRequest(string Name, bool Done, string? Color, int Ord
 
 public record CreateTaskRequest(
     string Title, string? Description, string Priority, Guid ColumnId, Guid? AssigneeId,
-    Guid? ReleaseId, Guid? TypeId, Guid? ParentTaskId, List<Guid>? DependsOnTaskIds);
+    Guid? ReleaseId, Guid? TypeId, Guid? ParentTaskId, List<Guid>? DependsOnTaskIds,
+    string? DocumentationUrl = null, DateOnly? StartDate = null, DateOnly? EndDate = null,
+    int? BusinessValue = null, int? TaskCost = null, int Progress = 0,
+    decimal? EstimatedEffort = null, decimal? ActualEffort = null, bool Archived = false);
 public record UpdateTaskRequest(
     string Title, string? Description, string Priority, Guid ColumnId, Guid? AssigneeId,
     Guid? ReleaseId, Guid? TypeId, Guid? ParentTaskId, List<Guid>? DependsOnTaskIds,

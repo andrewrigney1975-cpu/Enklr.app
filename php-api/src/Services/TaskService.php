@@ -73,10 +73,14 @@ final class TaskService
         $stmt = $this->db->prepare(<<<SQL
             INSERT INTO "Tasks" (
                 "Id", "ProjectId", "Key", "Title", "Description", "Priority", "ColumnId", "AssigneeId",
-                "ReleaseId", "TypeId", "ParentTaskId", "DateCreated", "DateLastModified", "DateDone", "Progress", "Archived"
+                "ReleaseId", "TypeId", "ParentTaskId", "DocumentationUrl", "StartDate", "EndDate",
+                "BusinessValue", "TaskCost", "EstimatedEffort", "ActualEffort", "Archived",
+                "DateCreated", "DateLastModified", "DateDone", "Progress"
             ) VALUES (
                 :id, :pid, :key, :title, :description, :priority, :columnId, :assigneeId,
-                :releaseId, :typeId, :parentTaskId, now(), now(), :dateDone, 0, false
+                :releaseId, :typeId, :parentTaskId, :documentationUrl, :startDate, :endDate,
+                :businessValue, :taskCost, :estimatedEffort, :actualEffort, :archived,
+                now(), now(), :dateDone, :progress
             )
         SQL);
         $stmt->execute([
@@ -85,6 +89,14 @@ final class TaskService
             'priority' => $request['priority'] ?? 'medium', 'columnId' => $request['columnId'],
             'assigneeId' => $request['assigneeId'] ?? null, 'releaseId' => $request['releaseId'] ?? null,
             'typeId' => $request['typeId'] ?? null, 'parentTaskId' => $parentTaskId,
+            'documentationUrl' => $request['documentationUrl'] ?? null,
+            'startDate' => $request['startDate'] ?? null, 'endDate' => $request['endDate'] ?? null,
+            'businessValue' => $request['businessValue'] ?? null, 'taskCost' => $request['taskCost'] ?? null,
+            'estimatedEffort' => $request['estimatedEffort'] ?? null, 'actualEffort' => $request['actualEffort'] ?? null,
+            // (int), not the raw PHP bool — PDO's array-form execute() would bind false as '' otherwise,
+            // which Postgres's boolean parser rejects.
+            'archived' => (int) (bool) ($request['archived'] ?? false),
+            'progress' => (int) ($request['progress'] ?? 0),
             'dateDone' => $done ? gmdate('Y-m-d\TH:i:s\Z') : null,
         ]);
 
