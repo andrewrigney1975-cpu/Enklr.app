@@ -692,12 +692,18 @@ export function renderCard(project, task){
   topRowHTML += '<span class="kf-card-type-slot">' +
       ((taskType && taskType.iconName) ? '<span class="kf-card-type-icon" title="' + escapeHTML(taskType.name) + '">' + iconSvg(taskType.iconName, 13) + '</span>' : '') +
     '</span></span>' +
-    // Icon-only, no text label — sits between the left group and the avatar slot, only for the
-    // "at risk" prediction level (not "over", which already reads as more severe via its own
-    // red border) — see getTaskOverrunStatus's own doc comment for what separates the two levels.
-    (overrun && overrun.level !== 'over' ? '<span class="kf-card-atrisk-icon" title="At risk of running over">' + iconSvg('warning', 13) + '</span>' : '') +
-    '<span class="kf-card-avatar-slot">' +
-    (assignee ? '<span class="kf-avatar kf-avatar-sm" style="background:' + assignee.color + ';" title="Assigned to ' + escapeHTML(memberLabel(assignee)) + '">' + escapeHTML(memberInitials(assignee.name)) + '</span>' : '') +
+    // Grouped with the avatar slot (not a separate top-level flex child) so kf-card-row-top's
+    // space-between only ever splits the row into two halves — left group vs. this right group —
+    // and the gap between the icon and the avatar itself is controlled by kf-card-row-right's own
+    // gap, not by however much space-between happens to leave between three separate children.
+    '<span class="kf-card-row-right">' +
+      // Icon-only, no text label — only for the "at risk" prediction level (not "over", which
+      // already reads as more severe via its own red border) — see getTaskOverrunStatus's own doc
+      // comment for what separates the two levels.
+      (overrun && overrun.level !== 'over' ? '<span class="kf-card-atrisk-icon" title="At risk of running over">' + iconSvg('warning', 13) + '</span>' : '') +
+      '<span class="kf-card-avatar-slot">' +
+      (assignee ? '<span class="kf-avatar kf-avatar-sm" style="background:' + assignee.color + ';" title="Assigned to ' + escapeHTML(memberLabel(assignee)) + '">' + escapeHTML(memberInitials(assignee.name)) + '</span>' : '') +
+      '</span>' +
     '</span>';
 
   // Row 2 (title) is rendered separately below — a natural 1-or-2-line block, only as tall

@@ -2032,6 +2032,18 @@
     flex-shrink: 0;
   }
 
+  /* Groups the at-risk icon (when present) with the avatar slot as ONE flex child of
+     kf-card-row-top, so that row's space-between always splits into exactly two halves — the left
+     group vs. this one — rather than distributing space across three separate children and leaving
+     the icon stranded in the middle of the row. gap here is what actually controls how close the
+     icon sits to the avatar: 13px, the same width as the icon itself ("1 icon's width apart"). */
+  .kf-card-row-right {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    flex-shrink: 0;
+  }
+
   .kf-card-title {
     font-size: 14px;
     line-height: 1.35;
