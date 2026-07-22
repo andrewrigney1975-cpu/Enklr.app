@@ -57,7 +57,12 @@ export function isLocalProjectKeyAvailable(key, excludeProjectId){
    every task's own key stale, which renameProject alone would do (it only ever touches project.key).
    Deliberately a separate function from renameProject, mirroring modals/project.js's cloud-project
    split between updateProjectOnServer (name/dates/description, key left untouched) and
-   changeProjectKeyApi (the cascading key change alone) — same shape, just entirely client-side. */
+   changeProjectKeyApi (the cascading key change alone) — same shape, just entirely client-side.
+   Rebuilds each task's key from its own TRAILING NUMBER rather than assuming every task's key
+   literally starts with "{oldKey}-" — a project duplicated locally (or migrated from a server project
+   with this same drift, see ChangeKeyAsync's own doc comment for the live-found "DEMO2" example) can
+   have tasks whose stored prefix doesn't match the project's current key at all; extracting the
+   trailing digits is robust regardless of what the existing prefix looks like. */
 export function changeLocalProjectKey(projectId, newKey){
   var p = state.db.projects[projectId];
   if(!p) return;
@@ -67,9 +72,8 @@ export function changeLocalProjectKey(projectId, newKey){
   p.key = normalized;
   Object.keys(p.tasks).forEach(function(taskId){
     var t = p.tasks[taskId];
-    if(t.key && t.key.indexOf(oldKey + '-') === 0){
-      t.key = normalized + t.key.slice(oldKey.length);
-    }
+    var m = t.key && t.key.match(/(\d+)$/);
+    if(m) t.key = normalized + '-' + m[1];
   });
   p.dateLastModified = new Date().toISOString();
   saveDB();

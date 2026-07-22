@@ -298,11 +298,19 @@ final class ProjectService
      * (fine for an incidental name-driven key derivation), an explicit key CHANGE the caller is about
      * to irreversibly confirm must fail loudly on collision instead — re-checked here even though the
      * frontend already called checkKeyAvailability, closing the race window between that check and
-     * this commit. Every task's Key ("{oldKey}-{counter}") is rebuilt by a length-prefix replace via
-     * SUBSTRING so it stays correct even if a key itself contains a hyphen (deriveProjectKey doesn't
-     * strip them) — active and archived tasks are the same table (Tasks.Archived is a plain bool), so
-     * one statement covers both. MariaDB port: CONCAT(), not Postgres's `||` operator (not
-     * concatenation on this tier without PIPES_AS_CONCAT sql_mode — see mariadb-api/CLAUDE.md). */
+     * this commit. Every task's Key is rebuilt from its own TRAILING NUMBER, not by chopping off
+     * exactly strlen($oldKey) characters — a project that was ever duplicated/copied without re-keying
+     * its tasks (a real, separately-known data-quality gap, found live in QA: e.g. a "DEMO2" project
+     * whose tasks were still keyed "DEMO-1".."DEMO-5" from the template it was copied from) can have
+     * tasks whose actual stored prefix doesn't match the project's current key at all, or not even at
+     * the same length — a fixed-length substring then silently produces a hyphen-less key whenever the
+     * two lengths happen to coincide (observed live: strlen("DEMO2") === strlen("DEMO-"), so the old
+     * chop consumed the hyphen along with "DEMO" and left a bare trailing digit). Extracting the
+     * trailing digits via regex is robust regardless of what the existing prefix looks like, and
+     * always yields the canonical "{newKey}-{n}" format going forward — active and archived tasks are
+     * the same table (Tasks.Archived is a plain bool), so the same loop covers both. This also
+     * sidesteps the earlier CONCAT()-vs-`||` MariaDB divergence entirely, since the rebuild now
+     * happens in PHP, not SQL. */
     public function changeKey(string $organisationId, string $projectId, string $newKey): ?array
     {
         $stmt = $this->db->prepare('SELECT "Key", "Name" FROM "Projects" WHERE "Id" = :id AND "OrganisationId" = :orgId');
@@ -327,13 +335,21 @@ final class ProjectService
             return ['id' => $projectId, 'name' => $project['Name'], 'key' => $oldKey];
         }
 
+        $taskStmt = $this->db->prepare('SELECT "Id", "Key" FROM "Tasks" WHERE "ProjectId" = :projectId');
+        $taskStmt->execute(['projectId' => $projectId]);
+        $tasks = $taskStmt->fetchAll();
+
         $this->db->beginTransaction();
         try {
             $this->db->prepare('UPDATE "Projects" SET "Key" = :key, "DateLastModified" = now() WHERE "Id" = :id')
                 ->execute(['key' => $normalized, 'id' => $projectId]);
-            $this->db->prepare(
-                'UPDATE "Tasks" SET "Key" = CONCAT(:newKey, SUBSTRING("Key", :oldKeyLen + 1)) WHERE "ProjectId" = :projectId'
-            )->execute(['newKey' => $normalized, 'oldKeyLen' => strlen($oldKey), 'projectId' => $projectId]);
+
+            $updateTaskStmt = $this->db->prepare('UPDATE "Tasks" SET "Key" = :key WHERE "Id" = :id');
+            foreach ($tasks as $t) {
+                if (preg_match('/(\d+)$/', $t['Key'], $m)) {
+                    $updateTaskStmt->execute(['key' => $normalized . '-' . $m[1], 'id' => $t['Id']]);
+                }
+            }
             $this->db->commit();
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {

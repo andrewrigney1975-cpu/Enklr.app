@@ -40,7 +40,7 @@ import { openTaskModal, closeTaskModal, saveTaskFromModal, deleteTaskFromModal, 
 import { closeSetPrivateKeyModal, confirmSetPrivateKeyFromModal } from './modals/private-key-set.js';
 import { closeUnlockPrivateTaskModal, confirmUnlockFromModal, continueWithoutKeyFromModal } from './modals/private-key-unlock.js';
 import { openColumnModal, closeColumnModal, saveColumnFromModal, deleteColumnFromModal } from './modals/column.js';
-import { openProjectModal, closeProjectModal, saveProjectFromModal } from './modals/project.js';
+import { openProjectModal, closeProjectModal, saveProjectFromModal, handleProjectKeyInput } from './modals/project.js';
 import { openTeamModal, closeTeamModal, addMemberFromModal, wireAddMemberCombobox } from './modals/team.js';
 import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal, saveOrgDefaultPasswordFromModal } from './modals/organisation.js';
 import { openSsoConfigModal, closeSsoConfigModal, saveSsoConfigFromModal, generateScimTokenFromModal, generateApiKeyFromModal, revokeApiKeyFromModal } from './modals/sso.js';
@@ -1575,6 +1575,7 @@ function wireEvents(){
   document.getElementById('projectModalClose').addEventListener('click', closeProjectModal);
   document.getElementById('projectCancelBtn').addEventListener('click', closeProjectModal);
   document.getElementById('projectSaveBtn').addEventListener('click', saveProjectFromModal);
+  document.getElementById('projectKeyInput').addEventListener('input', handleProjectKeyInput);
   document.getElementById('projectOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'projectOverlay') closeProjectModal();
   });

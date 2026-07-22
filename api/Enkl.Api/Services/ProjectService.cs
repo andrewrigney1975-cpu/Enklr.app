@@ -239,10 +239,18 @@ public class ProjectService
     /// behavior (fine for an incidental name-driven key derivation), an explicit key CHANGE the caller
     /// is about to irreversibly confirm must fail loudly on collision instead — re-checked here even
     /// though the frontend already called CheckKeyAvailabilityAsync, closing the race window between
-    /// that check and this commit. Every task's Key ("{oldKey}-{counter}") is rebuilt by a length-
-    /// prefix replace so it stays correct even if a key itself contains a hyphen (DeriveKey doesn't
-    /// strip them) — active and archived tasks are the same table (TaskItem.Archived is a plain bool),
-    /// so one statement covers both.</summary>
+    /// that check and this commit. Every task's Key is rebuilt from its own TRAILING NUMBER, not by
+    /// chopping off exactly project.Key.Length characters — a project that was ever duplicated/copied
+    /// without re-keying its tasks (a real, separately-known data-quality gap, found live in QA: e.g.
+    /// a "DEMO2" project whose tasks were still keyed "DEMO-1".."DEMO-5" from the template it was
+    /// copied from) can have tasks whose actual stored prefix doesn't match the project's current key
+    /// at all, or not even at the same length — a fixed-length substring then silently produces a
+    /// hyphen-less key whenever the two lengths happen to coincide (observed live: "DEMO2".Length == 5
+    /// == "DEMO-".Length, so the old chop consumed the hyphen along with "DEMO" and left a bare
+    /// trailing digit). Extracting the trailing digits via regex is robust regardless of what the
+    /// existing prefix looks like, and always yields the canonical "{newKey}-{n}" format going forward
+    /// — active and archived tasks are the same table (TaskItem.Archived is a plain bool), so the same
+    /// loop covers both.</summary>
     public async Task<ProjectSummaryDto?> ChangeKeyAsync(Guid organisationId, Guid projectId, string newKey)
     {
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId && p.OrganisationId == organisationId);
@@ -262,8 +270,14 @@ public class ProjectService
             project.Key = normalized;
             project.DateLastModified = DateTime.UtcNow;
             await _db.SaveChangesAsync();
-            await _db.Tasks.Where(t => t.ProjectId == projectId)
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.Key, t => normalized + t.Key.Substring(oldKey.Length)));
+
+            var tasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
+            foreach (var t in tasks)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(t.Key, @"\d+$");
+                if (match.Success) t.Key = normalized + "-" + match.Value;
+            }
+            await _db.SaveChangesAsync();
             await tx.CommitAsync();
         }
         catch

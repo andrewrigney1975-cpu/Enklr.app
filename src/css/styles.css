@@ -5563,6 +5563,32 @@
     margin-top: 4px;
   }
 
+  /* Real-time project-key uniqueness feedback (modals/project.js's refreshProjectKeyLiveStatus) —
+     empty/no icon when there's nothing to report (unchanged key, locked field, key not touched yet);
+     .kf-project-key-status-ok/-taken only ever set together with actual icon+text content, so there's
+     no separate "hidden" state to toggle here (see CLAUDE.md's no-generic-.hidden-class gotcha — this
+     sidesteps it entirely rather than needing its own compound rule). */
+  .kf-project-key-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    margin-top: 4px;
+    min-height: 16px;
+  }
+
+  .kf-project-key-status-checking {
+    color: var(--kf-text-faint);
+  }
+
+  .kf-project-key-status-ok {
+    color: #36b37e;
+  }
+
+  .kf-project-key-status-taken {
+    color: var(--kf-overdue-fg);
+  }
+
   .kf-priority-select-wrap {
     display: flex;
     align-items: center;

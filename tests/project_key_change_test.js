@@ -89,7 +89,7 @@ function task(id, columnId, opts){
   {
     const project = makeProject();
     const dom = loadFixture(project, false, []);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
 
     doc.getElementById('editProjectBtn').click();
@@ -108,7 +108,7 @@ function task(id, columnId, opts){
   {
     const project = makeProject();
     const dom = loadFixture(project, true, []);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('editProjectBtn').click();
     await wait(30);
@@ -128,7 +128,7 @@ function task(id, columnId, opts){
       { match: /\/key-availability\?key=TAKEN/, respond: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ available: false, normalizedKey: 'TAKEN' }) }) },
       { match: /\/projects\/p1\/key$/, respond: () => { changeKeyCalled = true; return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'p1', name: project.name, key: 'TAKEN' }) }); } }
     ]);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('editProjectBtn').click();
     await wait(30);
@@ -158,7 +158,7 @@ function task(id, columnId, opts){
         } },
       { match: /\/projects\/p1\/key$/, respond: (u, opts) => { changeKeyCalled = true; changeKeyBody = JSON.parse(opts.body); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'p1', name: project.name, key: 'NEWK' }) }); } }
     ]);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('editProjectBtn').click();
     await wait(30);
@@ -197,7 +197,7 @@ function task(id, columnId, opts){
           return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
         } }
     ]);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('newProjectBtn').click();
     await wait(30);
@@ -231,7 +231,7 @@ function task(id, columnId, opts){
           }) });
         } }
     ]);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('newProjectBtn').click();
     await wait(30);
@@ -250,7 +250,7 @@ function task(id, columnId, opts){
   {
     const existing = makeProject({ id: 'p1', key: 'LOC1', serverProjectId: null });
     const dom = loadFixture(existing, null, []);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('newProjectBtn').click();
     await wait(30);
@@ -270,7 +270,7 @@ function task(id, columnId, opts){
   {
     const existing = makeProject({ id: 'p1', key: 'LOC1', serverProjectId: null });
     const dom = loadFixture(existing, null, []);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('newProjectBtn').click();
     await wait(30);
@@ -295,7 +295,7 @@ function task(id, columnId, opts){
       tasks: { t1: task('t1', 'col_todo', { key: 'LOC1-1' }) }
     });
     const dom = loadFixture(existing, null, []);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('editProjectBtn').click();
     await wait(30);
@@ -323,7 +323,7 @@ function task(id, columnId, opts){
         w.fetch = function(){ return Promise.reject(new Error('network disabled in test')); };
       }
     });
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('editProjectBtn').click();
     await wait(30);
@@ -350,7 +350,7 @@ function task(id, columnId, opts){
       }
     });
     const dom = loadFixture(existing, null, []);
-    await wait(300);
+    await wait(500);
     const doc = dom.window.document;
     doc.getElementById('editProjectBtn').click();
     await wait(30);
@@ -371,6 +371,78 @@ function task(id, columnId, opts){
     log('project key updated locally', p.key === 'LOC9', p.key);
     log('active task key cascaded', p.tasks.t1.key === 'LOC9-1', p.tasks.t1.key);
     log('archived task key cascaded too', p.tasks.t2.key === 'LOC9-2', p.tasks.t2.key);
+
+    dom.window.close();
+  }
+
+  // ── 12. Real-time uniqueness feedback: typing a taken key shows the alert icon + disables Save;
+  //          typing a free key shows the tick icon + re-enables Save — no need to click Save first ──
+  {
+    const project = makeProject();
+    const dom = loadFixture(project, true, [
+      { match: /\/key-availability\?key=TAKEN/, respond: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ available: false, normalizedKey: 'TAKEN' }) }) },
+      { match: /\/key-availability\?key=FREEK/, respond: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ available: true, normalizedKey: 'FREEK' }) }) }
+    ]);
+    await wait(500);
+    const doc = dom.window.document;
+    doc.getElementById('editProjectBtn').click();
+    await wait(30);
+
+    const keyInput = doc.getElementById('projectKeyInput');
+    const saveBtn = doc.getElementById('projectSaveBtn');
+    const statusEl = doc.getElementById('projectKeyStatus');
+
+    keyInput.value = 'TAKEN';
+    keyInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await wait(400); // 250ms debounce + the mocked round trip
+
+    log('typing a taken key shows the "taken" status', statusEl.classList.contains('kf-project-key-status-taken'));
+    log('typing a taken key disables Save immediately (before clicking it)', saveBtn.disabled === true);
+
+    keyInput.value = 'FREEK';
+    keyInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await wait(400);
+
+    log('typing a free key shows the "ok" status', statusEl.classList.contains('kf-project-key-status-ok'));
+    log('typing a free key re-enables Save', saveBtn.disabled === false);
+
+    keyInput.value = 'FIX'; // back to the unchanged original key
+    keyInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await wait(400);
+
+    log('reverting to the unchanged key clears the status (no icon)', statusEl.innerHTML === '');
+    log('reverting to the unchanged key keeps Save enabled', saveBtn.disabled === false);
+
+    dom.window.close();
+  }
+
+  // ── 13. Local-only EDIT: a task whose key doesn't match the CURRENT project-key prefix at all
+  //          (e.g. a project duplicated locally without re-keying its tasks — a real, separately-known
+  //          data-quality gap) still gets a correctly-hyphenated new key, via the trailing-number
+  //          extraction rather than a fixed-length chop that can accidentally swallow the hyphen ──
+  {
+    // Mirrors the exact shape found live in QA: a 5-character project key ("LOC12") whose task was
+    // never re-keyed from an earlier, differently-shaped prefix ("LOC1-"), which also happens to be
+    // 5 characters — the coincidental length match is exactly what made the old fixed-length chop
+    // silently swallow the hyphen.
+    const existing = makeProject({
+      id: 'p1', key: 'LOC12', serverProjectId: null,
+      tasks: { t1: task('t1', 'col_todo', { key: 'LOC1-9' }) }
+    });
+    const dom = loadFixture(existing, null, []);
+    await wait(500);
+    const doc = dom.window.document;
+    doc.getElementById('editProjectBtn').click();
+    await wait(30);
+    doc.getElementById('projectKeyInput').value = 'FIXED';
+    doc.getElementById('projectSaveBtn').click();
+    await wait(50);
+    doc.getElementById('confirmOkBtn').click();
+    await wait(50);
+
+    const db = JSON.parse(dom.window.localStorage.getItem('kanbanflow_v1_db'));
+    const renamedTaskKey = db.projects.p1.tasks.t1.key;
+    log('drifted task key still gets a hyphen between the new key and its number', renamedTaskKey === 'FIXED-9', renamedTaskKey);
 
     dom.window.close();
   }

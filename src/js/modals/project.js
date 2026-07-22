@@ -10,6 +10,7 @@ import { createRichTextEditor } from '../rich-text/editor.js';
 import { getProjectHashtags } from '../features/hashtags.js';
 import { isOrgAdmin, checkProjectKeyAvailabilityApi, changeProjectKeyApi, checkNewProjectKeyAvailabilityApi } from '../api.js';
 import { confirmDialog } from './confirm.js';
+import { iconSvg } from '../icons.js';
 
 // Lazily created on first openProjectModal() call and reused for the whole app session — same
 // pattern as modals/task.js's taskDescEditor.
@@ -23,6 +24,72 @@ function getProjectDescEditor(){
     projectDescEditor = createRichTextEditor(document.getElementById('projectDescEditor'), document.getElementById('projectDescToolbar'), { maxLength: 4000, getHashtags: function(){ return getProjectHashtags(state.db.projects[state.db.currentProjectId] || null); } });
   }
   return projectDescEditor;
+}
+
+var projectKeyLiveCheckToken = 0;
+var projectKeyLiveCheckDebounceId = null;
+
+/* Sets the tick/alert indicator next to the key field and disables Save while a check is in flight
+   or has found the typed key unavailable — purely a real-time UX layer on top of the availability
+   checks saveProjectFromModal already runs (and re-verifies server-side) at submit time; this never
+   replaces that defensive re-check, it just gives the Org Admin (or local user) live feedback instead
+   of only finding out after clicking Save. */
+function setProjectKeyStatus(kind, message){
+  var statusEl = document.getElementById('projectKeyStatus');
+  var saveBtn = document.getElementById('projectSaveBtn');
+  statusEl.className = 'kf-project-key-status' + (kind ? ' kf-project-key-status-' + kind : '');
+  if(kind === 'ok') statusEl.innerHTML = iconSvg('check', 14) + '<span>' + escapeHTML(message || 'Available') + '</span>';
+  else if(kind === 'taken') statusEl.innerHTML = iconSvg('warning', 14) + '<span>' + escapeHTML(message || 'Already in use') + '</span>';
+  else if(kind === 'checking') statusEl.innerHTML = '<span>Checking…</span>';
+  else statusEl.innerHTML = '';
+  saveBtn.disabled = (kind === 'checking' || kind === 'taken');
+}
+
+/* Re-derives whether the currently-typed key needs checking at all (a locked field, or a value
+   unchanged from the project's existing key — the common case, since most edits don't touch the key)
+   before ever making a check — a genuine change gets checked exactly the way saveProjectFromModal
+   itself would check it: org-wide via the server for a signed-in user editing/creating a project,
+   against this browser's own local projects otherwise. */
+async function refreshProjectKeyLiveStatus(){
+  var keyInput = document.getElementById('projectKeyInput');
+  if(keyInput.readOnly){ setProjectKeyStatus(null); return; }
+
+  var rawKey = keyInput.value.trim();
+  var editingProject = ui.editingProjectId ? state.db.projects[ui.editingProjectId] : null;
+  if(!rawKey){ setProjectKeyStatus(null); return; } // blank falls back to a name-derived key at save time — nothing to check yet
+
+  if(editingProject && rawKey.toUpperCase() === editingProject.key){
+    setProjectKeyStatus(null);
+    return;
+  }
+
+  var myToken = ++projectKeyLiveCheckToken;
+  setProjectKeyStatus('checking');
+  try {
+    var result;
+    if(editingProject && isServerAuthoritative(editingProject)){
+      result = await checkProjectKeyAvailabilityApi(editingProject.serverProjectId, rawKey);
+    } else if(editingProject){
+      result = {available: isLocalProjectKeyAvailable(rawKey, editingProject.id), normalizedKey: normalizeLocalProjectKey(rawKey)};
+    } else if(isServerLoggedIn()){
+      result = await checkNewProjectKeyAvailabilityApi(rawKey);
+    } else {
+      result = {available: isLocalProjectKeyAvailable(rawKey, null), normalizedKey: normalizeLocalProjectKey(rawKey)};
+    }
+    if(myToken !== projectKeyLiveCheckToken) return; // a newer keystroke has since started its own check
+    setProjectKeyStatus(result.available ? 'ok' : 'taken', result.available ? ('"' + result.normalizedKey + '" is available') : 'That key is already in use — choose a different one');
+  } catch(e){
+    if(myToken !== projectKeyLiveCheckToken) return;
+    // Best-effort — a network hiccup mid-typing shouldn't trap the user with a permanently disabled
+    // Save button; the submit-time check in saveProjectFromModal still guards correctness either way.
+    setProjectKeyStatus(null);
+  }
+}
+
+/* Debounced 'input' handler, wired in app.js like every other top-level DOM listener. */
+export function handleProjectKeyInput(){
+  clearTimeout(projectKeyLiveCheckDebounceId);
+  projectKeyLiveCheckDebounceId = setTimeout(refreshProjectKeyLiveStatus, 250);
 }
 
 export function openProjectModal(mode){
@@ -48,6 +115,13 @@ export function openProjectModal(mode){
   if(isNew) populateProjectTemplateSelect();
   document.getElementById('projectOverlay').classList.remove('hidden');
   document.getElementById('projectNameInput').focus();
+  // Reset the live key-availability indicator every time the modal opens — the key always starts
+  // unchanged (or blank, for a new project), so there's nothing to check until the user actually
+  // types something; bumping the token also invalidates any check still in flight from a previous
+  // open that hasn't resolved yet.
+  clearTimeout(projectKeyLiveCheckDebounceId);
+  projectKeyLiveCheckToken++;
+  setProjectKeyStatus(null);
 }
 
 /* Only shown for a brand new project — templates only ever apply at creation time. Populated from
