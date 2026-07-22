@@ -150,6 +150,17 @@ most of them exist for the minority of tasks that actually need them.
   external spec or wiki page.
 - **Scheduling** — Column, Release, Start/End dates, Progress percentage, and optional
   estimated-vs-actual effort hours if your team tracks time.
+- **Predictive "at risk" / "over" cards** — with time tracking on, the app watches how a task's actual
+  effort (and progress against its dates) compares to what was estimated, and flags two levels right
+  on the card itself, before you ever open it:
+  - **At risk** — trending toward running over, but not there yet. The card gets a thin amber/yellow
+    border, plus a small yellow alert icon on its top row (to the left of the assignee avatar) — an
+    icon only, no text label, so it doesn't crowd an already-busy card.
+  - **Over** — has actually run over its estimate or end date. The card gets a bolder red border
+    instead (no separate icon needed at this level — the red border alone reads as more severe).
+  This is a genuinely predictive signal, not just a record of what's already happened — it's the same
+  math behind the Health Dashboard's Burndown chart in [Section 6](#6-governance--knowledge--the-why-not-just-the-what),
+  applied per-task instead of project-wide.
 - **Value and cost** — a 1–1000 Business Value score and a matching Task Cost score. Neither is
   mandatory, but together they're what powers the Cost/Benefit chart in
   [Section 4](#4-seeing-your-work-differently--the-views) — plot every task by value against cost and
@@ -248,7 +259,12 @@ Two more sit alongside these:
   by the next standup.
 - **Health Dashboard** — **What**: one screen combining burndown, an overall health percentage, and
   who's carrying the most load on the team. **Who**: Priya's fastest way to answer "how are we
-  actually doing" without reconstructing it from the board by eye.
+  actually doing" without reconstructing it from the board by eye. The Burndown chart's velocity
+  calculation counts a task's completion even after it's been archived — an archived task sitting in
+  a "Done" column still contributed real, real-dated work, and excluding it would only starve the
+  prediction of data on any project that archives finished work regularly (which most active projects
+  do). Archiving a task never affects whether it's counted this way; only which column it's sitting
+  in and whether that column is marked "Done" does.
 
 ---
 
@@ -349,10 +365,27 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
   approaching your browser's storage limits — worth heeding on Option A long before it becomes
   urgent, since it's a signal to export a backup and/or migrate to a server rather than risk running
   out of room.
-- **A quiet safety net**: the app will periodically nudge you about things worth knowing before they
-  become problems — overdue tasks piling up, tasks that have overrun their estimate, or simply that
-  it's been a while since your last backup. These aren't alarms, just gentle reminders that surface
-  on their own.
+- **A quiet safety net**: the app checks in on a project every time you start looking at it — when you
+  first load the app, and again each time you switch to a different project — and nudges you about
+  things worth knowing before they become problems. It works through a short chain of checks, one
+  overlay at a time, each falling through to the next only once you've dismissed it:
+  1. **Overdue tasks** — anything with an end date already in the past.
+  2. **Predicted overruns** — the same "at risk" prediction described in
+     [Section 3](#3-anatomy-of-a-task), summarized project-wide (only ever surfaces the *at risk*
+     level here — "over" tasks are already covered by the overdue check above, or just carry their own
+     red card border with no separate nag).
+  3. **Unscored tasks** — tasks still sitting at the default Business Value/Task Cost of 1, which
+     usually just means nobody's gotten to scoring them yet.
+  4. **Backup reminders** — for Option A (local-only) projects specifically: a nudge that it's been a
+     while since your last export, since a local project has no other copy of its data anywhere.
+  These aren't alarms, just gentle reminders that surface on their own — and if a project genuinely
+  has nothing to say, you won't see anything at all.
+- **Alert Status button** — **What**: a header button (between Refresh and the theme switcher) showing
+  exactly what that same check-in would tell you right now, on demand, without waiting for a reload or
+  a project switch to trigger it — click it any time to see a quick summary of overdue tasks, at-risk
+  predictions, unscored tasks, and any local projects overdue for a backup. **Who**: anyone who wants a
+  quick "is anything wrong here" answer mid-session, not just at the moments the app happens to check
+  automatically.
 
 ---
 

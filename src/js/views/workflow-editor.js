@@ -125,7 +125,7 @@ function sideNormal(side){
    the other node, and the vertex list between them is built here (dependency-map.js's own
    buildOrthogonalPoints assumes both ends exit horizontally, which doesn't hold once a node can
    attach from its top/bottom too). */
-function buildWorkflowOrthogonalPoints(start, dir1, end, dir2){
+function buildWorkflowOrthogonalPoints(start, dir1, end, dir2, midOverride){
   // Already a straight shot out of both faces — skip the stub/bend entirely, same as
   // dependency-map.js's own y1===y2 "simple" case, rather than drawing needless dog-legs on the
   // most common adjacent-node layout.
@@ -136,10 +136,13 @@ function buildWorkflowOrthogonalPoints(start, dir1, end, dir2){
   var p2 = {x: end.x + dir2.x * WORKFLOW_EDGE_STUB, y: end.y + dir2.y * WORKFLOW_EDGE_STUB};
   var mid;
   if(dir1.x !== 0 && dir2.x !== 0){
-    var midX = (p1.x + p2.x) / 2;
+    // midOverride (see computeWorkflowEdgeLaneOverrides) nudges this bend off the exact midpoint so
+    // multiple edges sharing the same stub-out X don't all bend at the same X and draw on top of
+    // each other — mirrors dependency-map.js's assignVerticalLanes/midXOverride mechanism exactly.
+    var midX = midOverride != null ? midOverride : (p1.x + p2.x) / 2;
     mid = [{x: midX, y: p1.y}, {x: midX, y: p2.y}];
   } else if(dir1.y !== 0 && dir2.y !== 0){
-    var midY = (p1.y + p2.y) / 2;
+    var midY = midOverride != null ? midOverride : (p1.y + p2.y) / 2;
     mid = [{x: p1.x, y: midY}, {x: p2.x, y: midY}];
   } else if(dir1.x !== 0){
     // One side exits horizontally, the other vertically — a single corner, aligned to the
@@ -151,14 +154,64 @@ function buildWorkflowOrthogonalPoints(start, dir1, end, dir2){
   return [start, p1].concat(mid, [p2, end]);
 }
 
-function edgePathD(fromPos, toPos){
+/* Pure geometry for one edge (attachment sides + stub-exit directions), split out from edgePathD so
+   computeWorkflowEdgeLaneOverrides can group edges by this same geometry BEFORE any path string gets
+   built — same ordering dependency-map.js's own renderDependencyMap uses (geometry pass, then lane
+   assignment, then path building). */
+function workflowEdgeGeometry(fromPos, toPos){
   var fromCenter = {x: fromPos.x + WORKFLOW_NODE_W / 2, y: fromPos.y + WORKFLOW_NODE_H / 2};
   var toCenter = {x: toPos.x + WORKFLOW_NODE_W / 2, y: toPos.y + WORKFLOW_NODE_H / 2};
   var startSide = pickAttachmentSide(fromCenter, toCenter);
   var endSide = pickAttachmentSide(toCenter, fromCenter);
-  var start = sideMidpoint(fromPos, startSide);
-  var end = sideMidpoint(toPos, endSide);
-  var points = buildWorkflowOrthogonalPoints(start, sideNormal(startSide), end, sideNormal(endSide));
+  return {
+    start: sideMidpoint(fromPos, startSide),
+    end: sideMidpoint(toPos, endSide),
+    dir1: sideNormal(startSide),
+    dir2: sideNormal(endSide)
+  };
+}
+
+/* Ports dependency-map.js's assignVerticalLanes to Workflow's 4-side attachment model: two or more
+   edges that happen to share the same stub-out coordinate on whichever axis their bend actually
+   happens on (X for a pair of horizontally-exiting edges, Y for a vertically-exiting pair) would
+   otherwise all bend at the exact same point and draw directly on top of each other along their
+   shared span. Grouped by that rounded stub coordinate pair, then spread across the 30%-70% band of
+   the gap between the two stubs — same fraction formula as dependency-map.js, so the visual "how far
+   apart do parallel lanes sit" reads consistently between the two views. Mutates each geometry object
+   in place, adding `.midOverride` only where a group actually has 2+ members (a lone edge's plain
+   exact-midpoint bend never collides with anything, so it's left untouched). */
+function computeWorkflowEdgeLaneOverrides(geoms){
+  var groupsX = {}, groupsY = {};
+  geoms.forEach(function(g){
+    if(g.dir1.x !== 0 && g.dir2.x !== 0 && g.start.y !== g.end.y){
+      g._p1 = g.start.x + g.dir1.x * WORKFLOW_EDGE_STUB;
+      g._p2 = g.end.x + g.dir2.x * WORKFLOW_EDGE_STUB;
+      var keyX = Math.round(g._p1) + '_' + Math.round(g._p2);
+      (groupsX[keyX] = groupsX[keyX] || []).push(g);
+    } else if(g.dir1.y !== 0 && g.dir2.y !== 0 && g.start.x !== g.end.x){
+      g._p1 = g.start.y + g.dir1.y * WORKFLOW_EDGE_STUB;
+      g._p2 = g.end.y + g.dir2.y * WORKFLOW_EDGE_STUB;
+      var keyY = Math.round(g._p1) + '_' + Math.round(g._p2);
+      (groupsY[keyY] = groupsY[keyY] || []).push(g);
+    }
+  });
+  [groupsX, groupsY].forEach(function(groups){
+    Object.keys(groups).forEach(function(key){
+      var group = groups[key];
+      var n = group.length;
+      if(n < 2) return;
+      group.sort(function(a, b){ return (a.start.x + a.start.y) - (b.start.x + b.start.y); });
+      group.forEach(function(g, i){
+        var frac = 0.3 + 0.4 * i / (n - 1);
+        g.midOverride = g._p1 + (g._p2 - g._p1) * frac;
+      });
+    });
+  });
+}
+
+function edgePathD(fromPos, toPos, midOverride){
+  var geom = workflowEdgeGeometry(fromPos, toPos);
+  var points = buildWorkflowOrthogonalPoints(geom.start, geom.dir1, geom.end, geom.dir2, midOverride);
   return roundedOrthogonalPathD(points, DEPMAP_CORNER_RADIUS);
 }
 
@@ -198,10 +251,20 @@ export function renderWorkflowEditor(){
 
   var defsHTML = '<defs>' + dotMarkerPair('allowed', 'var(--kf-good-fg)') + dotMarkerPair('disallowed', 'var(--kf-danger)') + dotMarkerPair('conditional', 'var(--kf-overdue-fg)') + '</defs>';
 
+  // Lane-override pass (see computeWorkflowEdgeLaneOverrides's own doc comment) — must happen before
+  // any path string is built, same ordering dependency-map.js's own render function uses.
+  var edgeGeoms = {};
+  project.workflow.edges.forEach(function(e){
+    var fromPos = layout.positions[e.fromColumnId], toPos = layout.positions[e.toColumnId];
+    if(!fromPos || !toPos) return;
+    edgeGeoms[e.id] = workflowEdgeGeometry(fromPos, toPos);
+  });
+  computeWorkflowEdgeLaneOverrides(Object.keys(edgeGeoms).map(function(id){ return edgeGeoms[id]; }));
+
   var edgesHTML = project.workflow.edges.map(function(e){
     var fromPos = layout.positions[e.fromColumnId], toPos = layout.positions[e.toColumnId];
     if(!fromPos || !toPos) return '';
-    var d = edgePathD(fromPos, toPos);
+    var d = edgePathD(fromPos, toPos, edgeGeoms[e.id] ? edgeGeoms[e.id].midOverride : null);
     var color = WORKFLOW_EDGE_COLOR[e.type] || WORKFLOW_EDGE_COLOR.allowed;
     var dashAttr = e.type === 'conditional' ? ' stroke-dasharray="5,5"' : '';
     var titleText = e.type === 'conditional' ? describeWorkflowCondition(e.condition) + (e.message ? ' — ' + e.message : '') : e.message;
@@ -435,11 +498,25 @@ function updateConnectedWorkflowEdges(project, columnId){
   var layout = lastWorkflowLayout;
   if(!layout) return;
   layout.positions[columnId] = {x: project.workflow.nodes[columnId].x, y: project.workflow.nodes[columnId].y};
+
+  // Lane overrides are recomputed across EVERY edge (not just the ones touching the dragged node) —
+  // grouping is keyed by rounded stub coordinates, which can shift for an edge that isn't directly
+  // connected to the dragged node but shares a lane group with one that is; a partial recompute could
+  // leave a stale overlap on an edge this function never otherwise touches. The grouping pass itself
+  // is cheap (O(edge count), no DOM I/O) — only the DOM writes below stay scoped to what's on screen.
+  var geoms = {};
+  project.workflow.edges.forEach(function(e){
+    var fp = layout.positions[e.fromColumnId], tp = layout.positions[e.toColumnId];
+    if(!fp || !tp) return;
+    geoms[e.id] = workflowEdgeGeometry(fp, tp);
+  });
+  computeWorkflowEdgeLaneOverrides(Object.keys(geoms).map(function(id){ return geoms[id]; }));
+
   project.workflow.edges.forEach(function(e){
     if(e.fromColumnId !== columnId && e.toColumnId !== columnId) return;
     var fromPos = layout.positions[e.fromColumnId], toPos = layout.positions[e.toColumnId];
     if(!fromPos || !toPos) return;
-    var d = edgePathD(fromPos, toPos);
+    var d = edgePathD(fromPos, toPos, geoms[e.id] ? geoms[e.id].midOverride : null);
     var group = document.querySelector('.kf-wfedge-group[data-edge-id="' + e.id + '"]');
     if(!group) return;
     var path = group.querySelector('.kf-wfedge');

@@ -159,8 +159,21 @@ export var MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 export function computeBurndownData(project){
   var tasks = getTasksArray(project).filter(function(t){ return !t.archived; });
   var total = tasks.length;
-  var doneTasks = tasks.filter(function(t){ var c = getColumn(project, t.columnId); return c && c.done; });
-  var remainingCount = total - doneTasks.length;
+  var activeDoneTasks = tasks.filter(function(t){ var c = getColumn(project, t.columnId); return c && c.done; });
+  var remainingCount = total - activeDoneTasks.length;
+
+  // total/remainingCount stay active-only (the burndown chart's Y-axis is "live tracked work," which
+  // an archived task no longer is) — but an archived task that finished in a done column is still a
+  // real historical completion, and the velocity/prediction math below is starved for data points on
+  // a project that archives its done work regularly. Folding those into the done-task pool used for
+  // velocity (not into total/remainingCount) gives predictive calculations more to draw from without
+  // changing what "remaining" means.
+  var archivedDoneTasks = getTasksArray(project).filter(function(t){
+    if(!t.archived) return false;
+    var c = getColumn(project, t.columnId);
+    return c && c.done;
+  });
+  var doneTasks = activeDoneTasks.concat(archivedDoneTasks);
 
   if(!project.startDate || !project.endDate){
     return {hasEnoughData: false, reason: 'no-dates', remainingCount: remainingCount, total: total, doneCount: doneTasks.length};

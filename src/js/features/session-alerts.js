@@ -16,7 +16,7 @@ import { state, isTimeTrackingEnabled } from '../storage.js';
 import { getCurrentProject } from '../store.js';
 import { hydrateIcons } from '../icons.js';
 import { clampTaskScore, utcISOToLocalDisplayDate } from '../date-utils.js';
-import { getTasksArray, isTaskOverdue, isTaskUnscored, getTaskOverrunStatus } from '../utils.js';
+import { getTasksArray, isTaskOverdue, isTaskUnscored, getTaskOverrunStatus, escapeHTML } from '../utils.js';
 import { exportProjectJSON } from './export.js';
 import { isServerAuthoritative } from './migration.js';
 
@@ -259,4 +259,83 @@ export function runBackupForReminder(){
   if(backupQueue.length > 0){
     setTimeout(advanceBackupQueue, 400);
   }
+}
+
+/* =========================================================
+   ALERT STATUS (header button) — a pure, read-only re-derivation of the same four checks above
+   (overdue / overrun / unscored / backup), WITHOUT opening any of their modals or touching
+   backupQueue. Lets "what would I see if I reloaded right now" be answered on demand from the
+   header, rather than only ever appearing once at load/project-switch time. Each individual check
+   above stays exactly as it was (chained modals) — this is a separate, side-effect-free summary
+   using the same predicates, not a replacement for them.
+   ========================================================= */
+export function summarizeProjectAlerts(){
+  var alerts = [];
+  var project = getCurrentProject();
+
+  if(project){
+    var overdueTasks = getTasksArray(project).filter(function(t){ return isTaskOverdue(project, t); });
+    if(overdueTasks.length > 0){
+      alerts.push({
+        icon: 'clock',
+        message: overdueTasks.length + ' task' + (overdueTasks.length === 1 ? '' : 's') + ' with an end date in the past.'
+      });
+    }
+
+    if(isTimeTrackingEnabled(project)){
+      var atRiskCount = getTasksArray(project).filter(function(t){
+        var status = getTaskOverrunStatus(project, t);
+        return status && status.level === 'atRisk';
+      }).length;
+      if(atRiskCount > 0){
+        alerts.push({
+          icon: 'warning',
+          message: atRiskCount + ' task' + (atRiskCount === 1 ? '' : 's') + ' predicted to run over.'
+        });
+      }
+    }
+
+    var unscoredCount = getTasksArray(project).filter(function(t){ return !t.archived && isTaskUnscored(t); }).length;
+    if(unscoredCount > 0){
+      alerts.push({
+        icon: 'target',
+        message: unscoredCount + ' task' + (unscoredCount === 1 ? '' : 's') + ' not yet scored (Business Value / Task Cost still at default).'
+      });
+    }
+  }
+
+  // Backup reminders are cross-project, same scope checkBackupReminders itself uses — summarized
+  // here as one combined row rather than one row per overdue project.
+  var db = state.db;
+  var now = Date.now();
+  var overdueBackupCount = db.projectOrder.filter(function(pid){
+    var p = db.projects[pid];
+    if(!p || isServerAuthoritative(p)) return false;
+    var referenceDate = p.dateLastExported || p.dateCreated || null;
+    if(!referenceDate) return false;
+    return (now - new Date(referenceDate).getTime()) > BACKUP_THRESHOLD_MS;
+  }).length;
+  if(overdueBackupCount > 0){
+    alerts.push({
+      icon: 'download',
+      message: overdueBackupCount + ' local project' + (overdueBackupCount === 1 ? '' : 's') + ' overdue for a backup export.'
+    });
+  }
+
+  return alerts;
+}
+
+export function renderAlertStatusPanel(){
+  var panel = document.getElementById('alertStatusPanel');
+  var alerts = summarizeProjectAlerts();
+  if(alerts.length === 0){
+    panel.innerHTML = '<div class="kf-alert-status-empty">No alerts right now.</div>';
+  } else {
+    panel.innerHTML = alerts.map(function(a){
+      return '<div class="kf-alert-status-row"><span class="kf-icon" data-icon="' + a.icon + '" data-size="15"></span><span>' +
+        escapeHTML(a.message) +
+        '</span></div>';
+    }).join('');
+  }
+  hydrateIcons(panel);
 }

@@ -29,7 +29,7 @@ import { connectEventStream, disconnectEventStream } from './features/live-updat
 import { initChat, resetChatState, openChatPanel, closeChatPanel, isChatPanelOpen } from './features/chat.js';
 import { initChatView, toggleChatPanel, chatBackClicked, updateChatBubbleVisibility, isChatFullscreenOpen, openChatFullscreen, toggleChatFullscreen, closeChatFullscreen } from './views/chat.js';
 import { importProjectFromFile, pendingImport, closeImportConflictModal, overwriteProjectFromResult, finaliseImport, uniqueProjectKey, setImportSessionAlertsCheck, setImportToast, setImportRenderAll, setImportResetFilters } from './features/import.js';
-import { checkProjectAlerts, closeOverdueAlert, closeOverrunAlert, closeDefaultScoreAlert, closeBackupReminderModal, dismissBackupReminder, runBackupForReminder } from './features/session-alerts.js';
+import { checkProjectAlerts, closeOverdueAlert, closeOverrunAlert, closeDefaultScoreAlert, closeBackupReminderModal, dismissBackupReminder, runBackupForReminder, renderAlertStatusPanel } from './features/session-alerts.js';
 import { setBulkEditDeps, openBulkEditOverlay, closeBulkEditOverlay, isBulkEditOverlayOpen, saveBulkEditChanges } from './features/bulk-edit.js';
 import { getArchivedTasks, openArchivedTasksOverlay, closeArchivedTasksOverlay, isArchivedTasksOverlayOpen, renderArchivedTasksList, reactivateSelectedArchivedTasks, archiveDoneTasksFromModal } from './features/archived-tasks.js';
 import { closeAllExportAsPanels, toggleExportAsPanel, exportSvgElementAsSvgFile, exportSvgElementAsPng } from './features/svg-export.js';
@@ -493,6 +493,13 @@ function wireEvents(){
   document.getElementById('accountMenuBtn').addEventListener('click', function(e){
     e.stopPropagation();
     toggleExportAsPanel('accountMenuPanel');
+  });
+  document.getElementById('alertStatusBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    // Rendered fresh on every open — re-derives from the current project's live task list, so it
+    // never shows stale counts from an earlier open in the same session.
+    renderAlertStatusPanel();
+    toggleExportAsPanel('alertStatusPanel');
   });
   document.getElementById('accountMenuPanel').addEventListener('click', function(e){
     var link = e.target.closest('[data-nav-target]');

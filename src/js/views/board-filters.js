@@ -1,11 +1,11 @@
 "use strict";
 import { PRIORITY_ORDER } from '../config.js';
 import { iconSvg } from '../icons.js';
-import { escapeHTML, getMemberById, getTaskTypeById, getTeamCommitteeById, getTasksArray, isTaskBlocked, isTaskOverdue } from '../utils.js';
+import { escapeHTML, getMemberById, getTaskTypeById, getTeamCommitteeById, getTasksArray, isTaskBlocked, isTaskOverdue, getTaskOverrunStatus } from '../utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui, getPriority } from '../ui.js';
 import { getTeamsCommitteesForMember } from '../mutations.js';
-import { normalizeHeaderButtonVisibility } from '../storage.js';
+import { normalizeHeaderButtonVisibility, isTimeTrackingEnabled } from '../storage.js';
 import { renderBoard } from './board.js';
 import { getProjectHashtags, filterHashtags, HASHTAG_NAME_RE } from '../features/hashtags.js';
 
@@ -333,13 +333,14 @@ export function closeTaskTypeFilterPanel(){
   document.getElementById('taskTypeFilterPanel').classList.add('hidden');
 }
 
-/* Status filter — same dropdown-checkbox styling as Assignee/Type, but a fixed two-option
-   list (Blocked/Overdue, computed live off each task rather than a stored field) instead of
+/* Status filter — same dropdown-checkbox styling as Assignee/Type, but a fixed option list
+   (Blocked/Overdue/At Risk, computed live off each task rather than a stored field) instead of
    one derived from project data, so unlike the other filters it's never hidden even when
    nothing currently matches. */
 export var STATUS_FILTER_OPTIONS = [
   {key: 'blocked', label: 'Blocked', icon: 'warning', colorVar: '--kf-blocked-fg'},
-  {key: 'overdue', label: 'Overdue', icon: 'clock', colorVar: '--kf-overdue-fg'}
+  {key: 'overdue', label: 'Overdue', icon: 'clock', colorVar: '--kf-overdue-fg'},
+  {key: 'atrisk', label: 'At Risk', icon: 'warning', colorVar: '--kf-atrisk-fg'}
 ];
 
 export function renderStatusFilterChips(){
@@ -427,9 +428,17 @@ export function taskMatchesFilters(task){
     // a task that's either one, not only tasks that are both), same as every other multi-
     // select filter chip in this toolbar.
     var statusProject = getCurrentProject();
+    // Same "only means something with time tracking on" gate views/board.js's renderCard and
+    // features/session-alerts.js's overrun check both already use — getTaskOverrunStatus itself
+    // doesn't know about the project setting, so the caller is what has to check it.
+    var isAtRisk = isTimeTrackingEnabled(statusProject) && (function(){
+      var status = getTaskOverrunStatus(statusProject, task);
+      return !!(status && status.level === 'atRisk');
+    })();
     var matchesAnyStatus =
       (ui.activeStatuses.has('blocked') && isTaskBlocked(statusProject, task)) ||
-      (ui.activeStatuses.has('overdue') && isTaskOverdue(statusProject, task));
+      (ui.activeStatuses.has('overdue') && isTaskOverdue(statusProject, task)) ||
+      (ui.activeStatuses.has('atrisk') && isAtRisk);
     if(!matchesAnyStatus) return false;
   }
   if(ui.searchTerm){

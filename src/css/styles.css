@@ -2016,11 +2016,20 @@
   }
 
   .kf-card.kf-card-atrisk {
-    border: 2px solid var(--kf-atrisk-fg);
+    border: 1px solid var(--kf-atrisk-fg);
   }
 
   .kf-card.kf-card-over {
     border: 2px solid var(--kf-danger);
+  }
+
+  /* Icon-only (no text label) — sits left of the avatar slot on an at-risk card's top row, see
+     views/board.js's renderCard(). Reuses the same --kf-atrisk-fg amber/"yellow" tone as the card's
+     own border above, so the two read as one consistent at-risk signal. */
+  .kf-card-atrisk-icon {
+    display: inline-flex;
+    color: var(--kf-atrisk-fg);
+    flex-shrink: 0;
   }
 
   .kf-card-title {
@@ -4867,6 +4876,40 @@
     height: 1px;
     background: var(--kf-border);
     margin: 4px 6px;
+  }
+
+  /* Alert Status header button (src/index.html) — shows whatever features/session-alerts.js's
+     summarizeProjectAlerts() would surface on a reload, without re-triggering the actual toast/modal
+     chain. Both the wrap and panel reuse the kf-export-as-wrap/kf-export-as-panel classes above (so
+     this button participates in toggleExportAsPanel/closeAllExportAsPanels and the global outside-
+     click handler the exact same way every other header dropdown already does) — only the row
+     styling below is specific to this panel. */
+  .kf-alert-status-panel {
+    min-width: 260px;
+    max-width: 320px;
+  }
+
+  .kf-alert-status-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 6px;
+    font-size: 13px;
+    color: var(--kf-text);
+    border-radius: 3px;
+  }
+
+  .kf-alert-status-row .kf-icon {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--kf-atrisk-fg);
+  }
+
+  .kf-alert-status-empty {
+    padding: 12px 6px;
+    font-size: 13px;
+    color: var(--kf-text-faint);
+    text-align: center;
   }
 
   .kf-header-more-link:hover {
