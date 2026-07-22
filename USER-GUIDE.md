@@ -336,6 +336,17 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
   a reusable template, so a new project starts from a sensible default instead of a blank board.
   **Who**: Elena or Priya, the second or third time they catch themselves rebuilding the same column
   layout from scratch.
+- **Announcements** — **What**: write and manage the Announcements and Disruption Notices your whole
+  organisation sees (described in [Section 11](#11-data-backup-and-moving-between-tiers)). **Who**:
+  Elena, telling everyone about something without having to track down each person individually.
+  **How**: from the Account menu, choose **Announcements**, give it a title and (optionally
+  formatted) body, pick **Announcement** or **Disruption Notice**, and set a start date/time and an
+  optional end date/time. An Announcement with no end date simply stays available to be seen until
+  someone dismisses it; a Disruption Notice with no end date stays up as a banner indefinitely, so set
+  one whenever you know how long the disruption should last. Existing announcements can be edited or
+  deleted from the same screen at any time — note that editing one does *not* reset anyone's earlier
+  "don't show again," so a substantial change in meaning is better posted as a new announcement than
+  an edit to an old one, if you want everyone to see it fresh.
 
 ---
 
@@ -369,21 +380,39 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
   first load the app, and again each time you switch to a different project — and nudges you about
   things worth knowing before they become problems. It works through a short chain of checks, one
   overlay at a time, each falling through to the next only once you've dismissed it:
-  1. **Overdue tasks** — anything with an end date already in the past.
-  2. **Predicted overruns** — the same "at risk" prediction described in
+  1. **Announcements** — see below; if your organisation's admin has something to tell everyone, this
+     is the very first thing you see, ahead of anything the app itself has noticed.
+  2. **Overdue tasks** — anything with an end date already in the past.
+  3. **Predicted overruns** — the same "at risk" prediction described in
      [Section 3](#3-anatomy-of-a-task), summarized project-wide (only ever surfaces the *at risk*
      level here — "over" tasks are already covered by the overdue check above, or just carry their own
      red card border with no separate nag).
-  3. **Unscored tasks** — tasks still sitting at the default Business Value/Task Cost of 1, which
+  4. **Unscored tasks** — tasks still sitting at the default Business Value/Task Cost of 1, which
      usually just means nobody's gotten to scoring them yet.
-  4. **Backup reminders** — for Option A (local-only) projects specifically: a nudge that it's been a
+  5. **Backup reminders** — for Option A (local-only) projects specifically: a nudge that it's been a
      while since your last export, since a local project has no other copy of its data anywhere.
   These aren't alarms, just gentle reminders that surface on their own — and if a project genuinely
   has nothing to say, you won't see anything at all.
+- **Announcements** — **What**: a message your organisation's admin wants everyone to see, shown once
+  per person as a small pop-up at the very start of a session (see the check-in chain above). Each one
+  has its own **"Don't show this one again"** tick box, so if several are active at once you can
+  dismiss the ones you've read while leaving the rest to reappear next time. **Who**: this only exists
+  once you're on Option B or C from [Section 1](#1-getting-started--where-does-enklr-task-actually-live)
+  — a fully local project has no organisation for an admin to post to. For setting these up as an
+  admin, see [Section 9](#9-portfolio--organisation-management).
+- **Disruption Notices** — **What**: a persistent white-on-red banner across the very top of the page,
+  above the header, for as long as the admin's scheduled window says it should be there. Unlike an
+  Announcement, there's nothing to dismiss — it simply stops appearing once its end time passes (or
+  stays up indefinitely if no end time was set). **Who**: for genuinely disruptive situations — planned
+  maintenance, a known outage, "don't create new projects until further notice" — where you want it
+  impossible to miss for as long as it's relevant, not just glanced at once and forgotten.
 - **Alert Status button** — **What**: a header button (between Refresh and the theme switcher) showing
   exactly what that same check-in would tell you right now, on demand, without waiting for a reload or
-  a project switch to trigger it — click it any time to see a quick summary of overdue tasks, at-risk
-  predictions, unscored tasks, and any local projects overdue for a backup. **Who**: anyone who wants a
+  a project switch to trigger it — click it any time to see a quick summary of any active Announcements
+  or Disruption Notices, overdue tasks, at-risk predictions, unscored tasks, and any local projects
+  overdue for a backup. Announcements and Disruption Notices show up here regardless of whether you've
+  already dismissed them from the pop-up — this button always reflects what's currently being
+  communicated, not just what's still waiting for a reaction from you. **Who**: anyone who wants a
   quick "is anything wrong here" answer mid-session, not just at the moments the app happens to check
   automatically.
 
@@ -467,8 +496,11 @@ it" tiers, though who's allowed to *initiate* it differs:
 | Add a new person to the organisation | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
 | Offboard someone who's leaving | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
 | Stop rebuilding the same board layout every time | [Section 9 — Manage Templates](#9-portfolio--organisation-management) |
+| Tell the whole organisation something | [Section 9 — Announcements](#9-portfolio--organisation-management) |
+| Warn everyone about planned maintenance or an outage | [Section 9 — Announcements](#9-portfolio--organisation-management) |
 | Change how the board looks for just me | [Section 10 — My Preferences](#10-making-it-yours--personalisation) |
 | Make sure I don't lose my local-only work | [Section 11 — Export Project](#11-data-backup-and-moving-between-tiers) |
+| See what's currently being communicated, on demand | [Section 11 — Alert Status button](#11-data-backup-and-moving-between-tiers) |
 | Hand a stakeholder a document, not a login | [Section 12 — Reports](#12-reports-and-exporting) |
 | Understand what an Org Admin can do that I can't | [Section 13](#13-roles-and-permissions-in-plain-terms) |
 
