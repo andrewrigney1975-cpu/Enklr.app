@@ -5399,10 +5399,15 @@
 
   /* Strategy on a Page (features/reports.js's openStrategyOnAPageReportOverlay) — same
      "shrink an embedded chart to the page/container width" pattern as .kf-report-risk-matrix above. */
+  /* buildRadarSvg (views/strategy-radar.js) emits the <svg> and its .kf-strategy-radar-legend div as
+     two sibling elements, concatenated in the same string — without flex-direction: column here,
+     plain flex's default row direction sits them side by side, squeezing the SVG's own width to make
+     room for the legend next to it instead of below it. */
   .kf-report-strategy-page-radar {
     margin: 16px 0;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
   }
 
   .kf-report-strategy-page-radar svg {

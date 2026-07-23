@@ -462,13 +462,16 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
 - **Chart exports** — **What**: every hand-drawn chart in the app — Timeline, Dependency Map,
   Cost/Benefit, Org Chart, Governance Map, and more — can be downloaded as an SVG or a PNG image.
   **Who**: anyone dropping a chart into a slide deck or a written report.
-- **Strategy on a Page** — **What**: a single printable page summarising how the *whole* portfolio
-  maps onto the organisation's active Strategy, deliberately collapsed to just two series on the
-  radar chart — every active project averaged together, and every inactive/planned project averaged
-  together — with a legend naming which colour is which and, underneath, the actual list of projects
-  that fed each average. **Who**: Elena, taking a single page into a steering meeting instead of the
-  full interactive dashboard. **How**: from the **Strategy** view's header, click **Strategy on a
-  Page**, then print/save as PDF from there like any other report in this app.
+- **Strategy on a Page** — **What**: a single printable page covering the whole active Strategy end
+  to end. It opens with the full Strategy Definition — every Pillar and its description, each
+  Pillar's own Metrics (current recorded value alongside its target), and any Enablers underneath
+  each Pillar with their own Metrics — followed by how the *whole* portfolio maps onto it,
+  deliberately collapsed to just two series on the radar chart: every active project averaged
+  together, and every inactive/planned project averaged together, with a legend naming which colour
+  is which and, underneath, the actual list of projects that fed each average. **Who**: Elena, taking
+  a single page into a steering meeting instead of the full interactive dashboard. **How**: from the
+  **Strategy** view's header, click **Strategy on a Page**, then print/save as PDF from there like any
+  other report in this app.
 
 ---
 
