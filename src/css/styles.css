@@ -129,6 +129,18 @@
     display: block;
   }
 
+  /* Task modal's Priority icon (modals/task.js's updatePriorityIcon) — Critical's own icon color
+     (PRIORITY_COLORS) is white, which reads fine against its red badge everywhere else in the app,
+     but is invisible against this modal's plain background with no badge of its own. --kf-danger is
+     the same red already used for Critical's badge/accent elsewhere, reused here rather than a new
+     variable. Every other priority's icon color is already visible unadorned, so this only applies
+     to Critical specifically (toggled on/off in JS, not a static rule). */
+  .kf-priority-icon-critical {
+    background: var(--kf-danger);
+    border-radius: 50%;
+    padding: 3px;
+  }
+
   /* ===== Layout ===== */
   #app {
     display: flex;
@@ -5000,6 +5012,32 @@
     font-size: 13px;
     color: var(--kf-text-faint);
     text-align: center;
+  }
+
+  /* Unread badge — same red-circle convention as .kf-chat-bubble-badge, just anchored to this inline
+     header button instead of the floating chat bubble (so #despatchesBtn needs its own
+     position:relative rather than reusing .kf-chat-bubble's own positioning context). */
+  #despatchesBtn {
+    position: relative;
+  }
+
+  .kf-despatch-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: #de350b;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    border: 2px solid var(--kf-header-bg, var(--kf-navy));
   }
 
   .kf-header-more-link:hover {

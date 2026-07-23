@@ -31,6 +31,7 @@ var DESPATCH_LOG_CAP = 25;
 var POLL_INTERVAL_MS = 30000;
 
 var despatchLog = []; // {id, icon, message, timestamp, taskKey, channelId} — newest first
+var unreadCount = 0; // logged (pushed) entries only — live conditions (alerts/announcements) don't count
 
 var _onUpdate = function(){};
 var _openChat = function(){}; // (channelId) => void — provided by app.js (openChatPanel() + openChannel())
@@ -55,11 +56,28 @@ export function pushDespatch(entry){
     channelId: entry.channelId || null
   });
   if(despatchLog.length > DESPATCH_LOG_CAP) despatchLog.length = DESPATCH_LOG_CAP;
+  unreadCount++;
+  notify();
+}
+
+/* Mirrors features/chat.js's own totalUnreadCount()/badge convention exactly — a plain count, no
+   per-item read-tracking. Only pushed (task/chat) entries count; the "live conditions" half (alerts/
+   announcements) has no discrete "new" moment to speak of, it's just always-current state. */
+export function getUnreadCount(){
+  return unreadCount;
+}
+
+/* Called when the panel is actually opened (app.js's click handler) — same "opening clears it"
+   convention as Chat's own per-channel unread reset in openChannel(). */
+export function clearUnread(){
+  if(unreadCount === 0) return;
+  unreadCount = 0;
   notify();
 }
 
 export function resetDespatchLog(){
   despatchLog = [];
+  unreadCount = 0;
   stopDespatchesPolling();
 }
 

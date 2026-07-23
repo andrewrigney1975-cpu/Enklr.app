@@ -540,6 +540,10 @@ export function updatePriorityIcon(){
   var iconEl = document.getElementById('taskPriorityIcon');
   iconEl.style.color = conf.color;
   iconEl.innerHTML = iconSvg(conf.icon, 18);
+  // Critical's icon color is white (PRIORITY_COLORS) — fine against its own red badge elsewhere in
+  // the app, but invisible against this modal's plain white/card background with no badge of its
+  // own. Give it one here specifically (every other priority's color is already visible unadorned).
+  iconEl.classList.toggle('kf-priority-icon-critical', val === 'critical');
 }
 
 export function updateDocUrlOpenButtonVisibility(){

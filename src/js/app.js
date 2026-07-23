@@ -31,7 +31,7 @@ import { initChatView, toggleChatPanel, chatBackClicked, updateChatBubbleVisibil
 import { importProjectFromFile, pendingImport, closeImportConflictModal, overwriteProjectFromResult, finaliseImport, uniqueProjectKey, setImportSessionAlertsCheck, setImportToast, setImportRenderAll, setImportResetFilters } from './features/import.js';
 import { checkProjectAlerts, closeOverdueAlert, closeOverrunAlert, closeDefaultScoreAlert, closeBackupReminderModal, dismissBackupReminder, runBackupForReminder, closeAnnouncementsAlert } from './features/session-alerts.js';
 import { initAnnouncements, resetAnnouncementState, setAnnouncementDeps, getActiveDisruptions } from './features/announcements.js';
-import { renderDespatchesPanel, setDespatchesDeps, initDespatches, resetDespatchLog } from './features/despatches.js';
+import { renderDespatchesPanel, setDespatchesDeps, initDespatches, resetDespatchLog, getUnreadCount, clearUnread } from './features/despatches.js';
 import { escapeHTML } from './utils.js';
 import { setBulkEditDeps, openBulkEditOverlay, closeBulkEditOverlay, isBulkEditOverlayOpen, saveBulkEditChanges } from './features/bulk-edit.js';
 import { getArchivedTasks, openArchivedTasksOverlay, closeArchivedTasksOverlay, isArchivedTasksOverlayOpen, renderArchivedTasksList, reactivateSelectedArchivedTasks, archiveDoneTasksFromModal } from './features/archived-tasks.js';
@@ -92,7 +92,7 @@ setThemeDeps({ renderBoard, renderDependencyMap, isDepMapOpen, updatePriorityIco
 initChatView();
 setAnnouncementDeps({ onUpdate: renderDisruptionBanner });
 setDespatchesDeps({
-  onUpdate: renderDespatchesPanel,
+  onUpdate: function(){ renderDespatchesPanel(); updateDespatchesBadge(); },
   openChat: function(channelId){ openChatPanel(); openChannel(channelId); }
 });
 setMutationsToast(toast);
@@ -511,8 +511,10 @@ function wireEvents(){
     e.stopPropagation();
     // Rendered fresh on every open — re-derives from the current project's live task list plus the
     // in-memory despatch log, so it never shows stale counts from an earlier open in the same session.
+    var wasHidden = document.getElementById('despatchesPanel').classList.contains('hidden');
     renderDespatchesPanel();
     toggleExportAsPanel('despatchesPanel');
+    if(wasHidden) clearUnread(); // only when actually opening, not when this click closes it
   });
   document.getElementById('accountMenuPanel').addEventListener('click', function(e){
     var link = e.target.closest('[data-nav-target]');
@@ -1272,6 +1274,7 @@ function wireEvents(){
     resetDespatchLog();
     renderDisruptionBanner();
     renderDespatchesPanel();
+    updateDespatchesBadge();
     updateChatBubbleVisibility();
     // Server-authoritative projects stay exactly as they are — still flagged server-authoritative,
     // still showing their last-synced data — they just can't push/pull further changes until logged
@@ -1916,6 +1919,17 @@ function renderDisruptionBanner(){
     return '<div class="kf-disruption-banner-row">' + escapeHTML(d.title) + '</div>';
   }).join('');
   banner.classList.remove('hidden');
+}
+
+/* Same convention as views/chat.js's updateChatBubbleBadge() — a plain count, capped display at
+   "99+", hidden entirely at zero. Wired as part of Despatches' onUpdate (below), so it stays current
+   whenever a despatch is pushed or the count is cleared, whether or not the panel itself is open. */
+function updateDespatchesBadge(){
+  var badge = document.getElementById('despatchesBadge');
+  if(!badge) return;
+  var count = getUnreadCount();
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.classList.toggle('kf-vis-hidden', count === 0);
 }
 
 /* =========================================================
