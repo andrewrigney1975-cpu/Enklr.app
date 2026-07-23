@@ -685,5 +685,104 @@ export var portfolioApi = {
      PortfolioService.GetResourcingSummaryAsync's doc comment for why. */
   getResourcingSummary: function(){
     return apiFetch('/organisations/me/portfolio/resourcing', {method: 'GET'});
+  },
+  /* Upserts one (project, pillar) fulfilment % — the only write path for Enterprise Strategy
+     Management's project-linkage data, called from the Portfolio Planner's per-project Strategy
+     modal (both active and inactive/planned projects). Lives under this same /portfolio namespace
+     server-side even though the entity is a StrategyPillar, not a Portfolio* one — see
+     StrategyController.cs's absolute-route override for why. */
+  upsertStrategyFulfilment: function(projectId, pillarId, fulfilmentPercent){
+    return apiFetch('/organisations/me/portfolio/projects/' + projectId + '/strategy-fulfilment/' + pillarId, {method: 'PUT', body: JSON.stringify({fulfilmentPercent: fulfilmentPercent})});
+  }
+};
+
+/* Enterprise Strategy Management — Org-Admin-only CRUD for Strategies/Pillars/Enablers/Metrics +
+   the fulfilment-matrix read, route base /api/organisations/me/strategy, see StrategyController.cs/
+   .php. Every one of these is OrgAdmin-gated server-side regardless of what this client sends.
+   Regular project members read the same shapes through projectStrategyApi below instead. */
+export var strategyApi = {
+  list: function(){
+    return apiFetch('/organisations/me/strategy', {method: 'GET'});
+  },
+  getActive: function(){
+    return apiFetch('/organisations/me/strategy/active', {method: 'GET'});
+  },
+  create: function(name){
+    return apiFetch('/organisations/me/strategy', {method: 'POST', body: JSON.stringify({name: name})});
+  },
+  update: function(strategyId, name){
+    return apiFetch('/organisations/me/strategy/' + strategyId, {method: 'PUT', body: JSON.stringify({name: name})});
+  },
+  /* The only place IsActive is ever written — flips every other org Strategy to false server-side
+     in the same transaction (see StrategyService.ActivateAsync). */
+  activate: function(strategyId){
+    return apiFetch('/organisations/me/strategy/' + strategyId + '/activate', {method: 'PUT'});
+  },
+  remove: function(strategyId){
+    return apiFetch('/organisations/me/strategy/' + strategyId, {method: 'DELETE'});
+  },
+  getTree: function(strategyId){
+    return apiFetch('/organisations/me/strategy/' + strategyId + '/tree', {method: 'GET'});
+  },
+  createPillar: function(strategyId, name, description){
+    return apiFetch('/organisations/me/strategy/' + strategyId + '/pillars', {method: 'POST', body: JSON.stringify({name: name, description: description || null})});
+  },
+  updatePillar: function(pillarId, name, description, sortOrder){
+    return apiFetch('/organisations/me/strategy/pillars/' + pillarId, {method: 'PUT', body: JSON.stringify({name: name, description: description || null, sortOrder: sortOrder})});
+  },
+  deletePillar: function(pillarId){
+    return apiFetch('/organisations/me/strategy/pillars/' + pillarId, {method: 'DELETE'});
+  },
+  createEnabler: function(pillarId, name, description){
+    return apiFetch('/organisations/me/strategy/pillars/' + pillarId + '/enablers', {method: 'POST', body: JSON.stringify({name: name, description: description || null})});
+  },
+  updateEnabler: function(enablerId, name, description, sortOrder){
+    return apiFetch('/organisations/me/strategy/enablers/' + enablerId, {method: 'PUT', body: JSON.stringify({name: name, description: description || null, sortOrder: sortOrder})});
+  },
+  deleteEnabler: function(enablerId){
+    return apiFetch('/organisations/me/strategy/enablers/' + enablerId, {method: 'DELETE'});
+  },
+  /* Exactly one of pillarId/enablerId is ever passed by the caller — the server independently
+     rejects (400) both-set or neither-set (see StrategyMetricService's exactly-one-parent rule). */
+  createMetricOnPillar: function(pillarId, name, targetValue, unitLabel){
+    return apiFetch('/organisations/me/strategy/pillars/' + pillarId + '/metrics', {method: 'POST', body: JSON.stringify({name: name, targetValue: targetValue === '' || targetValue == null ? null : Number(targetValue), unitLabel: unitLabel || null})});
+  },
+  createMetricOnEnabler: function(enablerId, name, targetValue, unitLabel){
+    return apiFetch('/organisations/me/strategy/enablers/' + enablerId + '/metrics', {method: 'POST', body: JSON.stringify({name: name, targetValue: targetValue === '' || targetValue == null ? null : Number(targetValue), unitLabel: unitLabel || null})});
+  },
+  updateMetric: function(metricId, name, targetValue, unitLabel, sortOrder){
+    return apiFetch('/organisations/me/strategy/metrics/' + metricId, {method: 'PUT', body: JSON.stringify({name: name, targetValue: targetValue === '' || targetValue == null ? null : Number(targetValue), unitLabel: unitLabel || null, sortOrder: sortOrder})});
+  },
+  deleteMetric: function(metricId){
+    return apiFetch('/organisations/me/strategy/metrics/' + metricId, {method: 'DELETE'});
+  },
+  recordMetricEntry: function(metricId, value, note){
+    return apiFetch('/organisations/me/strategy/metrics/' + metricId + '/entries', {method: 'POST', body: JSON.stringify({value: Number(value), note: note || null})});
+  },
+  getMetricHistory: function(metricId){
+    return apiFetch('/organisations/me/strategy/metrics/' + metricId + '/entries', {method: 'GET'});
+  },
+  /* Feeds all three radar views (per-project, portfolio-aggregate, multi-project overlay) from one
+     shaped payload — see StrategyFulfilmentService.BuildMatrixAsync's own doc comment. projectIds is
+     a single comma-joined string, matching portfolioApi's own array-query-param convention; omit for
+     "every project in the org." */
+  getFulfilmentMatrix: function(projectIds){
+    var query = projectIds && projectIds.length ? '?projectIds=' + encodeURIComponent(projectIds.join(',')) : '';
+    return apiFetch('/organisations/me/strategy/fulfilment-matrix' + query, {method: 'GET'});
+  }
+};
+
+/* Read-only Strategy surface for regular project members — route base
+   /api/projects/{projectId}/strategy, see ProjectStrategyController.cs/.php. No CRUD lives here;
+   every write goes through strategyApi (OrgAdmin) or portfolioApi.upsertStrategyFulfilment. */
+export var projectStrategyApi = {
+  getTree: function(projectId){
+    return apiFetch('/projects/' + projectId + '/strategy/tree', {method: 'GET'});
+  },
+  getMetricHistory: function(projectId, metricId){
+    return apiFetch('/projects/' + projectId + '/strategy/metrics/' + metricId + '/entries', {method: 'GET'});
+  },
+  getFulfilment: function(projectId){
+    return apiFetch('/projects/' + projectId + '/strategy/fulfilment', {method: 'GET'});
   }
 };

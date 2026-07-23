@@ -53,7 +53,10 @@ public static class ProjectSettingsSerializer
             SubTasks: Get("subTasks", true),
             // Opt-in, like Workflow: brand-new functionality nobody has configured yet, so a
             // missing/corrupted value must never silently turn it on.
-            Retrospective: Get("retrospective", false));
+            Retrospective: Get("retrospective", false),
+            // Opt-in, like Workflow/Retrospective: a missing/corrupted value must never silently
+            // turn on a module the project never asked for.
+            Strategy: Get("strategy", false));
 
         doc?.Dispose();
         return result;

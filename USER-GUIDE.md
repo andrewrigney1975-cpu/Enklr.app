@@ -267,6 +267,22 @@ Two more sit alongside these:
   built-in countdown timer to keep a retro from sprawling past its box. **Who**: Priya's team, at the
   close of a release, turning "what did we learn" into something written down rather than forgotten
   by the next standup.
+- **Strategy** — **What**: an optional module (like Retrospectives above, it's switched off until an
+  Org Admin turns it on) for defining the organisation's Strategy as a set of Pillars — the handful of
+  things that actually matter, like "Customer Trust" or "Operational Excellence" — with optional
+  supporting Enablers underneath each one, and any performance Metrics worth tracking over time
+  against either. Every project then gets a 0-100% "how much does this project actually move this
+  Pillar forward" score against each Pillar, visualised as a radar/spider chart, with a mode to view
+  one project, the whole portfolio's average, or an up-to-4-project side-by-side comparison. **Who**:
+  Elena, defining and maintaining the Strategy itself; Marcus and Priya get read-only visibility into
+  their own project's Pillars and how it's scored, so they understand *why* their project matters, not
+  just what tasks are on it. An organisation can keep more than one named Strategy over time (e.g. a
+  new one each financial year) with exactly one marked active at a time — switching which one is
+  active doesn't discard the others. **How to turn it on**: open **Project Settings** (the header
+  button next to the board), find **Strategy** under the **Governance** category, and switch it on —
+  it then appears as its own entry in the side nav. Unlike every other module in that category, the
+  **Strategy** row itself is only visible to an Org Admin — a Project Admin who isn't also an Org
+  Admin sees every other toggle in Project Settings but not this one.
 - **Health Dashboard** — **What**: one screen combining burndown, an overall health percentage, and
   who's carrying the most load on the team. **Who**: Priya's fastest way to answer "how are we
   actually doing" without reconstructing it from the board by eye. The Burndown chart's velocity
@@ -328,6 +344,11 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
 - **Portfolio Planner** — **What**: a Gantt-style view for planning multiple projects against each
   other before committing to timelines. **Who**: Elena, sanity-checking that two projects aren't
   quietly both claiming the same quarter's capacity.
+- **Strategy fulfilment** (Portfolio Planner) — **What**: once the Strategy module is switched on
+  (see [Section 6](#6-governance--knowledge--the-why-not-just-the-what)), a "Strategy" button appears
+  next to each project in the Portfolio Planner for setting that project's 0-100% fulfilment value
+  against every Pillar — works on active projects and ones still only planned. **Who**: Elena, scoring
+  the whole portfolio against the organisation's Strategy in one place.
 - **Manage Users** — **What**: create and manage the organisation's user accounts — including
   deactivating one when someone leaves. **Who**: Elena, onboarding Marcus's replacement without
   needing anyone to self-register, and, later, offboarding Marcus himself the day he moves on.
@@ -441,6 +462,13 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
 - **Chart exports** — **What**: every hand-drawn chart in the app — Timeline, Dependency Map,
   Cost/Benefit, Org Chart, Governance Map, and more — can be downloaded as an SVG or a PNG image.
   **Who**: anyone dropping a chart into a slide deck or a written report.
+- **Strategy on a Page** — **What**: a single printable page summarising how the *whole* portfolio
+  maps onto the organisation's active Strategy, deliberately collapsed to just two series on the
+  radar chart — every active project averaged together, and every inactive/planned project averaged
+  together — with a legend naming which colour is which and, underneath, the actual list of projects
+  that fed each average. **Who**: Elena, taking a single page into a steering meeting instead of the
+  full interactive dashboard. **How**: from the **Strategy** view's header, click **Strategy on a
+  Page**, then print/save as PDF from there like any other report in this app.
 
 ---
 
@@ -511,6 +539,9 @@ it" tiers, though who's allowed to *initiate* it differs:
 | Stop rebuilding the same board layout every time | [Section 9 — Manage Templates](#9-portfolio--organisation-management) |
 | Tell the whole organisation something | [Section 9 — Announcements](#9-portfolio--organisation-management) |
 | Warn everyone about planned maintenance or an outage | [Section 9 — Announcements](#9-portfolio--organisation-management) |
+| See how much a project actually advances the organisation's Strategy | [Section 6 — Strategy](#6-governance--knowledge--the-why-not-just-the-what) |
+| Turn on an optional module like Retrospectives or Strategy | [Section 6 — Strategy](#6-governance--knowledge--the-why-not-just-the-what) |
+| Print a one-page active-vs-planned Strategy summary | [Section 12 — Strategy on a Page](#12-reports-and-exporting) |
 | Change how the board looks for just me | [Section 10 — My Preferences](#10-making-it-yours--personalisation) |
 | Make sure I don't lose my local-only work | [Section 11 — Export Project](#11-data-backup-and-moving-between-tiers) |
 | See a personal feed of my recent activity/mentions/tasks | [Section 11 — Despatches button](#11-data-backup-and-moving-between-tiers) |

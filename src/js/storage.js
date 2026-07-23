@@ -680,7 +680,14 @@ export function normalizeHeaderButtonVisibility(value){
        Promote to Principle, Organisation Library) stays invisible until a project deliberately turns
        it on, so a corrupted or missing value must never silently start showing a feature the user
        never asked for. */
-    retrospective: v.retrospective === true
+    retrospective: v.retrospective === true,
+    /* Opt-in, like retrospective: the whole Strategy module (nav entry, dashboard, radar chart, the
+       Portfolio Planner's per-project Strategy button) stays invisible until a project deliberately
+       turns it on, so a corrupted or missing value must never silently start showing a feature the
+       user never asked for. Also requires isServerAuthoritative(project) regardless of this flag
+       (views/board.js's applyHeaderButtonVisibility) — a local-only project has no org/Strategy
+       concept to speak of at all. */
+    strategy: v.strategy === true
   };
 }
 

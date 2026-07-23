@@ -58,12 +58,13 @@ import { scheduleDocumentSuggestions } from './features/document-suggestions.js'
 import { openRisksOverlay, closeRisksOverlay, isRisksOverlayOpen, showRisksFormView, showRisksListView, renderRisksList, saveRiskFromModal, deleteRiskFromModal, updateRiskScorePreview } from './modals/risks.js';
 import { openHealthOverlay, closeHealthOverlay, isHealthOverlayOpen, cancelHealthGaugeAnimation } from './modals/health.js';
 import { openPortfolioDashboardOverlay, closePortfolioDashboardOverlay, isPortfolioDashboardOverlayOpen, onPortfolioProjectSelectionChanged, onPortfolioTimelineControlsChanged, onPortfolioActivityControlsChanged, toggleProjectFilterPanel, closeProjectFilterPanel, isProjectFilterPanelOpen, onPortfolioProjectSearchInput, onPortfolioTimelineBarPointerDown, closePortfolioProjectDatesModal, isPortfolioProjectDatesModalOpen, clearPortfolioProjectDatesInModal, savePortfolioProjectDatesFromModal } from './modals/portfolio-dashboard.js';
-import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, onPortfolioPlannerBarDblClick, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories, closePortfolioPlannerResourcesModal, isPortfolioPlannerResourcesModalOpen, addPortfolioPlannerResourceFromModal, onPortfolioPlannerResourcesListClick, onPortfolioPlannerResourcesListChange, togglePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerCategoryFilterPanel } from './modals/portfolio-planner.js';
+import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, onPortfolioPlannerBarDblClick, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories, closePortfolioPlannerResourcesModal, isPortfolioPlannerResourcesModalOpen, addPortfolioPlannerResourceFromModal, onPortfolioPlannerResourcesListClick, onPortfolioPlannerResourcesListChange, togglePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerStrategyModal, isPortfolioPlannerStrategyModalOpen, onPortfolioPlannerStrategyListChange } from './modals/portfolio-planner.js';
+import { openStrategyOverlay, closeStrategyOverlay, isStrategyOverlayOpen, setStrategyDashboardMode } from './modals/strategy.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
 import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen, showPrinciplesFormView, showPrinciplesListView, renderPrinciplesList, savePrincipleFromModal, deletePrincipleFromModal, switchPrinciplesTab, updatePrincipleShareFromModal } from './modals/principles.js';
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
 import { openTeamsCommitteesOverlay, closeTeamsCommitteesOverlay, isTeamsCommitteesOverlayOpen, showTeamCommitteeFormView, showTeamsCommitteesListView, renderTeamsCommitteesList, saveTeamCommitteeFromModal, deleteTeamCommitteeFromModal } from './modals/teams-committees.js';
-import { openReportOverlay, closeReportOverlay, isReportOverlayOpen, printReport, openProjectManagementReportOverlay, openReleaseNotesReportOverlay } from './features/reports.js';
+import { openReportOverlay, closeReportOverlay, isReportOverlayOpen, printReport, openProjectManagementReportOverlay, openReleaseNotesReportOverlay, openStrategyOnAPageReportOverlay } from './features/reports.js';
 import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick, showProjectSearchSimpleView, showProjectSearchQueryView, toggleProjectQuerySchemaPanel, toggleProjectQuerySavedPanel, handleProjectQuerySavedListClick, handleProjectQuerySaveOrUpdateClick, handleProjectQueryNewClick, hideProjectQuerySaveRow, confirmSaveProjectQuery, showProjectQueryResultsTableView, showProjectQueryResultsJsonView, runProjectQuery, formatProjectQuerySql, exportProjectQueryResultsAsCsv, copyProjectQueryResultsAsJson, copyProjectQueryApiUrl, testProjectQueryApi, exportProjectQueryResultsAsJson, printProjectQueryResults, erdZoomState, setProjectQueryErdZoom, resetProjectQueryErdZoom, zoomProjectQueryErdAtPoint, toggleProjectQueryErdFullscreen, closeProjectQueryErdFullscreen, isProjectQueryErdFullscreenOpen, updateProjectQueryIntellisense, repositionProjectQueryIntellisense, hideProjectQueryIntellisense, isProjectQueryIntellisenseOpen, moveProjectQueryIntellisenseActive, acceptProjectQueryIntellisenseSuggestion, handleProjectQueryIntellisenseClick, handleSchemaErdClick } from './modals/project-search.js';
 import { openAboutModal, closeAboutModal, isAboutModalOpen } from './modals/about.js';
 import { openProjectStorageModal, closeProjectStorageModal, isProjectStorageModalOpen } from './modals/project-storage.js';
@@ -402,6 +403,36 @@ function wireEvents(){
   document.getElementById('portfolioPlannerResourceAddBtn').addEventListener('click', addPortfolioPlannerResourceFromModal);
   document.getElementById('portfolioPlannerResourcesList').addEventListener('click', onPortfolioPlannerResourcesListClick);
   document.getElementById('portfolioPlannerResourcesList').addEventListener('change', onPortfolioPlannerResourcesListChange);
+  document.getElementById('portfolioPlannerStrategyClose').addEventListener('click', closePortfolioPlannerStrategyModal);
+  document.getElementById('portfolioPlannerStrategyDoneBtn').addEventListener('click', closePortfolioPlannerStrategyModal);
+  document.getElementById('portfolioPlannerStrategyOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'portfolioPlannerStrategyOverlay') closePortfolioPlannerStrategyModal();
+  });
+  document.getElementById('portfolioPlannerStrategyList').addEventListener('change', onPortfolioPlannerStrategyListChange);
+  document.getElementById('navStrategyBtn').addEventListener('click', openStrategyOverlay);
+  document.getElementById('strategyClose').addEventListener('click', closeStrategyOverlay);
+  document.getElementById('strategyOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'strategyOverlay') closeStrategyOverlay();
+  });
+  document.getElementById('strategyModeProjectBtn').addEventListener('click', function(){ setStrategyDashboardMode('project'); });
+  document.getElementById('strategyModeAggregateBtn').addEventListener('click', function(){ setStrategyDashboardMode('aggregate'); });
+  document.getElementById('strategyModeCompareBtn').addEventListener('click', function(){ setStrategyDashboardMode('compare'); });
+  document.getElementById('strategyOnAPageBtn').addEventListener('click', openStrategyOnAPageReportOverlay);
+  document.getElementById('strategyExportAsBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    toggleExportAsPanel('strategyExportAsPanel');
+  });
+  document.querySelectorAll('#strategyExportAsPanel .kf-export-as-option').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      closeAllExportAsPanels();
+      var project = getCurrentProject();
+      var filenameBase = (project ? project.key : 'export') + '-strategy-radar';
+      var svgEl = document.querySelector('#strategyRadarInner svg');
+      if(!svgEl){ toast('Nothing to export.'); return; }
+      if(btn.getAttribute('data-export-type') === 'svg') exportSvgElementAsSvgFile(svgEl, filenameBase);
+      else exportSvgElementAsPng(svgEl, filenameBase, 4);
+    });
+  });
   document.getElementById('healthBtn').addEventListener('click', openHealthOverlay);
   document.getElementById('healthClose').addEventListener('click', closeHealthOverlay);
   document.getElementById('healthOverlay').addEventListener('mousedown', function(e){
@@ -1483,6 +1514,9 @@ function wireEvents(){
   document.getElementById('settingsShowRetrospectiveBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('retrospective', e.target.checked);
   });
+  document.getElementById('settingsShowStrategyBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('strategy', e.target.checked);
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);
@@ -1746,7 +1780,9 @@ function wireEvents(){
     else if(isPortfolioPlannerProjectDatesModalOpen()) closePortfolioPlannerProjectDatesModal();
     else if(isPortfolioPlannerAddProjectModalOpen()) closePortfolioPlannerAddProjectModal();
     else if(isPortfolioPlannerResourcesModalOpen()) closePortfolioPlannerResourcesModal();
+    else if(isPortfolioPlannerStrategyModalOpen()) closePortfolioPlannerStrategyModal();
     else if(isPortfolioPlannerOverlayOpen()) closePortfolioPlannerOverlay();
+    else if(isStrategyOverlayOpen()) closeStrategyOverlay();
     else if(isHealthOverlayOpen()){ cancelHealthGaugeAnimation(); closeHealthOverlay(); }
     else if(isAppSettingsOverlayOpen()) closeAppSettingsOverlay();
     else if(isAboutModalOpen()) closeAboutModal();

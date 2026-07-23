@@ -8,7 +8,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-export var APP_VERSION = '3.10.20260723.1406';
+export var APP_VERSION = '3.21.20260723.1648';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -98,6 +98,9 @@ export var ICON_PATHS = {
   ty_plan:        '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M7 14l2 2 4-5"/>',
   compass:        '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
   target:         '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  /* Strategy nav icon — a magnetic compass, needle pointing north, whole compass (bezel + cardinal
+     ticks + needle) rotated 23.44° clockwise (Earth's axial tilt) as one <g>, per explicit request. */
+  strategyCompass: '<g transform="rotate(23.44 12 12)"><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="21" y1="12" x2="19" y2="12"/><line x1="12" y1="21" x2="12" y2="19"/><line x1="3" y1="12" x2="5" y2="12"/><polygon points="12,5.5 14,12 12,18.5 10,12"/></g>',
   ty_research:    '<path d="M2 5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15a1.5 1.5 0 0 0-1.5-1.5H2Z"/><path d="M22 5a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v15a1.5 1.5 0 0 1 1.5-1.5H22Z"/>',
   ty_train:       '<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12.5V17c0 1.5 2.5 3 6 3s6-1.5 6-3v-4.5"/>',
   ty_support:     '<path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="2" y="13" width="4" height="6" rx="1.5"/><rect x="18" y="13" width="4" height="6" rx="1.5"/><path d="M20 19v1a3 3 0 0 1-3 3h-3"/>',

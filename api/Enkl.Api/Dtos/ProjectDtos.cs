@@ -98,7 +98,7 @@ public record ProjectDetailDto(
 public record ProjectSettingsDto(
     bool Documents, bool Risks, bool Decisions, bool Health, bool Principles, bool Objectives,
     bool TeamsCommittees, bool Workflow, bool TimeTracking, bool ChangeAuditing, bool SubTasks,
-    bool Retrospective);
+    bool Retrospective, bool Strategy);
 
 public record CreateColumnRequest(string Name, bool Done, string? Color);
 public record UpdateColumnRequest(string Name, bool Done, string? Color, int Order, int Cap);

@@ -174,6 +174,7 @@
         <button type="button" class="kf-side-nav-item" id="navWorkflowBtn" title="Workflow"><span class="kf-icon" data-icon="workflow" data-size="21"></span><span class="kf-side-nav-text">Workflow</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navPortfolioPlannerBtn" title="Portfolio Planner"><span class="kf-icon" data-icon="portfolioPlanner" data-size="21"></span><span class="kf-side-nav-text">Portfolio Planner</span></button>
         <button type="button" class="kf-side-nav-item" id="navRetrospectiveBtn" title="Retrospectives"><span class="kf-icon" data-icon="retrospective" data-size="21"></span><span class="kf-side-nav-text">Retrospectives</span></button>
+        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navStrategyBtn" title="Strategy"><span class="kf-icon" data-icon="strategyCompass" data-size="21"></span><span class="kf-side-nav-text">Strategy</span></button>
       </div>
     </nav>
 
@@ -2028,6 +2029,14 @@
                   <span class="kf-setting-row-desc">Reflect on a milestone — what worked, what didn't, and what could be better. Derive new Principles from hard-won experience and carry the benefits into the next release and the next project.</span>
                 </span>
               </label>
+              <label class="kf-setting-row" id="settingsShowStrategyRow">
+                <input type="checkbox" id="settingsShowStrategyBtn">
+                <span class="kf-icon kf-setting-row-icon" data-icon="strategyCompass" data-size="16"></span>
+                <span class="kf-setting-row-text">
+                  <span class="kf-setting-row-title">Strategy</span>
+                  <span class="kf-setting-row-desc">Define the organisation's strategic Pillars and see exactly how much this project moves each one forward. Compare against the wider portfolio on a radar chart to show where investment is paying off — and where it isn't.</span>
+                </span>
+              </label>
             </div>
           </div>
 
@@ -2527,6 +2536,46 @@
   </div>
 </div>
 
+<!-- Enterprise Strategy Management — Org-Admin-only definition/CRUD + a read-only view for regular
+     project members, both sharing one overlay (see modals/strategy.js). Left panel is the
+     Pillar/Enabler/Metric definition tree (editable for admins, read-only display otherwise); right
+     panel is the fulfilment radar dashboard with a per-project/aggregate/compare mode toggle. -->
+<div class="kf-overlay hidden" id="strategyOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Strategy</h2>
+      <div class="kf-modal-header-actions">
+        <div id="strategySwitcherWrap" class="kf-strategy-switcher-wrap"></div>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost kf-vis-hidden" id="strategyOnAPageBtn" title="Strategy on a Page — active vs. inactive/planned portfolio comparison, printable"><span class="kf-icon" data-icon="printer" data-size="14"></span>Strategy on a Page</button>
+        <div class="kf-header-divider-light"></div>
+        <div class="kf-export-as-wrap">
+          <button class="kf-btn kf-btn-ghost" id="strategyExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+          <div class="kf-export-as-panel hidden" id="strategyExportAsPanel">
+            <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+            <button type="button" class="kf-export-as-option" data-export-type="png">Export as PNG (4x resolution)</button>
+          </div>
+        </div>
+        <button class="kf-btn kf-btn-ghost" id="strategyClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-strategy-body">
+      <div class="kf-strategy-manage-panel" id="strategyManagePanel">
+        <div id="strategyDefinitionList" class="kf-strategy-definition-list"></div>
+      </div>
+      <div class="kf-strategy-dashboard-panel">
+        <div class="kf-strategy-mode-toggle-wrap" id="strategyModeToggleWrap">
+          <button type="button" class="kf-strategy-mode-btn" data-mode="project" id="strategyModeProjectBtn">This Project</button>
+          <button type="button" class="kf-strategy-mode-btn" data-mode="aggregate" id="strategyModeAggregateBtn">Portfolio Average</button>
+          <button type="button" class="kf-strategy-mode-btn" data-mode="compare" id="strategyModeCompareBtn">Compare Projects</button>
+        </div>
+        <div id="strategyComparePickerWrap" class="hidden"></div>
+        <div id="strategyRadarInner" class="kf-strategy-radar-inner"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Portfolio Planner: placeholder Resources modal (role + allocated % rows for one project). Each
      row persists immediately (Add/Remove), same as the Team modal's own member rows — no batch-save
      step. -->
@@ -2555,6 +2604,23 @@
     </div>
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-secondary" id="portfolioPlannerResourcesDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Portfolio Planner: per-project Strategy fulfilment modal (0-100% per Pillar of the org's active
+     Strategy). Each row saves on change, same immediate-persist convention as Resources above. -->
+<div class="kf-overlay hidden" id="portfolioPlannerStrategyOverlay">
+  <div class="kf-modal kf-modal-md" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="portfolioPlannerStrategyTitle">Strategy Fulfilment</h2>
+      <button class="kf-btn kf-btn-ghost" id="portfolioPlannerStrategyClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="portfolioPlannerStrategyList" class="kf-member-list"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="portfolioPlannerStrategyDoneBtn">Done</button>
     </div>
   </div>
 </div>

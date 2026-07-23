@@ -96,7 +96,7 @@ export function canCurrentUserManageProject(){
 
 export function applyHeaderButtonVisibility(){
   var project = getCurrentProject();
-  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true, health:true, principles:true, objectives:true, teamsCommittees:true, workflow:false, retrospective:false};
+  var visibility = project ? normalizeHeaderButtonVisibility(project.headerButtonVisibility) : {documents:true, risks:true, decisions:true, health:true, principles:true, objectives:true, teamsCommittees:true, workflow:false, retrospective:false, strategy:false};
   document.getElementById('healthBtn').classList.toggle('hidden', !visibility.health);
 
   /* Project Administrator gate (see MembersController.cs's own doc comment for the four capabilities
@@ -167,6 +167,14 @@ export function applyHeaderButtonVisibility(){
      is the only visibility toggle it needs. */
   document.getElementById('navRetrospectiveBtn').classList.toggle('kf-vis-hidden', !visibility.retrospective);
 
+  /* Strategy is server-authoritative-only, deliberately WITHOUT an isOrgAdmin() check unlike
+     Portfolio Dashboard/Planner above — regular project members get read-only visibility into their
+     own project's Strategy (Pillars/Enablers/Metrics/fulfilment radar), only the CRUD inside the
+     modal itself is Org-Admin-gated. Same entry-point-visible-to-everyone shape as healthBtn. Also
+     opt-in via App Settings > Governance (visibility.strategy), same as Retrospectives above — a
+     project must deliberately turn this module on before it appears at all. */
+  document.getElementById('navStrategyBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.strategy);
+
   var govMapEnabled = isGovernanceMapEnabled(visibility);
   document.getElementById('governanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);
   document.getElementById('navGovernanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);
@@ -211,10 +219,15 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowChangeAuditingBtn').checked = visibility.changeAuditing;
   document.getElementById('settingsShowSubTasksBtn').checked = visibility.subTasks;
   document.getElementById('settingsShowRetrospectiveBtn').checked = visibility.retrospective;
+  document.getElementById('settingsShowStrategyBtn').checked = visibility.strategy;
   // SAML/SCIM configuration is an org-admin-only concern (same gating as the Account menu's own
   // "SSO & Provisioning" link) — shown here purely as a discoverability shortcut into that same
   // modal, not a per-project toggle of its own.
   document.getElementById('appSettingsEnterpriseCategory').classList.toggle('hidden', !isOrgAdmin());
+  // Strategy is an Org-Admin-only concern to even switch on — unlike every other row in this modal
+  // (visible to any Project Admin), a plain Project Admin who isn't also an Org Admin never sees this
+  // row at all, matching the module's own OrgAdmin-only management surface.
+  document.getElementById('settingsShowStrategyRow').classList.toggle('hidden', !isOrgAdmin());
   document.getElementById('appSettingsOverlay').classList.remove('hidden');
 }
 export function closeAppSettingsOverlay(){

@@ -3178,6 +3178,12 @@
     display: none;
   }
 
+  /* No generic .hidden utility class exists in this stylesheet — every hidden-toggling element needs
+     its own compound selector (see root CLAUDE.md's own note on this gotcha). */
+  #settingsShowStrategyRow.hidden {
+    display: none;
+  }
+
   /* Decisions */
   .kf-decision-type-pill {
     display: inline-flex;
@@ -5389,6 +5395,100 @@
   .kf-report-risk-matrix svg {
     max-width: 100%;
     height: auto;
+  }
+
+  /* Strategy on a Page (features/reports.js's openStrategyOnAPageReportOverlay) — same
+     "shrink an embedded chart to the page/container width" pattern as .kf-report-risk-matrix above. */
+  .kf-report-strategy-page-radar {
+    margin: 16px 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .kf-report-strategy-page-radar svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .kf-report-strategy-page-membership {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  .kf-report-strategy-page-group {
+    flex: 1 1 220px;
+    min-width: 220px;
+  }
+
+  .kf-report-strategy-page-group-heading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0 0 8px;
+  }
+
+  .kf-report-strategy-page-project-row {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 3px 0;
+    font-size: 13px;
+  }
+
+  /* Strategy Definition section (Pillars -> Enablers/Metrics), placed before the project-based
+     radar/membership section above. */
+  .kf-report-strategy-page-pillar {
+    margin-bottom: 18px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--kf-border);
+  }
+
+  .kf-report-strategy-page-pillar-heading {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+
+  .kf-report-strategy-page-desc {
+    font-size: 13px;
+    color: var(--kf-text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .kf-report-strategy-page-enabler {
+    margin: 10px 0 10px 18px;
+    padding-left: 10px;
+    border-left: 2px solid var(--kf-border);
+  }
+
+  .kf-report-strategy-page-enabler-heading {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    color: var(--kf-text-secondary);
+  }
+
+  .kf-report-strategy-page-metric-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    padding: 4px 0;
+    font-size: 13px;
+    border-top: 1px dashed var(--kf-border);
+  }
+
+  .kf-report-strategy-page-metric-name {
+    font-weight: 600;
+    flex: 1 1 auto;
+  }
+
+  .kf-report-strategy-page-metric-value,
+  .kf-report-strategy-page-metric-target {
+    color: var(--kf-text-secondary);
+    white-space: nowrap;
   }
 
   .kf-report-extra-fields {
@@ -7898,7 +7998,248 @@
     display: none;
   }
 
+  /* Enterprise Strategy Management — modals/strategy.js's overlay + views/strategy-radar.js's SVG. */
+  .kf-strategy-switcher-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kf-strategy-switcher-select {
+    height: 32px;
+    border: 1px solid var(--kf-border);
+    border-radius: 4px;
+    background: var(--kf-bg);
+    color: var(--kf-text);
+    padding: 0 8px;
+    font-size: 13px;
+    max-width: 220px;
+  }
+  .kf-strategy-body {
+    display: flex;
+    gap: 20px;
+    padding: 16px 20px;
+    overflow: auto;
+    flex: 1;
+  }
+  .kf-strategy-manage-panel {
+    flex: 1 1 40%;
+    min-width: 0;
+    overflow: auto;
+  }
+  .kf-strategy-manage-panel.hidden {
+    display: none;
+  }
+  .kf-strategy-dashboard-panel {
+    flex: 1 1 60%;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .kf-strategy-mode-toggle-wrap {
+    display: flex;
+    gap: 4px;
+    border: 1px solid var(--kf-border);
+    border-radius: 6px;
+    padding: 3px;
+  }
+  .kf-strategy-mode-toggle-wrap.hidden {
+    display: none;
+  }
+  .kf-strategy-mode-btn {
+    border: none;
+    background: transparent;
+    color: var(--kf-text-secondary);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .kf-strategy-mode-btn.kf-strategy-mode-active {
+    background: var(--kf-blue);
+    color: #fff;
+  }
+  .kf-strategy-compare-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--kf-text-secondary);
+  }
+  .kf-strategy-compare-picker.hidden {
+    display: none;
+  }
+  .kf-strategy-compare-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .kf-strategy-compare-item-disabled {
+    color: var(--kf-text-faint);
+    cursor: not-allowed;
+  }
+  .kf-strategy-radar-inner {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .kf-strategy-radar-ring {
+    fill: none;
+    stroke: var(--kf-border);
+    stroke-width: 1;
+  }
+  .kf-strategy-radar-spoke {
+    stroke: var(--kf-border);
+    stroke-width: 1;
+  }
+  .kf-strategy-radar-label {
+    font-size: 11px;
+    fill: var(--kf-text-secondary);
+  }
+  .kf-strategy-radar-empty {
+    font-size: 13px;
+    fill: var(--kf-text-secondary);
+  }
+  .kf-strategy-radar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--kf-text-secondary);
+    margin-top: 6px;
+  }
+  .kf-strategy-radar-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .kf-strategy-radar-legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+  .kf-strategy-pillar {
+    border: 1px solid var(--kf-border);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  .kf-strategy-pillar-header .kf-strategy-pillar-name-input {
+    font-weight: 600;
+  }
+  .kf-strategy-pillar-name,
+  .kf-strategy-enabler-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+  }
+  .kf-strategy-enabler-name {
+    font-weight: 500;
+    color: var(--kf-text-secondary);
+  }
+  .kf-strategy-description {
+    font-size: 12px;
+    color: var(--kf-text-secondary);
+    margin: 2px 0 6px 0;
+  }
+  .kf-strategy-enabler {
+    border-left: 2px solid var(--kf-border);
+    margin: 8px 0 8px 10px;
+    padding-left: 10px;
+  }
+  .kf-strategy-pillar-actions {
+    margin-top: 6px;
+  }
+  .kf-strategy-metric-row {
+    border-top: 1px dashed var(--kf-border);
+    padding: 6px 0;
+  }
+  .kf-strategy-metric-header {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .kf-strategy-metric-name {
+    font-size: 13px;
+  }
+  .kf-strategy-metric-unit-input,
+  .kf-strategy-metric-target-input {
+    width: 70px;
+    height: 30px;
+    border: 1px solid var(--kf-border);
+    border-radius: 4px;
+    background: var(--kf-bg);
+    color: var(--kf-text);
+    padding: 0 6px;
+    font-size: 12px;
+  }
+  .kf-strategy-metric-entry-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+  }
+  .kf-strategy-metric-value-input {
+    width: 90px;
+    height: 30px;
+    border: 1px solid var(--kf-border);
+    border-radius: 4px;
+    background: var(--kf-bg);
+    color: var(--kf-text);
+    padding: 0 6px;
+    font-size: 12px;
+  }
+  .kf-strategy-metric-history-toggle {
+    border: none;
+    background: transparent;
+    color: var(--kf-blue);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .kf-strategy-metric-trend {
+    margin-top: 6px;
+  }
+  .kf-strategy-trend-line {
+    stroke: var(--kf-blue);
+    stroke-width: 2;
+  }
+  .kf-strategy-trend-target {
+    stroke: var(--kf-text-faint);
+    stroke-width: 1;
+    stroke-dasharray: 3,3;
+  }
+  .kf-portfolio-planner-strategy-pillar-name {
+    flex: 1;
+  }
+  .kf-portfolio-planner-strategy-fulfilment-input {
+    width: 70px;
+    height: 32px;
+    border: 1px solid var(--kf-border);
+    border-radius: 4px;
+    background: var(--kf-bg);
+    color: var(--kf-text);
+    padding: 0 6px;
+    text-align: right;
+  }
+  .kf-portfolio-planner-strategy-percent-label {
+    color: var(--kf-text-secondary);
+    font-size: 12px;
+  }
+
   @media (max-width: 900px) {
+    .kf-strategy-body {
+      flex-direction: column;
+    }
+
     .kf-retro-board {
       flex-direction: column;
     }

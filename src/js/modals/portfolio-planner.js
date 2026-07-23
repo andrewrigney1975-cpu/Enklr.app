@@ -1,7 +1,7 @@
 "use strict";
 import { toast, getPriority } from '../ui.js';
 import { escapeHTML } from '../views/board.js';
-import { portfolioApi, isOrgAdmin, getMyOrganisationApi } from '../api.js';
+import { portfolioApi, strategyApi, isOrgAdmin, getMyOrganisationApi } from '../api.js';
 import { PRIORITY_META, PRIORITY_ORDER } from '../config.js';
 import { confirmDialog } from './confirm.js';
 import { buildTimelineColumns, tlDateToPixel, tlPixelToDate } from '../views/timeline.js';
@@ -300,6 +300,7 @@ function renderPortfolioPlannerProjectRow(p){
     '<input type="date" class="kf-portfolio-planner-date-input" data-action="change-end-date" value="' + (p.endDate || '') + '" aria-label="End date">' +
     '<select class="kf-portfolio-planner-category-select" data-action="change-category" aria-label="Category">' + categoryOptionsHTML + '</select>' +
     '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-resources" title="Placeholder resourcing">Resources</button>' +
+    '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-strategy" title="Strategy fulfilment">Strategy</button>' +
     activateHTML +
   '</div>';
 }
@@ -358,6 +359,8 @@ export function onPortfolioPlannerGroupsClick(e){
     openPortfolioPlannerAddProjectModal(categoryId);
   } else if(action === 'edit-resources'){
     openPortfolioPlannerResourcesModal(projectId);
+  } else if(action === 'edit-strategy'){
+    openPortfolioPlannerStrategyModal(projectId);
   } else if(action === 'activate'){
     portfolioApi.updateProjectActive(projectId, true).then(function(){
       _allProjects = _allProjects.map(function(p){ return p.id === projectId ? Object.assign({}, p, {isActive: true}) : p; });
@@ -729,6 +732,80 @@ export function onPortfolioPlannerResourcesListChange(e){
   }, function(err){
     toast((err && err.message) || 'Could not update resource.');
     renderPortfolioPlannerResourcesList();
+  });
+}
+
+/* =========================================================
+   STRATEGY FULFILMENT MODAL — per-project 0-100% fulfilment against every Pillar of the org's
+   active Strategy (see modals/strategy.js for the definition/CRUD side of this same feature).
+   Works for both active and inactive/planned projects, same as Resources above. Each row's value
+   saves on blur/change via portfolioApi.upsertStrategyFulfilment — no batch-save step, same
+   immediate-persist convention as the Resources rows.
+   ========================================================= */
+var _strategyModalProjectId = null;
+var _strategyModalPillars = [];
+var _strategyModalFulfilment = {};
+
+export function openPortfolioPlannerStrategyModal(projectId){
+  var project = _allProjects.filter(function(p){ return p.id === projectId; })[0];
+  if(!project) return;
+  _strategyModalProjectId = projectId;
+  document.getElementById('portfolioPlannerStrategyTitle').textContent = project.name + ' — Strategy Fulfilment';
+  document.getElementById('portfolioPlannerStrategyList').innerHTML = '<div class="kf-health-empty">Loading…</div>';
+  document.getElementById('portfolioPlannerStrategyOverlay').classList.remove('hidden');
+
+  strategyApi.getFulfilmentMatrix([projectId]).then(function(matrix){
+    if(_strategyModalProjectId !== projectId) return;
+    _strategyModalPillars = (matrix && matrix.pillars) || [];
+    var row = matrix && matrix.projects && matrix.projects[0];
+    _strategyModalFulfilment = (row && row.fulfilment) || {};
+    renderPortfolioPlannerStrategyList();
+  }, function(){
+    document.getElementById('portfolioPlannerStrategyList').innerHTML = '<div class="kf-health-empty">Could not load strategy data.</div>';
+  });
+}
+
+export function closePortfolioPlannerStrategyModal(){
+  document.getElementById('portfolioPlannerStrategyOverlay').classList.add('hidden');
+  _strategyModalProjectId = null;
+}
+
+export function isPortfolioPlannerStrategyModalOpen(){
+  return !document.getElementById('portfolioPlannerStrategyOverlay').classList.contains('hidden');
+}
+
+function renderPortfolioPlannerStrategyList(){
+  var listEl = document.getElementById('portfolioPlannerStrategyList');
+  if(_strategyModalPillars.length === 0){
+    listEl.innerHTML = '<div class="kf-member-empty">No active strategy with pillars has been defined for this organisation yet.</div>';
+    return;
+  }
+  listEl.innerHTML = _strategyModalPillars.slice().sort(function(a, b){ return a.sortOrder - b.sortOrder; }).map(function(p){
+    var value = _strategyModalFulfilment[p.id] != null ? _strategyModalFulfilment[p.id] : 0;
+    return '<div class="kf-member-row" data-pillar-id="' + p.id + '">' +
+      '<span class="kf-portfolio-planner-strategy-pillar-name">' + escapeHTML(p.name) + '</span>' +
+      '<input type="number" class="kf-portfolio-planner-strategy-fulfilment-input" min="0" max="100" step="1" value="' + value + '" aria-label="Fulfilment percent for ' + escapeHTML(p.name) + '">' +
+      '<span class="kf-portfolio-planner-strategy-percent-label">%</span>' +
+    '</div>';
+  }).join('');
+}
+
+export function onPortfolioPlannerStrategyListChange(e){
+  var rowEl = e.target.closest ? e.target.closest('[data-pillar-id]') : null;
+  if(!rowEl || !_strategyModalProjectId) return;
+  var pillarId = rowEl.getAttribute('data-pillar-id');
+  var input = rowEl.querySelector('.kf-portfolio-planner-strategy-fulfilment-input');
+  var value = Math.round(Number(input.value));
+  if(!isFinite(value)) value = 0;
+  value = Math.max(0, Math.min(100, value));
+  input.value = value;
+
+  var projectId = _strategyModalProjectId;
+  portfolioApi.upsertStrategyFulfilment(projectId, pillarId, value).then(function(updated){
+    if(_strategyModalProjectId !== projectId) return;
+    _strategyModalFulfilment[pillarId] = updated.fulfilmentPercent;
+  }, function(){
+    toast('Could not save fulfilment value.');
   });
 }
 

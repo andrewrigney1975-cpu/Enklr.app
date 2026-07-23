@@ -45,6 +45,12 @@ public class AppDbContext : DbContext
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<AnnouncementOrganisation> AnnouncementOrganisations => Set<AnnouncementOrganisation>();
     public DbSet<AnnouncementAcknowledgement> AnnouncementAcknowledgements => Set<AnnouncementAcknowledgement>();
+    public DbSet<Strategy> Strategies => Set<Strategy>();
+    public DbSet<StrategyPillar> StrategyPillars => Set<StrategyPillar>();
+    public DbSet<StrategyEnabler> StrategyEnablers => Set<StrategyEnabler>();
+    public DbSet<StrategyMetric> StrategyMetrics => Set<StrategyMetric>();
+    public DbSet<StrategyMetricEntry> StrategyMetricEntries => Set<StrategyMetricEntry>();
+    public DbSet<ProjectPillarFulfilment> ProjectPillarFulfilments => Set<ProjectPillarFulfilment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

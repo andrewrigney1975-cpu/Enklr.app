@@ -7,6 +7,8 @@ import { markdownToHtml } from '../rich-text/markdown.js';
 import { utcISOToLocalDisplayDate, memberInitials } from '../date-utils.js';
 import { computeOrgChartLayout, ORGCHART_NODE_W, ORGCHART_NODE_H, ORGCHART_GAP_Y, ORGCHART_TYPE_ACCENT } from '../views/org-chart.js';
 import { iconSvg } from '../icons.js';
+import { strategyApi } from '../api.js';
+import { buildRadarSvg, SERIES_COLORS } from '../views/strategy-radar.js';
 
 /* =========================================================
    ENTITY REPORTS — a single generic, printable report view shared by Risks/Decisions/Principles/
@@ -358,6 +360,187 @@ export function openProjectManagementReportOverlay(){
     renderEntitySection(project, 'decisions', decisionExtraFields);
 
   document.getElementById('reportOverlay').classList.remove('hidden');
+}
+
+/* =========================================================
+   STRATEGY ON A PAGE — a single printable page showing how the org's WHOLE portfolio maps onto its
+   active Strategy, aggregated into exactly two series (never per-project, unlike the interactive
+   Strategy dashboard's Compare mode): every currently-active project averaged together, and every
+   inactive/planned project averaged together. Deliberately org-wide/cross-project (like the Portfolio
+   Dashboard), so — same as that feature — this is only ever reachable by an Org Admin; a regular
+   project member has no surface in this app for cross-project aggregates at all.
+
+   Unlike every other report in this file, the data isn't already sitting on the in-memory `project`
+   object — it's fetched fresh via strategyApi.getFulfilmentMatrix(null) (the unfiltered, whole-org
+   matrix) at open time, so this is the one report function in this module that's asynchronous.
+   Reuses the exact same #reportOverlay/print-CSS machinery as every report above.
+   ========================================================= */
+
+/* Average of every project's fulfilment value for one pillar, EXCLUDING projects with no value set
+   for it at all — same "don't count an absence as 0" rule as StrategyFulfilmentService.BuildMatrixAsync's
+   own org-wide aggregate, just recomputed here over a caller-chosen project subset (active-only /
+   inactive-only) instead of every project. Returns null (not 0) when nothing in this subset has an
+   opinion on this pillar at all. */
+function averageFulfilmentForPillar(projects, pillarId){
+  var values = projects.map(function(p){ return p.fulfilment[pillarId]; }).filter(function(v){ return v != null; });
+  if(values.length === 0) return null;
+  return values.reduce(function(a, b){ return a + b; }, 0) / values.length;
+}
+
+function pillarValuesForProjects(pillars, projects){
+  var values = {};
+  pillars.forEach(function(p){
+    var avg = averageFulfilmentForPillar(projects, p.id);
+    if(avg != null) values[p.id] = avg;
+  });
+  return values;
+}
+
+function renderStrategyOnAPageProjectList(projects, color, label){
+  var itemsHTML = projects.length
+    ? projects.map(function(p){
+        return '<div class="kf-report-strategy-page-project-row"><span class="kf-dep-key">' + escapeHTML(p.projectKey) + '</span><span class="kf-dep-title">' + escapeHTML(p.projectName) + '</span></div>';
+      }).join('')
+    : '<div class="kf-report-no-desc">None.</div>';
+  return '<div class="kf-report-strategy-page-group">' +
+    '<h3 class="kf-report-strategy-page-group-heading"><span class="kf-strategy-radar-legend-swatch" style="background:' + color + '"></span>' + escapeHTML(label) + ' (' + projects.length + ')</h3>' +
+    itemsHTML +
+  '</div>';
+}
+
+function bySortOrder(a, b){ return a.sortOrder - b.sortOrder; }
+
+/* Every Metric hanging off the tree, flattened — Pillar-level and Enabler-level alike — so their
+   latest recorded values can all be fetched together in one Promise.all rather than nested per level. */
+function collectMetricsFromTree(tree){
+  var metrics = [];
+  (tree || []).forEach(function(p){
+    (p.metrics || []).forEach(function(m){ metrics.push(m); });
+    (p.enablers || []).forEach(function(en){
+      (en.metrics || []).forEach(function(m){ metrics.push(m); });
+    });
+  });
+  return metrics;
+}
+
+/* "Current value" for a Metric is its most recently recorded StrategyMetricEntry, not the target —
+   the tree read (StrategyPillarService.GetPillarTreeAsync) only returns each Metric's own definition
+   (name/target/unit), never its history, so this is a genuinely separate fetch per metric. Returns a
+   {metricId: latestEntry|null} map; null means "no value recorded yet", not an error. */
+function fetchLatestMetricValues(metrics){
+  if(metrics.length === 0) return Promise.resolve({});
+  return Promise.all(metrics.map(function(m){
+    return strategyApi.getMetricHistory(m.id).then(function(history){
+      return {id: m.id, latest: (history && history.length) ? history[history.length - 1] : null};
+    }, function(){ return {id: m.id, latest: null}; });
+  })).then(function(results){
+    var byId = {};
+    results.forEach(function(r){ byId[r.id] = r.latest; });
+    return byId;
+  });
+}
+
+function formatMetricValue(value, unitLabel){
+  return unitLabel ? (value + ' ' + unitLabel) : String(value);
+}
+
+function renderStrategyOnAPageMetricRow(m, latestByMetricId){
+  var latest = latestByMetricId[m.id];
+  var currentText = latest ? formatMetricValue(latest.value, m.unitLabel) : 'No value recorded yet';
+  var targetText = m.targetValue != null ? formatMetricValue(m.targetValue, m.unitLabel) : '—';
+  return '<div class="kf-report-strategy-page-metric-row">' +
+    '<span class="kf-report-strategy-page-metric-name">' + escapeHTML(m.name) + '</span>' +
+    '<span class="kf-report-strategy-page-metric-value">Current: ' + escapeHTML(currentText) + '</span>' +
+    '<span class="kf-report-strategy-page-metric-target">Target: ' + escapeHTML(targetText) + '</span>' +
+  '</div>';
+}
+
+function renderStrategyOnAPagePillarDefinition(p, latestByMetricId){
+  var metricsHTML = (p.metrics || []).slice().sort(bySortOrder).map(function(m){ return renderStrategyOnAPageMetricRow(m, latestByMetricId); }).join('');
+  var enablersHTML = (p.enablers || []).slice().sort(bySortOrder).map(function(en){
+    var enMetricsHTML = (en.metrics || []).slice().sort(bySortOrder).map(function(m){ return renderStrategyOnAPageMetricRow(m, latestByMetricId); }).join('');
+    return '<div class="kf-report-strategy-page-enabler">' +
+      '<h4 class="kf-report-strategy-page-enabler-heading">' + escapeHTML(en.name) + '</h4>' +
+      (en.description ? '<div class="kf-report-strategy-page-desc">' + escapeHTML(en.description) + '</div>' : '') +
+      (enMetricsHTML || '<div class="kf-report-no-desc">No metrics.</div>') +
+    '</div>';
+  }).join('');
+
+  return '<div class="kf-report-strategy-page-pillar">' +
+    '<h3 class="kf-report-strategy-page-pillar-heading">' + escapeHTML(p.name) + '</h3>' +
+    (p.description ? '<div class="kf-report-strategy-page-desc">' + escapeHTML(p.description) + '</div>' : '') +
+    (metricsHTML || '<div class="kf-report-no-desc">No metrics directly on this Pillar.</div>') +
+    enablersHTML +
+  '</div>';
+}
+
+/* The full Pillar -> Enabler/Metric definition tree, with each Metric's current (most recently
+   recorded) value alongside its target — placed BEFORE the project-based radar/membership section
+   below, so a reader sees what the Strategy actually consists of before seeing how the portfolio
+   scores against it. */
+function renderStrategyDefinitionSection(tree, latestByMetricId){
+  if(!tree || tree.length === 0){
+    return '<div class="kf-report-section"><h2 class="kf-report-section-heading">Strategy Definition</h2><div class="kf-health-empty">No pillars defined yet.</div></div>';
+  }
+  var pillarsHTML = tree.slice().sort(bySortOrder).map(function(p){ return renderStrategyOnAPagePillarDefinition(p, latestByMetricId); }).join('');
+  return '<div class="kf-report-section"><h2 class="kf-report-section-heading">Strategy Definition</h2>' + pillarsHTML + '</div>';
+}
+
+function buildStrategyOnAPageHTML(matrix, tree, latestByMetricId){
+  if(!matrix || !matrix.activeStrategy || !matrix.pillars || matrix.pillars.length === 0){
+    return '<div class="kf-health-empty">No active strategy with pillars has been defined for this organisation yet.</div>';
+  }
+
+  var activeProjects = matrix.projects.filter(function(p){ return p.isActive; });
+  var inactiveProjects = matrix.projects.filter(function(p){ return !p.isActive; });
+  var activeColor = SERIES_COLORS[0], inactiveColor = SERIES_COLORS[1];
+
+  var series = [
+    {label: 'Active Projects', values: pillarValuesForProjects(matrix.pillars, activeProjects), color: activeColor},
+    {label: 'Inactive / Planned Projects', values: pillarValuesForProjects(matrix.pillars, inactiveProjects), color: inactiveColor}
+  ];
+
+  var definitionHTML = renderStrategyDefinitionSection(tree, latestByMetricId || {});
+  var radarHTML = '<div class="kf-report-strategy-page-radar">' + buildRadarSvg(matrix.pillars, series, {size: 480}) + '</div>';
+  var membershipHTML = '<div class="kf-report-strategy-page-membership">' +
+    renderStrategyOnAPageProjectList(activeProjects, activeColor, 'Active Projects') +
+    renderStrategyOnAPageProjectList(inactiveProjects, inactiveColor, 'Inactive / Planned Projects') +
+  '</div>';
+
+  return '<h1 class="kf-report-page-title">Strategy on a Page — ' + escapeHTML(matrix.activeStrategy.name) + '</h1>' +
+    definitionHTML +
+    '<h2 class="kf-report-section-heading">Portfolio vs. Strategy</h2>' +
+    '<div class="kf-report-project-dates">Every active project averaged into one series, every inactive/planned project averaged into the other — a project with no fulfilment value set for a given pillar is excluded from that pillar\'s average, not counted as 0%.</div>' +
+    radarHTML + membershipHTML;
+}
+
+export function openStrategyOnAPageReportOverlay(){
+  document.getElementById('reportTitle').textContent = 'Strategy on a Page';
+  var bodyEl = document.getElementById('reportBody');
+  bodyEl.innerHTML = '<div class="kf-health-empty">Loading…</div>';
+  document.getElementById('reportOverlay').classList.remove('hidden');
+  var isClosed = function(){ return document.getElementById('reportOverlay').classList.contains('hidden'); };
+
+  strategyApi.getFulfilmentMatrix(null).then(function(matrix){
+    if(isClosed()) return; // closed before this resolved
+    if(!matrix || !matrix.activeStrategy){
+      bodyEl.innerHTML = buildStrategyOnAPageHTML(matrix, [], {});
+      return;
+    }
+    strategyApi.getTree(matrix.activeStrategy.id).then(function(tree){
+      if(isClosed()) return;
+      fetchLatestMetricValues(collectMetricsFromTree(tree)).then(function(latestByMetricId){
+        if(isClosed()) return;
+        bodyEl.innerHTML = buildStrategyOnAPageHTML(matrix, tree, latestByMetricId);
+      });
+    }, function(){
+      if(isClosed()) return;
+      bodyEl.innerHTML = buildStrategyOnAPageHTML(matrix, [], {});
+    });
+  }, function(){
+    if(isClosed()) return;
+    bodyEl.innerHTML = '<div class="kf-health-empty">Could not load strategy data.</div>';
+  });
 }
 
 /* =========================================================

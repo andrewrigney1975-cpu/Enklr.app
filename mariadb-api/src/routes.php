@@ -29,6 +29,7 @@ use Enkl\Api\Controllers\OrganisationApiKeyController;
 use Enkl\Api\Controllers\PortfolioController;
 use Enkl\Api\Controllers\PrinciplesController;
 use Enkl\Api\Controllers\ProjectsController;
+use Enkl\Api\Controllers\ProjectStrategyController;
 use Enkl\Api\Controllers\PublicQueryController;
 use Enkl\Api\Controllers\ReleasesController;
 use Enkl\Api\Controllers\RetrospectivesController;
@@ -37,6 +38,7 @@ use Enkl\Api\Controllers\SavedQueriesController;
 use Enkl\Api\Controllers\SamlController;
 use Enkl\Api\Controllers\ScimGroupsController;
 use Enkl\Api\Controllers\ScimUsersController;
+use Enkl\Api\Controllers\StrategyController;
 use Enkl\Api\Controllers\TaskCommentsController;
 use Enkl\Api\Controllers\TasksController;
 use Enkl\Api\Controllers\TaskTypesController;
@@ -218,6 +220,36 @@ function registerRoutes(App $app): void
         $group->delete('/projects/{projectId}/resources/{resourceId}', [PortfolioController::class, 'removeResource']);
         $group->get('/roles', [PortfolioController::class, 'listRoles']);
         $group->get('/resourcing', [PortfolioController::class, 'getResourcingSummary']);
+        // Fulfilment-upsert lives here, not under /strategy below — logically nested under Portfolio
+        // Planner's own route namespace (the only place this is ever written from), matching
+        // StrategyController.cs's [HttpPut("~/api/organisations/me/portfolio/...")] absolute-route
+        // override for the same endpoint.
+        $group->put('/projects/{projectId}/strategy-fulfilment/{pillarId}', [StrategyController::class, 'upsertFulfilment']);
+    })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
+
+    // ---- Enterprise Strategy Management (OrgAdmin-only management; read-only ProjectMember surface
+    // is under /api/projects/{projectId}/strategy below instead) ----
+    $app->group('/api/organisations/me/strategy', function ($group) {
+        $group->get('', [StrategyController::class, 'list']);
+        $group->get('/active', [StrategyController::class, 'getActive']);
+        $group->post('', [StrategyController::class, 'create']);
+        $group->put('/{strategyId}', [StrategyController::class, 'update']);
+        $group->put('/{strategyId}/activate', [StrategyController::class, 'activate']);
+        $group->delete('/{strategyId}', [StrategyController::class, 'delete']);
+        $group->get('/{strategyId}/tree', [StrategyController::class, 'getTree']);
+        $group->post('/{strategyId}/pillars', [StrategyController::class, 'createPillar']);
+        $group->put('/pillars/{pillarId}', [StrategyController::class, 'updatePillar']);
+        $group->delete('/pillars/{pillarId}', [StrategyController::class, 'deletePillar']);
+        $group->post('/pillars/{pillarId}/enablers', [StrategyController::class, 'createEnabler']);
+        $group->put('/enablers/{enablerId}', [StrategyController::class, 'updateEnabler']);
+        $group->delete('/enablers/{enablerId}', [StrategyController::class, 'deleteEnabler']);
+        $group->post('/pillars/{pillarId}/metrics', [StrategyController::class, 'createMetricOnPillar']);
+        $group->post('/enablers/{enablerId}/metrics', [StrategyController::class, 'createMetricOnEnabler']);
+        $group->put('/metrics/{metricId}', [StrategyController::class, 'updateMetric']);
+        $group->delete('/metrics/{metricId}', [StrategyController::class, 'deleteMetric']);
+        $group->post('/metrics/{metricId}/entries', [StrategyController::class, 'recordMetricEntry']);
+        $group->get('/metrics/{metricId}/entries', [StrategyController::class, 'getMetricHistory']);
+        $group->get('/fulfilment-matrix', [StrategyController::class, 'getFulfilmentMatrix']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Project Templates (Organisation-owned) — list/detail/create need only auth (any signed-in
@@ -332,6 +364,12 @@ function registerRoutes(App $app): void
         $group->post('/retrospectives/{id}/action-items', [RetrospectivesController::class, 'createActionItem']);
         $group->put('/retrospectives/{id}/action-items/{itemId}', [RetrospectivesController::class, 'updateActionItem']);
         $group->delete('/retrospectives/{id}/action-items/{itemId}', [RetrospectivesController::class, 'deleteActionItem']);
+        // Read-only Strategy surface for regular project members — see ProjectStrategyController.cs's
+        // matching [Authorize(Policy = "ProjectMember")] controller. No CRUD lives here; every write
+        // goes through StrategyController (OrgAdmin) or the Portfolio Planner fulfilment-upsert route.
+        $group->get('/strategy/tree', [ProjectStrategyController::class, 'getTree']);
+        $group->get('/strategy/metrics/{metricId}/entries', [ProjectStrategyController::class, 'getMetricHistory']);
+        $group->get('/strategy/fulfilment', [ProjectStrategyController::class, 'getFulfilment']);
     })->add(ProjectMemberMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Realtime (SSE) — one stream per user, covers every project they're a member of; see
