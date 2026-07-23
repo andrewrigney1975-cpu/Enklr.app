@@ -46,7 +46,7 @@ this repository already ships.
 
 ## 1. System overview and integration surface
 
-Enklr Task is a Kanban-style project and portfolio management application composed of:
+Enklr Task is a board-based project and portfolio management application composed of:
 
 - A **single-page frontend** — one self-contained, static HTML document with no required external
   network dependency, servable from any static file host or `file://` with no backend at all.

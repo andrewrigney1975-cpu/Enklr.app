@@ -1356,14 +1356,20 @@
   }
   .kf-ai-assistant-compose {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 6px;
     padding: 10px;
     border-top: 1px solid var(--kf-border);
   }
-  .kf-ai-assistant-compose input {
+  /* 4 rows tall (index.html's rows="4") — a textarea, not the single-line <input> this used to be,
+     so Shift+Enter can insert a real newline (Enter alone still sends, see views/ai-assistant.js's
+     keydown handler — unchanged, works identically against a textarea's .value). resize:none keeps
+     it from fighting the fixed-height floating panel's own layout. */
+  .kf-ai-assistant-compose textarea {
     flex: 1;
     min-width: 0;
+    resize: none;
+    font: inherit;
   }
   #aiAssistantMicBtn.kf-ai-assistant-mic-active {
     color: #de350b;
@@ -4920,6 +4926,13 @@
     width: 760px;
   }
 
+  /* 20% wider than the shared .kf-modal-md (540px), at the user's explicit request — same
+     "widen just for this modal" precedent as #teamOverlay/#apiEndpointsOverlay/#orgUsersOverlay
+     above, just for readability of the justified blurb text rather than a row-layout squeeze. */
+  #aboutOverlay .kf-modal {
+    width: 648px;
+  }
+
   .kf-opening-experience-body {
     display: flex;
     flex-direction: column;
@@ -7746,6 +7759,7 @@
     line-height: 1.6;
     color: var(--kf-text-secondary);
     margin: 0 0 18px;
+    text-align: justify;
   }
 
   .kf-about-subheading {

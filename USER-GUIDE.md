@@ -97,7 +97,7 @@ identically regardless of which of these three options you're on — the only th
 
 ## 2. The Board — your home base
 
-**What it is**: a Kanban board — columns represent stages of work (say, *To Do → In Progress →
+**What it is**: a column-based task board — columns represent stages of work (say, *To Do → In Progress →
 Review → Done*), and cards represent individual tasks that move across them as work progresses.
 
 **Who it's for**: everyone. This is the screen you'll spend the most time on, whether you're Priya
@@ -112,7 +112,7 @@ planning next week or Marcus checking what's landed on him today.
 - **Adding a task** — click into any column's add-task control. A minimal task needs only a title;
   everything else in [Section 3](#3-anatomy-of-a-task) is there when you need it, not before.
 - **Moving work** — drag a card between columns, or reorder cards within one column, the way you'd
-  expect from any Kanban tool. If a task depends on another one that isn't finished yet, the app
+  expect from any board-based task tool. If a task depends on another one that isn't finished yet, the app
   shows you that visually as you drag, rather than letting the move silently fail.
 - **Filtering** — the toolbar's priority chips and the Team/Assignee/Task Type dropdowns combine
   together, so Marcus can, in one click, see only *his* tasks, then narrow that further to just the

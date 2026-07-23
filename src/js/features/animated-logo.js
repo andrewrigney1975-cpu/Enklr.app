@@ -37,7 +37,17 @@ function scheduleNextBarUpdate(idPrefix, index){
     bar.setAttribute('height', newHeight.toFixed(1));
   }
   var nextDelayMs = 150 + Math.random() * 200;
-  timeoutIdsByPrefix[idPrefix][index] = setTimeout(function(){ scheduleNextBarUpdate(idPrefix, index); }, nextDelayMs);
+  timeoutIdsByPrefix[idPrefix][index] = unrefTimer(setTimeout(function(){ scheduleNextBarUpdate(idPrefix, index); }, nextDelayMs));
+}
+
+// This chain runs for the lifetime of the page with no natural stop condition (see the module doc
+// comment above) - in Node (jsdom tests, none of which call this app's own code with a browser event
+// loop backing it) an unref'd timer doesn't hold the process open, so a test that never explicitly
+// stops the animation can still exit naturally. Real browsers have no unref() on timer ids at all, so
+// this is guarded and is a pure no-op there - the animation keeps running exactly as before.
+function unrefTimer(timerId){
+  if(timerId && typeof timerId.unref === 'function') timerId.unref();
+  return timerId;
 }
 
 export function startAnimatedLogo(idPrefix){
@@ -47,7 +57,7 @@ export function startAnimatedLogo(idPrefix){
     // Staggered start (rather than all three beginning at once) so the very first few ticks already
     // look independent instead of briefly moving in lockstep.
     (function(index){
-      timeoutIdsByPrefix[idPrefix][index] = setTimeout(function(){ scheduleNextBarUpdate(idPrefix, index); }, index * 70);
+      timeoutIdsByPrefix[idPrefix][index] = unrefTimer(setTimeout(function(){ scheduleNextBarUpdate(idPrefix, index); }, index * 70));
     })(index);
   }
 }

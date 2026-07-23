@@ -166,4 +166,5 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   await wait(600);
   const unlockedEditor = doc.getElementById('taskDescEditor');
   log('decrypted description round-trips through the editor with formatting intact', unlockedEditor.innerHTML === '<p><strong>Confidential</strong> notes</p>', unlockedEditor.innerHTML);
-})();
+  process.exit(0);
+})().catch(e => { console.error('CRASHED', e); process.exit(1); });

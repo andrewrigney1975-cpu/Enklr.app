@@ -143,22 +143,42 @@ export function markdownToDocHtml(markdown){
 
     // Lists — unordered (-, *, +) or ordered (1.), with exactly one level of nested unordered
     // sub-items (2+ leading spaces + a bullet marker) — the only nesting depth either guide uses.
+    // Wrapped continuation lines (2+ leading spaces, no bullet marker) are soft-joined onto whichever
+    // item - top-level or sub - they trail, same soft-break convention as paragraphs/blockquotes
+    // above; without this, a hand-wrapped bullet's second line fell through as its own stray <p>,
+    // breaking the sentence out of the list entirely.
     var isUl = /^[-*+][ \t]+/.test(line);
     var isOl = /^\d+\.[ \t]+/.test(line);
     if(isUl || isOl){
       var ordered = isOl;
       var topRe = ordered ? /^\d+\.[ \t]+/ : /^[-*+][ \t]+/;
       var subRe = /^[ \t]{2,}[-*+][ \t]+/;
+      var indentRe = /^[ \t]+/;
       var items = [];
       while(i < lines.length && topRe.test(lines[i])){
-        var itemHtml = inlineToHtml(lines[i].replace(topRe, ''));
+        var itemParts = [lines[i].replace(topRe, '')];
         i++;
-        var subItems = [];
-        while(i < lines.length && subRe.test(lines[i])){
-          subItems.push('<li>' + inlineToHtml(lines[i].replace(subRe, '')) + '</li>');
-          i++;
+        var subItemParts = [];
+        var currentParts = itemParts;
+        while(i < lines.length){
+          var ln = lines[i];
+          if(ln.trim() === '' || topRe.test(ln)) break;
+          if(subRe.test(ln)){
+            var newSubParts = [ln.replace(subRe, '')];
+            subItemParts.push(newSubParts);
+            currentParts = newSubParts;
+            i++;
+            continue;
+          }
+          if(indentRe.test(ln)){
+            currentParts.push(ln.replace(indentRe, ''));
+            i++;
+            continue;
+          }
+          break;
         }
-        items.push('<li>' + itemHtml + (subItems.length ? '<ul>' + subItems.join('') + '</ul>' : '') + '</li>');
+        var subItemsHtml = subItemParts.map(function(parts){ return '<li>' + inlineToHtml(parts.join(' ')) + '</li>'; }).join('');
+        items.push('<li>' + inlineToHtml(itemParts.join(' ')) + (subItemsHtml ? '<ul>' + subItemsHtml + '</ul>' : '') + '</li>');
       }
       var listTag = ordered ? 'ol' : 'ul';
       out.push('<' + listTag + '>' + items.join('') + '</' + listTag + '>');

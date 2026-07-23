@@ -92,4 +92,5 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   log('reopening the task resets sort back to "Oldest first"', doc.getElementById('taskAuditSortLabel').textContent === 'Oldest first');
 
   console.log('\nAudit Trail sort order test complete.');
-})();
+  process.exit(0);
+})().catch(e => { console.error('CRASHED', e); process.exit(1); });
