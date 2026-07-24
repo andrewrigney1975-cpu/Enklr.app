@@ -217,7 +217,8 @@ export var ui = {
   taskListCollapsedGroups: new Set(),
   sideNavExpanded: false,
   orgChartFilter: 'team',
-  govMapShowRelationships: true
+  govMapShowRelationships: true,
+  showTaskConnectors: false
 };
 
 export function resetFilters(){

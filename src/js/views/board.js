@@ -1,9 +1,9 @@
 "use strict";
 import { state } from '../storage.js';
-import { normalizeHeaderButtonVisibility, isTimeTrackingEnabled, saveDB } from '../storage.js';
+import { normalizeHeaderButtonVisibility, isTimeTrackingEnabled, isSubTasksEnabled, saveDB } from '../storage.js';
 import { PRIORITY_META, PRIORITY_ORDER, PRIORITY_COLORS, MOBILE_BREAKPOINT } from '../config.js';
 import { iconSvg } from '../icons.js';
-import { getTasksArray, getColumn, getMemberById, getTaskTypeById, isTaskBlocked, isTaskOverdue, getTaskOverrunStatus, getDescendants, buildChildrenMap, wouldCreateCycle, escapeHTML, memberLabel } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getTaskById, isTaskBlocked, isTaskOverdue, getTaskOverrunStatus, getDescendants, buildChildrenMap, wouldCreateCycle, escapeHTML, memberLabel } from '../utils.js';
 import { memberInitials, utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, clampTaskScore, clampProgress, defaultStartDateValue, defaultEndDateValue, lightenHexColor, darkenHexColor } from '../date-utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
@@ -17,6 +17,7 @@ import { updateProjectSettingsApi, isOrgAdmin, isProjectAdmin, getOrgName, isApi
 import { renderPriorityFilterChips, renderTeamFilterChips, renderAssigneeFilterChips, renderTaskTypeFilterChips, renderStatusFilterChips, taskMatchesFilters, updateSearchClearButtonVisibility, clearBoardSearch, updateSearchHashtagIntellisense, closeSearchHashtagPanel, isSearchHashtagPanelOpen, acceptSearchHashtagOption, onSearchInputKeydown, updateArchivedSearchMatchesPanel } from './board-filters.js';
 import { fitBoardForTaskModal, restoreBoardAfterTaskModal, refitBoardForOpenTaskModal } from './board-layout.js';
 import { updateAiAssistantBubbleVisibility } from './ai-assistant.js';
+import { roundedOrthogonalPathD } from './dependency-map.js';
 
 // Re-exported for the many modals that already do `import { escapeHTML } from '../views/board.js'`
 // — the actual implementation now lives in utils.js (the shared, quote-escaping version) so it
@@ -421,11 +422,13 @@ function refreshArchivedCountBadge(){
 
 export function renderBoard(){
   refreshArchivedCountBadge();
+  closeTaskDepPopover();
   var board = document.getElementById('board');
   board.innerHTML = '';
   var project = getCurrentProject();
   if(!project){
     board.innerHTML = '<div class="kf-board-empty">No project selected.</div>';
+    renderAllTaskConnectors();
     return;
   }
   if(project.columns.length === 0){
@@ -445,6 +448,8 @@ export function renderBoard(){
     addColBtn.addEventListener('click', function(){ _openColumnModal(null); });
     board.appendChild(addColBtn);
   }
+  wireTaskDepChipHover();
+  renderAllTaskConnectors();
 }
 
 /* For columns marked "done", tasks are always displayed sorted by
@@ -756,9 +761,11 @@ export function renderCard(project, task){
   }
   // Always rendered (even at zero) so the count is visible at a glance; a zero count is
   // dimmed to 50% opacity rather than removed, so it still reads as "nothing here" without
-  // the row shifting when a dependency is later added.
-  var depPartHTML = '<span class="kf-card-dep-slot"><span class="kf-dep-chip' + (depCount === 0 ? ' kf-dep-chip-zero' : '') + '" title="' +
-      (depCount > 0 ? 'Depends on ' + depCount + ' task(s)' : 'No dependencies') + '">' + iconSvg('link',12) + depCount + '</span></span>';
+  // the row shifting when a dependency is later added. A non-zero chip has no title attribute —
+  // wireTaskDepChipHover's popover replaces the native tooltip for that case (a zero-dependency
+  // chip keeps a plain title, since there's nothing for a popover to list).
+  var depPartHTML = '<span class="kf-card-dep-slot"><span class="kf-dep-chip' + (depCount === 0 ? ' kf-dep-chip-zero' : '') + '"' +
+      (depCount === 0 ? ' title="No dependencies"' : '') + '>' + iconSvg('link',12) + depCount + '</span></span>';
 
   card.innerHTML =
     '<div class="kf-card-row kf-card-row-top">' + topRowHTML + '</div>' +
@@ -770,6 +777,7 @@ export function renderCard(project, task){
 
   card.addEventListener('click', function(){
     if(ui.dragWasMove){ ui.dragWasMove = false; return; }
+    closeTaskDepPopover();
     _openTaskModal(task.id, task.columnId);
   });
   card.addEventListener('dragstart', function(e){
@@ -786,4 +794,306 @@ export function renderCard(project, task){
   });
 
   return card;
+}
+
+/* Task Dependencies popover — hovering a card's "depends" chip shows a popover listing the
+   tasks THIS task depends on, each key a real "#!/KEY" hashbang deep link (features/hash-router.js
+   already handles opening/switching-project on any such link on click, no extra wiring needed here
+   beyond a plain <a href>) — same hover-anchored popover pattern as the Org Chart's member popover
+   (views/org-chart.js's openOrgChartMemberPopover, reusing its kf-org-member-popover* CSS directly).
+   Wired once against the stable #board container (only its innerHTML is replaced on re-render, so a
+   single delegated listener survives across renders), matching governance-map.js's wireGovMapHover
+   convention.
+
+   The popover sits a few pixels below the chip (its own anchoring math), so a straight mouseout ->
+   close on leaving the chip would strand the user mid-move before they ever reach a link inside it
+   — closing is deferred by a short grace period instead, cancelled the instant the mouse actually
+   arrives over the popover, so it survives the gap crossing but still closes promptly if the mouse
+   goes somewhere else entirely. */
+var taskDepChipHoverWired = false;
+var taskDepPopoverCloseTimer = null;
+function scheduleCloseTaskDepPopover(){
+  clearTimeout(taskDepPopoverCloseTimer);
+  taskDepPopoverCloseTimer = setTimeout(closeTaskDepPopover, 300);
+}
+function wireTaskDepChipHover(){
+  if(taskDepChipHoverWired) return;
+  taskDepChipHoverWired = true;
+  var board = document.getElementById('board');
+  board.addEventListener('mouseover', function(e){
+    var chip = e.target.closest('.kf-dep-chip');
+    if(!chip || chip.classList.contains('kf-dep-chip-zero')) return;
+    var card = chip.closest('.kf-card[data-task-id]');
+    if(!card) return;
+    clearTimeout(taskDepPopoverCloseTimer);
+    openTaskDepPopover(card.getAttribute('data-task-id'), chip.getBoundingClientRect());
+  });
+  board.addEventListener('mouseout', function(e){
+    var chip = e.target.closest('.kf-dep-chip');
+    if(!chip) return;
+    scheduleCloseTaskDepPopover();
+  });
+  var popover = document.getElementById('taskDepPopover');
+  // Arriving over the popover (even after crossing the gap below the chip) cancels the pending
+  // close; actually leaving it closes right away rather than waiting out the grace period again.
+  popover.addEventListener('mouseenter', function(){ clearTimeout(taskDepPopoverCloseTimer); });
+  popover.addEventListener('mouseleave', closeTaskDepPopover);
+  // Following a dependency link opens that task's own modal on top of this popover (both share
+  // the same fixed-position stacking context) — close it explicitly rather than leaving it
+  // floating over the modal the click just opened.
+  popover.addEventListener('click', function(e){
+    if(e.target.closest('a')) closeTaskDepPopover();
+  });
+  // Hovering a specific dependency row draws a connector from the source card to that row's own
+  // card (drawTaskDepConnector) — delegated the same way as the chip hover above.
+  document.getElementById('taskDepPopoverList').addEventListener('mouseover', function(e){
+    var row = e.target.closest('[data-task-id]');
+    if(!row || !taskDepPopoverSourceId) return;
+    drawTaskDepConnector(taskDepPopoverSourceId, row.getAttribute('data-task-id'));
+  });
+  document.getElementById('taskDepPopoverList').addEventListener('mouseout', function(e){
+    var row = e.target.closest('[data-task-id]');
+    if(!row) return;
+    var related = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[data-task-id]') : null;
+    if(related === row) return;
+    clearTaskDepConnector();
+  });
+}
+
+/* Task Dependency Connector — reuses the Dependency Graph's own rounded-corner path renderer
+   (roundedOrthogonalPathD, imported from dependency-map.js) to draw a real orthogonal connector
+   from the source card to a hovered dependency's card on the live board, routed entirely through
+   the gaps between columns (never through a card) — see computeTaskDepConnectorPoints for the
+   three routing shapes (same column / adjacent columns / columns with others skipped between). */
+var TASK_DEP_CONNECTOR_RADIUS = 10;
+
+function getBoardColumnElements(){
+  return Array.prototype.slice.call(document.querySelectorAll('#board > .kf-column'));
+}
+
+// The x position of the gap strip immediately beside a column, on the given side — the one place
+// beside that column guaranteed to contain no card, since it's outside every column's own box.
+function columnGapX(columns, idx, side){
+  var rect = columns[idx].getBoundingClientRect();
+  if(side === 'right'){
+    return idx < columns.length - 1
+      ? (rect.right + columns[idx + 1].getBoundingClientRect().left) / 2
+      : rect.right + 12;
+  }
+  return idx > 0
+    ? (rect.left + columns[idx - 1].getBoundingClientRect().right) / 2
+    : rect.left - 12;
+}
+
+function computeTaskDepConnectorPoints(sourceCard, targetCard, columns){
+  var sourceCol = sourceCard.closest('.kf-column');
+  var targetCol = targetCard.closest('.kf-column');
+  var sIdx = columns.indexOf(sourceCol);
+  var tIdx = columns.indexOf(targetCol);
+  if(sIdx === -1 || tIdx === -1) return null;
+
+  var sRect = sourceCard.getBoundingClientRect();
+  var tRect = targetCard.getBoundingClientRect();
+  var y1 = sRect.top + sRect.height / 2;
+  var y2 = tRect.top + tRect.height / 2;
+
+  // Same column: both stacked cards can only reach each other via the gap beside their shared
+  // column (whichever side has a neighbor to leave room for, right preferred) — a straight vertical
+  // line between them would cross every card stacked in between.
+  if(sIdx === tIdx){
+    var side = sIdx < columns.length - 1 ? 'right' : 'left';
+    var gapX = columnGapX(columns, sIdx, side);
+    var x1 = side === 'right' ? sRect.right : sRect.left;
+    var x2 = side === 'right' ? tRect.right : tRect.left;
+    return [{x: x1, y: y1}, {x: gapX, y: y1}, {x: gapX, y: y2}, {x: x2, y: y2}];
+  }
+
+  var dirRight = tIdx > sIdx;
+  var x1 = dirRight ? sRect.right : sRect.left;
+  var x2 = dirRight ? tRect.left : tRect.right;
+  var sSide = dirRight ? 'right' : 'left';
+  var tSide = dirRight ? 'left' : 'right';
+
+  // Adjacent columns: source's right-side gap and target's left-side gap (or the mirror image)
+  // are the exact same gap — one vertical bend at that shared x is enough, same "Z" shape as the
+  // Dependency Graph's own simple two-corner case.
+  if(Math.abs(tIdx - sIdx) === 1){
+    var sharedGapX = columnGapX(columns, sIdx, sSide);
+    if(y1 === y2) return [{x: x1, y: y1}, {x: x2, y: y2}];
+    return [{x: x1, y: y1}, {x: sharedGapX, y: y1}, {x: sharedGapX, y: y2}, {x: x2, y: y2}];
+  }
+
+  // Columns skipped in between: their two gaps are different x positions, so a single vertical
+  // bend would have to cross the skipped columns' own cards. Instead, route down into each side's
+  // own gap first, then across at a shared "highway" y below every column's own bottom edge — a
+  // column's box only ever grows as tall as its content (up to its own max-height cap), so the
+  // empty board background below the shortest-to-tallest columns is reliably card-free, unlike the
+  // header band (a header sitting right above a very first, tall card left no real clearance there
+  // — a real bug seen live, not just a theoretical risk). Using the tallest column's own bottom
+  // (not just the two actually being connected) keeps the crossing clear of every OTHER column's
+  // cards too, not just these two.
+  var sGapX = columnGapX(columns, sIdx, sSide);
+  var tGapX = columnGapX(columns, tIdx, tSide);
+  var highwayY = Math.max.apply(null, columns.map(function(c){ return c.getBoundingClientRect().bottom; })) + 10;
+  return [
+    {x: x1, y: y1}, {x: sGapX, y: y1}, {x: sGapX, y: highwayY},
+    {x: tGapX, y: highwayY}, {x: tGapX, y: y2}, {x: x2, y: y2}
+  ];
+}
+
+export function drawTaskDepConnector(sourceTaskId, targetTaskId){
+  var sourceCard = document.querySelector('.kf-card[data-task-id="' + sourceTaskId + '"]');
+  var targetCard = document.querySelector('.kf-card[data-task-id="' + targetTaskId + '"]');
+  if(!sourceCard || !targetCard){ clearTaskDepConnector(); return; }
+
+  var columns = getBoardColumnElements();
+  // Anchor order is (dependency, dependent) — matching the Dependency Graph's own edge direction
+  // (renderDependencyMap builds edges {from: depId, to: t.id}) — so marker-start (the hollow dot)
+  // lands on the dependency's own card and marker-end (the solid dot) arrives at the source task
+  // whose popover is open, exactly like a graph edge "from" the blocker "to" the blocked task.
+  var points = computeTaskDepConnectorPoints(targetCard, sourceCard, columns);
+  if(!points){ clearTaskDepConnector(); return; }
+
+  var project = getCurrentProject();
+  var target = project && getTaskById(project, targetTaskId);
+  var targetCol = target && getColumn(project, target.columnId);
+  // Same blocked/resolved semantics as the Dependency Graph's own edge coloring: red while the
+  // dependency itself isn't yet sitting in a "done" column, grey once it is.
+  var blocked = !(targetCol && targetCol.done);
+  var color = blocked ? '#de350b' : '#8993a4';
+  var startMarker = blocked ? 'url(#kf-taskdep-dot-start-blocked)' : 'url(#kf-taskdep-dot-start-done)';
+  var endMarker = blocked ? 'url(#kf-taskdep-arrow-blocked)' : 'url(#kf-taskdep-arrow-done)';
+
+  var d = roundedOrthogonalPathD(points, TASK_DEP_CONNECTOR_RADIUS);
+  var path = document.getElementById('taskDepConnectorPath');
+  path.setAttribute('d', d);
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', '2.5');
+  path.setAttribute('opacity', '0.9');
+  path.setAttribute('marker-start', startMarker);
+  path.setAttribute('marker-end', endMarker);
+  updateTaskDepConnectorLayerVisibility();
+}
+
+export function clearTaskDepConnector(){
+  document.getElementById('taskDepConnectorPath').removeAttribute('d');
+  updateTaskDepConnectorLayerVisibility();
+}
+
+// The layer stays visible if EITHER the single hover-triggered connector (path) or the "show all"
+// toggle's persistent group has something to show — hiding it wholesale on every hover-connector
+// close would otherwise also blank out an active "show all" view, and vice versa.
+function updateTaskDepConnectorLayerVisibility(){
+  var layer = document.getElementById('taskDepConnectorLayer');
+  var hoverPathActive = document.getElementById('taskDepConnectorPath').hasAttribute('d');
+  var allGroupActive = document.getElementById('taskDepConnectorAllGroup').childElementCount > 0;
+  layer.classList.toggle('hidden', !hoverPathActive && !allGroupActive);
+}
+
+/* "Relationships" filter-bar toggle (#depConnectorsToggleBtn, ui.showTaskConnectors) — draws every
+   dependency and sub-task connector on the board at once, in the persistent #taskDepConnectorAllGroup
+   (kept separate from the single hover-triggered #taskDepConnectorPath above so the two mechanisms
+   never clear each other out). Only ever connects tasks that both currently have a rendered
+   `.kf-card` — a task hidden by the priority/team/assignee/type/status filter chips, or archived,
+   simply has no card to find, so its edges are skipped automatically rather than needing their own
+   separate filter check here. Called at the end of every renderBoard(), so it always reflects
+   whatever's currently filtered/visible. */
+export function renderAllTaskConnectors(){
+  var group = document.getElementById('taskDepConnectorAllGroup');
+  group.innerHTML = '';
+  if(!ui.showTaskConnectors){ updateTaskDepConnectorLayerVisibility(); return; }
+
+  var project = getCurrentProject();
+  var columns = project ? getBoardColumnElements() : [];
+  if(!project || columns.length === 0){ updateTaskDepConnectorLayerVisibility(); return; }
+
+  var subtasksOn = isSubTasksEnabled(project);
+  var seenDepPairs = {};
+  var html = '';
+
+  getTasksArray(project).forEach(function(t){
+    if(t.archived) return;
+
+    (t.dependencies || []).forEach(function(depId){
+      var pairKey = depId + '->' + t.id;
+      if(seenDepPairs[pairKey]) return;
+      seenDepPairs[pairKey] = true;
+
+      var sourceCard = document.querySelector('.kf-card[data-task-id="' + t.id + '"]');
+      var depCard = document.querySelector('.kf-card[data-task-id="' + depId + '"]');
+      if(!sourceCard || !depCard) return;
+
+      var points = computeTaskDepConnectorPoints(depCard, sourceCard, columns);
+      if(!points) return;
+
+      var depTask = getTaskById(project, depId);
+      var depCol = depTask && getColumn(project, depTask.columnId);
+      var blocked = !(depCol && depCol.done);
+      var color = blocked ? '#de350b' : '#8993a4';
+      var startMarker = blocked ? 'kf-taskdep-dot-start-blocked' : 'kf-taskdep-dot-start-done';
+      var endMarker = blocked ? 'kf-taskdep-arrow-blocked' : 'kf-taskdep-arrow-done';
+      var d = roundedOrthogonalPathD(points, TASK_DEP_CONNECTOR_RADIUS);
+      html += '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2" opacity="0.85" marker-start="url(#' + startMarker + ')" marker-end="url(#' + endMarker + ')"></path>';
+    });
+
+    if(subtasksOn && t.parentTaskId){
+      var parentCard = document.querySelector('.kf-card[data-task-id="' + t.parentTaskId + '"]');
+      var childCard = document.querySelector('.kf-card[data-task-id="' + t.id + '"]');
+      if(parentCard && childCard){
+        var subPoints = computeTaskDepConnectorPoints(parentCard, childCard, columns);
+        if(subPoints){
+          var subD = roundedOrthogonalPathD(subPoints, TASK_DEP_CONNECTOR_RADIUS);
+          html += '<path d="' + subD + '" fill="none" stroke="#6554c0" stroke-width="2" stroke-dasharray="5 4" opacity="0.75" marker-start="url(#kf-taskdep-dot-start-subtask)" marker-end="url(#kf-taskdep-arrow-subtask)"></path>';
+        }
+      }
+    }
+  });
+
+  group.innerHTML = html;
+  updateTaskDepConnectorLayerVisibility();
+}
+
+export function toggleShowTaskConnectors(){
+  ui.showTaskConnectors = !ui.showTaskConnectors;
+  document.getElementById('depConnectorsToggleBtn').classList.toggle('active', ui.showTaskConnectors);
+  renderAllTaskConnectors();
+}
+
+var taskDepPopoverSourceId = null;
+
+export function openTaskDepPopover(taskId, anchorRect){
+  var project = getCurrentProject();
+  var task = project && getTaskById(project, taskId);
+  if(!task) return;
+
+  var deps = (task.dependencies || []).map(function(id){ return getTaskById(project, id); }).filter(Boolean)
+    .sort(function(a, b){ return a.key.localeCompare(b.key, undefined, {numeric: true}); });
+
+  taskDepPopoverSourceId = taskId;
+  var popover = document.getElementById('taskDepPopover');
+  document.getElementById('taskDepPopoverTitle').textContent = 'Depends on ' + deps.length + ' task' + (deps.length === 1 ? '' : 's');
+
+  var listEl = document.getElementById('taskDepPopoverList');
+  listEl.innerHTML = deps.length ? deps.map(function(t){
+    var prio = getPriority(t.priority);
+    return '<div class="kf-tc-member-item" data-task-id="' + t.id + '"><span class="kf-dep-priority-dot" style="background:' + prio.accent + ';" title="' + escapeHTML(prio.label) + ' priority"></span><a class="kf-dep-key kf-search-result-link" href="#!/' + encodeURIComponent(t.key) + '">' + escapeHTML(t.key) + '</a><span class="kf-archived-row-title">' + escapeHTML(t.title) + '</span></div>';
+  }).join('') : '<div class="kf-tc-empty" style="padding:10px 0;">No dependencies.</div>';
+
+  popover.classList.remove('hidden');
+  var popW = popover.offsetWidth || 240;
+  var left = Math.min(anchorRect.left, window.innerWidth - popW - 12);
+  left = Math.max(8, left);
+  var top = anchorRect.bottom + 8;
+  popover.style.left = left + 'px';
+  popover.style.top = top + 'px';
+}
+
+export function closeTaskDepPopover(){
+  clearTimeout(taskDepPopoverCloseTimer);
+  taskDepPopoverSourceId = null;
+  clearTaskDepConnector();
+  document.getElementById('taskDepPopover').classList.add('hidden');
+}
+export function isTaskDepPopoverOpen(){
+  return !document.getElementById('taskDepPopover').classList.contains('hidden');
 }

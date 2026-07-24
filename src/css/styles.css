@@ -2350,6 +2350,12 @@
     opacity: .5;
   }
 
+  /* A non-zero chip has a hover popover (views/board.js's wireTaskDepChipHover) listing what it
+     depends on — cursor:help signals "hover for more" without implying it's clickable like a link. */
+  .kf-dep-chip:not(.kf-dep-chip-zero) {
+    cursor: help;
+  }
+
   .kf-blocked-chip {
     color: var(--kf-blocked-fg);
     background: var(--kf-blocked-bg);
@@ -7115,6 +7121,24 @@
     stroke-width: 2;
   }
 
+  /* Full-viewport, click-through overlay for the task dependency connector (views/board.js's
+     drawTaskDepConnector) — sits above cards but below #taskDepPopover itself (1010), so the
+     popover panel is never drawn over by its own connector line. No viewBox: position:fixed at
+     inset:0 already makes its own coordinate space equal real viewport pixels, matching what
+     getBoundingClientRect() returns for the connected cards. */
+  .kf-dep-connector-layer {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1005;
+  }
+
+  .kf-dep-connector-layer.hidden {
+    display: none;
+  }
+
   .kf-org-member-popover {
     position: fixed;
     z-index: 1010;
@@ -7149,6 +7173,30 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+
+  /* #taskDepPopover's rows reuse .kf-tc-member-item/.kf-dep-key/.kf-archived-row-title (the same
+     classes the Archived Tasks search-matches panel uses), but those truncation/flex-shrink rules
+     are scoped to .kf-archived-row's own descendants — re-declared here for this popover's own
+     .kf-tc-member-item wrapper instead of widening those existing selectors. */
+  #taskDepPopoverList .kf-dep-key {
+    flex-shrink: 0;
+  }
+  #taskDepPopoverList .kf-archived-row-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Matches the board card's own left-edge priority strip and the Dependency Graph's node strip —
+     same priority-accent color, just a small dot here since each row is already a single line. */
+  .kf-dep-priority-dot {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
   }
 
   /* Governance Map */

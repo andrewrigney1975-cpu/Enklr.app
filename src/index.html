@@ -193,6 +193,10 @@
       <div class="kf-dropdown-filter-panel kf-dropdown-filter-panel-wide hidden" id="archivedSearchMatchesPanel"></div>
     </div>
     <div class="kf-filter-chips" id="priorityFilterChips"></div>
+    <button type="button" class="kf-chip-filter" id="depConnectorsToggleBtn" title="Show every task dependency and sub-task connector on the board">
+      <span class="kf-icon" data-icon="link" data-size="13"></span>
+      Relationships
+    </button>
     <div class="kf-dropdown-filter" id="teamFilterWrap">
       <button type="button" class="kf-dropdown-filter-btn" id="teamFilterBtn">
         <span class="kf-icon" data-icon="orgChart" data-size="13"></span>
@@ -960,6 +964,44 @@
   <div class="kf-org-member-popover-title" id="orgChartMemberPopoverTitle"></div>
   <div class="kf-org-member-popover-list" id="orgChartMemberPopoverList"></div>
 </div>
+
+<!-- Task Dependencies Popover — shown on hover over a board card's "depends" chip, same
+     hover-anchored popover pattern as the Org Chart's member popover above. -->
+<div class="kf-org-member-popover hidden" id="taskDepPopover">
+  <div class="kf-org-member-popover-title" id="taskDepPopoverTitle"></div>
+  <div class="kf-org-member-popover-list" id="taskDepPopoverList"></div>
+</div>
+
+<!-- Task Dependency Connector overlay — a full-viewport, click-through SVG layer. Hovering a
+     dependency row inside #taskDepPopover draws an orthogonal, filleted-corner connector from the
+     source card to that dependency's own card, same rounded-corner rendering
+     (views/dependency-map.js's roundedOrthogonalPathD) and start/end circle markers as the
+     Dependency Graph's own edges — own marker ids (kf-taskdep-*) rather than reusing the graph's own
+     (kf-arrow-*/kf-dot-start-*) since both this layer's <defs> and the graph's own are markup that
+     can be present in the DOM at the same time (this layer always is; the graph's are only rendered
+     while that overlay is open), and duplicate SVG ids would make url(#...) lookups ambiguous.
+     refX also differs from the graph's own markers (2/8 here vs. its 0.75/9.25) — the graph's
+     values leave the circle a couple of pixels short of the vertex, invisible at its own smaller
+     stroke-width but a visible gap at this connector's thicker 2.5 stroke (markerUnits defaults to
+     strokeWidth, so the marker's rendered size — and therefore any such gap — scales with it); 2/8
+     puts the circle's own edge exactly on the vertex instead. -->
+<svg id="taskDepConnectorLayer" class="kf-dep-connector-layer hidden">
+  <defs>
+    <marker id="kf-taskdep-arrow-blocked" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="#de350b" stroke="#de350b" stroke-width="1.6"/></marker>
+    <marker id="kf-taskdep-arrow-done" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="#8993a4" stroke="#8993a4" stroke-width="1.6"/></marker>
+    <marker id="kf-taskdep-dot-start-blocked" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-surface)" stroke="#de350b" stroke-width="1.6"/></marker>
+    <marker id="kf-taskdep-dot-start-done" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-surface)" stroke="#8993a4" stroke-width="1.6"/></marker>
+    <marker id="kf-taskdep-arrow-subtask" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="#6554c0" stroke="#6554c0" stroke-width="1.6"/></marker>
+    <marker id="kf-taskdep-dot-start-subtask" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-surface)" stroke="#6554c0" stroke-width="1.6"/></marker>
+  </defs>
+  <!-- A permanent, otherwise-empty path — views/board.js's drawTaskDepConnector only ever sets
+       this element's own attributes (never innerHTML), so the <defs> above are never wiped out. -->
+  <path id="taskDepConnectorPath" fill="none"></path>
+  <!-- Populated by renderAllTaskConnectors() when the "Connectors" filter-bar toggle is on — every
+       dependency (colored) and sub-task (purple, dashed) connector on the board at once, same
+       styling as the single hover connector above plus the Dependency Graph's own subtask edges. -->
+  <g id="taskDepConnectorAllGroup"></g>
+</svg>
 
 <!-- Governance Map Overlay -->
 <div class="kf-overlay hidden" id="govMapOverlay">

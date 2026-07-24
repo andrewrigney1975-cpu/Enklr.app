@@ -777,7 +777,7 @@ export function createSeedDB(){
   p.members = [];
   p.roles = [];
 
-  function addSeedTask(col, title, desc, priority, deps, assigneeId, businessValue, taskCost){
+  function addSeedTask(col, title, desc, priority, deps, assigneeId, businessValue, taskCost, parentTaskId){
     var n = p.taskCounter++;
     var now = new Date().toISOString();
     var t = {
@@ -789,6 +789,7 @@ export function createSeedDB(){
       columnId: col.id,
       dependencies: deps || [],
       assigneeId: assigneeId || null,
+      parentTaskId: parentTaskId || null,
       startDate: localDateValueToUTCISO(defaultStartDateValue()),
       endDate: localDateValueToUTCISO(defaultEndDateValue()),
       businessValue: clampTaskScore(businessValue),
@@ -814,7 +815,10 @@ export function createSeedDB(){
   var t2 = addSeedTask(c2, 'Configure project modules, columns and details', 'Define how projects, columns and tasks are structured. Replace these default Tasks with real activities', 'high', [t1], null, 800, 150);
   var t3 = addSeedTask(c2, 'Draft project objectives', 'Set the goals of this project. Gives you milestones and targets to reach. The extended Objectives module really helps formalise these goals.', 'medium', [t2], null, 500, 200);
   var t4 = addSeedTask(c3, 'Set up Team members for this project', 'Assign people and roles to the project.', 'critical', [t2, t3], null, 900, 400);
-  addSeedTask(c4, 'Create project board', 'Document setup and usage instructions.', 'trivial', [], null, 100, 30);
+  // Sub-task of t1 (Look at Project and App Settings) — gives the Sub-Tasks feature and the
+  // Dependency Graph's/board's own connector rendering a real seed example out of the box, instead
+  // of needing a manually-created relationship just to see what a sub-task edge looks like.
+  addSeedTask(c4, 'Create project board', 'Document setup and usage instructions.', 'trivial', [], null, 100, 30, t1);
 
   return {
     projects: makeMap(p),

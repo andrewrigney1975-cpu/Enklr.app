@@ -17,7 +17,8 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   const doc = window.document;
   function log(label, ok, extra){ console.log((ok?'PASS':'FAIL') + ' - ' + label + (extra?' :: '+extra:'')); }
 
-  // Open the dependency map for the seeded Sample Project (5 tasks, with t4 depending on t2 AND t3)
+  // Open the dependency map for the seeded Sample Project (5 tasks: t4 depends on t2 AND t3, and
+  // t5 is a sub-task of t1 \u2014 see storage.js's createSeedDB)
   doc.getElementById('depMapBtn').click();
   await wait(20);
 
@@ -30,23 +31,30 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   const nodes = doc.querySelectorAll('.kf-depnode');
   log('5 nodes rendered (no duplication, unlike tree export)', nodes.length === 5, 'got ' + nodes.length);
 
-  const paths = doc.querySelectorAll('#depMapInner path[marker-end]');
-  // dependency edges: t2->t1(1), t3->t2(1), t4->t2 + t4->t3 (2) = 4 total edges
-  log('4 dependency edges rendered', paths.length === 4, 'got ' + paths.length);
+  const allPaths = doc.querySelectorAll('#depMapInner path[marker-end]');
+  // dependency edges: t2->t1(1), t3->t2(1), t4->t2 + t4->t3 (2) = 4; plus 1 sub-task edge (t5->t1).
+  log('5 edges rendered total (4 dependency + 1 sub-task)', allPaths.length === 5, 'got ' + allPaths.length);
+
+  const paths = Array.from(allPaths).filter(p => p.getAttribute('stroke') !== '#6554c0');
+  const subtaskPaths = Array.from(allPaths).filter(p => p.getAttribute('stroke') === '#6554c0');
+  log('4 of those are dependency edges (not the purple sub-task one)', paths.length === 4, paths.length);
+  log('exactly 1 is the purple sub-task edge', subtaskPaths.length === 1, subtaskPaths.length);
+  log('the sub-task edge is dashed', subtaskPaths[0] && subtaskPaths[0].getAttribute('stroke-dasharray') === '5 4');
 
   // Arrowheads (end) should be stroked, solid-filled circles; start markers
   // should be stroked circles filled with the surface var (hollow-looking).
+  // 3 pairs of markers exist now that the seed data has a real sub-task edge too (blocked/done/subtask).
   const markerCircles = doc.querySelectorAll('#depMapInner marker circle');
-  log('marker defs use circle elements for both end and start markers', markerCircles.length === 4, markerCircles.length);
+  log('marker defs use circle elements for both end and start markers', markerCircles.length === 6, markerCircles.length);
 
   const endMarkerCircles = doc.querySelectorAll('#depMapInner marker[id^="kf-arrow-"] circle');
   log('end-marker circles are filled using their state color (not hollow)',
-      endMarkerCircles.length === 2 && Array.from(endMarkerCircles).every(c => c.getAttribute('fill') !== 'none' && c.getAttribute('fill') === c.getAttribute('stroke')),
+      endMarkerCircles.length === 3 && Array.from(endMarkerCircles).every(c => c.getAttribute('fill') !== 'none' && c.getAttribute('fill') === c.getAttribute('stroke')),
       endMarkerCircles.length);
 
   const startMarkerCircles = doc.querySelectorAll('#depMapInner marker[id^="kf-dot-start-"] circle');
   log('start-marker circles are filled with the surface var (hollow-looking against the stroke)',
-      startMarkerCircles.length === 2 && Array.from(startMarkerCircles).every(c => c.getAttribute('fill') === 'var(--kf-surface)'),
+      startMarkerCircles.length === 3 && Array.from(startMarkerCircles).every(c => c.getAttribute('fill') === 'var(--kf-surface)'),
       Array.from(startMarkerCircles).map(c => c.getAttribute('fill')).join(','));
   log('start-marker circles are stroked with their state color, matching the corresponding end marker',
       Array.from(startMarkerCircles).every(c => !!c.getAttribute('stroke') && c.getAttribute('stroke') !== 'none'),
@@ -63,18 +71,20 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
     if (stroke === '#de350b') redCount++;
     if (stroke === '#8993a4') greyCount++;
   });
-  log('edges colored by blocked/resolved state', redCount + greyCount === 4, 'red=' + redCount + ' grey=' + greyCount);
+  log('dependency edges colored by blocked/resolved state', redCount + greyCount === 4, 'red=' + redCount + ' grey=' + greyCount);
 
   log('every edge also has a marker-start attribute (not just marker-end)',
-      Array.from(paths).every(p => !!p.getAttribute('marker-start')), Array.from(paths).map(p => p.getAttribute('marker-start')).join(','));
-  log('each edge\u2019s start marker is correctly paired with its stroke color (blocked->blocked dot, done->done dot)',
-      Array.from(paths).every(p => {
+      Array.from(allPaths).every(p => !!p.getAttribute('marker-start')), Array.from(allPaths).map(p => p.getAttribute('marker-start')).join(','));
+  log('each dependency edge\u2019s start marker is correctly paired with its stroke color (blocked->blocked dot, done->done dot)',
+      paths.every(p => {
         const stroke = p.getAttribute('stroke');
         const startMarker = p.getAttribute('marker-start');
         if (stroke === '#de350b') return startMarker === 'url(#kf-dot-start-blocked)';
         if (stroke === '#8993a4') return startMarker === 'url(#kf-dot-start-done)';
         return false;
       }));
+  log('the sub-task edge\u2019s start marker is the purple sub-task dot',
+      subtaskPaths[0] && subtaskPaths[0].getAttribute('marker-start') === 'url(#kf-dot-start-subtask)');
 
   // Legend present
   const legendText = doc.getElementById('depMapLegend').textContent;
