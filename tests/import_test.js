@@ -85,12 +85,14 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   log('blocked-state pattern matches original (tasks whose dependencies are unfinished show as blocked)', blockedCount > 0, blockedCount);
 
   // Open dependency map on the imported project and verify edge/node counts match the original
+  // (5 tasks: t4 depends on t2 AND t3 = 4 dependency edges, plus the seeded sub-task edge t5->t1
+  // = 5 edges total — see storage.js's createSeedDB)
   doc.getElementById('depMapBtn').click();
   await wait(20);
   const nodes = doc.querySelectorAll('.kf-depnode');
   const edges = doc.querySelectorAll('#depMapInner path[marker-end]');
   log('dependency map shows 5 nodes after import', nodes.length === 5, nodes.length);
-  log('dependency map shows 4 edges after import (multi-parent preserved, not duplicated)', edges.length === 4, edges.length);
+  log('dependency map shows 5 edges after import (multi-parent preserved, not duplicated)', edges.length === 5, edges.length);
   doc.getElementById('depMapClose').click();
   await wait(10);
 
