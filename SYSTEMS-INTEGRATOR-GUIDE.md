@@ -282,7 +282,7 @@ outside the deployment: the web/reverse-proxy tier. Everything else — the appl
 database — is reachable only from within the deployment's own private network segment.
 
 ```svg
-<svg viewBox="0 0 620 450" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Network segmentation diagram: a browser reaches a TLS-terminating layer over HTTPS in the public network/DMZ; from there, plain HTTP within the private network segment only reaches the web/reverse-proxy tier, then the application server, then the database.">
+<svg viewBox="0 0 680 450" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Network segmentation diagram: a browser reaches a TLS-terminating layer over HTTPS in the public network/DMZ; from there, plain HTTP within the private network segment only reaches the web/reverse-proxy tier, then the application server, then the database.">
   <defs>
     <marker id="netArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
       <path d="M0,0 L10,5 L0,10 Z" style="fill: var(--kf-blue)"/>
