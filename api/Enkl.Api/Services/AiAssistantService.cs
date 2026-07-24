@@ -31,6 +31,32 @@ public class AiAssistantService
     private static readonly string[] PriorityOrder = { "trivial", "low", "medium", "high", "critical" };
     private const int MaxToolLoopIterations = 6;
 
+    // Loaded once per process, not per-request - USER-GUIDE.md is a few KB, re-reading it from disk
+    // on every chat call would be wasteful. Tries the Docker runtime layout first (copied next to the
+    // DLL by the Dockerfile - see its own comment for why the build context had to move to the repo
+    // root to reach it), then a couple of relative-to-repo-root candidates for a local `dotnet run`
+    // (whose working directory is this project's own folder, not the container's /app). Empty string
+    // (not null, not a thrown exception) if none of these exist - a missing guide file must never
+    // break the assistant itself, just quietly omit that extra context from the system prompt.
+    private static readonly Lazy<string> UserGuideMarkdown = new(() =>
+    {
+        string[] candidates =
+        {
+            Path.Combine(AppContext.BaseDirectory, "USER-GUIDE.md"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "USER-GUIDE.md"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "USER-GUIDE.md")
+        };
+        foreach (var path in candidates)
+        {
+            try
+            {
+                if (File.Exists(path)) return File.ReadAllText(path);
+            }
+            catch (IOException) { /* fall through to the next candidate */ }
+        }
+        return "";
+    });
+
     private readonly AppDbContext _db;
     private readonly TaskService _tasks;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -104,7 +130,8 @@ public class AiAssistantService
         var columns = await _db.Columns.AsNoTracking().Where(c => c.ProjectId == projectId).OrderBy(c => c.Order).ToListAsync();
         var members = await _db.ProjectMembers.AsNoTracking().Include(m => m.User).Where(m => m.ProjectId == projectId).ToListAsync();
         var taskTypes = await _db.TaskTypes.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync();
-        var systemPrompt = BuildSystemPrompt(project.Name, columns, members, taskTypes, request.AlertsSummary);
+        var teams = await _db.TeamsCommittees.AsNoTracking().Where(t => t.ProjectId == projectId && t.Type == "team").ToListAsync();
+        var systemPrompt = BuildSystemPrompt(project.Name, columns, members, taskTypes, teams, request.AlertsSummary);
 
         var messages = new JsonArray();
         foreach (var m in request.Messages)
@@ -201,6 +228,7 @@ public class AiAssistantService
                 "update_task" => await UpdateTaskToolAsync(projectId, input),
                 "get_task_details" => await GetTaskDetailsToolAsync(projectId, input),
                 "list_critical_tasks" => await ListCriticalTasksToolAsync(projectId, input),
+                "search_tasks" => await SearchTasksToolAsync(projectId, input),
                 _ => ($"Unknown tool: {toolName}", true, null)
             };
         }
@@ -338,6 +366,78 @@ public class AiAssistantService
         return (string.Join("\n", ranked), false, null);
     }
 
+    private async Task<(string, bool, AiAssistantActionDto?)> SearchTasksToolAsync(Guid projectId, JsonObject input)
+    {
+        var query = _db.Tasks.AsNoTracking().Include(t => t.Column).Where(t => t.ProjectId == projectId);
+
+        var includeArchived = input["includeArchived"]?.GetValue<bool?>() ?? false;
+        if (!includeArchived) query = query.Where(t => !t.Archived);
+
+        var priority = NormalizePriority(input["priority"]?.GetValue<string>());
+        if (priority is not null) query = query.Where(t => t.Priority == priority);
+
+        if (input["columnName"]?.GetValue<string>() is { } columnName)
+        {
+            var (column, columnError) = await ResolveColumnAsync(projectId, columnName);
+            if (columnError is not null) return (columnError, true, null);
+            query = query.Where(t => t.ColumnId == column!.Id);
+        }
+
+        if (input["typeName"]?.GetValue<string>() is { } typeNameFilter)
+        {
+            var types = await _db.TaskTypes.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync();
+            var typeMatch = types.FirstOrDefault(t => string.Equals(t.Name, typeNameFilter, StringComparison.OrdinalIgnoreCase));
+            if (typeMatch is null)
+            {
+                var names = types.Count == 0 ? "(none defined for this project)" : string.Join(", ", types.Select(t => t.Name));
+                return ($"No task type named \"{typeNameFilter}\". Available: {names}.", true, null);
+            }
+            query = query.Where(t => t.TypeId == typeMatch.Id);
+        }
+
+        if (input.ContainsKey("assigneeName"))
+        {
+            var name = input["assigneeName"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(name) || name.Equals("unassigned", StringComparison.OrdinalIgnoreCase) || name.Equals("none", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(t => t.AssigneeId == null);
+            }
+            else
+            {
+                var members = await _db.ProjectMembers.AsNoTracking().Include(m => m.User).Where(m => m.ProjectId == projectId).ToListAsync();
+                var match = members.FirstOrDefault(m => string.Equals(m.User.DisplayName, name, StringComparison.OrdinalIgnoreCase));
+                if (match is null)
+                {
+                    var names = string.Join(", ", members.Select(m => m.User.DisplayName));
+                    return ($"No project member named \"{name}\". Available: {names}.", true, null);
+                }
+                query = query.Where(t => t.AssigneeId == match.Id);
+            }
+        }
+
+        if (input["teamName"]?.GetValue<string>() is { } teamNameFilter)
+        {
+            var teams = await _db.TeamsCommittees.AsNoTracking().Include(tc => tc.Members).Where(tc => tc.ProjectId == projectId && tc.Type == "team").ToListAsync();
+            var teamMatch = teams.FirstOrDefault(t => string.Equals(t.Name, teamNameFilter, StringComparison.OrdinalIgnoreCase));
+            if (teamMatch is null)
+            {
+                var names = teams.Count == 0 ? "(no teams defined for this project)" : string.Join(", ", teams.Select(t => t.Name));
+                return ($"No team named \"{teamNameFilter}\". Available: {names}.", true, null);
+            }
+            var teamMemberIds = teamMatch.Members.Select(m => m.ProjectMemberId).ToList();
+            query = query.Where(t => t.AssigneeId != null && teamMemberIds.Contains(t.AssigneeId.Value));
+        }
+
+        var limit = Math.Clamp(input["limit"]?.GetValue<int?>() ?? 10, 1, 25);
+        var results = await query.OrderBy(t => t.EndDate ?? DateOnly.MaxValue).Take(limit).ToListAsync();
+
+        if (results.Count == 0) return ("No tasks matched those filters.", false, null);
+
+        var lines = results.Select(t => $"{t.Key} \"{t.Title}\" — priority {t.Priority}, column \"{t.Column.Name}\", " +
+            $"due {(t.EndDate.HasValue ? t.EndDate.Value.ToString("yyyy-MM-dd") : "not set")}");
+        return (string.Join("\n", lines), false, null);
+    }
+
     private async Task<TaskItem?> FindTaskAsync(Guid projectId, string identifier)
     {
         var normalized = identifier.Trim();
@@ -417,22 +517,33 @@ public class AiAssistantService
     private static DateOnly? ParseDate(string? date) =>
         date is not null && DateOnly.TryParse(date, out var parsed) ? parsed : null;
 
-    private static string BuildSystemPrompt(string projectName, List<Column> columns, List<ProjectMember> members, List<TaskType> taskTypes, string? alertsSummary)
+    private static string BuildSystemPrompt(string projectName, List<Column> columns, List<ProjectMember> members, List<TaskType> taskTypes, List<TeamCommittee> teams, string? alertsSummary)
     {
         var columnList = string.Join(", ", columns.Select(c => $"\"{c.Name}\"{(c.Done ? " (done)" : "")}"));
         var memberList = members.Count == 0 ? "(none)" : string.Join(", ", members.Select(m => $"\"{m.User.DisplayName}\""));
         var typeList = taskTypes.Count == 0 ? "(none defined)" : string.Join(", ", taskTypes.Select(t => $"\"{t.Name}\""));
+        var teamList = teams.Count == 0 ? "(none defined)" : string.Join(", ", teams.Select(t => $"\"{t.Name}\""));
         var sb = new StringBuilder();
         sb.AppendLine($"You are the AI assistant embedded in the Enkl project management app, working within the project \"{projectName}\".");
         sb.AppendLine($"Its board columns, in order, are: {columnList}.");
         sb.AppendLine($"Its project members (valid assignee names) are: {memberList}.");
         sb.AppendLine($"Its task types (valid type names) are: {typeList}.");
-        sb.AppendLine("Use the provided tools to create tasks, edit tasks, look up task details, and list the most critical open tasks. " +
+        sb.AppendLine($"Its teams (valid team names) are: {teamList}.");
+        sb.AppendLine("Use the provided tools to create tasks, edit tasks, look up task details, search/filter tasks by priority, " +
+            "assignee, team, type, or column, and list the most critical open tasks. " +
             "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.");
         sb.AppendLine("Keep replies short and conversational — this is a chat-style assistant, not a report generator.");
         if (!string.IsNullOrWhiteSpace(alertsSummary))
         {
             sb.AppendLine("Current alerts for this project (computed client-side, already up to date): " + alertsSummary);
+        }
+        if (!string.IsNullOrEmpty(UserGuideMarkdown.Value))
+        {
+            sb.AppendLine();
+            sb.AppendLine("The following is this app's own User Guide - use it to answer 'how do I...'/'what is...' " +
+                "questions about the app's features accurately, in addition to your own tool-based abilities above. " +
+                "Don't quote it verbatim at length; summarize in your own conversational voice.");
+            sb.AppendLine(UserGuideMarkdown.Value);
         }
         return sb.ToString();
     }
@@ -505,6 +616,25 @@ public class AiAssistantService
                 ["properties"] = new JsonObject
                 {
                     ["limit"] = new JsonObject { ["type"] = "integer", ["description"] = "How many tasks to return, default 5." }
+                }
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "search_tasks",
+            ["description"] = "Search/filter this project's tasks by any combination of priority, assignee, team, task type, and/or column. Use this to answer questions like 'what are Bob's high priority tasks' or 'show me tasks assigned to the Design team'. All filters are optional - omit a filter to not narrow by it.",
+            ["input_schema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["priority"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray { "trivial", "low", "medium", "high", "critical" } },
+                    ["assigneeName"] = new JsonObject { ["type"] = "string", ["description"] = "Display name of a project member. Pass \"unassigned\" for tasks with no assignee." },
+                    ["teamName"] = new JsonObject { ["type"] = "string", ["description"] = "Name of a Team (from Teams & Committees) - matches tasks whose assignee belongs to that team." },
+                    ["typeName"] = new JsonObject { ["type"] = "string", ["description"] = "Name of a task type." },
+                    ["columnName"] = new JsonObject { ["type"] = "string" },
+                    ["includeArchived"] = new JsonObject { ["type"] = "boolean", ["description"] = "Default false." },
+                    ["limit"] = new JsonObject { ["type"] = "integer", ["description"] = "How many tasks to return, default 10, max 25." }
                 }
             }
         }

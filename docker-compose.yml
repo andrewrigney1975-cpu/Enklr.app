@@ -23,7 +23,8 @@ services:
 
   api:
     build:
-      context: ./api/Enkl.Api
+      context: .
+      dockerfile: api/Enkl.Api/Dockerfile
     environment:
       ConnectionStrings__Default: "Host=db;Database=enkl;Username=enkl;Password=${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
       # enkl_public_query's password is a literal baked into the AddSavedQueryApiExposure

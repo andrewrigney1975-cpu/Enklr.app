@@ -21,6 +21,20 @@ final class AiAssistantService
     private const PRIORITY_ORDER = ['trivial', 'low', 'medium', 'high', 'critical'];
     private const MAX_TOOL_LOOP_ITERATIONS = 6;
 
+    // Cached per-process - see php-api/src/Services/AiAssistantService.php's own comment on this
+    // same field for the full reasoning (bare-metal deploy, no Docker build step, repo root always
+    // reachable relative to this file). Null-safe: a missing file never breaks the assistant.
+    private static ?string $userGuideMarkdown = null;
+
+    private static function userGuideMarkdown(): string
+    {
+        if (self::$userGuideMarkdown === null) {
+            $path = dirname(__DIR__, 3) . '/USER-GUIDE.md';
+            self::$userGuideMarkdown = is_file($path) ? (file_get_contents($path) ?: '') : '';
+        }
+        return self::$userGuideMarkdown;
+    }
+
     public function __construct(private readonly PDO $db)
     {
     }
@@ -86,7 +100,8 @@ final class AiAssistantService
         $columns = $this->fetchColumns($projectId);
         $members = $this->fetchMembers($projectId);
         $taskTypes = $this->fetchTaskTypes($projectId);
-        $systemPrompt = $this->buildSystemPrompt($project['Name'], $columns, $members, $taskTypes, $request['alertsSummary'] ?? null);
+        $teams = $this->fetchTeams($projectId);
+        $systemPrompt = $this->buildSystemPrompt($project['Name'], $columns, $members, $taskTypes, $teams, $request['alertsSummary'] ?? null);
 
         $messages = [];
         foreach (($request['messages'] ?? []) as $m) {
@@ -156,6 +171,7 @@ final class AiAssistantService
                 'update_task' => $this->updateTaskTool($projectId, $input),
                 'get_task_details' => $this->getTaskDetailsTool($projectId, $input),
                 'list_critical_tasks' => $this->listCriticalTasksTool($projectId, $input),
+                'search_tasks' => $this->searchTasksTool($projectId, $input),
                 default => ["Unknown tool: {$toolName}", true, null],
             };
         } catch (\Throwable $e) {
@@ -364,6 +380,121 @@ final class AiAssistantService
         return [implode("\n", $lines), false, null];
     }
 
+    private function searchTasksTool(string $projectId, array $input): array
+    {
+        $where = ['t."ProjectId" = :pid'];
+        $params = ['pid' => $projectId];
+
+        if (empty($input['includeArchived'])) {
+            $where[] = 't."Archived" = false';
+        }
+
+        if (!empty($input['priority']) && in_array($input['priority'], self::PRIORITY_ORDER, true)) {
+            $where[] = 't."Priority" = :priority';
+            $params['priority'] = $input['priority'];
+        }
+
+        if (!empty($input['columnName'])) {
+            [$column, $columnError] = $this->resolveColumn($projectId, $input['columnName']);
+            if ($columnError !== null) {
+                return [$columnError, true, null];
+            }
+            $where[] = 't."ColumnId" = :columnId';
+            $params['columnId'] = $column['Id'];
+        }
+
+        if (!empty($input['typeName'])) {
+            $types = $this->fetchTaskTypes($projectId);
+            $typeMatch = null;
+            foreach ($types as $t) {
+                if (strcasecmp($t['Name'], $input['typeName']) === 0) {
+                    $typeMatch = $t;
+                    break;
+                }
+            }
+            if ($typeMatch === null) {
+                $names = $types === [] ? '(none defined for this project)' : implode(', ', array_column($types, 'Name'));
+                return ["No task type named \"{$input['typeName']}\". Available: {$names}.", true, null];
+            }
+            $where[] = 't."TypeId" = :typeId';
+            $params['typeId'] = $typeMatch['Id'];
+        }
+
+        if (array_key_exists('assigneeName', $input)) {
+            $name = $input['assigneeName'];
+            if ($name === null || trim((string) $name) === '' || strcasecmp((string) $name, 'unassigned') === 0 || strcasecmp((string) $name, 'none') === 0) {
+                $where[] = 't."AssigneeId" IS NULL';
+            } else {
+                $members = $this->fetchMembers($projectId);
+                $match = null;
+                foreach ($members as $m) {
+                    if (strcasecmp($m['DisplayName'], $name) === 0) {
+                        $match = $m;
+                        break;
+                    }
+                }
+                if ($match === null) {
+                    $names = implode(', ', array_column($members, 'DisplayName'));
+                    return ["No project member named \"{$name}\". Available: {$names}.", true, null];
+                }
+                $where[] = 't."AssigneeId" = :assigneeId';
+                $params['assigneeId'] = $match['Id'];
+            }
+        }
+
+        if (!empty($input['teamName'])) {
+            $teams = $this->fetchTeams($projectId);
+            $teamMatch = null;
+            foreach ($teams as $t) {
+                if (strcasecmp($t['Name'], $input['teamName']) === 0) {
+                    $teamMatch = $t;
+                    break;
+                }
+            }
+            if ($teamMatch === null) {
+                $names = $teams === [] ? '(no teams defined for this project)' : implode(', ', array_column($teams, 'Name'));
+                return ["No team named \"{$input['teamName']}\". Available: {$names}.", true, null];
+            }
+            $memberStmt = $this->db->prepare('SELECT "ProjectMemberId" FROM "TeamCommitteeMember" WHERE "TeamCommitteeId" = :id');
+            $memberStmt->execute(['id' => $teamMatch['Id']]);
+            $teamMemberIds = array_column($memberStmt->fetchAll(), 'ProjectMemberId');
+            if ($teamMemberIds === []) {
+                return ["No tasks matched those filters.", false, null];
+            }
+            $placeholders = implode(',', array_map(static fn($i) => ':tm' . $i, array_keys($teamMemberIds)));
+            $where[] = "t.\"AssigneeId\" IN ({$placeholders})";
+            foreach ($teamMemberIds as $i => $id) {
+                $params['tm' . $i] = $id;
+            }
+        }
+
+        $limit = max(1, min(25, (int) ($input['limit'] ?? 10)));
+        $whereSql = implode(' AND ', $where);
+        // MariaDB has no "NULLS LAST" syntax (unlike php-api's Postgres tier) - the portable
+        // "(col IS NULL), col ASC" trick sorts non-null rows first regardless of dialect, since a
+        // false (0) IS-NULL result sorts before a true (1) one in ascending order.
+        $stmt = $this->db->prepare(<<<SQL
+            SELECT t.*, c."Name" AS "ColumnName" FROM "Tasks" t
+            JOIN "Columns" c ON c."Id" = t."ColumnId"
+            WHERE {$whereSql}
+            ORDER BY (t."EndDate" IS NULL), t."EndDate" ASC
+            LIMIT {$limit}
+        SQL);
+        $stmt->execute($params);
+        $results = $stmt->fetchAll();
+
+        if ($results === []) {
+            return ['No tasks matched those filters.', false, null];
+        }
+
+        $lines = array_map(static function (array $t) {
+            $due = $t['EndDate'] ?? 'not set';
+            return "{$t['Key']} \"{$t['Title']}\" — priority {$t['Priority']}, column \"{$t['ColumnName']}\", due {$due}";
+        }, $results);
+
+        return [implode("\n", $lines), false, null];
+    }
+
     private function findTask(string $projectId, string $identifier): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM "Tasks" WHERE "ProjectId" = :pid AND LOWER("Key") = LOWER(:key)');
@@ -424,6 +555,13 @@ final class AiAssistantService
     private function fetchTaskTypes(string $projectId): array
     {
         $stmt = $this->db->prepare('SELECT "Id", "Name" FROM "TaskTypes" WHERE "ProjectId" = :pid');
+        $stmt->execute(['pid' => $projectId]);
+        return $stmt->fetchAll();
+    }
+
+    private function fetchTeams(string $projectId): array
+    {
+        $stmt = $this->db->prepare('SELECT "Id", "Name" FROM "TeamsCommittees" WHERE "ProjectId" = :pid AND "Type" = \'team\'');
         $stmt->execute(['pid' => $projectId]);
         return $stmt->fetchAll();
     }
@@ -491,7 +629,7 @@ final class AiAssistantService
         return $parsed !== false ? $date : null;
     }
 
-    private function buildSystemPrompt(string $projectName, array $columns, array $members, array $taskTypes, ?string $alertsSummary): string
+    private function buildSystemPrompt(string $projectName, array $columns, array $members, array $taskTypes, array $teams, ?string $alertsSummary): string
     {
         $columnList = implode(', ', array_map(
             static fn(array $c) => '"' . $c['Name'] . '"' . ($c['Done'] ? ' (done)' : ''),
@@ -505,17 +643,30 @@ final class AiAssistantService
             static fn(array $t) => '"' . $t['Name'] . '"',
             $taskTypes
         ));
+        $teamList = $teams === [] ? '(none defined)' : implode(', ', array_map(
+            static fn(array $t) => '"' . $t['Name'] . '"',
+            $teams
+        ));
 
         $prompt = "You are the AI assistant embedded in the Enkl project management app, working within the project \"{$projectName}\".\n" .
             "Its board columns, in order, are: {$columnList}.\n" .
             "Its project members (valid assignee names) are: {$memberList}.\n" .
             "Its task types (valid type names) are: {$typeList}.\n" .
-            "Use the provided tools to create tasks, edit tasks, look up task details, and list the most critical open tasks. " .
+            "Its teams (valid team names) are: {$teamList}.\n" .
+            "Use the provided tools to create tasks, edit tasks, look up task details, search/filter tasks by priority, " .
+            "assignee, team, type, or column, and list the most critical open tasks. " .
             "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.\n" .
             "Keep replies short and conversational — this is a chat-style assistant, not a report generator.\n";
 
         if ($alertsSummary !== null && trim($alertsSummary) !== '') {
             $prompt .= "Current alerts for this project (computed client-side, already up to date): {$alertsSummary}\n";
+        }
+
+        $guide = self::userGuideMarkdown();
+        if ($guide !== '') {
+            $prompt .= "\nThe following is this app's own User Guide - use it to answer 'how do I...'/'what is...' " .
+                "questions about the app's features accurately, in addition to your own tool-based abilities above. " .
+                "Don't quote it verbatim at length; summarize in your own conversational voice.\n" . $guide . "\n";
         }
 
         return $prompt;
@@ -575,6 +726,22 @@ final class AiAssistantService
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => ['limit' => ['type' => 'integer', 'description' => 'How many tasks to return, default 5.']],
+                ],
+            ],
+            [
+                'name' => 'search_tasks',
+                'description' => "Search/filter this project's tasks by any combination of priority, assignee, team, task type, and/or column. Use this to answer questions like 'what are Bob's high priority tasks' or 'show me tasks assigned to the Design team'. All filters are optional - omit a filter to not narrow by it.",
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'priority' => ['type' => 'string', 'enum' => self::PRIORITY_ORDER],
+                        'assigneeName' => ['type' => 'string', 'description' => 'Display name of a project member. Pass "unassigned" for tasks with no assignee.'],
+                        'teamName' => ['type' => 'string', 'description' => 'Name of a Team (from Teams & Committees) - matches tasks whose assignee belongs to that team.'],
+                        'typeName' => ['type' => 'string', 'description' => 'Name of a task type.'],
+                        'columnName' => ['type' => 'string'],
+                        'includeArchived' => ['type' => 'boolean', 'description' => 'Default false.'],
+                        'limit' => ['type' => 'integer', 'description' => 'How many tasks to return, default 10, max 25.'],
+                    ],
                 ],
             ],
         ];
