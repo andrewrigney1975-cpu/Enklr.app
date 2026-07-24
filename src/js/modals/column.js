@@ -24,6 +24,8 @@ export function openColumnModal(columnId){
   document.getElementById('columnColorEnabledCheckbox').checked = !!(col && col.color);
   document.getElementById('columnColorInput').value = (col && col.color) || '#4f46e5';
   document.getElementById('columnColorInput').disabled = !(col && col.color);
+  document.getElementById('columnColorBackgroundCheckbox').checked = col ? col.colorBackground !== false : true;
+  document.getElementById('columnColorBackgroundCheckbox').disabled = !(col && col.color);
   document.getElementById('columnDeleteBtn').classList.toggle('kf-vis-hidden', !col);
   document.getElementById('columnOverlay').classList.remove('hidden');
   document.getElementById('columnNameInput').focus();
@@ -40,6 +42,7 @@ export async function saveColumnFromModal(){
   var done = document.getElementById('columnDoneCheckbox').checked;
   var colorEnabled = document.getElementById('columnColorEnabledCheckbox').checked;
   var color = colorEnabled ? document.getElementById('columnColorInput').value : null;
+  var colorBackground = document.getElementById('columnColorBackgroundCheckbox').checked;
   var editingId = ui.editingColumnId;
 
   if(isServerAuthoritative(project)){
@@ -47,9 +50,9 @@ export async function saveColumnFromModal(){
       if(editingId){
         var order = project.columns.findIndex(function(c){ return c.id === editingId; });
         var existingCol = getColumn(project, editingId);
-        await updateColumnApi(project.serverProjectId, editingId, name, done, color, order, existingCol ? existingCol.cap : -1);
+        await updateColumnApi(project.serverProjectId, editingId, name, done, color, colorBackground, order, existingCol ? existingCol.cap : -1);
       } else {
-        await addColumnApi(project.serverProjectId, name, done, color);
+        await addColumnApi(project.serverProjectId, name, done, color, colorBackground);
       }
       await refreshProjectFromServer(project.id);
       closeColumnModal();
@@ -62,10 +65,10 @@ export async function saveColumnFromModal(){
   }
 
   if(editingId){
-    updateColumn(project, editingId, name, done, color);
+    updateColumn(project, editingId, name, done, color, colorBackground);
     toast('Column updated.');
   } else {
-    addColumn(project, name, done, color);
+    addColumn(project, name, done, color, colorBackground);
     toast('Column added.');
   }
   closeColumnModal();

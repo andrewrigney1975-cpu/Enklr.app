@@ -1665,6 +1665,7 @@ function wireEvents(){
   document.getElementById('columnDeleteBtn').addEventListener('click', deleteColumnFromModal);
   document.getElementById('columnColorEnabledCheckbox').addEventListener('change', function(e){
     document.getElementById('columnColorInput').disabled = !e.target.checked;
+    document.getElementById('columnColorBackgroundCheckbox').disabled = !e.target.checked;
   });
   document.getElementById('columnOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'columnOverlay') closeColumnModal();

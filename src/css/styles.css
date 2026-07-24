@@ -2155,12 +2155,27 @@
 
   /* Card */
   .kf-card {
+    position: relative;
     background: var(--kf-surface);
     border-radius: 3px;
     box-shadow: var(--kf-shadow);
     padding: 10px 10px 9px 10px;
     margin-bottom: 8px;
     cursor: pointer;
+  }
+
+  /* Priority strip along the card's left edge — consistent with the same priority-accent
+     colour used for the dependency graph's node strip (views/dependency-map.js), set per-card
+     via the --kf-card-priority-accent custom property in views/board.js's renderCard(). */
+  .kf-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    border-radius: 3px 0 0 3px;
+    background: var(--kf-card-priority-accent, transparent);
   }
 
   .kf-card:hover {

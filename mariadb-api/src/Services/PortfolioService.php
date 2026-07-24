@@ -168,7 +168,7 @@ final class PortfolioService
 
             $columnStmt->execute(['pid' => $projectId]);
             foreach ($columnStmt->fetchAll() as $c) {
-                $columns[] = ['id' => $c['Id'], 'name' => $c['Name'], 'done' => (bool) $c['Done'], 'color' => $c['Color'], 'order' => (int) $c['Order'], 'cap' => (int) ($c['Cap'] ?? -1)];
+                $columns[] = ['id' => $c['Id'], 'name' => $c['Name'], 'done' => (bool) $c['Done'], 'color' => $c['Color'], 'colorBackground' => (bool) ($c['ColorBackground'] ?? true), 'order' => (int) $c['Order'], 'cap' => (int) ($c['Cap'] ?? -1)];
             }
 
             foreach (TaskService::fetchTaskDtos($this->db, $projectId) as $t) {

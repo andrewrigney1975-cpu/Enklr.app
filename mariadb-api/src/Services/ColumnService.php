@@ -22,19 +22,20 @@ final class ColumnService
 
         $id = Uuid::v4();
         $done = (bool) ($request['done'] ?? false);
+        $colorBackground = (bool) ($request['colorBackground'] ?? true);
         $stmt = $this->db->prepare(<<<SQL
-            INSERT INTO "Columns" ("Id", "ProjectId", "Name", "Done", "Color", "Order")
-            VALUES (:id, :pid, :name, :done, :color, :order)
+            INSERT INTO "Columns" ("Id", "ProjectId", "Name", "Done", "Color", "ColorBackground", "Order")
+            VALUES (:id, :pid, :name, :done, :color, :colorBackground, :order)
         SQL);
         // PDO's array-form execute() binds every value as PDO::PARAM_STR, and PHP's (string) cast of
         // false is '' — which Postgres's boolean parser rejects (it needs '0'/'1'/'true'/'false'), so
         // bool params must be sent as int here; the DTO below keeps the real PHP bool for json_encode.
         $stmt->execute([
             'id' => $id, 'pid' => $projectId, 'name' => $request['name'] ?? '',
-            'done' => (int) $done, 'color' => $request['color'] ?? null, 'order' => $nextOrder,
+            'done' => (int) $done, 'color' => $request['color'] ?? null, 'colorBackground' => (int) $colorBackground, 'order' => $nextOrder,
         ]);
 
-        return ['id' => $id, 'name' => $request['name'] ?? '', 'done' => $done, 'color' => $request['color'] ?? null, 'order' => $nextOrder, 'cap' => -1];
+        return ['id' => $id, 'name' => $request['name'] ?? '', 'done' => $done, 'color' => $request['color'] ?? null, 'colorBackground' => $colorBackground, 'order' => $nextOrder, 'cap' => -1];
     }
 
     public function update(string $projectId, string $columnId, array $request): ?array
@@ -46,19 +47,20 @@ final class ColumnService
         }
 
         $done = (bool) ($request['done'] ?? false);
+        $colorBackground = (bool) ($request['colorBackground'] ?? true);
         // -1 means uncapped; anything <1 (0, other negatives) normalizes back to -1 rather than
         // being rejected — there's no such thing as a column that holds zero tasks — matching
         // clampColumnCap's client-side twin (storage.js).
         $requestedCap = (int) ($request['cap'] ?? -1);
         $cap = $requestedCap < 1 ? -1 : $requestedCap;
 
-        $stmt = $this->db->prepare('UPDATE "Columns" SET "Name" = :name, "Done" = :done, "Color" = :color, "Order" = :order, "Cap" = :cap WHERE "Id" = :id');
+        $stmt = $this->db->prepare('UPDATE "Columns" SET "Name" = :name, "Done" = :done, "Color" = :color, "ColorBackground" = :colorBackground, "Order" = :order, "Cap" = :cap WHERE "Id" = :id');
         $stmt->execute([
             'name' => $request['name'] ?? '', 'done' => (int) $done,
-            'color' => $request['color'] ?? null, 'order' => (int) ($request['order'] ?? 0), 'cap' => $cap, 'id' => $columnId,
+            'color' => $request['color'] ?? null, 'colorBackground' => (int) $colorBackground, 'order' => (int) ($request['order'] ?? 0), 'cap' => $cap, 'id' => $columnId,
         ]);
 
-        return ['id' => $columnId, 'name' => $request['name'] ?? '', 'done' => $done, 'color' => $request['color'] ?? null, 'order' => (int) ($request['order'] ?? 0), 'cap' => $cap];
+        return ['id' => $columnId, 'name' => $request['name'] ?? '', 'done' => $done, 'color' => $request['color'] ?? null, 'colorBackground' => $colorBackground, 'order' => (int) ($request['order'] ?? 0), 'cap' => $cap];
     }
 
     // ARCHITECTURE-REVIEW.md finding 3.1: unlink ParentTaskId -> delete TaskDependencies -> delete

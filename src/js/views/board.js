@@ -487,10 +487,15 @@ export function renderColumn(project, col){
   section.setAttribute('data-column-id', col.id);
   if(col.color){
     section.style.setProperty('--kf-column-accent', col.color);
-    // Dark theme blends toward black instead of white — a near-white tint (lightenHexColor's default)
-    // would clash with the rest of the dark palette, so colored columns stay a subtle dark shade there.
-    var tint = currentTheme() === 'dark' ? darkenHexColor(col.color) : lightenHexColor(col.color);
-    if(tint) section.style.setProperty('--kf-column-tint', tint);
+    // Background tinting is opt-in (col.colorBackground) — when off, the column keeps the
+    // colored top border but its background stays the plain default grey (--kf-column-bg).
+    if(col.colorBackground !== false){
+      // Dark theme blends toward black instead of white — a near-white tint (lightenHexColor's
+      // default) would clash with the rest of the dark palette, so colored columns stay a subtle
+      // dark shade there.
+      var tint = currentTheme() === 'dark' ? darkenHexColor(col.color) : lightenHexColor(col.color);
+      if(tint) section.style.setProperty('--kf-column-tint', tint);
+    }
   }
 
   var activeTaskCount = col.order.filter(function(taskId){
@@ -692,6 +697,7 @@ export function renderCard(project, task){
   card.setAttribute('data-task-id', task.id);
 
   var prio = getPriority(task.priority);
+  card.style.setProperty('--kf-card-priority-accent', prio.accent);
   var blocked = isTaskBlocked(project, task);
   var overdue = isTaskOverdue(project, task);
   var depCount = (task.dependencies || []).length;

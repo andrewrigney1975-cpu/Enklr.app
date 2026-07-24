@@ -49,7 +49,7 @@ export var TABLE_SCHEMAS = {
     'releaseId', 'typeId', 'documentationUrl', 'startDate', 'endDate', 'businessValue', 'taskCost',
     'progress', 'estimatedEffort', 'actualEffort', 'archived', 'isPrivate', 'dateCreated',
     'dateLastModified', 'dateDone', 'parentTaskId'],
-  columns: ['id', 'name', 'done', 'order', 'color', 'cap'],
+  columns: ['id', 'name', 'done', 'order', 'color', 'colorBackground', 'cap'],
   members: ['id', 'name', 'email', 'color', 'role', 'allocatedFraction', 'reportsToId', 'isProjectAdmin'],
   risks: ['id', 'key', 'title', 'description', 'likelihood', 'impact', 'mitigations', 'ownerId',
     'taskId', 'documentIds', 'principleIds', 'objectiveIds', 'status', 'dateToClose', 'dateClosed',

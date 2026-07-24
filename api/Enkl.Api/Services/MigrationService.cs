@@ -60,7 +60,7 @@ public class MigrationService
         var columnsByName = new Dictionary<string, Column>();
         foreach (var c in request.Columns)
         {
-            var column = new Column { Id = Guid.NewGuid(), ProjectId = project.Id, Name = c.Name, Done = c.Done, Color = c.Color, Order = c.Order, Cap = c.Cap < 1 ? -1 : c.Cap };
+            var column = new Column { Id = Guid.NewGuid(), ProjectId = project.Id, Name = c.Name, Done = c.Done, Color = c.Color, ColorBackground = c.ColorBackground, Order = c.Order, Cap = c.Cap < 1 ? -1 : c.Cap };
             _db.Columns.Add(column);
             columnsByName[c.Name] = column;
         }

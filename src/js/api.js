@@ -366,11 +366,11 @@ export function checkNewProjectKeyAvailabilityApi(key){
   return apiFetch('/projects/key-availability?key=' + encodeURIComponent(key), {method: 'GET'});
 }
 
-export function addColumnApi(projectId, name, done, color){
-  return apiFetch('/projects/' + projectId + '/columns', {method: 'POST', body: JSON.stringify({name: name, done: done, color: color})});
+export function addColumnApi(projectId, name, done, color, colorBackground){
+  return apiFetch('/projects/' + projectId + '/columns', {method: 'POST', body: JSON.stringify({name: name, done: done, color: color, colorBackground: colorBackground})});
 }
-export function updateColumnApi(projectId, columnId, name, done, color, order, cap){
-  return apiFetch('/projects/' + projectId + '/columns/' + columnId, {method: 'PUT', body: JSON.stringify({name: name, done: done, color: color, order: order, cap: cap})});
+export function updateColumnApi(projectId, columnId, name, done, color, colorBackground, order, cap){
+  return apiFetch('/projects/' + projectId + '/columns/' + columnId, {method: 'PUT', body: JSON.stringify({name: name, done: done, color: color, colorBackground: colorBackground, order: order, cap: cap})});
 }
 export function deleteColumnApi(projectId, columnId){
   return apiFetch('/projects/' + projectId + '/columns/' + columnId, {method: 'DELETE'});

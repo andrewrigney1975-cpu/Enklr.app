@@ -58,14 +58,14 @@ final class MigrationService
             ]);
 
             $columnsByName = [];
-            $colStmt = $this->db->prepare('INSERT INTO "Columns" ("Id", "ProjectId", "Name", "Done", "Color", "Order", "Cap") VALUES (:id, :pid, :name, :done, :color, :order, :cap)');
+            $colStmt = $this->db->prepare('INSERT INTO "Columns" ("Id", "ProjectId", "Name", "Done", "Color", "ColorBackground", "Order", "Cap") VALUES (:id, :pid, :name, :done, :color, :colorBackground, :order, :cap)');
             foreach ($request['columns'] ?? [] as $c) {
                 $id = Uuid::v4();
                 $requestedCap = (int) ($c['cap'] ?? -1);
                 $cap = $requestedCap < 1 ? -1 : $requestedCap;
                 // (int), not the raw PHP bool — PDO's array-form execute() would bind false as ''
                 // otherwise, which Postgres's boolean parser rejects.
-                $colStmt->execute(['id' => $id, 'pid' => $projectId, 'name' => $c['name'], 'done' => (int) (bool) $c['done'], 'color' => $c['color'] ?? null, 'order' => (int) $c['order'], 'cap' => $cap]);
+                $colStmt->execute(['id' => $id, 'pid' => $projectId, 'name' => $c['name'], 'done' => (int) (bool) $c['done'], 'color' => $c['color'] ?? null, 'colorBackground' => (int) (bool) ($c['colorBackground'] ?? true), 'order' => (int) $c['order'], 'cap' => $cap]);
                 $columnsByName[$c['name']] = $id;
             }
 

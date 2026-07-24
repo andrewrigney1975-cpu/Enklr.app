@@ -536,8 +536,12 @@
       </div>
       <div class="kf-checkbox-row">
         <input type="checkbox" id="columnColorEnabledCheckbox">
-        <label for="columnColorEnabledCheckbox" style="text-transform:none;font-weight:500;">Colour <span style="font-weight:400;color:var(--kf-text-faint);">(top border + tinted background)</span></label>
+        <label for="columnColorEnabledCheckbox" style="text-transform:none;font-weight:500;">Colour <span style="font-weight:400;color:var(--kf-text-faint);">(top border)</span></label>
         <input type="color" class="kf-color-input" id="columnColorInput" value="#4f46e5" disabled>
+      </div>
+      <div class="kf-checkbox-row" id="columnColorBackgroundRow">
+        <input type="checkbox" id="columnColorBackgroundCheckbox">
+        <label for="columnColorBackgroundCheckbox" style="text-transform:none;font-weight:500;">Apply colour to background too <span style="font-weight:400;color:var(--kf-text-faint);">(otherwise the background stays the default grey)</span></label>
       </div>
     </div>
     <div class="kf-modal-footer">

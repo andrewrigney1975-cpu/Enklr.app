@@ -11,6 +11,9 @@ public class ColumnConfiguration : IEntityTypeConfiguration<Column>
         b.HasKey(c => c.Id);
         b.Property(c => c.Name).HasMaxLength(100).IsRequired();
         b.Property(c => c.Color).HasMaxLength(20);
+        // DB-level default so existing colored columns keep tinting their background after this
+        // field is introduced (see CLAUDE.md's EF-Core-ignores-property-initializers gotcha).
+        b.Property(c => c.ColorBackground).HasDefaultValue(true);
         // DB-level default (not just the C# property initializer) so the migration correctly
         // backfills every existing column to "uncapped" — see CLAUDE.md's EF-Core-ignores-property-
         // initializers gotcha.

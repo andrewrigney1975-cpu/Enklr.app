@@ -34,7 +34,7 @@ public record SetProjectAdminRequest(bool IsProjectAdmin);
 /// the project-detail fetch) rather than this endpoint doing it server-side.</summary>
 public record OrgUserCandidateDto(Guid Id, string DisplayName, string? Email);
 
-public record ColumnDto(Guid Id, string Name, bool Done, string? Color, int Order, int Cap);
+public record ColumnDto(Guid Id, string Name, bool Done, string? Color, bool ColorBackground, int Order, int Cap);
 
 public record TaskAuditLogEntryDto(Guid Id, DateTime Timestamp, string Field, string? OldValue, string? NewValue, string? ChangedBy);
 
@@ -100,8 +100,8 @@ public record ProjectSettingsDto(
     bool TeamsCommittees, bool Workflow, bool TimeTracking, bool ChangeAuditing, bool SubTasks,
     bool Retrospective, bool Strategy);
 
-public record CreateColumnRequest(string Name, bool Done, string? Color);
-public record UpdateColumnRequest(string Name, bool Done, string? Color, int Order, int Cap);
+public record CreateColumnRequest(string Name, bool Done, string? Color, bool ColorBackground = true);
+public record UpdateColumnRequest(string Name, bool Done, string? Color, bool ColorBackground, int Order, int Cap);
 
 public record CreateTaskRequest(
     string Title, string? Description, string Priority, Guid ColumnId, Guid? AssigneeId,
