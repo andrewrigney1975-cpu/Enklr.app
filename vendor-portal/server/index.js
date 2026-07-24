@@ -10,6 +10,7 @@ import { organisationsRouter } from './routes/organisations.js';
 import { licensesRouter } from './routes/licenses.js';
 import { contractsRouter } from './routes/contracts.js';
 import { announcementsRouter } from './routes/announcements.js';
+import { entitlementsRouter } from './routes/entitlements.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.join(__dirname, '..', 'web');
@@ -37,6 +38,7 @@ app.use('/api', requireAuth, organisationsRouter);
 app.use('/api', requireAuth, licensesRouter);
 app.use('/api', requireAuth, contractsRouter);
 app.use('/api', requireAuth, announcementsRouter);
+app.use('/api', requireAuth, entitlementsRouter);
 
 app.use(express.static(webDir));
 app.get('*', (_req, res) => res.sendFile(path.join(webDir, 'index.html')));
