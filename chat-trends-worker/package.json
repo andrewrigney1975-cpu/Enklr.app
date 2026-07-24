@@ -1,0 +1,16 @@
+{
+  "name": "chat-trends-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone batch job: reads raw Chat messages from the main app's Postgres DB and writes anonymised topic/sentiment trend aggregates for Vendor Portal to read. Never exposes message text, user ids, or org ids outside this process.",
+  "scripts": {
+    "migrate": "node src/migrate.js",
+    "run": "node src/run.js"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "dotenv": "^16.4.5",
+    "pg": "^8.12.0"
+  }
+}
