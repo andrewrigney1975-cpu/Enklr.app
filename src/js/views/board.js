@@ -871,21 +871,48 @@ function getBoardColumnElements(){
   return Array.prototype.slice.call(document.querySelectorAll('#board > .kf-column'));
 }
 
-// The x position of the gap strip immediately beside a column, on the given side — the one place
-// beside that column guaranteed to contain no card, since it's outside every column's own box.
-function columnGapX(columns, idx, side){
-  var rect = columns[idx].getBoundingClientRect();
-  if(side === 'right'){
-    return idx < columns.length - 1
-      ? (rect.right + columns[idx + 1].getBoundingClientRect().left) / 2
-      : rect.right + 12;
-  }
-  return idx > 0
-    ? (rect.left + columns[idx - 1].getBoundingClientRect().right) / 2
-    : rect.left - 12;
+// A gap between two adjacent columns is identified independently of which side "asked" for it —
+// column idx's right-side gap and column idx+1's left-side gap are the exact same physical gap —
+// so this canonical id is what lets edges approaching that gap from either direction (or from a
+// same-column pair, or from either end of a multi-column skip) land in the same lane-fan group.
+function gapId(idx, side){
+  return side === 'right' ? idx : idx - 1;
 }
 
-function computeTaskDepConnectorPoints(sourceCard, targetCard, columns){
+// The real pixel span of the gap strip immediately beside a column, on the given side — the one
+// place beside that column guaranteed to contain no card, since it's outside every column's own box.
+function getGapBounds(columns, idx, side){
+  if(side === 'right'){
+    var rect = columns[idx].getBoundingClientRect();
+    return idx < columns.length - 1
+      ? {left: rect.right, right: columns[idx + 1].getBoundingClientRect().left}
+      : {left: rect.right, right: rect.right + 24};
+  }
+  var rect2 = columns[idx].getBoundingClientRect();
+  return idx > 0
+    ? {left: columns[idx - 1].getBoundingClientRect().right, right: rect2.left}
+    : {left: rect2.left - 24, right: rect2.left};
+}
+
+// The inverse of gapId — resolves a canonical gap id back to its real pixel span, regardless of
+// which (idx, side) pair originally produced that id.
+function boundsForGapId(columns, id){
+  if(id < 0) return getGapBounds(columns, 0, 'left');
+  if(id >= columns.length - 1) return getGapBounds(columns, columns.length - 1, 'right');
+  return getGapBounds(columns, id, 'right');
+}
+
+function boundsMidpoint(bounds){
+  return (bounds.left + bounds.right) / 2;
+}
+
+/* Classifies a task-dependency edge into its routing shape (see the three cases below) WITHOUT
+   yet resolving which exact x/y a shared gap or highway uses — that's deferred to
+   resolveEdgeGapDefaults (single hover connector: always the gap's plain midpoint) or
+   assignTaskDepConnectorLanes (the "Relationships" toggle's all-at-once render: fanned out across
+   the gap's own width whenever multiple edges share it — see that function's own doc comment for
+   why, mirroring dependency-map.js's assignVerticalLanes). */
+function classifyTaskDepEdge(sourceCard, targetCard, columns){
   var sourceCol = sourceCard.closest('.kf-column');
   var targetCol = targetCard.closest('.kf-column');
   var sIdx = columns.indexOf(sourceCol);
@@ -902,10 +929,12 @@ function computeTaskDepConnectorPoints(sourceCard, targetCard, columns){
   // line between them would cross every card stacked in between.
   if(sIdx === tIdx){
     var side = sIdx < columns.length - 1 ? 'right' : 'left';
-    var gapX = columnGapX(columns, sIdx, side);
-    var x1 = side === 'right' ? sRect.right : sRect.left;
-    var x2 = side === 'right' ? tRect.right : tRect.left;
-    return [{x: x1, y: y1}, {x: gapX, y: y1}, {x: gapX, y: y2}, {x: x2, y: y2}];
+    return {
+      caseType: 'same',
+      x1: side === 'right' ? sRect.right : sRect.left, y1: y1,
+      x2: side === 'right' ? tRect.right : tRect.left, y2: y2,
+      gapId: gapId(sIdx, side)
+    };
   }
 
   var dirRight = tIdx > sIdx;
@@ -918,9 +947,7 @@ function computeTaskDepConnectorPoints(sourceCard, targetCard, columns){
   // are the exact same gap — one vertical bend at that shared x is enough, same "Z" shape as the
   // Dependency Graph's own simple two-corner case.
   if(Math.abs(tIdx - sIdx) === 1){
-    var sharedGapX = columnGapX(columns, sIdx, sSide);
-    if(y1 === y2) return [{x: x1, y: y1}, {x: x2, y: y2}];
-    return [{x: x1, y: y1}, {x: sharedGapX, y: y1}, {x: sharedGapX, y: y2}, {x: x2, y: y2}];
+    return {caseType: 'adjacent', x1: x1, y1: y1, x2: x2, y2: y2, gapId: gapId(sIdx, sSide)};
   }
 
   // Columns skipped in between: their two gaps are different x positions, so a single vertical
@@ -932,13 +959,98 @@ function computeTaskDepConnectorPoints(sourceCard, targetCard, columns){
   // — a real bug seen live, not just a theoretical risk). Using the tallest column's own bottom
   // (not just the two actually being connected) keeps the crossing clear of every OTHER column's
   // cards too, not just these two.
-  var sGapX = columnGapX(columns, sIdx, sSide);
-  var tGapX = columnGapX(columns, tIdx, tSide);
-  var highwayY = Math.max.apply(null, columns.map(function(c){ return c.getBoundingClientRect().bottom; })) + 10;
+  return {
+    caseType: 'skip', x1: x1, y1: y1, x2: x2, y2: y2,
+    sGapId: gapId(sIdx, sSide), tGapId: gapId(tIdx, tSide)
+  };
+}
+
+// Resolves an edge's gap x/y to the gap's own plain midpoint — used by the single hover connector,
+// where only one edge is ever shown at once, so there's nothing to fan out against.
+function resolveEdgeGapDefaults(edge, columns){
+  if(edge.caseType === 'skip'){
+    edge.sGapX = boundsMidpoint(boundsForGapId(columns, edge.sGapId));
+    edge.tGapX = boundsMidpoint(boundsForGapId(columns, edge.tGapId));
+    edge.highwayY = Math.max.apply(null, columns.map(function(c){ return c.getBoundingClientRect().bottom; })) + 10;
+  } else {
+    edge.gapX = boundsMidpoint(boundsForGapId(columns, edge.gapId));
+  }
+  return edge;
+}
+
+function pointsFromResolvedEdge(edge){
+  if(edge.caseType === 'adjacent' && edge.y1 === edge.y2){
+    return [{x: edge.x1, y: edge.y1}, {x: edge.x2, y: edge.y2}];
+  }
+  if(edge.caseType !== 'skip'){
+    return [{x: edge.x1, y: edge.y1}, {x: edge.gapX, y: edge.y1}, {x: edge.gapX, y: edge.y2}, {x: edge.x2, y: edge.y2}];
+  }
   return [
-    {x: x1, y: y1}, {x: sGapX, y: y1}, {x: sGapX, y: highwayY},
-    {x: tGapX, y: highwayY}, {x: tGapX, y: y2}, {x: x2, y: y2}
+    {x: edge.x1, y: edge.y1}, {x: edge.sGapX, y: edge.y1}, {x: edge.sGapX, y: edge.highwayY},
+    {x: edge.tGapX, y: edge.highwayY}, {x: edge.tGapX, y: edge.y2}, {x: edge.x2, y: edge.y2}
   ];
+}
+
+function computeTaskDepConnectorPoints(sourceCard, targetCard, columns){
+  var edge = classifyTaskDepEdge(sourceCard, targetCard, columns);
+  if(!edge) return null;
+  resolveEdgeGapDefaults(edge, columns);
+  return pointsFromResolvedEdge(edge);
+}
+
+/* Fans out edges that would otherwise bend through the exact same physical gap (or, for the
+   multi-column-skip case, cross at the exact same highway height between the exact same pair of
+   gaps) on top of each other — the board's own version of dependency-map.js's own
+   assignVerticalLanes, same 0.3-0.7-of-the-span spread, sorted by position, just working from a
+   real gap's own pixel bounds instead of a synthetic (x1,x2) node-layout pair. Mutates each edge's
+   gapX/sGapX/tGapX/highwayY in place. */
+function assignTaskDepConnectorLanes(edgeWrappers, columns){
+  var gapUsages = {};
+  var highwayGroups = {};
+
+  edgeWrappers.forEach(function(w){
+    var e = w.edge;
+    if(e.caseType === 'skip'){
+      var hKey = e.sGapId + '_' + e.tGapId;
+      (highwayGroups[hKey] = highwayGroups[hKey] || []).push(e);
+      (gapUsages[e.sGapId] = gapUsages[e.sGapId] || []).push({edge: e, end: 's'});
+      (gapUsages[e.tGapId] = gapUsages[e.tGapId] || []).push({edge: e, end: 't'});
+    } else {
+      (gapUsages[e.gapId] = gapUsages[e.gapId] || []).push({edge: e, end: 'only'});
+    }
+  });
+
+  function usageY(u){
+    if(u.end === 's') return u.edge.y1;
+    if(u.end === 't') return u.edge.y2;
+    return (u.edge.y1 + u.edge.y2) / 2;
+  }
+  function applyGapX(u, x){
+    if(u.end === 's') u.edge.sGapX = x;
+    else if(u.end === 't') u.edge.tGapX = x;
+    else u.edge.gapX = x;
+  }
+
+  Object.keys(gapUsages).forEach(function(key){
+    var usages = gapUsages[key];
+    var bounds = boundsForGapId(columns, Number(key));
+    var n = usages.length;
+    if(n < 2){
+      applyGapX(usages[0], boundsMidpoint(bounds));
+      return;
+    }
+    usages.sort(function(a, b){ return usageY(a) - usageY(b); });
+    usages.forEach(function(u, i){
+      var frac = 0.3 + 0.4 * i / (n - 1);
+      applyGapX(u, bounds.left + (bounds.right - bounds.left) * frac);
+    });
+  });
+
+  Object.keys(highwayGroups).forEach(function(key){
+    var group = highwayGroups[key];
+    var baseY = Math.max.apply(null, columns.map(function(c){ return c.getBoundingClientRect().bottom; })) + 10;
+    group.forEach(function(e, i){ e.highwayY = baseY + i * 8; });
+  });
 }
 
 export function drawTaskDepConnector(sourceTaskId, targetTaskId){
@@ -1009,7 +1121,11 @@ export function renderAllTaskConnectors(){
 
   var subtasksOn = isSubTasksEnabled(project);
   var seenDepPairs = {};
-  var html = '';
+  // Classify every edge first, without resolving shared-gap x/y yet, so assignTaskDepConnectorLanes
+  // can see the whole set at once and fan out any edges that land in the same gap (or, for skip-
+  // routed edges, the same highway crossing) — the same "collect, then spread" two-pass shape as
+  // dependency-map.js's own assignVerticalLanes, just gathered here instead of by that file's caller.
+  var edgeWrappers = [];
 
   getTasksArray(project).forEach(function(t){
     if(t.archived) return;
@@ -1023,8 +1139,8 @@ export function renderAllTaskConnectors(){
       var depCard = document.querySelector('.kf-card[data-task-id="' + depId + '"]');
       if(!sourceCard || !depCard) return;
 
-      var points = computeTaskDepConnectorPoints(depCard, sourceCard, columns);
-      if(!points) return;
+      var edge = classifyTaskDepEdge(depCard, sourceCard, columns);
+      if(!edge) return;
 
       var depTask = getTaskById(project, depId);
       var depCol = depTask && getColumn(project, depTask.columnId);
@@ -1032,22 +1148,34 @@ export function renderAllTaskConnectors(){
       var color = blocked ? '#de350b' : '#8993a4';
       var startMarker = blocked ? 'kf-taskdep-dot-start-blocked' : 'kf-taskdep-dot-start-done';
       var endMarker = blocked ? 'kf-taskdep-arrow-blocked' : 'kf-taskdep-arrow-done';
-      var d = roundedOrthogonalPathD(points, TASK_DEP_CONNECTOR_RADIUS);
-      html += '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2" opacity="0.85" marker-start="url(#' + startMarker + ')" marker-end="url(#' + endMarker + ')"></path>';
+      edgeWrappers.push({edge: edge, color: color, startMarker: startMarker, endMarker: endMarker, dasharray: null});
     });
 
     if(subtasksOn && t.parentTaskId){
       var parentCard = document.querySelector('.kf-card[data-task-id="' + t.parentTaskId + '"]');
       var childCard = document.querySelector('.kf-card[data-task-id="' + t.id + '"]');
       if(parentCard && childCard){
-        var subPoints = computeTaskDepConnectorPoints(parentCard, childCard, columns);
-        if(subPoints){
-          var subD = roundedOrthogonalPathD(subPoints, TASK_DEP_CONNECTOR_RADIUS);
-          html += '<path d="' + subD + '" fill="none" stroke="#6554c0" stroke-width="2" stroke-dasharray="5 4" opacity="0.75" marker-start="url(#kf-taskdep-dot-start-subtask)" marker-end="url(#kf-taskdep-arrow-subtask)"></path>';
+        var subEdge = classifyTaskDepEdge(parentCard, childCard, columns);
+        if(subEdge){
+          edgeWrappers.push({
+            edge: subEdge, color: '#6554c0',
+            startMarker: 'kf-taskdep-dot-start-subtask', endMarker: 'kf-taskdep-arrow-subtask',
+            dasharray: '5 4'
+          });
         }
       }
     }
   });
+
+  assignTaskDepConnectorLanes(edgeWrappers, columns);
+
+  var html = edgeWrappers.map(function(w){
+    var points = pointsFromResolvedEdge(w.edge);
+    var d = roundedOrthogonalPathD(points, TASK_DEP_CONNECTOR_RADIUS);
+    var dashAttr = w.dasharray ? ' stroke-dasharray="' + w.dasharray + '"' : '';
+    var opacity = w.dasharray ? '0.75' : '0.85';
+    return '<path d="' + d + '" fill="none" stroke="' + w.color + '" stroke-width="2"' + dashAttr + ' opacity="' + opacity + '" marker-start="url(#' + w.startMarker + ')" marker-end="url(#' + w.endMarker + ')"></path>';
+  }).join('');
 
   group.innerHTML = html;
   updateTaskDepConnectorLayerVisibility();
