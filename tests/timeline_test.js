@@ -69,6 +69,11 @@ function setProjectDates(doc, startVal, endVal){
   await wait(20);
   log('renders a real timeline once the project end date + a task start date exist',
       doc.querySelector('.kf-timeline-empty') === null && doc.querySelectorAll('.kf-timeline-row').length > 0);
+  {
+    const titleText = doc.getElementById('timelineTitle').textContent;
+    log('title shows an em-dash placeholder for the missing project start date, and the real end date',
+        titleText.indexOf('(— – ') !== -1 && titleText.indexOf('2026)') !== -1, titleText);
+  }
   let headerCells = doc.querySelectorAll('.kf-timeline-header-row .kf-timeline-col-header');
   log('header row has time-unit columns', headerCells.length > 0, headerCells.length);
   doc.getElementById('timelineClose').click();
@@ -104,7 +109,14 @@ function setProjectDates(doc, startVal, endVal){
 
   doc.getElementById('timelineBtn').click();
   await wait(20);
-  log('Sample Project timeline renders 5 rows (all seeded tasks have dates)', doc.querySelectorAll('.kf-timeline-row').length === 5, doc.querySelectorAll('.kf-timeline-row').length);
+  {
+    const titleText = doc.getElementById('timelineTitle').textContent;
+    log('title includes the project name and its start/end dates',
+        titleText.indexOf('Timeline — Sample Project (') === 0 && titleText.indexOf('2026') !== -1 && titleText.indexOf(' – ') !== -1,
+        titleText);
+  }
+  log('Sample Project timeline renders 5 rows (all seeded tasks have dates)', doc.querySelectorAll('.kf-timeline-row[data-task-id]').length === 5, doc.querySelectorAll('.kf-timeline-row[data-task-id]').length);
+  log('an ungrouped project still shows one "No Release" group header row', doc.querySelectorAll('.kf-timeline-row.kf-timeline-group-header').length === 1, doc.querySelectorAll('.kf-timeline-row.kf-timeline-group-header').length);
   log('each row has a colored bar (since every seeded task has start+end dates)', doc.querySelectorAll('.kf-timeline-bar').length === 5, doc.querySelectorAll('.kf-timeline-bar').length);
 
   // ── 6. Timescale selector changes the grid ────────────────────────────────
@@ -147,13 +159,13 @@ function setProjectDates(doc, startVal, endVal){
   doc.getElementById('timelineBtn').click();
   await wait(20);
   log('toggle is off by default', !doc.getElementById('timelineArchiveToggle').classList.contains('active'));
-  log('archived task excluded by default (4 rows)', doc.querySelectorAll('.kf-timeline-row').length === 4, doc.querySelectorAll('.kf-timeline-row').length);
+  log('archived task excluded by default (4 rows)', doc.querySelectorAll('.kf-timeline-row[data-task-id]').length === 4, doc.querySelectorAll('.kf-timeline-row[data-task-id]').length);
 
   doc.getElementById('timelineArchiveToggle').click();
   await wait(20);
   log('toggle becomes active', doc.getElementById('timelineArchiveToggle').classList.contains('active'));
-  log('archived task now shown (5 rows)', doc.querySelectorAll('.kf-timeline-row').length === 5, doc.querySelectorAll('.kf-timeline-row').length);
-  const archivedRow = Array.from(doc.querySelectorAll('.kf-timeline-row')).find(r => r.textContent.indexOf('Look at Project and App Settings') !== -1);
+  log('archived task now shown (5 rows)', doc.querySelectorAll('.kf-timeline-row[data-task-id]').length === 5, doc.querySelectorAll('.kf-timeline-row[data-task-id]').length);
+  const archivedRow = Array.from(doc.querySelectorAll('.kf-timeline-row[data-task-id]')).find(r => r.textContent.indexOf('Look at Project and App Settings') !== -1);
   log('archived row is marked for ghosting', archivedRow.classList.contains('kf-timeline-row-archived'));
   const archivedBar = archivedRow.querySelector('.kf-timeline-bar');
   log('archived bar gets the ghosted class', archivedBar && archivedBar.classList.contains('kf-timeline-bar-archived'));
@@ -161,7 +173,7 @@ function setProjectDates(doc, startVal, endVal){
 
   doc.getElementById('timelineArchiveToggle').click();
   await wait(20);
-  log('toggling off hides it again', doc.querySelectorAll('.kf-timeline-row').length === 4);
+  log('toggling off hides it again', doc.querySelectorAll('.kf-timeline-row[data-task-id]').length === 4);
   log('legend no longer mentions archived once off', doc.getElementById('timelineLegend').textContent.indexOf('Archived') === -1);
 
   doc.getElementById('timelineClose').click();

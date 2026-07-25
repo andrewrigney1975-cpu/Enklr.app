@@ -7755,6 +7755,31 @@
     opacity: 0.55;
   }
 
+  /* Release grouping row (views/timeline.js's buildTimelineReleaseGroupHeader) — same underlying
+     .kf-timeline-row shape (name-cell + track) as an ordinary task row so it lines up in the same
+     grid, with its own background/cursor layered on top via this second class, mirroring how
+     Task List's .kf-tasklist-group-header sits visually apart from its own plain rows. */
+  .kf-timeline-row.kf-timeline-group-header {
+    cursor: pointer;
+  }
+
+  .kf-timeline-row.kf-timeline-group-header .kf-timeline-name-cell,
+  .kf-timeline-row.kf-timeline-group-header .kf-timeline-track {
+    background: var(--kf-column-bg);
+  }
+
+  .kf-timeline-row.kf-timeline-group-header:hover .kf-timeline-name-cell,
+  .kf-timeline-row.kf-timeline-group-header:hover .kf-timeline-track {
+    background: var(--kf-hover-tint);
+  }
+
+  .kf-timeline-row.kf-timeline-group-header .kf-timeline-name-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+  }
+
   .kf-timeline-header-row .kf-timeline-name-cell {
     background: var(--kf-column-bg);
     font-weight: 700;
@@ -7847,6 +7872,27 @@
 
   .kf-timeline-bar-archived:hover {
     opacity: 0.65;
+  }
+
+  /* Release bar — the grey-hatched "no scheduling urgency implied" look, not a priority color,
+     since a release has no priority of its own. Same tile geometry/colors as portfolio-bars.js's
+     noDatesPatternDefsSVG SVG pattern (6px tile, 45deg, 1.5px var(--kf-text-faint) line over a
+     var(--kf-surface) base), reimplemented as a CSS repeating-linear-gradient since Timeline's own
+     bars are plain DOM elements rather than SVG. */
+  .kf-timeline-bar-release {
+    background-color: var(--kf-surface);
+    background-image: repeating-linear-gradient(45deg,
+      var(--kf-text-faint) 0, var(--kf-text-faint) 1.5px,
+      transparent 1.5px, transparent 6px);
+    border: 1px solid var(--kf-text-faint);
+    color: var(--kf-text-secondary);
+    font-weight: 700;
+    box-shadow: none;
+  }
+
+  .kf-timeline-bar-release:hover {
+    filter: none;
+    color: var(--kf-text);
   }
 
   .kf-timeline-progress-marker {

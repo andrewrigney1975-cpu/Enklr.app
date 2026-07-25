@@ -1,11 +1,12 @@
 "use strict";
-import { getTasksArray, getColumn, getMemberById, getTaskTypeById, isTaskOverdue, escapeHTML, memberLabel } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getReleaseById, isTaskOverdue, escapeHTML, memberLabel, compareReleaseGroupKeys } from '../utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
 import { iconSvg } from '../icons.js';
 import { utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, memberInitials, clampProgress } from '../date-utils.js';
 import { isTimeTrackingEnabled } from '../storage.js';
+import { NO_RELEASE_GROUP_KEY, getReleaseStatusMeta, normalizeReleaseStatus } from './task-list.js';
 
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
@@ -205,11 +206,34 @@ export function toggleTimelineShowArchived(){
   renderTimeline();
 }
 
+/* "Collapse all" only collapses groups that currently have at least one visible task (respecting
+   the archived toggle) — same "don't affect a group that isn't even showing right now" rule as
+   Task List's own collapseAllTaskListGroups. */
+export function collapseAllTimelineGroups(){
+  var project = getCurrentProject();
+  if(!project) return;
+  var visibleTasks = getTasksArray(project).filter(function(t){
+    return !t.archived || ui.timelineShowArchived;
+  });
+  visibleTasks.forEach(function(t){
+    ui.timelineCollapsedGroups.add(t.releaseId || NO_RELEASE_GROUP_KEY);
+  });
+  renderTimeline();
+}
+export function expandAllTimelineGroups(){
+  ui.timelineCollapsedGroups = new Set();
+  renderTimeline();
+}
+
 export function openTimelineOverlay(){
   var project = getCurrentProject();
   if(!project){ _toast('No project selected.'); return; }
   document.getElementById('timelineScaleSelect').value = ui.timelineScale;
   updateTimelineArchiveToggleButton();
+  // Session-only, reset every time the overlay opens — same convention as Task List's own
+  // ui.taskListCollapsedGroups reset in openTaskListOverlay, so a release left collapsed from a
+  // previous visit doesn't silently stay hidden the next time this is opened.
+  ui.timelineCollapsedGroups = new Set();
   document.getElementById('timelineOverlay').classList.remove('hidden');
   renderTimeline();
 }
@@ -231,7 +255,18 @@ export function renderTimeline(){
   alertBanner.classList.add('hidden');
   alertBanner.innerHTML = '';
 
-  document.getElementById('timelineTitle').textContent = 'Timeline' + (project ? ' — ' + project.name : '');
+  // Project start/end, not the computed timeline range (computeTimelineRange below can widen the
+  // start earlier to fit an active task that starts before the project itself does) — the title
+  // reflects the project's own configured dates, same as the header shown throughout the rest of
+  // the app. Either side left unset shows as an em-dash rather than silently dropping the whole
+  // suffix, since a range with only one end set is still worth surfacing.
+  var titleDateRange = '';
+  if(project && (project.startDate || project.endDate)){
+    titleDateRange = ' (' +
+      (project.startDate ? utcISOToLocalDisplayDate(project.startDate) : '—') + ' – ' +
+      (project.endDate ? utcISOToLocalDisplayDate(project.endDate) : '—') + ')';
+  }
+  document.getElementById('timelineTitle').textContent = 'Timeline' + (project ? ' — ' + project.name + titleDateRange : '');
   if(!project) return;
 
   var range = computeTimelineRange(project);
@@ -277,13 +312,13 @@ export function renderTimeline(){
   }
 
   function effectiveStart(t){ return localCalDateFromISO(t.startDate) || localCalDateFromISO(t.endDate); }
-  tasks.sort(function(a, b){
+  function byEffectiveStart(a, b){
     var ad = effectiveStart(a), bd = effectiveStart(b);
     if(ad && bd) return ad.getTime() - bd.getTime();
     if(ad && !bd) return -1;
     if(!ad && bd) return 1;
     return a.key.localeCompare(b.key, undefined, {numeric: true});
-  });
+  }
 
   var scrollEl = document.getElementById('timelineScroll');
   var availableWidth = scrollEl.clientWidth || 900;
@@ -331,7 +366,7 @@ export function renderTimeline(){
     headerTrack.appendChild(todayLabel);
   }
 
-  tasks.forEach(function(t){
+  function buildTimelineTaskRow(t){
     var row = document.createElement('div');
     row.className = 'kf-timeline-row' + (t.archived ? ' kf-timeline-row-archived' : '');
     row.setAttribute('data-task-id', t.id);
@@ -416,6 +451,121 @@ export function renderTimeline(){
     }
 
     row.appendChild(track);
-    inner.appendChild(row);
+    return row;
+  }
+
+  /* Groups by release, sorted by release startDate ascending (undated releases after dated ones,
+     by name) then a synthetic "No Release" bucket last — same grouping/ordering rule and same
+     NO_RELEASE_GROUP_KEY sentinel as Task List's own release grouping (task-list.js), so a
+     release's position in this view's group order always matches its position there. Only a
+     release with at least one currently-visible task gets a group here, same as Task List — an
+     empty release doesn't clutter the Gantt with an undated placeholder no one asked to schedule
+     yet (use the Portfolio Planner for that). */
+  var groups = {};
+  tasks.forEach(function(t){
+    var key = t.releaseId || NO_RELEASE_GROUP_KEY;
+    (groups[key] = groups[key] || []).push(t);
   });
+  var releaseGroupKeys = Object.keys(groups).filter(function(k){ return k !== NO_RELEASE_GROUP_KEY; });
+  releaseGroupKeys.sort(function(a, b){ return compareReleaseGroupKeys(project, a, b); });
+  var orderedGroupKeys = releaseGroupKeys.concat(groups.hasOwnProperty(NO_RELEASE_GROUP_KEY) ? [NO_RELEASE_GROUP_KEY] : []);
+
+  orderedGroupKeys.forEach(function(groupKey){
+    var groupTasks = groups[groupKey];
+    groupTasks.sort(byEffectiveStart);
+    var collapsed = ui.timelineCollapsedGroups.has(groupKey);
+    inner.appendChild(buildTimelineReleaseGroupHeader(project, groupKey, groupTasks, collapsed, columns, totalTrackWidth, nameColWidth, todayX));
+    if(collapsed) return;
+    groupTasks.forEach(function(t){
+      inner.appendChild(buildTimelineTaskRow(t));
+    });
+  });
+
+  inner.querySelectorAll('[data-group-key]').forEach(function(header){
+    header.addEventListener('click', function(){
+      var key = header.getAttribute('data-group-key');
+      if(ui.timelineCollapsedGroups.has(key)) ui.timelineCollapsedGroups.delete(key);
+      else ui.timelineCollapsedGroups.add(key);
+      renderTimeline();
+    });
+  });
+}
+
+/* Release group header row — a hybrid of Task List's own group header (chevron + name + status
+   pill + task count, toggling collapse on click) and a Timeline task row's own name-cell/track
+   shape (so it lines up in the same two-column grid every other row uses). The release's own bar
+   — only drawn when it has at least one of startDate/endDate set, exactly like a task's own "no
+   dates set" fallback — reuses the Portfolio Planner's "inactive project, no styling to imply
+   scheduling urgency" grey-hatched look (portfolio-bars.js's noDatesPatternDefsSVG pattern,
+   reimplemented here as a CSS repeating-linear-gradient since Timeline's own bars are plain DOM
+   elements, not SVG — see .kf-timeline-bar-release in styles.css) rather than a priority color,
+   since a release has no priority of its own to color it by. */
+function buildTimelineReleaseGroupHeader(project, groupKey, groupTasks, collapsed, columns, totalTrackWidth, nameColWidth, todayX){
+  var row = document.createElement('div');
+  row.className = 'kf-timeline-row kf-timeline-group-header';
+  row.setAttribute('data-group-key', groupKey);
+  row.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+
+  var nameCell = document.createElement('div');
+  nameCell.className = 'kf-timeline-name-cell';
+  nameCell.style.width = nameColWidth + 'px';
+  nameCell.style.minWidth = nameColWidth + 'px';
+
+  var chevronHTML = '<span class="kf-tasklist-chevron' + (collapsed ? '' : ' expanded') + '" aria-hidden="true">' + iconSvg('chevronDown', 14) + '</span>';
+  var count = groupTasks.length;
+  var release = (groupKey !== NO_RELEASE_GROUP_KEY) ? getReleaseById(project, groupKey) : null;
+
+  if(release){
+    var statusMeta = getReleaseStatusMeta(release.status);
+    nameCell.innerHTML = chevronHTML +
+      '<div class="kf-timeline-name-text">' +
+        '<span class="kf-tasklist-group-name">' + escapeHTML(release.name) + '</span>' +
+        '<span class="kf-release-status-pill ' + normalizeReleaseStatus(release.status) + '">' + escapeHTML(statusMeta.label) + '</span>' +
+      '</div>';
+  } else {
+    nameCell.innerHTML = chevronHTML + '<span class="kf-tasklist-group-name kf-tasklist-group-name-none">No Release</span>';
+  }
+  row.appendChild(nameCell);
+
+  var track = document.createElement('div');
+  track.className = 'kf-timeline-track';
+  track.style.width = totalTrackWidth + 'px';
+  columns.forEach(function(col){
+    var cell = buildEl('div', 'kf-timeline-cell', '');
+    cell.style.width = col.width + 'px';
+    track.appendChild(cell);
+  });
+
+  if(release){
+    var startD = localCalDateFromISO(release.startDate);
+    var endD = localCalDateFromISO(release.endDate);
+    if(startD || endD){
+      var effStartD = startD || endD;
+      var effEndD = endD || startD;
+      var left = tlDateToPixel(effStartD, columns);
+      var right = tlDateToPixel(tlAddDays(effEndD, 1), columns);
+      var barWidth = Math.max(right - left, 6);
+      var bar = document.createElement('div');
+      bar.className = 'kf-timeline-bar kf-timeline-bar-release';
+      bar.style.left = left + 'px';
+      bar.style.width = barWidth + 'px';
+      bar.appendChild(buildEl('span', 'kf-timeline-bar-key', count + ' task' + (count === 1 ? '' : 's')));
+      bar.title = release.name +
+        (startD ? ' · Start ' + utcISOToLocalDisplayDate(release.startDate) : '') +
+        (endD ? ' · End ' + utcISOToLocalDisplayDate(release.endDate) : '');
+      track.appendChild(bar);
+    } else {
+      track.appendChild(buildEl('div', 'kf-timeline-no-dates-note', 'No dates set'));
+    }
+  }
+
+  if(todayX !== null){
+    var todayLine = document.createElement('div');
+    todayLine.className = 'kf-timeline-today-line';
+    todayLine.style.left = todayX + 'px';
+    track.appendChild(todayLine);
+  }
+
+  row.appendChild(track);
+  return row;
 }

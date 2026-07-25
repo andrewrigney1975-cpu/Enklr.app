@@ -193,6 +193,7 @@ export var ui = {
   bulkEditFilters: {},
   timelineScale: 'week',
   timelineShowArchived: false,
+  timelineCollapsedGroups: new Set(),
   editingReleaseId: null,
   editingDocumentId: null,
   editingRiskId: null,

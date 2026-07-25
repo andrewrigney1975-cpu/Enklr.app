@@ -271,6 +271,24 @@ export function getReleaseById(project, releaseId){
   return (project.releases || []).filter(function(r){ return r.id === releaseId; })[0] || null;
 }
 
+/* Canonical release-group ordering, shared by every view that groups tasks by release (Task
+   List's own two internal sorts, and views/timeline.js's) — dated releases sort by startDate
+   ascending, undated ones sort after them by name. The caller's own "no release" bucket, if it
+   has one, is appended separately afterward — only the caller knows its own sentinel key for
+   that bucket (Task List's NO_RELEASE_GROUP_KEY, re-exported for exactly this reason). */
+export function compareReleaseGroupKeys(project, aKey, bKey){
+  var ra = getReleaseById(project, aKey);
+  var rb = getReleaseById(project, bKey);
+  var aHas = !!(ra && ra.startDate);
+  var bHas = !!(rb && rb.startDate);
+  if(aHas && bHas) return new Date(ra.startDate).getTime() - new Date(rb.startDate).getTime();
+  if(aHas && !bHas) return -1;
+  if(!aHas && bHas) return 1;
+  var an = ra ? ra.name.toLowerCase() : '';
+  var bn = rb ? rb.name.toLowerCase() : '';
+  return an.localeCompare(bn);
+}
+
 export function getTaskById(project, taskId){
   if(!project || !taskId) return null;
   return project.tasks[taskId] || null;

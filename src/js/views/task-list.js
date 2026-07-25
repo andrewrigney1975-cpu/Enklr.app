@@ -17,17 +17,20 @@ export function setTaskListDeps(deps){
 }
 
 /* =========================================================
-   RELEASE STATUS HELPERS (local — not yet a shared module)
+   RELEASE STATUS HELPERS — exported since views/timeline.js's own release grouping (added
+   alongside its Releases-as-a-grouping-element feature) needs the exact same status label/pill
+   mapping as this file's own group headers, and a second silently-drifting copy is exactly what
+   CLAUDE.md's duplication principle warns against for logic shared within one tier.
    ========================================================= */
 var RELEASE_STATUS_META = {
   pending: {label: 'Pending'},
   in_progress: {label: 'In Progress'},
   deployed: {label: 'Deployed'}
 };
-function normalizeReleaseStatus(value){
+export function normalizeReleaseStatus(value){
   return RELEASE_STATUS_META.hasOwnProperty(value) ? value : 'pending';
 }
-function getReleaseStatusMeta(value){
+export function getReleaseStatusMeta(value){
   return RELEASE_STATUS_META[normalizeReleaseStatus(value)];
 }
 

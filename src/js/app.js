@@ -18,7 +18,7 @@ import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepM
 import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
 import { setGovMapDeps, govMapState, lastGovMapLayout, openGovMapOverlay, closeGovMapOverlay, isGovMapOpen, toggleGovMapShowRelationships, setGovMapZoom, resetGovMapZoom, zoomGovMapAtPoint } from './views/governance-map.js';
 import { setWorkflowEditorDeps, workflowEditorState, lastWorkflowLayout, openWorkflowOverlay, closeWorkflowOverlay, isWorkflowOverlayOpen, setWorkflowMode, setWorkflowZoom, resetWorkflowZoom, zoomWorkflowAtPoint, handleWorkflowScrollMouseDown, handleWorkflowPointerMove, handleWorkflowPointerUp, handleWorkflowInnerClick, handleWorkflowReflow, updateWorkflowEdgePopoverMessageVisibility, refreshWorkflowEdgeConditionControls, handleWorkflowEdgeConditionFieldChange, saveWorkflowEdgePopover, deleteWorkflowEdgeFromPopover, closeWorkflowEdgePopover, isWorkflowEdgePopoverOpen, saveWorkflowToServer, saveWorkflowColumnCapPopover, closeWorkflowColumnCapPopover, isWorkflowColumnCapPopoverOpen } from './views/workflow-editor.js';
-import { setTimelineDeps, openTimelineOverlay, closeTimelineOverlay, isTimelineOverlayOpen, toggleTimelineShowArchived, renderTimeline } from './views/timeline.js';
+import { setTimelineDeps, openTimelineOverlay, closeTimelineOverlay, isTimelineOverlayOpen, toggleTimelineShowArchived, renderTimeline, collapseAllTimelineGroups, expandAllTimelineGroups } from './views/timeline.js';
 import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenefitOverlay, isCostBenefitOverlayOpen, toggleCostBenefitShowArchived, toggleCbColumnFilterPanel, closeCbColumnFilterPanel, setCbZoom, resetCbZoom, zoomCbAtPoint } from './views/cost-benefit.js';
 
 /* ---- Features ---- */
@@ -961,6 +961,8 @@ function wireEvents(){
     if(e.target.id === 'timelineOverlay') closeTimelineOverlay();
   });
   document.getElementById('timelineArchiveToggle').addEventListener('click', toggleTimelineShowArchived);
+  document.getElementById('timelineCollapseAllBtn').addEventListener('click', collapseAllTimelineGroups);
+  document.getElementById('timelineExpandAllBtn').addEventListener('click', expandAllTimelineGroups);
   document.getElementById('timelineScaleSelect').addEventListener('change', function(e){
     ui.timelineScale = e.target.value;
     renderTimeline();
