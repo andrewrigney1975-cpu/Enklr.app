@@ -2,12 +2,13 @@
 import { ui, toast } from '../ui.js';
 import { getCurrentProject } from '../store.js';
 import { escapeHTML, renderBoard } from '../views/board.js';
-import { memberInitials, utcISOToLocalDateValue, localDateValueToUTCISO, utcISOToLocalDisplayDate, isoToServerDateOnly } from '../date-utils.js';
-import { getMemberById, getTasksArray, getReleaseById } from '../utils.js';
+import { memberInitials, utcISOToLocalDateValue, localDateValueToUTCISO, utcISOToLocalDisplayDate, isoToServerDateOnly, clampProgress } from '../date-utils.js';
+import { getMemberById, getTasksArray, getReleaseById, getColumn } from '../utils.js';
 import { addRelease, updateRelease, deleteRelease, normalizeReleaseStatus, getReleaseStatusMeta, computeReleaseNotesMarkdown } from '../mutations.js';
 import { confirmDialog } from './confirm.js';
 import { releaseApi, isProjectAdmin, isOrgAdmin } from '../api.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+import { isTimeTrackingEnabled } from '../storage.js';
 import { createRichTextEditor } from '../rich-text/editor.js';
 
 // Lazily created on first showReleasesFormView() call and reused for the whole app session — same
@@ -79,11 +80,84 @@ export function showReleasesFormView(releaseId){
   document.getElementById('releaseStartDateInput').value = release ? utcISOToLocalDateValue(release.startDate) : '';
   document.getElementById('releaseEndDateInput').value = release ? utcISOToLocalDateValue(release.endDate) : '';
 
+  document.getElementById('releaseTasksSection').classList.toggle('hidden', !release);
+  if(release) renderReleaseTasksTable(project, release);
+
   var showNotes = canManageReleaseNotes(project, release);
   document.getElementById('releaseNotesSection').classList.toggle('hidden', !showNotes);
   if(showNotes) getReleaseNotesEditor().setMarkdown(release.releaseNotes || '');
 
   document.getElementById('releaseNameInput').focus();
+}
+
+var RELEASE_TASKS_COLUMNS = [
+  {label: 'Column'}, {label: 'Key'}, {label: 'Title'}, {label: 'Summary'},
+  {label: 'Assignee'}, {label: 'Start'}, {label: 'End'}
+];
+
+// A lightweight strip-to-plain-text — this cell just needs a short at-a-glance summary, not a
+// faithful render (task-list.js's own detail view already covers that via markdownToHtml). Collapses
+// the handful of Markdown constructs rich-text/markdown.js actually produces (headings, bold/italic,
+// links, list bullets, blockquotes) down to plain words, then truncates.
+function summarizeDescription(description, maxLen){
+  var text = (description || '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if(!text) return '';
+  return text.length > maxLen ? text.slice(0, maxLen - 1).trim() + '…' : text;
+}
+
+/* Sorted by start date ascending (undated tasks sink to the bottom), key ascending within any tie
+   (including "no start date at all", so the undated tail is itself in a stable, readable order). */
+function sortedReleaseTasks(project, release){
+  var tasks = getTasksArray(project).filter(function(t){ return t.releaseId === release.id; });
+  tasks.sort(function(a, b){
+    var aTime = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+    var bTime = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+    if(aTime !== bTime) return aTime - bTime;
+    return a.key.localeCompare(b.key, undefined, {numeric: true});
+  });
+  return tasks;
+}
+
+function renderReleaseTasksTable(project, release){
+  var timeTracking = isTimeTrackingEnabled(project);
+  var header = document.getElementById('releaseTasksHeader');
+  var body = document.getElementById('releaseTasksBody');
+  var columns = timeTracking ? RELEASE_TASKS_COLUMNS.concat([{label: '% Complete'}]) : RELEASE_TASKS_COLUMNS;
+  var rowClass = 'kf-release-tasks-row' + (timeTracking ? '' : ' kf-release-tasks-no-progress');
+
+  header.className = 'kf-release-tasks-header' + (timeTracking ? '' : ' kf-release-tasks-no-progress');
+  header.innerHTML = columns.map(function(c){ return '<div>' + escapeHTML(c.label) + '</div>'; }).join('');
+
+  var tasks = sortedReleaseTasks(project, release);
+  if(tasks.length === 0){
+    body.innerHTML = '<div class="kf-release-tasks-empty">No tasks assigned to this release yet.</div>';
+    return;
+  }
+
+  body.innerHTML = tasks.map(function(t){
+    var col = getColumn(project, t.columnId);
+    var assignee = getMemberById(project, t.assigneeId);
+    var progressHTML = timeTracking ? '<div>' + clampProgress(t.progress) + '%</div>' : '';
+    return '<div class="' + rowClass + '">' +
+      '<div>' + escapeHTML(col ? col.name : '—') + '</div>' +
+      '<div>' + escapeHTML(t.key) + '</div>' +
+      '<div class="kf-release-tasks-cell-title" title="' + escapeHTML(t.title) + '">' + escapeHTML(t.title) + '</div>' +
+      '<div class="kf-release-tasks-cell-summary" title="' + escapeHTML(summarizeDescription(t.description, 500)) + '">' + escapeHTML(summarizeDescription(t.description, 80)) + '</div>' +
+      '<div>' + escapeHTML(assignee ? assignee.name : 'Unassigned') + '</div>' +
+      '<div>' + (t.startDate ? escapeHTML(utcISOToLocalDisplayDate(t.startDate)) : '—') + '</div>' +
+      '<div>' + (t.endDate ? escapeHTML(utcISOToLocalDisplayDate(t.endDate)) : '—') + '</div>' +
+      progressHTML +
+    '</div>';
+  }).join('');
 }
 
 /* Drafts Release Notes from every Task (active or archived) tied to the release currently being

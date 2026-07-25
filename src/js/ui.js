@@ -215,6 +215,7 @@ export var ui = {
   principlesSearchTerm: '',
   objectivesSearchTerm: '',
   taskListCollapsedGroups: new Set(),
+  taskListShowArchived: false,
   sideNavExpanded: false,
   orgChartFilter: 'team',
   govMapShowRelationships: true,

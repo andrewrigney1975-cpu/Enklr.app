@@ -16,6 +16,7 @@ import { openUnlockPrivateTaskModal } from './private-key-unlock.js';
 import { setTaskHash, clearTaskHash } from '../features/hash-router.js';
 import { taskApi, taskCommentApi, getCurrentUserId } from '../api.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+import { checkReleaseCompletionOnTaskMove } from '../features/release-completion.js';
 import { canCurrentUserManageProject } from '../views/board.js';
 import { createRichTextEditor } from '../rich-text/editor.js';
 import { getProjectHashtags } from '../features/hashtags.js';
@@ -888,27 +889,34 @@ async function finishSave(project, data){
       closeTaskModal();
       renderBoard();
       toast(editingId ? 'Task updated.' : 'Task created.');
+      // refreshProjectFromServer just replaced the project object in state.db — re-fetch before
+      // checking, same reasoning as views/board.js's drag-and-drop server path.
+      var refreshed = getCurrentProject();
+      if(refreshed) checkReleaseCompletionOnTaskMove(refreshed, resultTaskId);
     } catch(e){
       toast('Could not save task on the server: ' + (e.message || 'unknown error'));
     }
     return;
   }
 
+  var savedTaskId;
   if(ui.editingTaskId){
-    var blocked = updateTask(project, ui.editingTaskId, data);
+    savedTaskId = ui.editingTaskId;
+    var blocked = updateTask(project, savedTaskId, data);
     /* Sub-task reconciliation is independent of the column move — it
        still applies even if the transition above got blocked, same as
        every other field on this task already did. */
-    setTaskSubtasks(project, ui.editingTaskId, ui.taskModalSubtaskIds);
+    setTaskSubtasks(project, savedTaskId, ui.taskModalSubtaskIds);
     if(blocked){ toast(blocked.message); return; }
     toast('Task updated.' + (isPrivateInvolved && isServerAuthoritative(project) ? ' (Private tasks are not synced to the server.)' : ''));
   } else {
-    var newId = addTask(project, data);
-    setTaskSubtasks(project, newId, ui.taskModalSubtaskIds);
+    savedTaskId = addTask(project, data);
+    setTaskSubtasks(project, savedTaskId, ui.taskModalSubtaskIds);
     toast('Task created.' + (isPrivateInvolved && isServerAuthoritative(project) ? ' (Private tasks are not synced to the server.)' : ''));
   }
   closeTaskModal();
   renderBoard();
+  checkReleaseCompletionOnTaskMove(project, savedTaskId);
 }
 
 export function deleteTaskFromModal(){

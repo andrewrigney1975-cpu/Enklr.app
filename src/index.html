@@ -1209,6 +1209,7 @@
       </div>
       <button type="button" class="kf-tasklist-toolbar-link" id="taskListCollapseAllBtn">Collapse all</button>
       <button type="button" class="kf-tasklist-toolbar-link" id="taskListExpandAllBtn">Expand all</button>
+      <button type="button" class="kf-btn kf-btn-ghost" id="taskListArchiveToggle" title="Show archived tasks"><span class="kf-icon" data-icon="archive" data-size="16"></span><span id="taskListArchiveToggleLabel">Show archived</span></button>
       <button type="button" class="kf-btn kf-btn-ghost" id="taskListExportCsvBtn" style="margin-left:auto;"><span class="kf-icon" data-icon="download" data-size="14"></span>Export as CSV</button>
       <span id="taskListCount" class="kf-tasklist-count"></span>
     </div>
@@ -1434,6 +1435,15 @@
           <div class="kf-field">
             <label for="releaseEndDateInput">End date</label>
             <input type="date" id="releaseEndDateInput">
+          </div>
+        </div>
+        <div id="releaseTasksSection" class="hidden">
+          <div class="kf-field">
+            <label>Tasks in this Release</label>
+            <div class="kf-release-tasks-scroll">
+              <div class="kf-release-tasks-header" id="releaseTasksHeader"></div>
+              <div id="releaseTasksBody"></div>
+            </div>
           </div>
         </div>
         <div id="releaseNotesSection" class="hidden">

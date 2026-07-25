@@ -13,7 +13,7 @@ import { deleteProject, closeAllTaskTypeIconPanels, setMutationsToast } from './
 
 /* ---- Views ---- */
 import { renderAll, renderBoard, renderToolbar, setBoardDeps, closeTeamFilterPanel, closeAssigneeFilterPanel, closeTaskTypeFilterPanel, closeStatusFilterPanel, toggleTeamFilterPanel, toggleAssigneeFilterPanel, toggleTaskTypeFilterPanel, toggleStatusFilterPanel, openAppSettingsOverlay, closeAppSettingsOverlay, isAppSettingsOverlayOpen, updateHeaderButtonVisibilitySetting, renderPriorityFilterChips, refitBoardForOpenTaskModal, updateSearchClearButtonVisibility, clearBoardSearch, updateSearchHashtagIntellisense, closeSearchHashtagPanel, isSearchHashtagPanelOpen, acceptSearchHashtagOption, onSearchInputKeydown, updateArchivedSearchMatchesPanel, isTaskDepPopoverOpen, closeTaskDepPopover, toggleShowTaskConnectors } from './views/board.js';
-import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListOpen, renderTaskListBody, collapseAllTaskListGroups, expandAllTaskListGroups, exportTaskListAsCsv } from './views/task-list.js';
+import { setTaskListDeps, openTaskListOverlay, closeTaskListOverlay, isTaskListOpen, renderTaskListBody, collapseAllTaskListGroups, expandAllTaskListGroups, exportTaskListAsCsv, toggleTaskListShowArchived } from './views/task-list.js';
 import { setDepMapDeps, depMapState, lastDepLayout, openDepMapOverlay, closeDepMapOverlay, isDepMapOpen, renderDependencyMap, toggleDepMapShowArchived, toggleDepMapColumnFilterPanel, closeDepMapColumnFilterPanel, setDepMapZoom, resetDepMapZoom, zoomDepMapAtPoint } from './views/dependency-map.js';
 import { setOrgChartDeps, orgChartState, lastOrgChartLayout, openOrgChartOverlay, closeOrgChartOverlay, isOrgChartOpen, toggleOrgChartFilter, setOrgChartZoom, resetOrgChartZoom, zoomOrgChartAtPoint, openOrgChartMemberPopover, closeOrgChartMemberPopover, isOrgChartMemberPopoverOpen } from './views/org-chart.js';
 import { setGovMapDeps, govMapState, lastGovMapLayout, openGovMapOverlay, closeGovMapOverlay, isGovMapOpen, toggleGovMapShowRelationships, setGovMapZoom, resetGovMapZoom, zoomGovMapAtPoint } from './views/governance-map.js';
@@ -76,6 +76,7 @@ import { openOpeningExperienceModal, closeOpeningExperienceModal, isOpeningExper
 import { openWelcomeNameModal, isWelcomeNameModalOpen, confirmWelcomeName, skipWelcomeName } from './modals/welcome-name.js';
 import { openMyPreferencesModal, closeMyPreferencesModal, isMyPreferencesModalOpen, applyBoardBackground, applyHeaderColor, onHeaderColorChange, resetHeaderColor, onBoardBackgroundTypeChange, onBoardBackgroundColorChange, onBoardBackgroundGradientChange, onBoardBackgroundDisplayChange, onBoardBackgroundFadedChange, onBoardBackgroundFileChange, removeBoardBackgroundImage, changeDefaultViewFromPreferences } from './modals/my-preferences.js';
 import { randomise } from './features/randomise.js';
+import { setReleaseCompletionDeps } from './features/release-completion.js';
 
 /* ---- Dependency injection (break circular import chains) ---- */
 setBoardDeps({ toast, confirmDialog, openTaskModal, openColumnModal });
@@ -87,6 +88,7 @@ setWorkflowEditorDeps({ toast, confirmDialog });
 setTimelineDeps({ toast, openTaskModal });
 setCostBenefitDeps({ toast, openTaskModal });
 setBulkEditDeps({ confirmDialog, exportProjectJSON });
+setReleaseCompletionDeps({ renderBoard });
 // Wires toggleTheme's post-flip re-render (ui.js) — without this, switching theme only updates the
 // data-theme attribute/toggle icon; every already-rendered view (board columns, dependency map,
 // priority filter chips, the task modal's priority icon) keeps showing colors computed for the OLD
@@ -748,6 +750,7 @@ function wireEvents(){
   document.getElementById('taskListCollapseAllBtn').addEventListener('click', collapseAllTaskListGroups);
   document.getElementById('taskListExpandAllBtn').addEventListener('click', expandAllTaskListGroups);
   document.getElementById('taskListExportCsvBtn').addEventListener('click', exportTaskListAsCsv);
+  document.getElementById('taskListArchiveToggle').addEventListener('click', toggleTaskListShowArchived);
 
   document.getElementById('bulkEditBtn').addEventListener('click', openBulkEditOverlay);
   document.getElementById('bulkEditClose').addEventListener('click', closeBulkEditOverlay);

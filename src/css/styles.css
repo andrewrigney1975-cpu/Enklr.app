@@ -1124,6 +1124,20 @@
     background: var(--kf-chip-active-bg);
   }
 
+  #taskListArchiveToggle {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  #taskListArchiveToggle.active {
+    background: var(--kf-chip-active-bg);
+    color: #fff;
+  }
+
+  #taskListArchiveToggle.active:hover {
+    background: var(--kf-chip-active-bg);
+  }
+
   .kf-btn:disabled {
     opacity: .45;
     cursor: not-allowed;
@@ -2802,6 +2816,10 @@
     display: none;
   }
 
+  #releaseTasksSection.hidden {
+    display: none;
+  }
+
   #projectSearchSimpleView.hidden {
     display: none;
   }
@@ -3115,6 +3133,71 @@
 
   .kf-release-task-count {
     flex-shrink: 0;
+  }
+
+  .kf-release-tasks-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--kf-border);
+    border-radius: 6px;
+  }
+
+  .kf-release-tasks-header,
+  .kf-release-tasks-row {
+    display: grid;
+    grid-template-columns: 120px 80px minmax(160px, 1.2fr) minmax(200px, 1.6fr) 150px 100px 100px 90px;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    min-width: 900px;
+  }
+
+  .kf-release-tasks-header.kf-release-tasks-no-progress,
+  .kf-release-tasks-row.kf-release-tasks-no-progress {
+    grid-template-columns: 120px 80px minmax(160px, 1.2fr) minmax(200px, 1.6fr) 150px 100px 100px;
+    min-width: 810px;
+  }
+
+  .kf-release-tasks-header {
+    background: var(--kf-column-bg);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    color: var(--kf-text-secondary);
+    border-bottom: 1px solid var(--kf-border);
+  }
+
+  .kf-release-tasks-row {
+    font-size: 13px;
+    border-bottom: 1px solid var(--kf-border);
+  }
+
+  .kf-release-tasks-row:last-child {
+    border-bottom: none;
+  }
+
+  .kf-release-tasks-row:hover {
+    background: var(--kf-hover-tint);
+  }
+
+  .kf-release-tasks-cell-summary {
+    color: var(--kf-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kf-release-tasks-cell-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kf-release-tasks-empty {
+    padding: 20px 10px;
+    text-align: center;
+    color: var(--kf-text-faint);
+    font-size: 13px;
   }
 
   .kf-member-empty {
@@ -6562,6 +6645,10 @@
 
   .kf-tasklist-row.kf-tasklist-row-over {
     border-left: 3px solid var(--kf-danger);
+  }
+
+  .kf-tasklist-row.kf-tasklist-row-archived {
+    opacity: 0.55;
   }
 
   .kf-tasklist-progress {

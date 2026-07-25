@@ -98,11 +98,27 @@ export function openTaskListOverlay(){
   ui.taskListSearch = '';
   ui.taskListExpanded = new Set();
   ui.taskListCollapsedGroups = new Set();
+  ui.taskListShowArchived = false;
   document.getElementById('taskListSearchInput').value = '';
   document.getElementById('taskListTitle').textContent = 'Task List — ' + project.name;
+  updateTaskListArchiveToggleButton();
   renderTaskListHeader();
   renderTaskListBody();
   document.getElementById('taskListOverlay').classList.remove('hidden');
+}
+
+export function updateTaskListArchiveToggleButton(){
+  var btn = document.getElementById('taskListArchiveToggle');
+  var label = document.getElementById('taskListArchiveToggleLabel');
+  if(!btn) return;
+  btn.classList.toggle('active', ui.taskListShowArchived);
+  label.textContent = ui.taskListShowArchived ? 'Hide archived' : 'Show archived';
+  btn.title = ui.taskListShowArchived ? 'Hide archived tasks' : 'Show archived tasks';
+}
+export function toggleTaskListShowArchived(){
+  ui.taskListShowArchived = !ui.taskListShowArchived;
+  updateTaskListArchiveToggleButton();
+  renderTaskListBody();
 }
 export function closeTaskListOverlay(){
   document.getElementById('taskListOverlay').classList.add('hidden');
@@ -192,7 +208,7 @@ export function sortTaskListRows(project, rows){
 export function getOrderedTaskListRows(project){
   var term = ui.taskListSearch.trim().toLowerCase();
   var rows = getTasksArray(project).filter(function(t){
-    if(t.archived) return false;
+    if(t.archived && !ui.taskListShowArchived) return false;
     if(!term) return true;
     var hay = (t.key + ' ' + t.title + ' ' + (t.description||'')).toLowerCase();
     return hay.indexOf(term) !== -1;
@@ -389,7 +405,7 @@ export function collapseAllTaskListGroups(){
   if(!project) return;
   var term = ui.taskListSearch.trim().toLowerCase();
   var rows = getTasksArray(project).filter(function(t){
-    if(t.archived) return false;
+    if(t.archived && !ui.taskListShowArchived) return false;
     if(!term) return true;
     var hay = (t.key + ' ' + t.title + ' ' + (t.description||'')).toLowerCase();
     return hay.indexOf(term) !== -1;
@@ -436,10 +452,12 @@ export function buildTaskListRow(project, t){
 
   var row = document.createElement('div');
   row.className = 'kf-tasklist-row' + (timeTracking ? ' kf-tasklist-has-progress' : '') +
-    (overrun ? (overrun.level === 'over' ? ' kf-tasklist-row-over' : ' kf-tasklist-row-atrisk') : '');
+    (overrun ? (overrun.level === 'over' ? ' kf-tasklist-row-over' : ' kf-tasklist-row-atrisk') : '') +
+    (t.archived ? ' kf-tasklist-row-archived' : '');
+  var archivedIconHTML = t.archived ? '<span class="kf-tasklist-type-icon" title="Archived">' + iconSvg('archive', 13) + '</span>' : '';
   row.innerHTML =
     '<button type="button" class="kf-tasklist-chevron' + (expanded ? ' expanded' : '') + '" data-toggle-id="' + t.id + '" aria-label="Toggle details">' + iconSvg('chevronDown',14) + '</button>' +
-    '<span class="kf-tasklist-key">' + typeIconHTML + escapeHTML(t.key) + '</span>' +
+    '<span class="kf-tasklist-key">' + archivedIconHTML + typeIconHTML + escapeHTML(t.key) + '</span>' +
     '<span class="kf-tasklist-title" title="' + escapeHTML(t.title) + '">' + escapeHTML(t.title) + '</span>' +
     '<span class="kf-tasklist-column" title="' + escapeHTML(col ? col.name : '') + '">' + escapeHTML(col ? col.name : '—') + '</span>' +
     '<span class="kf-tasklist-assignee">' + assigneeHTML + '</span>' +
