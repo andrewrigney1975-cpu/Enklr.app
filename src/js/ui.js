@@ -189,6 +189,8 @@ export var ui = {
   cbShowArchived: false,
   cbColumnFilter: new Set(),
   bulkEdits: {},
+  bulkEditSort: {field: 'key', dir: 'asc'},
+  bulkEditFilters: {},
   timelineScale: 'week',
   timelineShowArchived: false,
   editingReleaseId: null,

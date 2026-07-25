@@ -3,7 +3,7 @@ import { state } from '../storage.js';
 import { normalizeHeaderButtonVisibility, isTimeTrackingEnabled, isSubTasksEnabled, saveDB } from '../storage.js';
 import { PRIORITY_META, PRIORITY_ORDER, PRIORITY_COLORS, MOBILE_BREAKPOINT } from '../config.js';
 import { iconSvg } from '../icons.js';
-import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getTaskById, isTaskBlocked, isTaskOverdue, getTaskOverrunStatus, getDescendants, buildChildrenMap, wouldCreateCycle, escapeHTML, memberLabel } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, getTaskTypeById, getTaskById, isTaskBlocked, isTaskOverdue, getTaskOverrunStatus, getDescendants, buildChildrenMap, wouldCreateCycle, escapeHTML, memberLabel, boardIsFullyComplete } from '../utils.js';
 import { memberInitials, utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, clampTaskScore, clampProgress, defaultStartDateValue, defaultEndDateValue, lightenHexColor, darkenHexColor } from '../date-utils.js';
 import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
@@ -421,11 +421,34 @@ function refreshArchivedCountBadge(){
   }
 }
 
+// "You're All Caught Up" congratulations banner — an absolutely-positioned overlay sitting on top
+// of (not replacing) the board's own columns, so a Done column's tasks and the Add Column button
+// stay fully visible/reachable underneath it. Deliberately `pointer-events:none` (styles.css) —
+// the banner is purely decorative, never a click target, so it can't get in the way of adding the
+// next task the moment there is one. Rebuilt fresh on every renderBoard() call rather than toggled
+// via a class, matching this file's own "no diffing, plain rebuild" convention (CLAUDE.md §6).
+function renderBoardCongratsBanner(project){
+  var wrap = document.getElementById('board').parentElement;
+  var existing = document.getElementById('boardCongrats');
+  if(existing) existing.remove();
+  if(!boardIsFullyComplete(project)) return;
+  var el = document.createElement('div');
+  el.className = 'kf-board-congrats';
+  el.id = 'boardCongrats';
+  el.innerHTML =
+    '<div class="kf-board-congrats-check">' + iconHTML('check', 48) + '</div>' +
+    '<div class="kf-board-congrats-title">You&rsquo;re All Caught Up!</div>' +
+    '<div class="kf-board-congrats-sub">Every task on this board is done. Nice work.</div>';
+  wrap.appendChild(el);
+}
+
 export function renderBoard(){
   refreshArchivedCountBadge();
   closeTaskDepPopover();
   var board = document.getElementById('board');
   board.innerHTML = '';
+  var existingCongrats = document.getElementById('boardCongrats');
+  if(existingCongrats) existingCongrats.remove();
   var project = getCurrentProject();
   if(!project){
     board.innerHTML = '<div class="kf-board-empty">No project selected.</div>';
@@ -451,6 +474,7 @@ export function renderBoard(){
   }
   wireTaskDepChipHover();
   renderAllTaskConnectors();
+  renderBoardCongratsBanner(project);
 }
 
 /* For columns marked "done", tasks are always displayed sorted by
@@ -1012,6 +1036,15 @@ function computeTaskDepConnectorPoints(sourceCard, targetCard, columns){
    assignVerticalLanes, same 0.3-0.7-of-the-span spread, sorted by position, just working from a
    real gap's own pixel bounds instead of a synthetic (x1,x2) node-layout pair. Mutates each edge's
    gapX/sGapX/tGapX/highwayY in place. */
+// A real column gap on the board (styles.css's `.kf-board { gap: 12px; }`) is far narrower than
+// dependency-map.js's synthetic DEPMAP_GAP_X (100px) — fanning multiple lanes across the same
+// 0.3-0.7 fraction of that narrow a span leaves them just a few px apart, nowhere near as legible
+// as the graph's own spread. Padding the bounds outward (into the harmless empty margin right
+// beside a column, not into any card — the overlay itself is pointer-events:none and full-viewport)
+// before applying that same fraction gets the fanned lanes' real on-screen separation back in line
+// with the graph's, without changing the plain-midpoint single-connector case at all.
+var TASKDEP_LANE_FAN_PAD = 16;
+
 function assignTaskDepConnectorLanes(edgeWrappers, columns){
   var gapUsages = {};
   var highwayGroups = {};
@@ -1047,10 +1080,12 @@ function assignTaskDepConnectorLanes(edgeWrappers, columns){
       applyGapX(usages[0], boundsMidpoint(bounds));
       return;
     }
+    var paddedLeft = bounds.left - TASKDEP_LANE_FAN_PAD;
+    var paddedRight = bounds.right + TASKDEP_LANE_FAN_PAD;
     usages.sort(function(a, b){ return usageY(a) - usageY(b); });
     usages.forEach(function(u, i){
       var frac = 0.3 + 0.4 * i / (n - 1);
-      applyGapX(u, bounds.left + (bounds.right - bounds.left) * frac);
+      applyGapX(u, paddedLeft + (paddedRight - paddedLeft) * frac);
     });
   });
 

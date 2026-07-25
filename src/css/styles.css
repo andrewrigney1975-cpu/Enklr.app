@@ -6550,6 +6550,65 @@
     color: var(--kf-border-strong);
   }
 
+  /* "You're All Caught Up" congratulations banner (views/board.js's renderBoardCongratsBanner) —
+     floats centered over the board at ~66% of .kf-board-wrap's own box (not the viewport), sized
+     via percentage + max/min clamps so it scales with the board pane instead of the whole window.
+     `position:absolute` against `.kf-board-wrap`'s own `position:relative` (not `position:fixed`)
+     is what keeps it pinned to the board pane rather than the viewport, and — since it's a sibling
+     of `#board`, not a child — it's never part of that element's own horizontal scroll content, so
+     it stays centered regardless of how far the columns have been scrolled. `pointer-events:none`
+     deliberately makes the whole banner click-through: it's here to celebrate, never to block
+     adding the next task or reaching a Done column's tasks sitting visibly underneath it. */
+  .kf-board-congrats {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 66%;
+    height: 66%;
+    max-width: 560px;
+    max-height: 420px;
+    min-width: 260px;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-align: center;
+    padding: 32px;
+    background: var(--kf-surface);
+    border: 1px solid var(--kf-border);
+    border-radius: 20px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .kf-board-congrats-check {
+    width: 76px;
+    height: 76px;
+    min-height: 76px;
+    border-radius: 50%;
+    border: 3px solid var(--kf-green);
+    color: var(--kf-green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .kf-board-congrats-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--kf-text);
+  }
+
+  .kf-board-congrats-sub {
+    font-size: 14px;
+    color: var(--kf-text-secondary);
+    max-width: 320px;
+  }
+
   /* Task List view */
   .kf-tasklist-toolbar {
     display: flex;
@@ -6872,6 +6931,60 @@
 
   .kf-bulkedit-header.kf-bulkedit-has-progress {
     grid-template-columns: 80px minmax(140px, 1fr) 130px 130px 120px 130px 140px 125px 125px 85px 85px 80px 84px;
+  }
+
+  /* Sortable header cells — same hover/sorted-state convention as .kf-tasklist-header-cell
+     (views/task-list.js), just under this file's own kf-bulkedit- prefix since the two headers'
+     surrounding layout (grid vs. this one) differ enough that sharing the class directly isn't a
+     clean fit. */
+  .kf-bulkedit-header-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .kf-bulkedit-header-cell:hover {
+    color: var(--kf-text);
+  }
+
+  .kf-bulkedit-header-cell.sorted {
+    color: var(--kf-blue);
+  }
+
+  /* Per-column filter row (features/sort-filter.js) — mirrors the header's own grid exactly so
+     each filter box lines up under its column regardless of whether Progress is present. */
+  .kf-bulkedit-filter-row {
+    display: grid;
+    grid-template-columns: 80px minmax(140px, 1fr) 130px 130px 120px 130px 140px 125px 125px 85px 85px 84px;
+    gap: 8px;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--kf-border);
+    background: var(--kf-column-bg);
+    flex-shrink: 0;
+  }
+
+  .kf-bulkedit-filter-row.kf-bulkedit-has-progress {
+    grid-template-columns: 80px minmax(140px, 1fr) 130px 130px 120px 130px 140px 125px 125px 85px 85px 80px 84px;
+  }
+
+  .kf-bulkedit-filter-input {
+    width: 100%;
+    min-width: 0;
+    border: 1.5px solid var(--kf-border);
+    border-radius: 3px;
+    padding: 4px 6px;
+    font-size: 11px;
+    color: var(--kf-text);
+    background: var(--kf-input-bg);
+  }
+
+  .kf-bulkedit-filter-input:focus {
+    outline: none;
+    border-color: var(--kf-blue);
+    background: var(--kf-input-bg-focus);
   }
 
   .kf-bulkedit-scroll {

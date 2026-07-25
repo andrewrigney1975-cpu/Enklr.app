@@ -1,13 +1,14 @@
 "use strict";
 import { ui, toast, getPriority } from '../ui.js';
 import { getCurrentProject } from '../store.js';
-import { getTasksArray, memberLabel } from '../utils.js';
+import { getTasksArray, getColumn, getMemberById, memberLabel } from '../utils.js';
 import { PRIORITY_ORDER, TASK_SCORE_MIN, TASK_SCORE_MAX, TASK_PROGRESS_MIN, TASK_PROGRESS_MAX, PRIORITY_META } from '../config.js';
 import { clampTaskScore, clampProgress, utcISOToLocalDateValue, localDateValueToUTCISO } from '../date-utils.js';
 import { moveTaskToColumn, pushTaskAuditEntry } from '../mutations.js';
 import { saveDB, isTimeTrackingEnabled } from "../storage.js";
 import { escapeHTML, renderBoard } from '../views/board.js';
 import { isServerAuthoritative, applyBulkEditsOnServer } from './migration.js';
+import { sortRows, createRowFilter } from './sort-filter.js';
 
 function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
 
@@ -19,15 +20,18 @@ export function setBulkEditDeps(deps){
 }
 
 /* Progress is an opt-in extra column, inserted right before the
-   (always-present, read-only) Status column. */
+   (always-present, read-only) Status column. `field` is the key both the sort-header click
+   handler and the per-column filter input key off — also fed into bulkEditColumnValue below to
+   resolve the actual sortable/filterable value for a given task. */
 function getBulkEditColumns(project){
   var cols = [
-    {label: 'Key'}, {label: 'Title'}, {label: 'Column'}, {label: 'Release'}, {label: 'Priority'},
-    {label: 'Type'}, {label: 'Assignee'}, {label: 'Start'}, {label: 'End'}, {label: 'Bus. Value'},
-    {label: 'Task Cost'}
+    {label: 'Key', field: 'key'}, {label: 'Title', field: 'title'}, {label: 'Column', field: 'columnId'},
+    {label: 'Release', field: 'releaseId'}, {label: 'Priority', field: 'priority'}, {label: 'Type', field: 'typeId'},
+    {label: 'Assignee', field: 'assigneeId'}, {label: 'Start', field: 'startDate'}, {label: 'End', field: 'endDate'},
+    {label: 'Bus. Value', field: 'businessValue'}, {label: 'Task Cost', field: 'taskCost'}
   ];
-  if(isTimeTrackingEnabled(project)) cols.push({label: 'Progress'});
-  cols.push({label: 'Status'});
+  if(isTimeTrackingEnabled(project)) cols.push({label: 'Progress', field: 'progress'});
+  cols.push({label: 'Status', field: 'status'});
   return cols;
 }
 
@@ -35,6 +39,11 @@ export function openBulkEditOverlay(){
   var project = getCurrentProject();
   if(!project){ toast('No project selected.'); return; }
   ui.bulkEdits = {};
+  // Sort/filter state is session-only, reset every time the overlay opens — same convention as
+  // Task List's own ui.taskListSearch/ui.taskListSort reset in openTaskListOverlay, so a leftover
+  // filter from a previous visit never silently hides tasks the next time this is opened.
+  ui.bulkEditSort = {field: 'key', dir: 'asc'};
+  ui.bulkEditFilters = {};
   document.getElementById('bulkEditTitle').textContent = 'Bulk Edit — ' + project.name;
   renderBulkEditHeader();
   renderBulkEditBody();
@@ -52,10 +61,46 @@ export function isBulkEditOverlayOpen(){
 function renderBulkEditHeader(){
   var project = getCurrentProject();
   var header = document.getElementById('bulkEditHeader');
-  header.classList.toggle('kf-bulkedit-has-progress', isTimeTrackingEnabled(project));
-  header.innerHTML = getBulkEditColumns(project).map(function(col){
-    return '<div>' + escapeHTML(col.label) + '</div>';
+  var filterRow = document.getElementById('bulkEditFilterRow');
+  var hasProgress = isTimeTrackingEnabled(project);
+  header.classList.toggle('kf-bulkedit-has-progress', hasProgress);
+  filterRow.classList.toggle('kf-bulkedit-has-progress', hasProgress);
+  var cols = getBulkEditColumns(project);
+
+  header.innerHTML = cols.map(function(col){
+    var sorted = ui.bulkEditSort.field === col.field;
+    var arrow = sorted ? (ui.bulkEditSort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+    return '<div class="kf-bulkedit-header-cell' + (sorted ? ' sorted' : '') + '" data-sort-field="' +
+      col.field + '" title="Click to sort">' + escapeHTML(col.label) + arrow + '</div>';
   }).join('');
+  header.querySelectorAll('[data-sort-field]').forEach(function(cell){
+    cell.addEventListener('click', function(){
+      var field = cell.getAttribute('data-sort-field');
+      if(ui.bulkEditSort.field === field){
+        ui.bulkEditSort.dir = ui.bulkEditSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        ui.bulkEditSort = {field: field, dir: 'asc'};
+      }
+      renderBulkEditHeader();
+      renderBulkEditBody();
+    });
+  });
+
+  // Per-column filter box — supports a plain substring term, a `>=`/`<=`/`>`/`<`/`=`/`!=`
+  // comparator, or an `A..B` range against that column's own content (see features/sort-filter.js
+  // for exactly what each column's raw value looks like and how each syntax is interpreted).
+  filterRow.innerHTML = cols.map(function(col){
+    return '<input type="text" class="kf-bulkedit-filter-input" data-filter-field="' + col.field +
+      '" placeholder="Filter…" value="' + escapeHTML(ui.bulkEditFilters[col.field] || '') + '">';
+  }).join('');
+  filterRow.querySelectorAll('[data-filter-field]').forEach(function(input){
+    input.addEventListener('input', function(){
+      var field = input.getAttribute('data-filter-field');
+      if(input.value.trim() === '') delete ui.bulkEditFilters[field];
+      else ui.bulkEditFilters[field] = input.value;
+      renderBulkEditBody();
+    });
+  });
 }
 
 function updateBulkEditPendingState(){
@@ -71,15 +116,31 @@ function renderBulkEditBody(){
   body.innerHTML = '';
   if(!project) return;
 
-  var tasks = getTasksArray(project).sort(function(a, b){
-    return a.key.localeCompare(b.key, undefined, {numeric: true});
-  });
+  var allTasks = getTasksArray(project);
+  // Key-ascending first so sortRows' own stable Array#sort keeps ties (equal priority, equal
+  // column, etc.) in a deterministic order rather than whatever Object.keys() insertion order
+  // getTasksArray happened to produce — same tiebreak convention as Task List's own sort.
+  allTasks.sort(function(a, b){ return a.key.localeCompare(b.key, undefined, {numeric: true}); });
 
-  document.getElementById('bulkEditCount').textContent = tasks.length + ' task' + (tasks.length === 1 ? '' : 's') +
+  var filterPredicate = createRowFilter(ui.bulkEditFilters, function(t, field){
+    return bulkEditColumnValue(project, t, field);
+  });
+  var tasks = allTasks.filter(filterPredicate);
+  sortRows(tasks, function(t){ return bulkEditColumnValue(project, t, ui.bulkEditSort.field); },
+    ui.bulkEditSort.dir === 'asc' ? 1 : -1);
+
+  document.getElementById('bulkEditCount').textContent =
+    (tasks.length === allTasks.length
+      ? tasks.length + ' task' + (tasks.length === 1 ? '' : 's')
+      : tasks.length + ' of ' + allTasks.length + ' tasks') +
     ' (including archived)';
 
-  if(tasks.length === 0){
+  if(allTasks.length === 0){
     body.innerHTML = '<div class="kf-tasklist-empty">No tasks in this project yet.</div>';
+    return;
+  }
+  if(tasks.length === 0){
+    body.innerHTML = '<div class="kf-tasklist-empty">No tasks match the current filters.</div>';
     return;
   }
 
@@ -91,6 +152,49 @@ function renderBulkEditBody(){
 function bulkEditFieldValue(taskId, field, fallback){
   var edits = ui.bulkEdits[taskId];
   return (edits && edits.hasOwnProperty(field)) ? edits[field] : fallback;
+}
+
+/* Resolves column `field` (see getBulkEditColumns) to the raw value sort-filter.js's
+   content-aware sort/filter should operate on for task `t` — reference-data ids (column, release,
+   type, assignee) resolve to their current display name/label (reflecting any not-yet-saved
+   pending edit in ui.bulkEdits, same as the row's own inputs do) so both sorting and filtering
+   work against what's actually on screen, not an opaque id. */
+function bulkEditColumnValue(project, t, field){
+  switch(field){
+    case 'key': return t.key;
+    case 'title': return t.title;
+    case 'columnId': {
+      var col = getColumn(project, bulkEditFieldValue(t.id, 'columnId', t.columnId));
+      return col ? col.name : '';
+    }
+    case 'releaseId': {
+      var rid = bulkEditFieldValue(t.id, 'releaseId', t.releaseId);
+      if(!rid) return '';
+      var rel = (project.releases || []).find(function(r){ return r.id === rid; });
+      return rel ? rel.name : '';
+    }
+    case 'priority':
+      return getPriority(bulkEditFieldValue(t.id, 'priority', t.priority)).label;
+    case 'typeId': {
+      var tid = bulkEditFieldValue(t.id, 'typeId', t.typeId);
+      if(!tid) return '';
+      var tt = (project.taskTypes || []).find(function(x){ return x.id === tid; });
+      return tt ? tt.name : '';
+    }
+    case 'assigneeId': {
+      var aid = bulkEditFieldValue(t.id, 'assigneeId', t.assigneeId);
+      if(!aid) return '';
+      var m = getMemberById(project, aid);
+      return m ? memberLabel(m) : '';
+    }
+    case 'startDate': return bulkEditFieldValue(t.id, 'startDate', t.startDate) || '';
+    case 'endDate': return bulkEditFieldValue(t.id, 'endDate', t.endDate) || '';
+    case 'businessValue': return bulkEditFieldValue(t.id, 'businessValue', t.businessValue);
+    case 'taskCost': return bulkEditFieldValue(t.id, 'taskCost', t.taskCost);
+    case 'progress': return bulkEditFieldValue(t.id, 'progress', clampProgress(t.progress));
+    case 'status': return t.archived ? 'Archived' : 'Active';
+    default: return '';
+  }
 }
 
 function setBulkEditField(project, taskId, field, newValue, originalValue, inputEl){

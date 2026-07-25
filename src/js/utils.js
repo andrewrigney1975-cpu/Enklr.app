@@ -159,6 +159,19 @@ export function isTaskOverdue(project, task){
   return !(col && col.done);
 }
 
+/* True once every non-archived task on the board sits in a "done" column — the board's
+   "You're All Caught Up" congratulations banner (views/board.js) is gated on this. A board with
+   zero active tasks at all (brand new project, or every task archived) is deliberately NOT
+   "complete" — there's nothing to have finished, so nothing to congratulate. */
+export function boardIsFullyComplete(project){
+  var activeTasks = getTasksArray(project).filter(function(t){ return !t.archived; });
+  if(activeTasks.length === 0) return false;
+  return activeTasks.every(function(t){
+    var col = getColumn(project, t.columnId);
+    return !!(col && col.done);
+  });
+}
+
 /* Per-task overrun prediction — a distinct concept from the project-
    level burndown projection in features/health.js. Compares progress
    against actual effort logged (is it on pace to blow the estimate?)
