@@ -43,10 +43,17 @@ function errorHtml(message){
 
 /* ---- table ---- */
 
-var tableWidgetState = {}; // widgetId -> {sort: {field, dir}, filters: {}}
+/* Session-only — never persisted, and never carried over between opens of the same Dashboard
+   (resetDashboardTableWidgetState() is called on viewer close, same convention as every other
+   session-only ui.* state in this app). Page size defaults to 20 every time; "No need to remember
+   these settings per view" per the feature request. */
+export var TABLE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 'all'];
+var DEFAULT_PAGE_SIZE = 20;
+
+var tableWidgetState = {}; // widgetId -> {sort: {field, dir}, filters: {}, pageSize, page}
 
 function getTableState(widgetId){
-  if(!tableWidgetState[widgetId]) tableWidgetState[widgetId] = {sort: null, filters: {}};
+  if(!tableWidgetState[widgetId]) tableWidgetState[widgetId] = {sort: null, filters: {}, pageSize: DEFAULT_PAGE_SIZE, page: 0};
   return tableWidgetState[widgetId];
 }
 
@@ -72,7 +79,12 @@ export function renderTableWidget(widget, project, opts){
   }
 
   var readOnly = !!opts.readOnly;
-  var showExport = !!opts.canExport && !readOnly;
+  var totalRows = rows.length;
+  var pageSize = state.pageSize === 'all' ? totalRows : state.pageSize;
+  var pageCount = pageSize > 0 ? Math.max(1, Math.ceil(totalRows / pageSize)) : 1;
+  if(state.page >= pageCount) state.page = pageCount - 1;
+  if(state.page < 0) state.page = 0;
+  var pageRows = readOnly ? rows : rows.slice(state.page * pageSize, state.page * pageSize + pageSize);
 
   var headerHtml = result.columns.map(function(col){
     var sortIndicator = state.sort && state.sort.field === col ? (state.sort.dir === 'desc' ? ' ▼' : ' ▲') : '';
@@ -84,21 +96,37 @@ export function renderTableWidget(widget, project, opts){
     var val = state.filters[col] || '';
     return '<div class="kf-dashboard-table-th"><input type="text" class="kf-dashboard-table-filter-input" data-widget-filter-col="' + escapeHTML(col) + '" placeholder="Filter…" value="' + escapeHTML(val) + '"></div>';
   }).join('');
-  var bodyHtml = rows.map(function(row){
+  var bodyHtml = pageRows.map(function(row){
     return '<div class="kf-dashboard-table-row">' + result.columns.map(function(col){
       return '<div class="kf-dashboard-table-td">' + escapeHTML(row[col] == null ? '' : String(row[col])) + '</div>';
     }).join('') + '</div>';
   }).join('');
 
   var gridStyle = 'grid-template-columns:repeat(' + result.columns.length + ', minmax(90px, 1fr));';
+  var rangeStart = totalRows === 0 ? 0 : state.page * pageSize + 1;
+  var rangeEnd = Math.min(totalRows, state.page * pageSize + pageSize);
+  var paginationHtml = readOnly ? '' :
+    '<div class="kf-dashboard-table-pagination">' +
+      '<label class="kf-dashboard-table-pagesize">Rows per page ' +
+        '<select data-widget-page-size>' +
+          TABLE_PAGE_SIZE_OPTIONS.map(function(opt){
+            return '<option value="' + opt + '"' + (state.pageSize === opt ? ' selected' : '') + '>' + (opt === 'all' ? 'All' : opt) + '</option>';
+          }).join('') +
+        '</select>' +
+      '</label>' +
+      '<span class="kf-dashboard-table-pagerange">' + (totalRows === 0 ? '0 of 0' : rangeStart + '–' + rangeEnd + ' of ' + totalRows) + '</span>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-page-prev' + (state.page <= 0 ? ' disabled' : '') + '><span class="kf-icon" data-icon="chevronLeft" data-size="14"></span></button>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-page-next' + (state.page >= pageCount - 1 ? ' disabled' : '') + '><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(180deg);"></span></button>' +
+    '</div>';
+
   return '<div class="kf-dashboard-table-wrap" data-widget-id="' + widget.id + '">' +
-    (showExport ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm kf-dashboard-table-export-btn" data-widget-export="' + widget.id + '"><span class="kf-icon" data-icon="download" data-size="14"></span>CSV</button>' : '') +
     '<div class="kf-dashboard-table" style="' + gridStyle + '">' +
       '<div class="kf-dashboard-table-header-row" style="display:contents;">' + headerHtml + '</div>' +
       (filterHtml ? '<div class="kf-dashboard-table-filter-row" style="display:contents;">' + filterHtml + '</div>' : '') +
       bodyHtml +
     '</div>' +
-    (rows.length === 0 ? '<div class="kf-dashboard-tile-empty">No rows match the current filter.</div>' : '') +
+    (totalRows === 0 ? '<div class="kf-dashboard-tile-empty">No rows match the current filter.</div>' : '') +
+    paginationHtml +
   '</div>';
 }
 
@@ -115,6 +143,7 @@ export function wireTableWidget(rootEl, widget, project, onRerender){
       } else {
         state.sort = {field: col, dir: 'asc'};
       }
+      state.page = 0;
       onRerender();
     });
   });
@@ -125,19 +154,36 @@ export function wireTableWidget(rootEl, widget, project, onRerender){
       else delete state.filters[col];
     });
     input.addEventListener('keydown', function(e){
-      if(e.key === 'Enter') onRerender();
+      if(e.key === 'Enter'){ state.page = 0; onRerender(); }
     });
-    input.addEventListener('blur', function(){ onRerender(); });
+    input.addEventListener('blur', function(){ state.page = 0; onRerender(); });
   });
-  var exportBtn = wrap.querySelector('[data-widget-export]');
-  if(exportBtn){
-    exportBtn.addEventListener('click', function(){
-      exportTableWidgetCsv(widget, project);
+  var pageSizeSelect = wrap.querySelector('[data-widget-page-size]');
+  if(pageSizeSelect){
+    pageSizeSelect.addEventListener('change', function(){
+      var val = pageSizeSelect.value;
+      state.pageSize = val === 'all' ? 'all' : Number(val);
+      state.page = 0;
+      onRerender();
+    });
+  }
+  var prevBtn = wrap.querySelector('[data-widget-page-prev]');
+  if(prevBtn){
+    prevBtn.addEventListener('click', function(){
+      state.page = Math.max(0, state.page - 1);
+      onRerender();
+    });
+  }
+  var nextBtn = wrap.querySelector('[data-widget-page-next]');
+  if(nextBtn){
+    nextBtn.addEventListener('click', function(){
+      state.page = state.page + 1;
+      onRerender();
     });
   }
 }
 
-function exportTableWidgetCsv(widget, project){
+export function exportTableWidgetCsv(widget, project){
   var result;
   try { result = runWidgetQuery(project, widget); }
   catch(e){ return; }

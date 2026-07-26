@@ -6,7 +6,7 @@ import { isServerAuthoritative } from '../features/migration.js';
 import { isOrgAdmin, dashboardApi, orgDashboardApi } from '../api.js';
 import { utcISOToLocalDisplayDate } from '../date-utils.js';
 import { confirmDialog } from './confirm.js';
-import { renderDashboardWidget, resetDashboardTableWidgetState } from '../features/dashboard-widgets.js';
+import { renderDashboardWidget, resetDashboardTableWidgetState, exportTableWidgetCsv, WIDGET_TYPE_LABELS } from '../features/dashboard-widgets.js';
 import { createRichTextEditor } from '../rich-text/editor.js';
 
 /* Print reuses features/reports.js's own #reportOverlay/print-CSS machinery (root CLAUDE.md's own
@@ -262,31 +262,48 @@ function renderDashboardViewerGrid(){
     return;
   }
 
+  var canExport = canCurrentUserManageProject();
+
   // `readOnly` here means "static, non-interactive print output" (see printDashboardFromViewer) —
   // it is NOT the same thing as `editMode` above. A table widget's own sort/filter/CSV-export stay
   // fully interactive whether or not the dashboard's structural layout editor (add/remove/reorder
   // widgets) happens to be open, per the plan's "Any Project Member can sort/filter/print" row.
   grid.innerHTML = widgets.map(function(w, i){
-    var widthClass = w.width === 'third' ? ' kf-dashboard-widget-third' : (w.width === 'half' ? ' kf-dashboard-widget-half' : '');
-    var rendered = renderDashboardWidget(w, project, {readOnly: false, canExport: canCurrentUserManageProject()});
+    var widthClass = w.width === 'third' ? ' kf-dashboard-widget-third'
+      : w.width === 'half' ? ' kf-dashboard-widget-half'
+      : w.width === 'twoThird' ? ' kf-dashboard-widget-two-third'
+      : '';
+    var rendered = renderDashboardWidget(w, project, {readOnly: false, canExport: canExport});
+    var showHeaderExport = w.widgetType === 'table' && canExport;
     return '<div class="kf-dashboard-widget' + widthClass + '" data-widget-id="' + w.id + '">' +
       '<div class="kf-dashboard-widget-header">' +
         '<span class="kf-dashboard-widget-title">' + escapeHTML(w.title) + '</span>' +
-        (editMode ? '<div class="kf-dashboard-widget-actions">' +
-          (i > 0 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-up="' + w.id + '" title="Move up"><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(90deg);"></span></button>' : '') +
-          (i < widgets.length - 1 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-down="' + w.id + '" title="Move down"><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(-90deg);"></span></button>' : '') +
-          '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-edit-widget="' + w.id + '" title="Configure widget"><span class="kf-icon" data-icon="edit" data-size="14"></span></button>' +
-          '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-remove-widget="' + w.id + '" title="Remove widget"><span class="kf-icon">' +
-          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>' +
-          '</span></button></div>' : '') +
+        '<div class="kf-dashboard-widget-actions">' +
+          (showHeaderExport ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-export-header="' + w.id + '" title="Export as CSV"><span class="kf-icon" data-icon="download" data-size="14"></span>Export as CSV</button>' : '') +
+          (editMode ?
+            (i > 0 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-up="' + w.id + '" title="Move up"><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(90deg);"></span></button>' : '') +
+            (i < widgets.length - 1 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-down="' + w.id + '" title="Move down"><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(-90deg);"></span></button>' : '') +
+            '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-edit-widget="' + w.id + '" title="Configure widget"><span class="kf-icon" data-icon="edit" data-size="14"></span></button>' +
+            '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-remove-widget="' + w.id + '" title="Remove widget"><span class="kf-icon">' +
+            '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>' +
+            '</span></button>' : '') +
+        '</div>' +
       '</div>' +
       '<div class="kf-dashboard-widget-body">' + rendered.html + '</div>' +
       '</div>';
   }).join('');
 
   widgets.forEach(function(w){
-    var rendered = renderDashboardWidget(w, project, {readOnly: false, canExport: canCurrentUserManageProject()});
+    var rendered = renderDashboardWidget(w, project, {readOnly: false, canExport: canExport});
     if(rendered.wire) rendered.wire(grid, renderDashboardViewerGrid);
+  });
+
+  grid.querySelectorAll('[data-widget-export-header]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var w = widgets.find(function(x){ return x.id === btn.getAttribute('data-widget-export-header'); });
+      if(w) exportTableWidgetCsv(w, project);
+    });
   });
 
   if(editMode){
@@ -315,6 +332,35 @@ function renderDashboardViewerGrid(){
       });
     });
   }
+
+  renderDashboardWidgetOrderList(widgets, editMode);
+}
+
+/* Widget-order list — a compact, always-legible alternative to hunting for a specific widget's own
+   up/down arrows on a potentially tall/scrolled-past card (especially once a dashboard has several
+   full-width widgets stacked). Only shown while the layout editor is open; reuses the exact same
+   moveWidget() the per-card arrows already call, so both controls stay in lockstep. */
+function renderDashboardWidgetOrderList(widgets, editMode){
+  var section = document.getElementById('dashboardWidgetOrderSection');
+  var list = document.getElementById('dashboardWidgetOrderList');
+  section.classList.toggle('hidden', !editMode);
+  if(!editMode) return;
+
+  list.innerHTML = widgets.map(function(w, i){
+    return '<div class="kf-dashboard-order-row" data-widget-id="' + w.id + '">' +
+      '<span class="kf-dashboard-order-row-title">' + escapeHTML(w.title) + '</span>' +
+      '<span class="kf-dashboard-order-row-type">' + escapeHTML(WIDGET_TYPE_LABELS[w.widgetType] || w.widgetType) + '</span>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-order-move-up="' + w.id + '" title="Move up"' + (i === 0 ? ' disabled' : '') + '><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(90deg);"></span></button>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-order-move-down="' + w.id + '" title="Move down"' + (i === widgets.length - 1 ? ' disabled' : '') + '><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(-90deg);"></span></button>' +
+    '</div>';
+  }).join('');
+
+  list.querySelectorAll('[data-order-move-up]').forEach(function(btn){
+    btn.addEventListener('click', function(){ moveWidget(btn.getAttribute('data-order-move-up'), -1); });
+  });
+  list.querySelectorAll('[data-order-move-down]').forEach(function(btn){
+    btn.addEventListener('click', function(){ moveWidget(btn.getAttribute('data-order-move-down'), 1); });
+  });
 }
 
 /* Swaps the moved widget's sortOrder with its neighbor's and persists both — simplest possible

@@ -150,7 +150,39 @@ function makeMockFetch(state){
   var widgetBody = doc.querySelector('.kf-dashboard-widget-body');
   log('table widget rendered with a header row', widgetBody && widgetBody.textContent.indexOf('title') !== -1, widgetBody && widgetBody.textContent);
   log('table widget shows both task rows', widgetBody && widgetBody.textContent.indexOf('First Task') !== -1 && widgetBody.textContent.indexOf('Second Task') !== -1);
-  log('CSV export button shown for a Project Admin in edit mode', doc.querySelector('[data-widget-export]') !== null);
+
+  var exportBtn = doc.querySelector('[data-widget-export-header]');
+  log('CSV export button shown for a Project Admin in edit mode', exportBtn !== null);
+  log('CSV export button lives in the widget header, not the body', exportBtn && exportBtn.closest('.kf-dashboard-widget-header') !== null);
+  log('CSV export button is labeled "Export as CSV"', exportBtn && exportBtn.textContent.trim() === 'Export as CSV', exportBtn && exportBtn.textContent);
+  log('CSV export button has an icon', exportBtn && exportBtn.querySelector('.kf-icon') !== null);
+
+  // ── Pagination: default page size, page-size options, prev/next ──────────────────────────────
+  var pageSizeSelect = doc.querySelector('[data-widget-page-size]');
+  log('pagination page-size selector exists', pageSizeSelect !== null);
+  log('page-size options are 10/20/50/100/All', Array.from(pageSizeSelect.options).map(function(o){ return o.textContent; }).join(',') === '10,20,50,100,All');
+  log('default page size is 20', pageSizeSelect.value === '20');
+  log('page range shows both rows on one page', doc.querySelector('.kf-dashboard-table-pagerange').textContent.trim() === '1–2 of 2', doc.querySelector('.kf-dashboard-table-pagerange').textContent);
+
+  pageSizeSelect.value = '10';
+  pageSizeSelect.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+  await wait(20);
+  log('prev button disabled on page size change (still page 1)', doc.querySelector('[data-widget-page-prev]').hasAttribute('disabled'));
+  log('next button disabled when everything fits on one page', doc.querySelector('[data-widget-page-next]').hasAttribute('disabled'));
+
+  // Verify prev/next + range recompute using a real, already-wired interaction: filtering the
+  // 2-row dataset down to 1 row via the key column.
+  var keyFilterInput = doc.querySelector('[data-widget-filter-col="key"]');
+  keyFilterInput.value = 'SRV-1';
+  keyFilterInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+  keyFilterInput.dispatchEvent(new dom.window.Event('blur', {bubbles: true}));
+  await wait(20);
+  log('filtering to one row updates the page range', doc.querySelector('.kf-dashboard-table-pagerange').textContent.trim() === '1–1 of 1', doc.querySelector('.kf-dashboard-table-pagerange').textContent);
+  keyFilterInput = doc.querySelector('[data-widget-filter-col="key"]');
+  keyFilterInput.value = '';
+  keyFilterInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+  keyFilterInput.dispatchEvent(new dom.window.Event('blur', {bubbles: true}));
+  await wait(20);
 
   // ── Add a text widget ─────────────────────────────────────────────────────────────────────
   doc.getElementById('dashboardViewerAddWidgetBtn').click();
@@ -161,6 +193,9 @@ function makeMockFetch(state){
   await wait(20);
   log('Saved Query field hidden for a text widget', doc.getElementById('dashboardWidgetSavedQueryField').classList.contains('hidden'));
   log('Text editor field shown for a text widget', !doc.getElementById('dashboardWidgetTextField').classList.contains('hidden'));
+  var widthOptions = Array.from(doc.getElementById('dashboardWidgetWidthSelect').options).map(function(o){ return o.value; });
+  log('width options include the new 2/3 option', widthOptions.indexOf('twoThird') !== -1, widthOptions.join(','));
+  doc.getElementById('dashboardWidgetWidthSelect').value = 'twoThird';
   doc.getElementById('dashboardWidgetTextEditor').innerHTML = '<p>Hello dashboard</p>';
   doc.getElementById('dashboardWidgetFormSaveBtn').click();
   await wait(150);
@@ -168,8 +203,19 @@ function makeMockFetch(state){
   var widgetTitles = Array.from(doc.querySelectorAll('.kf-dashboard-widget-title')).map(function(e){ return e.textContent; });
   log('both widgets now present', widgetTitles.indexOf('All Tasks Table') !== -1 && widgetTitles.indexOf('Notes') !== -1, widgetTitles.join(','));
   log('text widget renders its markdown content', doc.body.textContent.indexOf('Hello dashboard') !== -1);
+  var notesCard = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Notes';
+  });
+  log('2/3-width widget gets the two-third layout class', notesCard.classList.contains('kf-dashboard-widget-two-third'));
 
-  // ── Reorder: move the second widget up ────────────────────────────────────────────────────
+  // ── Widget Order list: a dedicated compact reorder view alongside each card's own arrows ────
+  log('Widget Order section visible in edit mode', !doc.getElementById('dashboardWidgetOrderSection').classList.contains('hidden'));
+  var orderRows = doc.querySelectorAll('.kf-dashboard-order-row');
+  log('Widget Order list has one row per widget', orderRows.length === 2, orderRows.length);
+  log('Widget Order rows show widget titles in order', Array.from(orderRows).map(function(r){ return r.querySelector('.kf-dashboard-order-row-title').textContent; }).join(',') === 'All Tasks Table,Notes');
+  log('Widget Order list also exposes its own move-up control', doc.querySelector('[data-order-move-up]') !== null);
+
+  // ── Reorder: move the second widget up (per-card arrow) ───────────────────────────────────
   var moveUpBtn = doc.querySelector('[data-move-widget-up]');
   log('a move-up button exists for the non-first widget', moveUpBtn !== null);
   if(moveUpBtn) moveUpBtn.click();
@@ -303,8 +349,9 @@ function makeMockFetch(state){
   doc.getElementById('dashboardViewerDoneEditingBtn').click();
   await wait(50);
   log('Edit-mode controls (Add Widget) hidden after Done Editing', doc.getElementById('dashboardViewerAddWidgetBtn').classList.contains('hidden'));
+  log('Widget Order section hidden after Done Editing', doc.getElementById('dashboardWidgetOrderSection').classList.contains('hidden'));
   log('widget management buttons (remove/move/configure) hidden after Done Editing', doc.querySelector('[data-remove-widget]') === null);
-  log('table widget CSV export stays available for a Project Admin outside edit mode', doc.querySelector('[data-widget-export]') !== null);
+  log('table widget CSV export stays available for a Project Admin outside edit mode', doc.querySelector('[data-widget-export-header]') !== null);
   log('table widget sort headers stay interactive outside edit mode', doc.querySelector('.kf-dashboard-table-th-sortable') !== null);
 
   // ── Print: reuses features/reports.js's #reportOverlay ────────────────────────────────────
@@ -314,7 +361,7 @@ function makeMockFetch(state){
   log('report title includes the project and dashboard name', doc.getElementById('reportTitle').textContent.indexOf('Server Project') !== -1 && doc.getElementById('reportTitle').textContent.indexOf('Sprint Overview') !== -1, doc.getElementById('reportTitle').textContent);
   var reportBody = doc.getElementById('reportBody');
   log('printed report includes every widget title', reportBody.textContent.indexOf('All Tasks Table') !== -1 && reportBody.textContent.indexOf('Completion') !== -1 && reportBody.textContent.indexOf('Schedule') !== -1, reportBody.textContent.indexOf('All Tasks Table') + ',' + reportBody.textContent.indexOf('Completion'));
-  log('printed table widget has no sort headers or CSV export (static output)', reportBody.querySelector('.kf-dashboard-table-th-sortable') === null && reportBody.querySelector('[data-widget-export]') === null);
+  log('printed table widget has no sort headers or CSV export (static output)', reportBody.querySelector('.kf-dashboard-table-th-sortable') === null && reportBody.querySelector('[data-widget-export-header]') === null);
   doc.getElementById('reportClose').click();
 
   console.log('Dashboards test complete.');

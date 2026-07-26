@@ -2963,9 +2963,14 @@
     flex-basis: calc(50% - 7px);
   }
 
+  .kf-dashboard-widget.kf-dashboard-widget-two-third {
+    flex-basis: calc(66.666% - 5px);
+  }
+
   .kf-dashboard-widget-header {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 10px 12px;
     border-bottom: 1px solid var(--kf-border);
@@ -3002,7 +3007,9 @@
 
   .kf-dashboard-widget-actions {
     display: flex;
+    align-items: center;
     gap: 2px;
+    margin-left: auto;
   }
 
   /* Data Table widget — plain CSS-grid rows, same idiom as the Release "Tasks in this Release"
@@ -3011,9 +3018,32 @@
     position: relative;
   }
 
-  .kf-dashboard-table-export-btn {
-    float: right;
-    margin-bottom: 6px;
+  .kf-dashboard-table-pagination {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-dashboard-table-pagesize {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .kf-dashboard-table-pagesize select {
+    font-size: 12px;
+    padding: 2px 4px;
+    border: 1px solid var(--kf-border);
+    border-radius: 3px;
+    background: var(--kf-surface);
+    color: var(--kf-text);
+  }
+
+  .kf-dashboard-table-pagerange {
+    margin-left: auto;
   }
 
   .kf-dashboard-table {
@@ -3082,8 +3112,54 @@
 
   #dashboardWidgetSavedQueryField.hidden,
   #dashboardWidgetTextField.hidden,
-  #dashboardWidgetConfigFields.hidden {
+  #dashboardWidgetConfigFields.hidden,
+  #dashboardWidgetOrderSection.hidden {
     display: none;
+  }
+
+  /* Widget Order list — edit-mode-only compact reorder view (modals/dashboards.js's
+     renderDashboardWidgetOrderList), mirroring each widget card's own up/down arrows. */
+  .kf-dashboard-order-section {
+    margin-top: 14px;
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    background: var(--kf-column-bg);
+    padding: 10px 12px;
+  }
+
+  .kf-dashboard-order-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--kf-text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 8px;
+  }
+
+  .kf-dashboard-order-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--kf-border);
+  }
+
+  .kf-dashboard-order-row:last-child {
+    border-bottom: none;
+  }
+
+  .kf-dashboard-order-row-title {
+    font-size: 13px;
+    color: var(--kf-text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kf-dashboard-order-row-type {
+    font-size: 11px;
+    color: var(--kf-text-faint);
   }
 
   .kf-dashboard-gauge-widget {

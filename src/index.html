@@ -1458,6 +1458,12 @@
       <button type="button" class="kf-btn kf-btn-secondary hidden" id="dashboardViewerAddWidgetBtn">
         <span class="kf-icon" data-icon="plus" data-size="14"></span>Add Widget
       </button>
+      <!-- Widget order list — edit-mode-only compact reorder view, mirrors each widget card's own
+           up/down arrows (modals/dashboards.js's renderDashboardWidgetOrderList). -->
+      <div id="dashboardWidgetOrderSection" class="hidden kf-dashboard-order-section">
+        <div class="kf-dashboard-order-title">Widget Order</div>
+        <div id="dashboardWidgetOrderList"></div>
+      </div>
       <div id="dashboardViewerGrid" class="kf-dashboard-widget-grid"></div>
     </div>
   </div>
@@ -1493,6 +1499,7 @@
           <select id="dashboardWidgetWidthSelect">
             <option value="third">1/3</option>
             <option value="half">1/2</option>
+            <option value="twoThird">2/3</option>
             <option value="full" selected>Full</option>
           </select>
         </div>
