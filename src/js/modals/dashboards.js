@@ -262,9 +262,13 @@ function renderDashboardViewerGrid(){
     return;
   }
 
+  // `readOnly` here means "static, non-interactive print output" (see printDashboardFromViewer) —
+  // it is NOT the same thing as `editMode` above. A table widget's own sort/filter/CSV-export stay
+  // fully interactive whether or not the dashboard's structural layout editor (add/remove/reorder
+  // widgets) happens to be open, per the plan's "Any Project Member can sort/filter/print" row.
   grid.innerHTML = widgets.map(function(w, i){
     var widthClass = w.width === 'third' ? ' kf-dashboard-widget-third' : (w.width === 'half' ? ' kf-dashboard-widget-half' : '');
-    var rendered = renderDashboardWidget(w, project, {readOnly: !editMode, canExport: canCurrentUserManageProject()});
+    var rendered = renderDashboardWidget(w, project, {readOnly: false, canExport: canCurrentUserManageProject()});
     return '<div class="kf-dashboard-widget' + widthClass + '" data-widget-id="' + w.id + '">' +
       '<div class="kf-dashboard-widget-header">' +
         '<span class="kf-dashboard-widget-title">' + escapeHTML(w.title) + '</span>' +
@@ -281,7 +285,7 @@ function renderDashboardViewerGrid(){
   }).join('');
 
   widgets.forEach(function(w){
-    var rendered = renderDashboardWidget(w, project, {readOnly: !editMode, canExport: canCurrentUserManageProject()});
+    var rendered = renderDashboardWidget(w, project, {readOnly: false, canExport: canCurrentUserManageProject()});
     if(rendered.wire) rendered.wire(grid, renderDashboardViewerGrid);
   });
 

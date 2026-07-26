@@ -303,7 +303,19 @@ function makeMockFetch(state){
   doc.getElementById('dashboardViewerDoneEditingBtn').click();
   await wait(50);
   log('Edit-mode controls (Add Widget) hidden after Done Editing', doc.getElementById('dashboardViewerAddWidgetBtn').classList.contains('hidden'));
-  log('no CSV export button shown outside edit mode', doc.querySelector('[data-widget-export]') === null);
+  log('widget management buttons (remove/move/configure) hidden after Done Editing', doc.querySelector('[data-remove-widget]') === null);
+  log('table widget CSV export stays available for a Project Admin outside edit mode', doc.querySelector('[data-widget-export]') !== null);
+  log('table widget sort headers stay interactive outside edit mode', doc.querySelector('.kf-dashboard-table-th-sortable') !== null);
+
+  // ── Print: reuses features/reports.js's #reportOverlay ────────────────────────────────────
+  doc.getElementById('dashboardViewerPrintBtn').click();
+  await wait(50);
+  log('print opens the shared report overlay', !doc.getElementById('reportOverlay').classList.contains('hidden'));
+  log('report title includes the project and dashboard name', doc.getElementById('reportTitle').textContent.indexOf('Server Project') !== -1 && doc.getElementById('reportTitle').textContent.indexOf('Sprint Overview') !== -1, doc.getElementById('reportTitle').textContent);
+  var reportBody = doc.getElementById('reportBody');
+  log('printed report includes every widget title', reportBody.textContent.indexOf('All Tasks Table') !== -1 && reportBody.textContent.indexOf('Completion') !== -1 && reportBody.textContent.indexOf('Schedule') !== -1, reportBody.textContent.indexOf('All Tasks Table') + ',' + reportBody.textContent.indexOf('Completion'));
+  log('printed table widget has no sort headers or CSV export (static output)', reportBody.querySelector('.kf-dashboard-table-th-sortable') === null && reportBody.querySelector('[data-widget-export]') === null);
+  doc.getElementById('reportClose').click();
 
   console.log('Dashboards test complete.');
   process.exit(0);
