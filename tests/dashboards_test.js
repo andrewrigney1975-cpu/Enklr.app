@@ -80,7 +80,8 @@ function makeMockFetch(state){
       {id: 'sq2', name: 'Completion Pct', sql: 'SELECT 75 AS pct FROM tasks LIMIT 1', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
       {id: 'sq3', name: 'Task Count', sql: 'SELECT 8 AS taskCount FROM tasks LIMIT 1', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
       {id: 'sq4', name: 'Cost vs Value', sql: 'SELECT key, title, priority, taskCost, businessValue FROM tasks', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
-      {id: 'sq5', name: 'Task Schedule', sql: "SELECT title AS label, '2026-01-01' AS s, '2026-03-01' AS e FROM tasks LIMIT 1", dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false}
+      {id: 'sq5', name: 'Task Schedule', sql: "SELECT title AS label, '2026-01-01' AS s, '2026-03-01' AS e FROM tasks LIMIT 1", dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
+      {id: 'sq6', name: 'Count by Priority', sql: 'SELECT priority AS prio, COUNT(*) AS n FROM tasks GROUP BY priority', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false}
     ],
     startDate: null, endDate: null, description: '',
     headerButtonVisibility: {dashboards: true},
@@ -256,6 +257,47 @@ function makeMockFetch(state){
   log('timeline widget renders a header column', timelineWidget.querySelector('.kf-dashboard-timeline-col') !== null);
   log('timeline widget renders a bar for the row', timelineWidget.querySelector('.kf-dashboard-timeline-bar') !== null);
   log('timeline widget row label matches the query row', timelineWidget.textContent.indexOf('First Task') !== -1, timelineWidget.textContent);
+
+  // ── Chart widget: bar (single hue) ────────────────────────────────────────────────────────
+  doc.getElementById('dashboardViewerAddWidgetBtn').click();
+  await wait(20);
+  doc.getElementById('dashboardWidgetTitleInput').value = 'Tasks by Priority';
+  doc.getElementById('dashboardWidgetTypeSelect').value = 'chart';
+  doc.getElementById('dashboardWidgetTypeSelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+  await wait(20);
+  doc.getElementById('dashboardWidgetSavedQuerySelect').value = 'sq6';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="chartType"]').value = 'bar';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="categoryColumn"]').value = 'prio';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="valueColumn"]').value = 'n';
+  doc.getElementById('dashboardWidgetFormSaveBtn').click();
+  await wait(150);
+  var barChartWidget = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Tasks by Priority';
+  });
+  var bars = barChartWidget.querySelectorAll('rect');
+  log('bar chart renders one bar per category', bars.length === 2, bars.length);
+  log('bar chart shows category labels', barChartWidget.textContent.indexOf('high') !== -1 && barChartWidget.textContent.indexOf('low') !== -1, barChartWidget.textContent);
+
+  // ── Chart widget: donut (categorical per slice) ───────────────────────────────────────────
+  doc.getElementById('dashboardViewerAddWidgetBtn').click();
+  await wait(20);
+  doc.getElementById('dashboardWidgetTitleInput').value = 'Priority Split';
+  doc.getElementById('dashboardWidgetTypeSelect').value = 'chart';
+  doc.getElementById('dashboardWidgetTypeSelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+  await wait(20);
+  doc.getElementById('dashboardWidgetSavedQuerySelect').value = 'sq6';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="chartType"]').value = 'donut';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="categoryColumn"]').value = 'prio';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="valueColumn"]').value = 'n';
+  doc.getElementById('dashboardWidgetFormSaveBtn').click();
+  await wait(150);
+  var donutWidget = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Priority Split';
+  });
+  var slices = donutWidget.querySelector('.kf-dashboard-chart-widget svg').querySelectorAll('path');
+  log('donut chart renders one slice per category', slices.length === 2, slices.length);
+  log('donut chart slices use distinct categorical colors', slices[0].getAttribute('style') !== slices[1].getAttribute('style'), [slices[0].getAttribute('style'), slices[1].getAttribute('style')]);
+  log('donut chart shows a legend with both category names', donutWidget.querySelector('.kf-dashboard-chart-legend').textContent.indexOf('high') !== -1 && donutWidget.querySelector('.kf-dashboard-chart-legend').textContent.indexOf('low') !== -1);
 
   // ── Read-only for a non-editing member: Done Editing hides edit controls ────────────────────
   doc.getElementById('dashboardViewerDoneEditingBtn').click();

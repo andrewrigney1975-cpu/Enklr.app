@@ -8,6 +8,7 @@ import { downloadBlob } from './svg-export.js';
 import { buildGaugeBlock } from '../modals/health.js';
 import { computeCostBenefitScatterPoints, buildCostBenefitScatterSvg } from '../views/cost-benefit.js';
 import { buildTimelineColumns, tlDateToPixel } from '../views/timeline.js';
+import { buildBarChartSvg, buildLineChartSvg, buildPieChartSvg } from './dashboard-charts.js';
 
 /* =========================================================
    DASHBOARD WIDGETS — pure per-widget-type renderers for modals/dashboards.js's viewer/editor.
@@ -280,6 +281,32 @@ export function renderTimelineWidget(widget, project){
   '</div>';
 }
 
+/* ---- chart (bar/line/pie/donut) ---- */
+
+export function renderChartWidget(widget, project){
+  var config = parseConfig(widget);
+  if(!config.categoryColumn || !config.valueColumn){
+    return errorHtml('Configure a category column and a value column for this widget.');
+  }
+  var result;
+  try { result = runWidgetQuery(project, widget); }
+  catch(e){ return errorHtml(e.message || 'Could not run this widget\'s query.'); }
+  if(result.rows.length === 0) return '<div class="kf-dashboard-tile-empty">This query returned no rows.</div>';
+  if(result.columns.indexOf(config.categoryColumn) === -1 || result.columns.indexOf(config.valueColumn) === -1){
+    return errorHtml('Category column "' + config.categoryColumn + '" or value column "' + config.valueColumn + '" was not found in the query result.');
+  }
+
+  var rows = result.rows.map(function(row){ return {category: row[config.categoryColumn], value: row[config.valueColumn]}; });
+  var chartType = config.chartType || 'bar';
+  var svg = chartType === 'line' ? buildLineChartSvg(rows)
+    : chartType === 'pie' ? buildPieChartSvg(rows, {donut: false})
+    : chartType === 'donut' ? buildPieChartSvg(rows, {donut: true})
+    : buildBarChartSvg(rows);
+
+  if(!svg) return '<div class="kf-dashboard-tile-empty">No positive values to chart.</div>';
+  return '<div class="kf-dashboard-chart-widget">' + svg + '</div>';
+}
+
 /* ---- text ---- */
 
 export function renderTextWidget(widget){
@@ -312,6 +339,8 @@ export function renderDashboardWidget(widget, project, opts){
       return { html: renderCostBenefitWidget(widget, project), wire: null };
     case 'timeline':
       return { html: renderTimelineWidget(widget, project), wire: null };
+    case 'chart':
+      return { html: renderChartWidget(widget, project), wire: null };
     default:
       return { html: '<div class="kf-dashboard-tile-empty">' + escapeHTML(WIDGET_TYPE_LABELS[widget.widgetType] || widget.widgetType) + ' — rendering coming soon</div>', wire: null };
   }
