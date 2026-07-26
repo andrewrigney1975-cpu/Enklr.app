@@ -38,4 +38,11 @@ public static class ClaimsPrincipalExtensions
         var claim = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
         return claim is not null && Guid.TryParse(claim, out var id) ? id : null;
     }
+
+    /// <summary>Same "orgAdmin" claim the "OrgAdmin" authorization policy itself checks
+    /// (Program.cs's <c>RequireClaim("orgAdmin", "true")</c>) — for a service method that needs to
+    /// branch on OrgAdmin-ness within an endpoint that ISN'T entirely OrgAdmin-gated (e.g.
+    /// SavedQueryService.UpdateAsync's ExposeViaApi restriction, where every other field stays
+    /// plain-ProjectMember-editable).</summary>
+    public static bool IsOrgAdmin(this ClaimsPrincipal user) => user.HasClaim("orgAdmin", "true");
 }

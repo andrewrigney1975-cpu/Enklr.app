@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Enkl\Api\Services;
 
 use Enkl\Api\Support\Uuid;
+use Enkl\Api\Validation\ApiValidationException;
 use PDO;
 
 /** Ported from Services/SavedQueryService.cs. */
@@ -14,12 +15,19 @@ final class SavedQueryService
     {
     }
 
-    public function create(string $projectId, array $request): ?array
+    /** $callerIsOrgAdmin gates ONLY exposeViaApi — every other field stays plain-ProjectMember-
+     * editable, matching the request's own narrower scope ("any project member can still create/
+     * edit Saved Queries; only an Org Admin may publish one via the Public Query API"). */
+    public function create(string $projectId, array $request, bool $callerIsOrgAdmin): ?array
     {
         $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Id" = :id');
         $stmt->execute(['id' => $projectId]);
         if ($stmt->fetch() === false) {
             return null;
+        }
+
+        if (($request['exposeViaApi'] ?? false) && !$callerIsOrgAdmin) {
+            throw new ApiValidationException('Only an Org Admin can expose a saved query via the Public Query API.');
         }
 
         $id = Uuid::v4();
@@ -34,12 +42,18 @@ final class SavedQueryService
         return $this->toDto($id);
     }
 
-    public function update(string $projectId, string $queryId, array $request): ?array
+    public function update(string $projectId, string $queryId, array $request, bool $callerIsOrgAdmin): ?array
     {
-        $stmt = $this->db->prepare('SELECT 1 FROM "SavedQueries" WHERE "Id" = :id AND "ProjectId" = :pid');
+        $stmt = $this->db->prepare('SELECT "ExposeViaApi" FROM "SavedQueries" WHERE "Id" = :id AND "ProjectId" = :pid');
         $stmt->execute(['id' => $queryId, 'pid' => $projectId]);
-        if ($stmt->fetch() === false) {
+        $existing = $stmt->fetch();
+        if ($existing === false) {
             return null;
+        }
+
+        $newExposeViaApi = (bool) ($request['exposeViaApi'] ?? false);
+        if ($newExposeViaApi !== (bool) $existing['ExposeViaApi'] && !$callerIsOrgAdmin) {
+            throw new ApiValidationException('Only an Org Admin can change whether a saved query is exposed via the Public Query API.');
         }
 
         $this->db->prepare(<<<SQL

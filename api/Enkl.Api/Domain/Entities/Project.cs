@@ -50,4 +50,5 @@ public class Project
     public List<Decision> Decisions { get; set; } = new();
     public List<Retrospective> Retrospectives { get; set; } = new();
     public List<SavedQuery> SavedQueries { get; set; } = new();
+    public List<Dashboard> Dashboards { get; set; } = new();
 }

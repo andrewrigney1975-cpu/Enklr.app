@@ -77,6 +77,33 @@ public record DecisionDto(
 /// (unlike Risk's KEY-RISK-001) — Name is the human identifier.</summary>
 public record SavedQueryDto(Guid Id, string Name, string Sql, DateTime DateCreated, bool ExposeViaApi);
 
+/// <summary>Self-Service Dashboard (Project Admin-authored, feature-flag gated) — deliberately NOT
+/// part of ProjectDetailDto (see Domain/Entities/Dashboard.cs's own doc comment): fetched via its
+/// own dedicated Controllers/DashboardsController.cs endpoints instead, so an ordinary project load
+/// never pays for widget-heavy dashboard content most projects won't have opted into.</summary>
+public record DashboardWidgetDto(
+    Guid Id, string WidgetType, string Title, Guid? SavedQueryId, string Width, int SortOrder,
+    string? ConfigJson);
+
+public record DashboardListItemDto(Guid Id, string Name, string? Description, int WidgetCount, DateTime DateLastModified);
+
+public record DashboardDetailDto(
+    Guid Id, string Name, string? Description, DateTime DateCreated, DateTime DateLastModified,
+    List<DashboardWidgetDto> Widgets);
+
+public record CreateDashboardRequest(string Name, string? Description);
+
+public record CreateDashboardWidgetRequest(
+    string WidgetType, string Title, Guid? SavedQueryId, string Width, int SortOrder, string? ConfigJson);
+
+/// <summary>Cross-project row for the Org-Admin "browse every Dashboard in the org" picker
+/// (Controllers/OrgDashboardsController.cs) — same Portfolio-pattern shape as
+/// PortfolioService.ListProjectsAsync's own DTOs carrying enough project context for a picker UI
+/// that spans projects.</summary>
+public record OrgDashboardListItemDto(
+    Guid Id, string Name, string? Description, int WidgetCount, DateTime DateLastModified,
+    Guid ProjectId, string ProjectName, string ProjectKey);
+
 public record ProjectDetailDto(
     Guid Id, string Name, string Key, Guid OrganisationId,
     List<MemberDto> Members, List<ColumnDto> Columns, List<TaskDto> Tasks,

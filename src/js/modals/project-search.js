@@ -18,7 +18,7 @@ import { openDecisionsOverlay, showDecisionsFormView } from './decisions.js';
 import { openTeamsCommitteesOverlay, showTeamCommitteeFormView } from './teams-committees.js';
 import { confirmDialog } from './confirm.js';
 import { isServerAuthoritative, refreshProjectFromServer, isServerLoggedIn } from '../features/migration.js';
-import { chatApi } from '../api.js';
+import { chatApi, isOrgAdmin } from '../api.js';
 import { openChatPanel, openChannel } from '../features/chat.js';
 import { addSavedQuery, updateSavedQuery, deleteSavedQuery } from '../mutations.js';
 import { savedQueryApi, testSavedQueryApi } from '../api.js';
@@ -255,7 +255,10 @@ export function showProjectSearchQueryView(){
     // Expose via API has no meaning for a local-only project — there's no server row of any kind to
     // attach an API key or a view-filter to (see CLAUDE.md §20) — so the control isn't offered at all,
     // not merely disabled, same exemption every other server-only permission gate in this app makes.
-    document.getElementById('projectQueryExposeApiRow').classList.toggle('hidden', !isServerAuthoritative(getCurrentProject()));
+    // Also Org-Admin-only now (publishing a query as a public API endpoint is a bigger blast radius
+    // than ordinary query editing, which stays open to any project member) — hidden, not just
+    // disabled, for the same "don't offer what the server will reject anyway" reasoning.
+    document.getElementById('projectQueryExposeApiRow').classList.toggle('hidden', !isServerAuthoritative(getCurrentProject()) || !isOrgAdmin());
     openProjectQuerySchemaPanel(); // Tables & Columns is shown by default when the Advanced Query view opens
     hideProjectQueryIntellisense();
     clearLoadedSavedQuery();

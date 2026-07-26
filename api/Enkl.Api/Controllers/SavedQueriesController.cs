@@ -1,3 +1,4 @@
+using Enkl.Api.Auth;
 using Enkl.Api.Dtos;
 using Enkl.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -22,14 +23,14 @@ public class SavedQueriesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(Guid projectId, CreateSavedQueryRequest request)
     {
-        var result = await _savedQueries.CreateAsync(projectId, request);
+        var result = await _savedQueries.CreateAsync(projectId, request, User.IsOrgAdmin());
         return result is null ? NotFound() : Ok(result);
     }
 
     [HttpPut("{queryId:guid}")]
     public async Task<IActionResult> Update(Guid projectId, Guid queryId, CreateSavedQueryRequest request)
     {
-        var result = await _savedQueries.UpdateAsync(projectId, queryId, request);
+        var result = await _savedQueries.UpdateAsync(projectId, queryId, request, User.IsOrgAdmin());
         return result is null ? NotFound() : Ok(result);
     }
 

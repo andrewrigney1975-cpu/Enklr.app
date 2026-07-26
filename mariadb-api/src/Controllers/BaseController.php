@@ -35,6 +35,15 @@ abstract class BaseController
         return $claims->displayName ?? null;
     }
 
+    /** Same "orgAdmin" claim check as Auth/OrgAdminMiddleware.php — for a controller action that
+     * ISN'T entirely OrgAdmin-gated but still needs to branch on OrgAdmin-ness for one field (e.g.
+     * SavedQueriesController::update's ExposeViaApi restriction). */
+    protected function callerIsOrgAdmin(ServerRequestInterface $request): bool
+    {
+        $claims = $request->getAttribute('jwtClaims');
+        return ($claims->orgAdmin ?? null) === 'true';
+    }
+
     /** @param mixed $data */
     protected function json(ResponseInterface $response, mixed $data, int $status = 200): ResponseInterface
     {

@@ -20,13 +20,13 @@ final class SavedQueriesController extends BaseController
 
     public function create(Request $request, Response $response, array $args): Response
     {
-        $result = $this->service()->create($args['projectId'], $this->body($request));
+        $result = $this->service()->create($args['projectId'], $this->body($request), $this->callerIsOrgAdmin($request));
         return $result === null ? $this->notFound($response) : $this->json($response, $result);
     }
 
     public function update(Request $request, Response $response, array $args): Response
     {
-        $result = $this->service()->update($args['projectId'], $args['id'], $this->body($request));
+        $result = $this->service()->update($args['projectId'], $args['id'], $this->body($request), $this->callerIsOrgAdmin($request));
         return $result === null ? $this->notFound($response) : $this->json($response, $result);
     }
 

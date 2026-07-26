@@ -36,6 +36,8 @@ use Enkl\Api\Controllers\ReleasesController;
 use Enkl\Api\Controllers\RetrospectivesController;
 use Enkl\Api\Controllers\RisksController;
 use Enkl\Api\Controllers\SavedQueriesController;
+use Enkl\Api\Controllers\DashboardsController;
+use Enkl\Api\Controllers\OrgDashboardsController;
 use Enkl\Api\Controllers\SamlController;
 use Enkl\Api\Controllers\ScimGroupsController;
 use Enkl\Api\Controllers\ScimUsersController;
@@ -229,6 +231,11 @@ function registerRoutes(App $app): void
         $group->put('/projects/{projectId}/strategy-fulfilment/{pillarId}', [StrategyController::class, 'upsertFulfilment']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
+    // ---- Org-Admin-only cross-project Dashboard browsing (Portfolio pattern) ----
+    $app->group('/api/organisations/me/dashboards', function ($group) {
+        $group->get('', [OrgDashboardsController::class, 'list']);
+    })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
+
     // ---- Enterprise Strategy Management (OrgAdmin-only management; read-only ProjectMember surface
     // is under /api/projects/{projectId}/strategy below instead) ----
     $app->group('/api/organisations/me/strategy', function ($group) {
@@ -359,6 +366,19 @@ function registerRoutes(App $app): void
         registerEntityRoutes($group, '/saved-queries', SavedQueriesController::class, 'id');
         // "Test API (GET)" button — see SavedQueriesController::test's own doc comment.
         $group->get('/saved-queries/{id}/test', [SavedQueriesController::class, 'test']);
+        // Self-Service Dashboards — read (list/get) is plain ProjectMember; every mutation
+        // (including widget CRUD) is nested in its own ProjectAdmin sub-group, same "extra check on
+        // just these routes" shape as columns/members above.
+        $group->get('/dashboards', [DashboardsController::class, 'list']);
+        $group->get('/dashboards/{dashboardId}', [DashboardsController::class, 'get']);
+        $group->group('', function ($dashAdminGroup) {
+            $dashAdminGroup->post('/dashboards', [DashboardsController::class, 'create']);
+            $dashAdminGroup->put('/dashboards/{dashboardId}', [DashboardsController::class, 'update']);
+            $dashAdminGroup->delete('/dashboards/{dashboardId}', [DashboardsController::class, 'delete']);
+            $dashAdminGroup->post('/dashboards/{dashboardId}/widgets', [DashboardsController::class, 'createWidget']);
+            $dashAdminGroup->put('/dashboards/{dashboardId}/widgets/{widgetId}', [DashboardsController::class, 'updateWidget']);
+            $dashAdminGroup->delete('/dashboards/{dashboardId}/widgets/{widgetId}', [DashboardsController::class, 'deleteWidget']);
+        })->add(ProjectAdminMiddleware::class);
         // Team/committee CRUD (including applying a synced Org Team's membership onto one) is
         // OrgAdmin-only — per product decision, a project member without that flag should neither
         // see nor be able to use the Teams & Committees feature to change membership. Nested in its
