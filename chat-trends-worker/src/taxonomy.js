@@ -9,7 +9,12 @@ export const TOPICS = [
   'billing or account',
   'performance or reliability',
   'documentation',
-  'general discussion'
+  'general discussion',
+  'organisational dissatisfaction',
+  'organisational observation',
+  'financial dissatisfaction',
+  'industry observation',
+  'operational challenge'
 ];
 
 // Below this confidence, a message is classified as 'uncategorised' rather than forced into the
