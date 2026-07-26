@@ -3047,6 +3047,26 @@
     scrollbar-gutter: stable;
   }
 
+  /* Releases modal specifically: stretch the list to fill however much of the modal is actually
+     available instead of always capping at the shared .kf-releases-list's own 360px — that class
+     is reused as-is by several other governance modals (Retrospectives/Documents/Risks/Decisions/
+     Principles/Objectives) with their own layouts, so it isn't touched directly; these two ID
+     overrides (higher specificity than the shared class) only affect this one modal. #releasesList
+     itself still owns its own overflow-y:auto/scroll, just sized by flex:1 now rather than a fixed
+     max-height — min-height:0 is required for a flex child to actually shrink and scroll internally
+     instead of pushing .kf-modal-body's own scrollbar to appear around it. */
+  #releasesListView {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  #releasesList {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
   .kf-release-row {
     display: flex;
     flex-direction: column;
