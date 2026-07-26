@@ -1,8 +1,9 @@
 "use strict";
 import { state, saveDB, createDefaultProject } from '../storage.js';
 import { buildExportDoc } from './export.js';
-import { migrateProjectApi, loginApi, ssoExchangeApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, updateColumnApi, deleteColumnApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi, getTodoListsApi, createTodoListApi, renameTodoListApi, deleteTodoListApi, createTodoItemApi, updateTodoItemApi, deleteTodoItemApi } from '../api.js';
+import { migrateProjectApi, loginApi, ssoExchangeApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, updateColumnApi, deleteColumnApi, releaseApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi, getTodoListsApi, createTodoListApi, renameTodoListApi, deleteTodoListApi, createTodoItemApi, updateTodoItemApi, deleteTodoItemApi } from '../api.js';
 import { isoToServerDateOnly, serverDateOnlyToIso } from '../date-utils.js';
+import { getReleaseById } from '../utils.js';
 
 var _toast = function(msg){ console.error(msg); };
 export function setMigrationToast(fn){ _toast = fn; }
@@ -205,6 +206,31 @@ export async function moveTaskToColumnOnServer(project, taskId, targetColumnId){
   var t = project.tasks[taskId];
   if(!t) return;
   await taskApi.update(project.serverProjectId, taskId, taskToServerBody(t, {columnId: targetColumnId}));
+  return refreshProjectFromServer(project.id);
+}
+
+/* Used by the Timeline view's drag-to-reschedule gesture (views/timeline.js) — same
+   one-field-override-the-rest-carried-over shape as moveTaskToColumnOnServer above, just for the
+   two date fields instead of the column. */
+export async function updateTaskDatesOnServer(project, taskId, startISO, endISO){
+  var t = project.tasks[taskId];
+  if(!t) return;
+  await taskApi.update(project.serverProjectId, taskId, taskToServerBody(t, {
+    startDate: isoToServerDateOnly(startISO), endDate: isoToServerDateOnly(endISO)
+  }));
+  return refreshProjectFromServer(project.id);
+}
+
+/* Server counterpart to mutations.js's local-only updateReleaseDates — releaseApi.update has no
+   partial-update variant (same as taskApi.update), so name/status/ownerId are carried over from
+   the release's own current values rather than reset. */
+export async function updateReleaseDatesOnServer(project, releaseId, startISO, endISO){
+  var release = getReleaseById(project, releaseId);
+  if(!release) return;
+  await releaseApi.update(project.serverProjectId, releaseId, {
+    name: release.name, status: release.status, ownerId: release.ownerId || null,
+    startDate: isoToServerDateOnly(startISO), endDate: isoToServerDateOnly(endISO)
+  });
   return refreshProjectFromServer(project.id);
 }
 

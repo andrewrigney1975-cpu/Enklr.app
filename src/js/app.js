@@ -85,7 +85,10 @@ setDepMapDeps({ toast, openTaskModal });
 setOrgChartDeps({ toast });
 setGovMapDeps({ toast });
 setWorkflowEditorDeps({ toast, confirmDialog });
-setTimelineDeps({ toast, openTaskModal });
+setTimelineDeps({ toast, openTaskModal, confirmDialog, openReleaseEditor: function(releaseId){
+  openReleasesOverlay();
+  showReleasesFormView(releaseId);
+}});
 setCostBenefitDeps({ toast, openTaskModal });
 setBulkEditDeps({ confirmDialog, exportProjectJSON });
 setReleaseCompletionDeps({ renderBoard });
@@ -1686,6 +1689,9 @@ function wireEvents(){
   });
 
   document.getElementById('confirmModalClose').addEventListener('click', closeConfirmDialog);
+  // Always a pure no-op close, same as the X button/outside-click — never has a pending action of
+  // its own to fire (see confirm.js's own doc comment on showIgnore).
+  document.getElementById('confirmIgnoreBtn').addEventListener('click', closeConfirmDialog);
   document.getElementById('confirmCancelBtn').addEventListener('click', function(){
     var cancelAction = getPendingCancelAction();
     closeConfirmDialog();

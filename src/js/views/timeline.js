@@ -4,9 +4,12 @@ import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
 import { iconSvg } from '../icons.js';
-import { utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, memberInitials, clampProgress } from '../date-utils.js';
+import { utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, localDateValueFromDate, memberInitials, clampProgress } from '../date-utils.js';
 import { isTimeTrackingEnabled } from '../storage.js';
 import { NO_RELEASE_GROUP_KEY, getReleaseStatusMeta, normalizeReleaseStatus } from './task-list.js';
+import { updateTaskDates, updateReleaseDates, renameProject } from '../mutations.js';
+import { isServerAuthoritative, updateTaskDatesOnServer, updateReleaseDatesOnServer, updateProjectOnServer } from '../features/migration.js';
+import { renderBoard } from './board.js';
 
 function iconHTML(name, size){ return '<span class="kf-icon">'+iconSvg(name,size)+'</span>'; }
 function buildEl(tag, className, innerHTML){ var el = document.createElement(tag); if(className) el.className = className; if(innerHTML !== undefined) el.innerHTML = innerHTML; return el; }
@@ -15,9 +18,13 @@ var PRIORITY_ORDER = ['trivial','low','medium','high','critical'];
 
 var _toast = function(msg){ console.error(msg); };
 var _openTaskModal = function(){};
+var _confirmDialog = function(title, msg, onConfirm){ if(window.confirm(title + '\n' + msg)) onConfirm(); };
+var _openReleaseEditor = function(){};
 export function setTimelineDeps(deps){
   if(deps.toast) _toast = deps.toast;
   if(deps.openTaskModal) _openTaskModal = deps.openTaskModal;
+  if(deps.confirmDialog) _confirmDialog = deps.confirmDialog;
+  if(deps.openReleaseEditor) _openReleaseEditor = deps.openReleaseEditor;
 }
 
 /* =========================================================
@@ -411,6 +418,16 @@ export function renderTimeline(){
       bar.style.left = left + 'px';
       bar.style.width = barWidth + 'px';
       bar.style.background = prio.accent;
+      // Drag-to-reschedule handles + the bar's own "move" role — inserted first, same reasoning
+      // as the progress marker below: both are absolutely-positioned overlays outside the bar's
+      // flex layout, so appending them before the avatar/key/type-icon flex children keeps the
+      // type icon the last REAL flex child regardless (see that test's own assumption).
+      bar.appendChild(buildEl('span', 'kf-timeline-handle kf-timeline-handle-start', ''));
+      bar.lastChild.setAttribute('data-role', 'resize-start');
+      bar.appendChild(buildEl('span', 'kf-timeline-handle kf-timeline-handle-end', ''));
+      bar.lastChild.setAttribute('data-role', 'resize-end');
+      bar.setAttribute('data-role', 'move');
+      bar.addEventListener('mousedown', onTimelineBarPointerDown);
       if(assignee){
         var barAvatar = buildEl('span', 'kf-avatar kf-avatar-sm', escapeHTML(memberInitials(assignee.name)));
         barAvatar.style.background = assignee.color;
@@ -489,6 +506,12 @@ export function renderTimeline(){
       renderTimeline();
     });
   });
+
+  // Captured once per render for the drag handlers below (module-level, not closed over any
+  // particular row) — same "_timelineLayout" convention modals/portfolio-dashboard.js's own
+  // drag-to-reschedule chart uses, so a mousedown fired well after this render still has the
+  // exact column model that produced the bar positions it's about to drag.
+  _timelineLayout = {columns: columns, totalTrackWidth: totalTrackWidth, nameColWidth: nameColWidth};
 }
 
 /* Release group header row — a hybrid of Task List's own group header (chevron + name + status
@@ -549,6 +572,12 @@ function buildTimelineReleaseGroupHeader(project, groupKey, groupTasks, collapse
       bar.className = 'kf-timeline-bar kf-timeline-bar-release';
       bar.style.left = left + 'px';
       bar.style.width = barWidth + 'px';
+      bar.appendChild(buildEl('span', 'kf-timeline-handle kf-timeline-handle-start', ''));
+      bar.lastChild.setAttribute('data-role', 'resize-start');
+      bar.appendChild(buildEl('span', 'kf-timeline-handle kf-timeline-handle-end', ''));
+      bar.lastChild.setAttribute('data-role', 'resize-end');
+      bar.setAttribute('data-role', 'move');
+      bar.addEventListener('mousedown', onTimelineBarPointerDown);
       bar.appendChild(buildEl('span', 'kf-timeline-bar-key', count + ' task' + (count === 1 ? '' : 's')));
       bar.title = release.name +
         (startD ? ' · Start ' + utcISOToLocalDisplayDate(release.startDate) : '') +
@@ -568,4 +597,282 @@ function buildTimelineReleaseGroupHeader(project, groupKey, groupTasks, collapse
 
   row.appendChild(track);
   return row;
+}
+
+/* =========================================================
+   DRAG-TO-RESCHEDULE — the whole bar body (task or release) grabs to reshuffle both dates at once
+   (duration preserved); the two edge handles resize just one date. Built on the same
+   tlDateToPixel/tlPixelToDate pixel<->date pair modals/portfolio-dashboard.js's own Timeline chart
+   drag already uses, translated from that chart's SVG x/width attributes to this view's plain DOM
+   left/width styles — same math, different rendering model. `_timelineLayout` is captured once per
+   renderTimeline() call (see its own comment above) so a drag started well after the last render
+   still has the exact column model that produced the bar it's dragging.
+
+   A plain click (no real pointer movement) is left alone here: a task bar's own click already
+   bubbles to app.js's existing delegated `#timelineInner` click listener (which opens the Task
+   modal) since dragging never calls stopPropagation/preventDefault on that path; a release bar's
+   click has no such existing listener, so onTimelineDragEnd opens the Release editor directly for
+   that one case. A REAL drag, on the other hand, must NOT also let that ghost "click" fire
+   afterward (browsers still dispatch one, since mousedown and mouseup landed on the same element) —
+   suppressed via a capturing, run-once `click` listener registered the instant a drag actually
+   moves, exactly the standard "swallow the trailing click after a drag" pattern.
+   ========================================================= */
+var _timelineLayout = null;
+var _timelineDrag = null;
+var TIMELINE_DRAG_CLICK_THRESHOLD = 4; // px of real pointer movement before a mousedown counts as a drag, not a click
+var TIMELINE_DRAG_MIN_BAR_WIDTH = 8; // px — purely a live-drag visual floor, not a date constraint
+
+function onTimelineBarPointerDown(e){
+  if(!_timelineLayout) return;
+  var bar = e.currentTarget;
+  var roleEl = e.target.closest ? e.target.closest('[data-role]') : null;
+  var role = roleEl ? roleEl.getAttribute('data-role') : 'move';
+  var project = getCurrentProject();
+  if(!project) return;
+
+  var isRelease = bar.classList.contains('kf-timeline-bar-release');
+  var id, origStartD, origEndD;
+  if(isRelease){
+    var headerRow = bar.closest('.kf-timeline-row.kf-timeline-group-header');
+    if(!headerRow) return;
+    id = headerRow.getAttribute('data-group-key');
+    var release = getReleaseById(project, id);
+    if(!release) return;
+    origStartD = localCalDateFromISO(release.startDate);
+    origEndD = localCalDateFromISO(release.endDate);
+  } else {
+    var row = bar.closest('.kf-timeline-row[data-task-id]');
+    if(!row) return;
+    id = row.getAttribute('data-task-id');
+    var task = project.tasks[id];
+    if(!task) return;
+    origStartD = localCalDateFromISO(task.startDate);
+    origEndD = localCalDateFromISO(task.endDate);
+  }
+  if(!origStartD && !origEndD) return; // nothing dated to drag from (bar wouldn't exist anyway)
+
+  e.preventDefault();
+  var effStartD = origStartD || origEndD;
+  var effEndD = origEndD || origStartD;
+  var columns = _timelineLayout.columns;
+  var origLeft = tlDateToPixel(effStartD, columns);
+  var origRight = tlDateToPixel(tlAddDays(effEndD, 1), columns);
+
+  _timelineDrag = {
+    kind: isRelease ? 'release' : 'task', id: id, role: role,
+    pointerStartClientX: e.clientX, moved: false,
+    origLeft: origLeft, origRight: origRight, liveLeft: origLeft, liveRight: origRight,
+    columns: columns, barEl: bar
+  };
+  document.addEventListener('mousemove', onTimelineDragMove);
+  document.addEventListener('mouseup', onTimelineDragEnd);
+}
+
+function onTimelineDragMove(e){
+  var d = _timelineDrag;
+  if(!d) return;
+  var deltaX = e.clientX - d.pointerStartClientX;
+  if(Math.abs(deltaX) >= TIMELINE_DRAG_CLICK_THRESHOLD) d.moved = true;
+
+  // Deliberately NOT clamped to the visible chart's own [0, totalTrackWidth] pixel bounds — unlike
+  // Portfolio Dashboard's own drag (which has no reason to leave its chart's rendered area), this
+  // gesture's whole conflict-resolution feature (Task past its Release, Release past the Project)
+  // depends on being draggable past whatever's currently rendered. tlPixelToDate/tlDateToPixel
+  // both already extrapolate past the first/last column at that column's own rate (see their own
+  // doc comments), so a bar dragged off the visible grid still converts back to a real, correctly-
+  // extrapolated date on drop — it just temporarily renders outside `.kf-timeline-track`'s own box
+  // (still visible, since neither that element nor its scrolling ancestor clips overflow).
+  var newLeft = d.origLeft, newRight = d.origRight;
+
+  if(d.role === 'move'){
+    var span = d.origRight - d.origLeft;
+    newLeft = d.origLeft + deltaX;
+    newRight = d.origRight + deltaX;
+  } else if(d.role === 'resize-start'){
+    newLeft = d.origLeft + deltaX;
+    if(newLeft > d.origRight - TIMELINE_DRAG_MIN_BAR_WIDTH) newLeft = d.origRight - TIMELINE_DRAG_MIN_BAR_WIDTH;
+  } else if(d.role === 'resize-end'){
+    newRight = d.origRight + deltaX;
+    if(newRight < d.origLeft + TIMELINE_DRAG_MIN_BAR_WIDTH) newRight = d.origLeft + TIMELINE_DRAG_MIN_BAR_WIDTH;
+  }
+
+  d.liveLeft = newLeft;
+  d.liveRight = newRight;
+  d.barEl.style.left = newLeft + 'px';
+  d.barEl.style.width = Math.max(1, newRight - newLeft) + 'px';
+}
+
+function suppressTrailingClick(e){
+  e.stopPropagation();
+  document.removeEventListener('click', suppressTrailingClick, true);
+}
+
+// A drag's start/end pixels round-trip through tlPixelToDate at continuous (fractional-day)
+// precision, but every task/release date in this app is a whole calendar day — snaps both ends to
+// local midnight, then guards the degenerate case a resize can produce (dragging start past end,
+// or vice versa) by pinning the far end to match rather than silently producing an inverted range.
+function snapTimelineDragDates(startD, endD){
+  var s = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
+  var e = new Date(endD.getFullYear(), endD.getMonth(), endD.getDate());
+  if(e.getTime() < s.getTime()) e = new Date(s);
+  return {
+    startISO: localDateValueToUTCISO(localDateValueFromDate(s)),
+    endISO: localDateValueToUTCISO(localDateValueFromDate(e))
+  };
+}
+
+function onTimelineDragEnd(){
+  var d = _timelineDrag;
+  if(!d) return;
+  document.removeEventListener('mousemove', onTimelineDragMove);
+  document.removeEventListener('mouseup', onTimelineDragEnd);
+  _timelineDrag = null;
+
+  if(!d.moved){
+    if(d.kind === 'release') _openReleaseEditor(d.id);
+    // A task bar's own click already opens the Task modal via app.js's existing delegated
+    // #timelineInner click listener — nothing to do here for that case.
+    return;
+  }
+
+  // Registered NOW (only once a real drag is confirmed) so the very next native "click" this
+  // gesture produces never reaches app.js's own click-to-open listener. A real browser dispatches
+  // that trailing click synchronously, in this same tick — but as a safety net against whatever
+  // gesture DOESN'T produce one (the mouse leaving the window, focus changing mid-drag, or simply
+  // this codebase's own tests, which drive mouse events individually rather than through a real
+  // browser's click-synthesis), a macrotask fallback clears it shortly after either way, so a
+  // once-armed suppressor can never leak into swallowing some later, unrelated click.
+  document.addEventListener('click', suppressTrailingClick, true);
+  setTimeout(function(){ document.removeEventListener('click', suppressTrailingClick, true); }, 0);
+
+  var snapped = snapTimelineDragDates(tlPixelToDate(d.liveLeft, d.columns), tlAddDays(tlPixelToDate(d.liveRight, d.columns), -1));
+  if(d.kind === 'task') applyTaskDragResult(d.id, snapped.startISO, snapped.endISO);
+  else applyReleaseDragResult(d.id, snapped.startISO, snapped.endISO);
+}
+
+// ---- persistence (local vs. server-authoritative) --------------------------------------------
+
+function saveTaskDatesAnywhere(project, taskId, startISO, endISO){
+  if(isServerAuthoritative(project)) return updateTaskDatesOnServer(project, taskId, startISO, endISO);
+  updateTaskDates(project, taskId, startISO, endISO);
+  return Promise.resolve();
+}
+function saveReleaseDatesAnywhere(project, releaseId, startISO, endISO){
+  if(isServerAuthoritative(project)) return updateReleaseDatesOnServer(project, releaseId, startISO, endISO);
+  updateReleaseDates(project, releaseId, startISO, endISO);
+  return Promise.resolve();
+}
+function saveProjectDatesAnywhere(project, startISO, endISO){
+  if(isServerAuthoritative(project)) return updateProjectOnServer(project, project.name, project.key, startISO, endISO, project.description);
+  renameProject(project.id, project.name, project.key, startISO, endISO, project.description);
+  return Promise.resolve();
+}
+
+// Every drag-drop write ends here — re-renders the Timeline either way (a failed server write still
+// needs the bar snapped back to whatever the last confirmed state actually is), plus the Board,
+// since the same task/release now has different dates there too.
+function finishTimelineDragSave(promise){
+  promise.then(function(){
+    renderTimeline();
+    renderBoard();
+  }, function(err){
+    _toast('Could not update dates' + (err && err.message ? ': ' + err.message : '.'));
+    renderTimeline();
+  });
+}
+
+// ---- cross-entity date-range helpers -----------------------------------------------------------
+
+function rangeIsOutside(startISO, endISO, boundStartISO, boundEndISO){
+  if(!boundStartISO && !boundEndISO) return false;
+  if(boundStartISO && new Date(startISO).getTime() < new Date(boundStartISO).getTime()) return true;
+  if(boundEndISO && new Date(endISO).getTime() > new Date(boundEndISO).getTime()) return true;
+  return false;
+}
+function earlierISO(a, b){
+  if(!a) return b; if(!b) return a;
+  return new Date(a).getTime() <= new Date(b).getTime() ? a : b;
+}
+function laterISO(a, b){
+  if(!a) return b; if(!b) return a;
+  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+}
+function clampISOToRange(startISO, endISO, boundStartISO, boundEndISO){
+  var s = startISO, e = endISO;
+  if(boundStartISO && new Date(s).getTime() < new Date(boundStartISO).getTime()) s = boundStartISO;
+  if(boundEndISO && new Date(e).getTime() > new Date(boundEndISO).getTime()) e = boundEndISO;
+  if(new Date(e).getTime() < new Date(s).getTime()) e = s;
+  return {startISO: s, endISO: e};
+}
+function timelineRangeText(startISO, endISO){
+  return (startISO ? utcISOToLocalDisplayDate(startISO) : '—') + ' – ' + (endISO ? utcISOToLocalDisplayDate(endISO) : '—');
+}
+
+// ---- drop handlers: apply the new dates, resolving a Task<->Release or Release<->Project conflict
+
+function applyTaskDragResult(taskId, startISO, endISO){
+  var project = getCurrentProject();
+  if(!project) return;
+  var t = project.tasks[taskId];
+  if(!t) return;
+  var release = t.releaseId ? getReleaseById(project, t.releaseId) : null;
+
+  if(release && rangeIsOutside(startISO, endISO, release.startDate, release.endDate)){
+    var expandedStart = earlierISO(release.startDate, startISO);
+    var expandedEnd = laterISO(release.endDate, endISO);
+    _confirmDialog(
+      'Task now falls outside its Release',
+      '"' + t.key + '" is now scheduled ' + timelineRangeText(startISO, endISO) + ', outside Release "' +
+        release.name + '"\'s own dates (' + timelineRangeText(release.startDate, release.endDate) + '). ' +
+        'Click Confirm to expand the Release to cover the Task\'s new dates, Cancel to fit the Task back within the Release\'s dates, or Ignore to leave the drag unsaved.',
+      function(){
+        finishTimelineDragSave(
+          saveTaskDatesAnywhere(project, taskId, startISO, endISO).then(function(){
+            return saveReleaseDatesAnywhere(getCurrentProject(), release.id, expandedStart, expandedEnd);
+          })
+        );
+      },
+      function(){
+        var clamped = clampISOToRange(startISO, endISO, release.startDate, release.endDate);
+        finishTimelineDragSave(saveTaskDatesAnywhere(project, taskId, clamped.startISO, clamped.endISO));
+      },
+      true
+    );
+    return;
+  }
+
+  finishTimelineDragSave(saveTaskDatesAnywhere(project, taskId, startISO, endISO));
+}
+
+function applyReleaseDragResult(releaseId, startISO, endISO){
+  var project = getCurrentProject();
+  if(!project) return;
+  var release = getReleaseById(project, releaseId);
+  if(!release) return;
+
+  if(rangeIsOutside(startISO, endISO, project.startDate, project.endDate)){
+    var expandedStart = earlierISO(project.startDate, startISO);
+    var expandedEnd = laterISO(project.endDate, endISO);
+    _confirmDialog(
+      'Release now falls outside the Project dates',
+      '"' + release.name + '" is now scheduled ' + timelineRangeText(startISO, endISO) + ', outside the Project\'s own dates (' +
+        timelineRangeText(project.startDate, project.endDate) + '). ' +
+        'Click Confirm to expand the Project\'s dates to cover the Release, Cancel to fit the Release back within the Project\'s dates, or Ignore to leave the drag unsaved.',
+      function(){
+        finishTimelineDragSave(
+          saveReleaseDatesAnywhere(project, releaseId, startISO, endISO).then(function(){
+            return saveProjectDatesAnywhere(getCurrentProject(), expandedStart, expandedEnd);
+          })
+        );
+      },
+      function(){
+        var clamped = clampISOToRange(startISO, endISO, project.startDate, project.endDate);
+        finishTimelineDragSave(saveReleaseDatesAnywhere(project, releaseId, clamped.startISO, clamped.endISO));
+      },
+      true
+    );
+    return;
+  }
+
+  finishTimelineDragSave(saveReleaseDatesAnywhere(project, releaseId, startISO, endISO));
 }

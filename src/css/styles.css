@@ -2832,6 +2832,10 @@
     display: none;
   }
 
+  #confirmIgnoreBtn.hidden {
+    display: none;
+  }
+
   #projectQueryCopyJsonBtn.hidden {
     display: none;
   }
@@ -7833,7 +7837,7 @@
     top: 8px;
     height: 24px;
     border-radius: 4px;
-    cursor: pointer;
+    cursor: grab;
     display: flex;
     align-items: center;
     gap: 5px;
@@ -7844,6 +7848,42 @@
     white-space: nowrap;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+    user-select: none;
+  }
+
+  .kf-timeline-bar:active {
+    cursor: grabbing;
+  }
+
+  /* Drag-to-reschedule edge handles (views/timeline.js's onTimelineBarPointerDown) — transparent
+     at rest, revealed on row hover, same convention as the Portfolio Dashboard Timeline chart's own
+     .kf-portfolio-timeline-handle (a row with many short bars shouldn't look permanently cluttered
+     with grab handles). Absolutely positioned within the bar (which is itself position:absolute),
+     so they don't participate in its flex layout at all — same non-interference as the progress
+     marker below. */
+  .kf-timeline-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: ew-resize;
+    background: rgba(255, 255, 255, .85);
+    opacity: 0;
+    transition: opacity .1s ease;
+  }
+
+  .kf-timeline-handle-start {
+    left: 0;
+    border-radius: 4px 0 0 4px;
+  }
+
+  .kf-timeline-handle-end {
+    right: 0;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .kf-timeline-row:hover .kf-timeline-handle {
+    opacity: 0.85;
   }
 
   .kf-timeline-bar .kf-avatar {

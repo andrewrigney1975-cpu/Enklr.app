@@ -409,6 +409,20 @@ export function updateRelease(project, releaseId, data){
   release.dateLastModified = new Date().toISOString();
   saveDB();
 }
+/* Local-only counterpart to features/migration.js's updateReleaseDatesOnServer — used by the
+   Timeline view's drag-to-reschedule gesture (views/timeline.js). Only the two date fields
+   change; name/status/owner are carried over from the release's own current values rather than
+   reset, since updateRelease's own data contract requires all of them (a bare {startDate, endDate}
+   call would otherwise silently reset status to "pending" via normalizeReleaseStatus's own
+   undefined-input fallback). */
+export function updateReleaseDates(project, releaseId, startISO, endISO){
+  var release = getReleaseById(project, releaseId);
+  if(!release) return;
+  updateRelease(project, releaseId, {
+    name: release.name, status: release.status, ownerId: release.ownerId,
+    startDate: startISO || null, endDate: endISO || null
+  });
+}
 export function deleteRelease(project, releaseId){
   var release = getReleaseById(project, releaseId);
   if(!release) return 0;
@@ -1563,6 +1577,19 @@ export function updateTask(project, taskId, data){
   return blocked;
 }
 
+/* Local-only counterpart to features/migration.js's updateTaskDatesOnServer — used by the
+   Timeline view's drag-to-reschedule gesture (views/timeline.js). Only the two date fields
+   change; every other field on the task is left exactly as-is. Mirrors the same per-field
+   diff+audit shape as features/bulk-edit.js's applyBulkEdits' own startDate/endDate branches. */
+export function updateTaskDates(project, taskId, startISO, endISO){
+  var t = project.tasks[taskId];
+  if(!t) return;
+  var newStart = startISO || null, newEnd = endISO || null;
+  if(newStart !== t.startDate){ pushTaskAuditEntry(project, t, 'startDate', t.startDate, newStart); t.startDate = newStart; }
+  if(newEnd !== t.endDate){ pushTaskAuditEntry(project, t, 'endDate', t.endDate, newEnd); t.endDate = newEnd; }
+  t.dateLastModified = new Date().toISOString();
+  saveDB();
+}
 export function deleteTask(project, taskId){
   delete project.tasks[taskId];
   project.columns.forEach(function(c){ c.order = c.order.filter(function(id){ return id !== taskId; }); });
