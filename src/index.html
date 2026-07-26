@@ -1463,6 +1463,68 @@
   </div>
 </div>
 
+<!-- Dashboard Widget Add/Edit form -->
+<div class="kf-overlay hidden" id="dashboardWidgetFormOverlay">
+  <div class="kf-modal" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="dashboardWidgetFormTitle">Add Widget</h2>
+      <button class="kf-btn kf-btn-ghost" id="dashboardWidgetFormClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="dashboardWidgetTitleInput">Title</label>
+        <input type="text" id="dashboardWidgetTitleInput" maxlength="120" placeholder="e.g. Open Tasks by Priority">
+      </div>
+      <div class="kf-field-row">
+        <div class="kf-field">
+          <label for="dashboardWidgetTypeSelect">Widget type</label>
+          <select id="dashboardWidgetTypeSelect">
+            <option value="table">Data Table</option>
+            <option value="gauge">Gauge</option>
+            <option value="barGauge">Bar Gauge</option>
+            <option value="chart">Chart</option>
+            <option value="costBenefit">Cost/Benefit Chart</option>
+            <option value="timeline">Timeline</option>
+            <option value="text">Text</option>
+          </select>
+        </div>
+        <div class="kf-field">
+          <label for="dashboardWidgetWidthSelect">Width</label>
+          <select id="dashboardWidgetWidthSelect">
+            <option value="third">1/3</option>
+            <option value="half">1/2</option>
+            <option value="full" selected>Full</option>
+          </select>
+        </div>
+      </div>
+      <div class="kf-field" id="dashboardWidgetSavedQueryField">
+        <label for="dashboardWidgetSavedQuerySelect">Saved Query</label>
+        <select id="dashboardWidgetSavedQuerySelect"></select>
+      </div>
+      <div id="dashboardWidgetConfigFields"></div>
+      <div class="kf-field hidden" id="dashboardWidgetTextField">
+        <label for="dashboardWidgetTextEditor">Text</label>
+        <div class="kf-richtext-toolbar" id="dashboardWidgetTextToolbar">
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h1" title="Heading 1">H1</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h2" title="Heading 2">H2</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h3" title="Heading 3">H3</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="ul" title="Bullet list">&bull;</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="ol" title="Numbered list">1.</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="quote" title="Blockquote">&rdquo;</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="link" title="Link"><span class="kf-icon" data-icon="link" data-size="14"></span></button>
+        </div>
+        <div class="kf-richtext-editor" id="dashboardWidgetTextEditor" contenteditable="true" data-placeholder="Write the text for this widget..."></div>
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-primary" id="dashboardWidgetFormSaveBtn">Save</button>
+      <button class="kf-btn kf-btn-ghost" id="dashboardWidgetFormCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Releases Modal -->
 <div class="kf-overlay hidden" id="releasesOverlay">
   <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">

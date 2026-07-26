@@ -54,7 +54,7 @@ import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromMo
 import { openTodoOverlay, closeTodoOverlay, isTodoOverlayOpen, addTodoListFromModal } from './modals/todo.js';
 import { openTaskTypesModal, closeTaskTypesModal, addTaskTypeFromModal } from './modals/task-types.js';
 import { openReleasesOverlay, closeReleasesOverlay, isReleasesOverlayOpen, showReleasesFormView, showReleasesListView, saveReleaseFromModal, deleteReleaseFromModal, generateReleaseNotesFromModal, getCurrentReleaseNotesDraft } from './modals/releases.js';
-import { openDashboardsPickerOverlay, closeDashboardsPickerOverlay, isDashboardsPickerOverlayOpen, setDashboardsPickerScope, showDashboardCreateForm, hideDashboardForm, saveDashboardFromForm, closeDashboardViewerOverlay, isDashboardViewerOverlayOpen, backToDashboardsPickerFromViewer, toggleDashboardEditMode, renameDashboardFromViewer, deleteDashboardFromViewer } from './modals/dashboards.js';
+import { openDashboardsPickerOverlay, closeDashboardsPickerOverlay, isDashboardsPickerOverlayOpen, setDashboardsPickerScope, showDashboardCreateForm, hideDashboardForm, saveDashboardFromForm, closeDashboardViewerOverlay, isDashboardViewerOverlayOpen, backToDashboardsPickerFromViewer, toggleDashboardEditMode, renameDashboardFromViewer, deleteDashboardFromViewer, openWidgetForm, closeWidgetForm, onDashboardWidgetTypeChanged, saveWidgetForm, printDashboardFromViewer } from './modals/dashboards.js';
 import { openRetrospectivesOverlay, closeRetrospectivesOverlay, isRetrospectivesOverlayOpen, showRetrospectivesFormView, showRetrospectivesListView, saveRetrospectiveFromModal, deleteRetrospectiveFromModal, toggleRetroHowItWorks, cancelRetroPromoteFromModal, saveRetroPromoteFromModal, addRetroActionItemFromInputs } from './modals/retrospectives.js';
 import { openDocumentsOverlay, closeDocumentsOverlay, isDocumentsOverlayOpen, showDocumentsFormView, showDocumentsListView, renderDocumentsList, saveDocumentFromModal, deleteDocumentFromModal, updateDocUrlOpenButtonVisibilityFor, openUrlInputInNewTab } from './modals/documents.js';
 import { scheduleDocumentSuggestions } from './features/document-suggestions.js';
@@ -172,6 +172,15 @@ function wireEvents(){
   document.getElementById('dashboardViewerDoneEditingBtn').addEventListener('click', toggleDashboardEditMode);
   document.getElementById('dashboardViewerRenameBtn').addEventListener('click', renameDashboardFromViewer);
   document.getElementById('dashboardViewerDeleteBtn').addEventListener('click', deleteDashboardFromViewer);
+  document.getElementById('dashboardViewerAddWidgetBtn').addEventListener('click', function(){ openWidgetForm(null); });
+  document.getElementById('dashboardViewerPrintBtn').addEventListener('click', printDashboardFromViewer);
+  document.getElementById('dashboardWidgetFormClose').addEventListener('click', closeWidgetForm);
+  document.getElementById('dashboardWidgetFormCancelBtn').addEventListener('click', closeWidgetForm);
+  document.getElementById('dashboardWidgetFormOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'dashboardWidgetFormOverlay') closeWidgetForm();
+  });
+  document.getElementById('dashboardWidgetTypeSelect').addEventListener('change', onDashboardWidgetTypeChanged);
+  document.getElementById('dashboardWidgetFormSaveBtn').addEventListener('click', saveWidgetForm);
 
   document.getElementById('projectSelect').addEventListener('change', function(e){
     state.db.currentProjectId = e.target.value;

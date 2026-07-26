@@ -6,6 +6,30 @@ import { isServerAuthoritative } from '../features/migration.js';
 import { isOrgAdmin, dashboardApi, orgDashboardApi } from '../api.js';
 import { utcISOToLocalDisplayDate } from '../date-utils.js';
 import { confirmDialog } from './confirm.js';
+import { renderDashboardWidget, resetDashboardTableWidgetState } from '../features/dashboard-widgets.js';
+import { createRichTextEditor } from '../rich-text/editor.js';
+
+/* Print reuses features/reports.js's own #reportOverlay/print-CSS machinery (root CLAUDE.md's own
+   "any new long, printable, read-only content is another consumer, not a reason to stand up a
+   second overlay" precedent) — every widget is re-rendered once more in its read-only shape (no
+   sort/filter headers, no CSV button, no edit controls) and concatenated into one document. */
+export function printDashboardFromViewer(){
+  var project = getCurrentProject();
+  var d = viewerDashboard;
+  if(!d) return;
+  var widgets = (d.widgets || []).slice().sort(function(a, b){ return a.sortOrder - b.sortOrder; });
+  document.getElementById('reportTitle').textContent = project.name + ' - ' + d.name;
+  document.getElementById('reportBody').innerHTML = widgets.length
+    ? widgets.map(function(w){
+        var rendered = renderDashboardWidget(w, project, {readOnly: true, canExport: false});
+        return '<div class="kf-dashboard-print-widget">' +
+          '<h3 class="kf-report-item-title">' + escapeHTML(w.title) + '</h3>' +
+          rendered.html +
+        '</div>';
+      }).join('')
+    : '<div class="kf-health-empty">No widgets yet.</div>';
+  document.getElementById('reportOverlay').classList.remove('hidden');
+}
 
 var _toast = toast;
 
@@ -175,6 +199,7 @@ export function closeDashboardViewerOverlay(){
   document.getElementById('dashboardViewerOverlay').classList.add('hidden');
   viewerDashboard = null;
   viewerEditMode = false;
+  resetDashboardTableWidgetState();
 }
 export function isDashboardViewerOverlayOpen(){
   return !document.getElementById('dashboardViewerOverlay').classList.contains('hidden');
@@ -221,48 +246,101 @@ function renderDashboardViewer(){
   renderDashboardViewerGrid();
 }
 
+function sortedWidgets(){
+  return (viewerDashboard.widgets || []).slice().sort(function(a, b){ return a.sortOrder - b.sortOrder; });
+}
+
 function renderDashboardViewerGrid(){
   var grid = document.getElementById('dashboardViewerGrid');
-  var widgets = (viewerDashboard.widgets || []).slice().sort(function(a, b){ return a.sortOrder - b.sortOrder; });
+  var widgets = sortedWidgets();
+  var editMode = viewerEditMode && canEditThisDashboard();
+  var project = getCurrentProject();
 
   if(widgets.length === 0){
     grid.innerHTML = '<div class="kf-dashboard-tile-empty">No widgets yet' +
-      (viewerEditMode ? ' — click "Add Widget" to build this dashboard out.' : '.') + '</div>';
+      (editMode ? ' — click "Add Widget" to build this dashboard out.' : '.') + '</div>';
     return;
   }
 
-  grid.innerHTML = widgets.map(function(w){
+  grid.innerHTML = widgets.map(function(w, i){
     var widthClass = w.width === 'third' ? ' kf-dashboard-widget-third' : (w.width === 'half' ? ' kf-dashboard-widget-half' : '');
+    var rendered = renderDashboardWidget(w, project, {readOnly: !editMode, canExport: canCurrentUserManageProject()});
     return '<div class="kf-dashboard-widget' + widthClass + '" data-widget-id="' + w.id + '">' +
       '<div class="kf-dashboard-widget-header">' +
         '<span class="kf-dashboard-widget-title">' + escapeHTML(w.title) + '</span>' +
-        (viewerEditMode ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-remove-widget="' + w.id + '" title="Remove widget"><span class="kf-icon">' +
+        (editMode ? '<div class="kf-dashboard-widget-actions">' +
+          (i > 0 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-up="' + w.id + '" title="Move up"><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(90deg);"></span></button>' : '') +
+          (i < widgets.length - 1 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-down="' + w.id + '" title="Move down"><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(-90deg);"></span></button>' : '') +
+          '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-edit-widget="' + w.id + '" title="Configure widget"><span class="kf-icon" data-icon="edit" data-size="14"></span></button>' +
+          '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-remove-widget="' + w.id + '" title="Remove widget"><span class="kf-icon">' +
           '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>' +
-          '</span></button>' : '') +
+          '</span></button></div>' : '') +
       '</div>' +
-      '<div class="kf-dashboard-widget-body">' + renderWidgetPlaceholder(w) + '</div>' +
+      '<div class="kf-dashboard-widget-body">' + rendered.html + '</div>' +
       '</div>';
   }).join('');
 
-  if(viewerEditMode){
+  widgets.forEach(function(w){
+    var rendered = renderDashboardWidget(w, project, {readOnly: !editMode, canExport: canCurrentUserManageProject()});
+    if(rendered.wire) rendered.wire(grid, renderDashboardViewerGrid);
+  });
+
+  if(editMode){
     grid.querySelectorAll('[data-remove-widget]').forEach(function(btn){
       btn.addEventListener('click', function(e){
         e.stopPropagation();
         removeDashboardWidget(btn.getAttribute('data-remove-widget'));
       });
     });
+    grid.querySelectorAll('[data-edit-widget]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        openWidgetForm(btn.getAttribute('data-edit-widget'));
+      });
+    });
+    grid.querySelectorAll('[data-move-widget-up]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        moveWidget(btn.getAttribute('data-move-widget-up'), -1);
+      });
+    });
+    grid.querySelectorAll('[data-move-widget-down]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        moveWidget(btn.getAttribute('data-move-widget-down'), 1);
+      });
+    });
   }
 }
 
-/* Placeholder body for every widget type until Phases 4-7 add the real per-type renderers
-   (table/text first, then gauge/barGauge, then costBenefit/timeline, then chart). Deliberately
-   honest about what it is rather than pretending to be a finished visualization. */
-function renderWidgetPlaceholder(widget){
-  var typeLabel = {
-    table: 'Data Table', gauge: 'Gauge', barGauge: 'Bar Gauge', chart: 'Chart',
-    costBenefit: 'Cost/Benefit Chart', timeline: 'Timeline', text: 'Text'
-  }[widget.widgetType] || widget.widgetType;
-  return '<div class="kf-dashboard-tile-empty">' + escapeHTML(typeLabel) + ' — rendering coming soon</div>';
+/* Swaps the moved widget's sortOrder with its neighbor's and persists both — simplest possible
+   reorder for this feature's deliberately-structured (not drag-to-any-position) layout editor. */
+function moveWidget(widgetId, direction){
+  var widgets = sortedWidgets();
+  var idx = widgets.findIndex(function(w){ return w.id === widgetId; });
+  var otherIdx = idx + direction;
+  if(idx < 0 || otherIdx < 0 || otherIdx >= widgets.length) return;
+  var a = widgets[idx], b = widgets[otherIdx];
+  var aSortOrder = a.sortOrder, bSortOrder = b.sortOrder; // captured before either request fires, so neither body ever reads a value the other request already overwrote
+  var project = getCurrentProject();
+  Promise.all([
+    dashboardApi.updateWidget(project.serverProjectId, viewerDashboard.id, a.id, widgetToBody(a, bSortOrder)),
+    dashboardApi.updateWidget(project.serverProjectId, viewerDashboard.id, b.id, widgetToBody(b, aSortOrder))
+  ]).then(function(){
+    return dashboardApi.get(viewerProjectId, viewerDashboard.id);
+  }).then(function(dashboard){
+    viewerDashboard = dashboard;
+    renderDashboardViewerGrid();
+  }, function(e){
+    _toast('Could not reorder widgets: ' + (e.message || 'unknown error'));
+  });
+}
+
+function widgetToBody(w, sortOrder){
+  return {
+    widgetType: w.widgetType, title: w.title, savedQueryId: w.savedQueryId || null,
+    width: w.width, sortOrder: sortOrder, configJson: w.configJson || null
+  };
 }
 
 function removeDashboardWidget(widgetId){
@@ -304,4 +382,164 @@ export function deleteDashboardFromViewer(){
       });
     }
   );
+}
+
+/* =========================================================
+   WIDGET ADD/EDIT FORM — structured, not free-form: Title/Type/Width/Saved Query, plus a small set
+   of type-specific config fields (column-name text inputs, no live query preview — matches the
+   plan's own "server-unvalidated blob, frontend owns interpreting it" design). Text widgets skip the
+   Saved Query field entirely and get a rich-text editor instead of ConfigJson fields.
+   ========================================================= */
+
+// Widget being edited, or null when the form is creating a brand-new widget.
+var widgetFormEditingId = null;
+var widgetTextEditor = null;
+
+function getWidgetTextEditor(){
+  if(!widgetTextEditor){
+    widgetTextEditor = createRichTextEditor(document.getElementById('dashboardWidgetTextEditor'), document.getElementById('dashboardWidgetTextToolbar'), {maxLength: 8000});
+  }
+  return widgetTextEditor;
+}
+
+// type -> array of {key, label, type: 'text'|'number'|'select', options, placeholder, defaultValue}
+var CONFIG_FIELD_DEFS = {
+  table: [],
+  text: [],
+  costBenefit: [],
+  gauge: [
+    {key: 'valueColumn', label: 'Value column (0-100, from the first result row)', type: 'text', placeholder: 'e.g. pct'},
+    {key: 'maxValue', label: 'Max value', type: 'number', defaultValue: 100}
+  ],
+  barGauge: [
+    {key: 'valueColumn', label: 'Value column (from the first result row)', type: 'text', placeholder: 'e.g. count'},
+    {key: 'maxValue', label: 'Max value', type: 'number', defaultValue: 100},
+    {key: 'orientation', label: 'Orientation', type: 'select', options: [{value: 'horizontal', label: 'Horizontal'}, {value: 'vertical', label: 'Vertical'}], defaultValue: 'horizontal'}
+  ],
+  chart: [
+    {key: 'chartType', label: 'Chart type', type: 'select', options: [{value: 'bar', label: 'Bar'}, {value: 'line', label: 'Line'}, {value: 'pie', label: 'Pie'}, {value: 'donut', label: 'Donut'}], defaultValue: 'bar'},
+    {key: 'categoryColumn', label: 'Category column', type: 'text', placeholder: 'e.g. priority'},
+    {key: 'valueColumn', label: 'Value column', type: 'text', placeholder: 'e.g. count'}
+  ],
+  timeline: [
+    {key: 'labelColumn', label: 'Label column', type: 'text', placeholder: 'e.g. title'},
+    {key: 'startColumn', label: 'Start date column', type: 'text', placeholder: 'e.g. startDate'},
+    {key: 'endColumn', label: 'End date column', type: 'text', placeholder: 'e.g. endDate'}
+  ]
+};
+
+function renderConfigFields(type, config){
+  var defs = CONFIG_FIELD_DEFS[type] || [];
+  var container = document.getElementById('dashboardWidgetConfigFields');
+  if(defs.length === 0){
+    container.innerHTML = type === 'costBenefit'
+      ? '<div class="kf-dashboard-tile-empty">Expects the query to return businessValue, taskCost, priority, key, and title columns.</div>'
+      : '';
+    return;
+  }
+  container.innerHTML = defs.map(function(def){
+    var value = config[def.key] != null ? config[def.key] : (def.defaultValue != null ? def.defaultValue : '');
+    if(def.type === 'select'){
+      return '<div class="kf-field"><label>' + escapeHTML(def.label) + '</label><select data-config-key="' + def.key + '">' +
+        def.options.map(function(o){ return '<option value="' + o.value + '"' + (o.value === value ? ' selected' : '') + '>' + escapeHTML(o.label) + '</option>'; }).join('') +
+        '</select></div>';
+    }
+    return '<div class="kf-field"><label>' + escapeHTML(def.label) + '</label><input type="' + (def.type === 'number' ? 'number' : 'text') + '" data-config-key="' + def.key + '"' +
+      (def.placeholder ? ' placeholder="' + escapeHTML(def.placeholder) + '"' : '') + ' value="' + escapeHTML(String(value)) + '"></div>';
+  }).join('');
+}
+
+function readConfigFieldsIntoObject(type){
+  var defs = CONFIG_FIELD_DEFS[type] || [];
+  var config = {};
+  defs.forEach(function(def){
+    var el = document.querySelector('#dashboardWidgetConfigFields [data-config-key="' + def.key + '"]');
+    if(!el) return;
+    config[def.key] = def.type === 'number' ? Number(el.value) : el.value;
+  });
+  return config;
+}
+
+function updateWidgetFormFieldsForType(type, config){
+  document.getElementById('dashboardWidgetSavedQueryField').classList.toggle('hidden', type === 'text');
+  document.getElementById('dashboardWidgetTextField').classList.toggle('hidden', type !== 'text');
+  document.getElementById('dashboardWidgetConfigFields').classList.toggle('hidden', type === 'text');
+  renderConfigFields(type, config || {});
+  if(type === 'text') getWidgetTextEditor().setMarkdown((config && config.markdown) || '');
+}
+
+function populateSavedQuerySelect(selectedId){
+  var project = getCurrentProject();
+  var select = document.getElementById('dashboardWidgetSavedQuerySelect');
+  var queries = (project && project.savedQueries) || [];
+  if(queries.length === 0){
+    select.innerHTML = '<option value="">No saved queries yet — create one in Advanced Query first</option>';
+    return;
+  }
+  select.innerHTML = queries.map(function(q){
+    return '<option value="' + q.id + '"' + (q.id === selectedId ? ' selected' : '') + '>' + escapeHTML(q.name) + '</option>';
+  }).join('');
+}
+
+export function openWidgetForm(widgetId){
+  widgetFormEditingId = widgetId || null;
+  var widget = widgetId ? (viewerDashboard.widgets || []).find(function(w){ return w.id === widgetId; }) : null;
+  var config = widget ? parseWidgetConfigJson(widget.configJson) : {};
+
+  document.getElementById('dashboardWidgetFormTitle').textContent = widget ? 'Edit Widget' : 'Add Widget';
+  document.getElementById('dashboardWidgetTitleInput').value = widget ? widget.title : '';
+  document.getElementById('dashboardWidgetTypeSelect').value = widget ? widget.widgetType : 'table';
+  document.getElementById('dashboardWidgetTypeSelect').disabled = !!widget; // changing type on an existing widget would orphan its config shape — delete + re-add instead
+  document.getElementById('dashboardWidgetWidthSelect').value = widget ? widget.width : 'full';
+
+  populateSavedQuerySelect(widget ? widget.savedQueryId : null);
+  updateWidgetFormFieldsForType(widget ? widget.widgetType : 'table', config);
+
+  document.getElementById('dashboardWidgetFormOverlay').classList.remove('hidden');
+}
+export function closeWidgetForm(){
+  document.getElementById('dashboardWidgetFormOverlay').classList.add('hidden');
+  widgetFormEditingId = null;
+}
+export function onDashboardWidgetTypeChanged(){
+  updateWidgetFormFieldsForType(document.getElementById('dashboardWidgetTypeSelect').value, {});
+}
+
+function parseWidgetConfigJson(configJson){
+  if(!configJson) return {};
+  try { var c = JSON.parse(configJson); return (c && typeof c === 'object') ? c : {}; }
+  catch(e){ return {}; }
+}
+
+export function saveWidgetForm(){
+  var title = document.getElementById('dashboardWidgetTitleInput').value.trim();
+  if(!title){ _toast('Please enter a title.'); return; }
+  var type = document.getElementById('dashboardWidgetTypeSelect').value;
+  var width = document.getElementById('dashboardWidgetWidthSelect').value;
+  var savedQueryId = type === 'text' ? null : (document.getElementById('dashboardWidgetSavedQuerySelect').value || null);
+  if(type !== 'text' && !savedQueryId){ _toast('Please choose a Saved Query.'); return; }
+
+  var config = type === 'text' ? {markdown: getWidgetTextEditor().getMarkdown()} : readConfigFieldsIntoObject(type);
+  var project = getCurrentProject();
+  var existingWidgets = viewerDashboard.widgets || [];
+  var body = {
+    widgetType: type, title: title, savedQueryId: savedQueryId, width: width,
+    sortOrder: widgetFormEditingId ? existingWidgets.find(function(w){ return w.id === widgetFormEditingId; }).sortOrder : existingWidgets.length,
+    configJson: JSON.stringify(config)
+  };
+
+  var request = widgetFormEditingId
+    ? dashboardApi.updateWidget(project.serverProjectId, viewerDashboard.id, widgetFormEditingId, body)
+    : dashboardApi.createWidget(project.serverProjectId, viewerDashboard.id, body);
+
+  request.then(function(){
+    closeWidgetForm();
+    return dashboardApi.get(viewerProjectId, viewerDashboard.id);
+  }).then(function(dashboard){
+    viewerDashboard = dashboard;
+    renderDashboardViewerGrid();
+    _toast(widgetFormEditingId ? 'Widget updated.' : 'Widget added.');
+  }, function(e){
+    _toast('Could not save widget: ' + (e.message || 'unknown error'));
+  });
 }

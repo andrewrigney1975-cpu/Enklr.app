@@ -60,7 +60,7 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   const settingsRows = Array.from(doc.querySelectorAll('#appSettingsOverlay .kf-setting-row'));
   const rowIds = settingsRows.map(r => r.querySelector('input')).filter(Boolean).map(input => input.id);
   log('App Settings order matches the current header button order (Health Dashboard first, then the rest of App Settings’ own categorized order)',
-      rowIds.join(',') === 'settingsShowHealthBtn,settingsShowDocumentsBtn,settingsShowWorkflowBtn,settingsShowTimeTrackingBtn,settingsShowSubTasksBtn,settingsShowChangeAuditingBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowRetrospectiveBtn,settingsShowStrategyBtn,settingsShowTeamsCommitteesBtn',
+      rowIds.join(',') === 'settingsShowHealthBtn,settingsShowDocumentsBtn,settingsShowWorkflowBtn,settingsShowTimeTrackingBtn,settingsShowSubTasksBtn,settingsShowChangeAuditingBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowRetrospectiveBtn,settingsShowStrategyBtn,settingsShowDashboardsBtn,settingsShowTeamsCommitteesBtn',
       rowIds.join(','));
 
   console.log('\nHealth button rename/reposition/icon test complete.');

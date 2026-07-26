@@ -2977,6 +2977,92 @@
     color: var(--kf-text-faint);
   }
 
+  .kf-dashboard-widget-actions {
+    display: flex;
+    gap: 2px;
+  }
+
+  /* Data Table widget — plain CSS-grid rows, same idiom as the Release "Tasks in this Release"
+     table (root CLAUDE.md's own "div-based grid rows, not a native <table>" convention). */
+  .kf-dashboard-table-wrap {
+    position: relative;
+  }
+
+  .kf-dashboard-table-export-btn {
+    float: right;
+    margin-bottom: 6px;
+  }
+
+  .kf-dashboard-table {
+    display: grid;
+    font-size: 12px;
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius-sm, 4px);
+    overflow: hidden;
+  }
+
+  .kf-dashboard-table-th {
+    padding: 6px 8px;
+    font-weight: 600;
+    background: var(--kf-column-bg);
+    border-bottom: 1px solid var(--kf-border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kf-dashboard-table-th-sortable {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .kf-dashboard-table-th-sortable:hover {
+    color: var(--kf-accent);
+  }
+
+  .kf-dashboard-table-filter-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 11px;
+    padding: 3px 6px;
+    border: 1px solid var(--kf-border);
+    border-radius: 3px;
+    background: var(--kf-surface);
+    color: var(--kf-text);
+  }
+
+  .kf-dashboard-table-td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--kf-border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kf-dashboard-table-row {
+    display: contents;
+  }
+
+  .kf-dashboard-table-row:last-child .kf-dashboard-table-td {
+    border-bottom: none;
+  }
+
+  .kf-dashboard-text-widget {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .kf-dashboard-print-widget {
+    margin-bottom: 24px;
+    page-break-inside: avoid;
+  }
+
+  #dashboardWidgetSavedQueryField.hidden,
+  #dashboardWidgetTextField.hidden,
+  #dashboardWidgetConfigFields.hidden {
+    display: none;
+  }
+
   #projectQueryCopyJsonBtn.hidden {
     display: none;
   }
