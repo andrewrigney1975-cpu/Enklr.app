@@ -9,6 +9,7 @@ import { buildGaugeBlock } from '../modals/health.js';
 import { computeCostBenefitScatterPoints, buildCostBenefitScatterSvg } from '../views/cost-benefit.js';
 import { buildTimelineColumns, tlDateToPixel } from '../views/timeline.js';
 import { buildBarChartSvg, buildLineChartSvg, buildPieChartSvg } from './dashboard-charts.js';
+import { iconSvg } from '../icons.js';
 
 /* =========================================================
    DASHBOARD WIDGETS — pure per-widget-type renderers for modals/dashboards.js's viewer/editor.
@@ -115,8 +116,8 @@ export function renderTableWidget(widget, project, opts){
         '</select>' +
       '</label>' +
       '<span class="kf-dashboard-table-pagerange">' + (totalRows === 0 ? '0 of 0' : rangeStart + '–' + rangeEnd + ' of ' + totalRows) + '</span>' +
-      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-page-prev' + (state.page <= 0 ? ' disabled' : '') + '><span class="kf-icon" data-icon="chevronLeft" data-size="14"></span></button>' +
-      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-page-next' + (state.page >= pageCount - 1 ? ' disabled' : '') + '><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(180deg);"></span></button>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-page-prev' + (state.page <= 0 ? ' disabled' : '') + '><span class="kf-icon">' + iconSvg('chevronLeft', 14) + '</span></button>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-page-next' + (state.page >= pageCount - 1 ? ' disabled' : '') + '><span class="kf-icon" style="transform:rotate(180deg);">' + iconSvg('chevronLeft', 14) + '</span></button>' +
     '</div>';
 
   return '<div class="kf-dashboard-table-wrap" data-widget-id="' + widget.id + '">' +

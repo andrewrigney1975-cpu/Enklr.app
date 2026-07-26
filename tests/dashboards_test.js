@@ -155,7 +155,13 @@ function makeMockFetch(state){
   log('CSV export button shown for a Project Admin in edit mode', exportBtn !== null);
   log('CSV export button lives in the widget header, not the body', exportBtn && exportBtn.closest('.kf-dashboard-widget-header') !== null);
   log('CSV export button is labeled "Export as CSV"', exportBtn && exportBtn.textContent.trim() === 'Export as CSV', exportBtn && exportBtn.textContent);
-  log('CSV export button has an icon', exportBtn && exportBtn.querySelector('.kf-icon') !== null);
+  // Real bug caught live in QA: dynamically-rendered buttons used the data-icon PLACEHOLDER
+  // convention (which needs a later hydrateIcons() call) instead of calling iconSvg() directly —
+  // hydrateIcons() only ever runs once, on static markup, at app init (root CLAUDE.md §6's "don't
+  // mix icon conventions" gotcha). The placeholder rendered as an empty, invisible <span> with no
+  // <svg> inside, so every dynamically-added icon in this modal silently never appeared. Assert the
+  // real <svg> is there, not just the wrapping .kf-icon span (which existed even with the bug).
+  log('CSV export button has a real rendered icon (not an empty data-icon placeholder)', exportBtn && exportBtn.querySelector('.kf-icon svg') !== null);
 
   // ── Pagination: default page size, page-size options, prev/next ──────────────────────────────
   var pageSizeSelect = doc.querySelector('[data-widget-page-size]');
@@ -169,6 +175,7 @@ function makeMockFetch(state){
   await wait(20);
   log('prev button disabled on page size change (still page 1)', doc.querySelector('[data-widget-page-prev]').hasAttribute('disabled'));
   log('next button disabled when everything fits on one page', doc.querySelector('[data-widget-page-next]').hasAttribute('disabled'));
+  log('prev/next pagination buttons have real rendered icons', doc.querySelector('[data-widget-page-prev] svg') !== null && doc.querySelector('[data-widget-page-next] svg') !== null);
 
   // Verify prev/next + range recompute using a real, already-wired interaction: filtering the
   // 2-row dataset down to 1 row via the key column.
@@ -214,10 +221,12 @@ function makeMockFetch(state){
   log('Widget Order list has one row per widget', orderRows.length === 2, orderRows.length);
   log('Widget Order rows show widget titles in order', Array.from(orderRows).map(function(r){ return r.querySelector('.kf-dashboard-order-row-title').textContent; }).join(',') === 'All Tasks Table,Notes');
   log('Widget Order list also exposes its own move-up control', doc.querySelector('[data-order-move-up]') !== null);
+  log('Widget Order list buttons have real rendered icons', doc.querySelector('[data-order-move-up] svg') !== null && doc.querySelector('[data-order-move-down] svg') !== null);
 
   // ── Reorder: move the second widget up (per-card arrow) ───────────────────────────────────
   var moveUpBtn = doc.querySelector('[data-move-widget-up]');
   log('a move-up button exists for the non-first widget', moveUpBtn !== null);
+  log('per-card move/edit buttons have real rendered icons', moveUpBtn && moveUpBtn.querySelector('svg') !== null && doc.querySelector('[data-edit-widget] svg') !== null);
   if(moveUpBtn) moveUpBtn.click();
   await wait(150);
   var titlesAfterMove = Array.from(doc.querySelectorAll('.kf-dashboard-widget-title')).map(function(e){ return e.textContent; });

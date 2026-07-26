@@ -8,6 +8,7 @@ import { utcISOToLocalDisplayDate } from '../date-utils.js';
 import { confirmDialog } from './confirm.js';
 import { renderDashboardWidget, resetDashboardTableWidgetState, exportTableWidgetCsv, WIDGET_TYPE_LABELS } from '../features/dashboard-widgets.js';
 import { createRichTextEditor } from '../rich-text/editor.js';
+import { iconSvg } from '../icons.js';
 
 /* Print reuses features/reports.js's own #reportOverlay/print-CSS machinery (root CLAUDE.md's own
    "any new long, printable, read-only content is another consumer, not a reason to stand up a
@@ -279,11 +280,11 @@ function renderDashboardViewerGrid(){
       '<div class="kf-dashboard-widget-header">' +
         '<span class="kf-dashboard-widget-title">' + escapeHTML(w.title) + '</span>' +
         '<div class="kf-dashboard-widget-actions">' +
-          (showHeaderExport ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-export-header="' + w.id + '" title="Export as CSV"><span class="kf-icon" data-icon="download" data-size="14"></span>Export as CSV</button>' : '') +
+          (showHeaderExport ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-export-header="' + w.id + '" title="Export as CSV"><span class="kf-icon">' + iconSvg('download', 14) + '</span>Export as CSV</button>' : '') +
           (editMode ?
-            (i > 0 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-up="' + w.id + '" title="Move up"><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(90deg);"></span></button>' : '') +
-            (i < widgets.length - 1 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-down="' + w.id + '" title="Move down"><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(-90deg);"></span></button>' : '') +
-            '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-edit-widget="' + w.id + '" title="Configure widget"><span class="kf-icon" data-icon="edit" data-size="14"></span></button>' +
+            (i > 0 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-up="' + w.id + '" title="Move up"><span class="kf-icon" style="transform:rotate(90deg);">' + iconSvg('chevronLeft', 14) + '</span></button>' : '') +
+            (i < widgets.length - 1 ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-widget-down="' + w.id + '" title="Move down"><span class="kf-icon" style="transform:rotate(-90deg);">' + iconSvg('chevronLeft', 14) + '</span></button>' : '') +
+            '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-edit-widget="' + w.id + '" title="Configure widget"><span class="kf-icon">' + iconSvg('edit', 14) + '</span></button>' +
             '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-remove-widget="' + w.id + '" title="Remove widget"><span class="kf-icon">' +
             '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>' +
             '</span></button>' : '') +
@@ -350,8 +351,8 @@ function renderDashboardWidgetOrderList(widgets, editMode){
     return '<div class="kf-dashboard-order-row" data-widget-id="' + w.id + '">' +
       '<span class="kf-dashboard-order-row-title">' + escapeHTML(w.title) + '</span>' +
       '<span class="kf-dashboard-order-row-type">' + escapeHTML(WIDGET_TYPE_LABELS[w.widgetType] || w.widgetType) + '</span>' +
-      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-order-move-up="' + w.id + '" title="Move up"' + (i === 0 ? ' disabled' : '') + '><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(90deg);"></span></button>' +
-      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-order-move-down="' + w.id + '" title="Move down"' + (i === widgets.length - 1 ? ' disabled' : '') + '><span class="kf-icon" data-icon="chevronLeft" data-size="14" style="transform:rotate(-90deg);"></span></button>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-order-move-up="' + w.id + '" title="Move up"' + (i === 0 ? ' disabled' : '') + '><span class="kf-icon" style="transform:rotate(90deg);">' + iconSvg('chevronLeft', 14) + '</span></button>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-order-move-down="' + w.id + '" title="Move down"' + (i === widgets.length - 1 ? ' disabled' : '') + '><span class="kf-icon" style="transform:rotate(-90deg);">' + iconSvg('chevronLeft', 14) + '</span></button>' +
     '</div>';
   }).join('');
 
