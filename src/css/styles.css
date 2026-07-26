@@ -3017,7 +3017,7 @@
   }
 
   .kf-dashboard-table-th-sortable:hover {
-    color: var(--kf-accent);
+    color: var(--kf-blue);
   }
 
   .kf-dashboard-table-filter-input {
@@ -3061,6 +3061,71 @@
   #dashboardWidgetTextField.hidden,
   #dashboardWidgetConfigFields.hidden {
     display: none;
+  }
+
+  .kf-dashboard-gauge-widget {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+  }
+
+  /* Bar Gauge widget — a new, small shared helper (features/dashboard-widgets.js's renderBarGauge),
+     deliberately not a reuse of task-list's/health.js's own horizontal-only ad hoc progress bars
+     (root CLAUDE.md's own "build fresh rather than touch either existing working call site" note). */
+  .kf-dashboard-bargauge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+  }
+
+  .kf-dashboard-bargauge-horizontal {
+    flex-direction: row;
+  }
+
+  .kf-dashboard-bargauge-horizontal .kf-dashboard-bargauge-track {
+    flex: 1;
+    height: 14px;
+    border-radius: 7px;
+  }
+
+  .kf-dashboard-bargauge-horizontal .kf-dashboard-bargauge-fill {
+    height: 100%;
+  }
+
+  .kf-dashboard-bargauge-vertical {
+    flex-direction: column-reverse;
+    height: 160px;
+  }
+
+  .kf-dashboard-bargauge-vertical .kf-dashboard-bargauge-track {
+    width: 24px;
+    flex: 1;
+    border-radius: 7px;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .kf-dashboard-bargauge-vertical .kf-dashboard-bargauge-fill {
+    width: 100%;
+  }
+
+  .kf-dashboard-bargauge-track {
+    background: var(--kf-border);
+    overflow: hidden;
+  }
+
+  .kf-dashboard-bargauge-fill {
+    background: var(--kf-blue);
+    border-radius: inherit;
+    transition: width 0.3s ease, height 0.3s ease;
+  }
+
+  .kf-dashboard-bargauge-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--kf-text);
+    white-space: nowrap;
   }
 
   #projectQueryCopyJsonBtn.hidden {

@@ -75,7 +75,11 @@ function makeMockFetch(state){
       t2: {id: 't2', key: 'SRV-2', title: 'Second Task', priority: 'low', columnId: 'col1', dependencies: [], archived: false}
     },
     members: [], releases: [], taskTypes: [],
-    savedQueries: [{id: 'sq1', name: 'All Tasks', sql: 'SELECT key, title, priority FROM tasks', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false}],
+    savedQueries: [
+      {id: 'sq1', name: 'All Tasks', sql: 'SELECT key, title, priority FROM tasks', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
+      {id: 'sq2', name: 'Completion Pct', sql: 'SELECT 75 AS pct FROM tasks LIMIT 1', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
+      {id: 'sq3', name: 'Task Count', sql: 'SELECT 8 AS taskCount FROM tasks LIMIT 1', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false}
+    ],
     startDate: null, endDate: null, description: '',
     headerButtonVisibility: {dashboards: true},
     dateCreated: '2025-01-01T00:00:00.000Z', dateLastModified: '2025-01-01T00:00:00.000Z', dateLastExported: null
@@ -176,6 +180,43 @@ function makeMockFetch(state){
   await wait(150);
   var titlesAfterRemove = Array.from(doc.querySelectorAll('.kf-dashboard-widget-title')).map(function(e){ return e.textContent; });
   log('widget removed', titlesAfterRemove.length === 1, titlesAfterRemove.join(','));
+
+  // ── Gauge widget ───────────────────────────────────────────────────────────────────────────
+  doc.getElementById('dashboardViewerAddWidgetBtn').click();
+  await wait(20);
+  doc.getElementById('dashboardWidgetTitleInput').value = 'Completion';
+  doc.getElementById('dashboardWidgetTypeSelect').value = 'gauge';
+  doc.getElementById('dashboardWidgetTypeSelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+  await wait(20);
+  doc.getElementById('dashboardWidgetSavedQuerySelect').value = 'sq2';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="valueColumn"]').value = 'pct';
+  doc.getElementById('dashboardWidgetFormSaveBtn').click();
+  await wait(150);
+  var gaugeBody = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Completion';
+  }).querySelector('.kf-dashboard-widget-body');
+  log('gauge widget renders the resolved percentage', gaugeBody.textContent.indexOf('75%') !== -1, gaugeBody.textContent);
+
+  // ── Bar Gauge widget ───────────────────────────────────────────────────────────────────────
+  doc.getElementById('dashboardViewerAddWidgetBtn').click();
+  await wait(20);
+  doc.getElementById('dashboardWidgetTitleInput').value = 'Tasks Done';
+  doc.getElementById('dashboardWidgetTypeSelect').value = 'barGauge';
+  doc.getElementById('dashboardWidgetTypeSelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+  await wait(20);
+  doc.getElementById('dashboardWidgetSavedQuerySelect').value = 'sq3';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="valueColumn"]').value = 'taskCount';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="maxValue"]').value = '10';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="orientation"]').value = 'vertical';
+  doc.getElementById('dashboardWidgetFormSaveBtn').click();
+  await wait(150);
+  var barGaugeWidget = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Tasks Done';
+  });
+  log('bar gauge widget renders with the vertical orientation class', barGaugeWidget.querySelector('.kf-dashboard-bargauge-vertical') !== null);
+  log('bar gauge widget shows the raw value / max label', barGaugeWidget.textContent.indexOf('8 / 10') !== -1, barGaugeWidget.textContent);
+  var fillEl = barGaugeWidget.querySelector('.kf-dashboard-bargauge-fill');
+  log('bar gauge fill height reflects 80%', fillEl.getAttribute('style').indexOf('height:80%') !== -1, fillEl.getAttribute('style'));
 
   // ── Read-only for a non-editing member: Done Editing hides edit controls ────────────────────
   doc.getElementById('dashboardViewerDoneEditingBtn').click();

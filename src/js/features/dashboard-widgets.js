@@ -5,6 +5,7 @@ import { markdownToHtml } from '../rich-text/markdown.js';
 import { sortRows, createRowFilter } from './sort-filter.js';
 import { csvEscapeValue } from '../views/task-list.js';
 import { downloadBlob } from './svg-export.js';
+import { buildGaugeBlock } from '../modals/health.js';
 
 /* =========================================================
    DASHBOARD WIDGETS — pure per-widget-type renderers for modals/dashboards.js's viewer/editor.
@@ -145,6 +146,53 @@ function exportTableWidgetCsv(widget, project){
   downloadBlob(blob, (widget.title || 'dashboard-widget').replace(/[^a-z0-9\-_]+/gi, '_') + '.csv');
 }
 
+/* ---- gauge / barGauge ---- */
+
+/* Shared by both single-run-of-a-widget-type helpers: pulls the configured value column out of the
+   query's first result row, normalized against the configured max, clamped to a real 0-100 pct.
+   Returns {pct, raw, maxValue} or null (caller renders its own error text for the null case). */
+function resolveGaugeValue(widget, project){
+  var config = parseConfig(widget);
+  var result = runWidgetQuery(project, widget);
+  if(result.rows.length === 0) return {error: 'This query returned no rows.'};
+  if(!config.valueColumn) return {error: 'No value column configured for this widget.'};
+  var raw = Number(result.rows[0][config.valueColumn]);
+  if(isNaN(raw)) return {error: 'Value column "' + config.valueColumn + '" was not found, or is not numeric, in the query result.'};
+  var maxValue = Number(config.maxValue) || 100;
+  var pct = Math.max(0, Math.min(100, (raw / maxValue) * 100));
+  return {pct: pct, raw: raw, maxValue: maxValue};
+}
+
+export function renderGaugeWidget(widget, project){
+  var resolved;
+  try { resolved = resolveGaugeValue(widget, project); }
+  catch(e){ return errorHtml(e.message || 'Could not run this widget\'s query.'); }
+  if(resolved.error) return errorHtml(resolved.error);
+  return '<div class="kf-dashboard-gauge-widget">' + buildGaugeBlock(resolved.pct, '', 160, false) + '</div>';
+}
+
+/* New shared helper (not a reuse of task-list/health.js's own horizontal-only, ad hoc bar CSS —
+   this widget needs a vertical orientation too, and the plan explicitly calls for a fresh, small
+   helper here rather than touching either existing already-working call site). */
+export function renderBarGauge(pct, opts){
+  opts = opts || {};
+  var vertical = opts.orientation === 'vertical';
+  var valueLabel = opts.valueLabel != null ? escapeHTML(String(opts.valueLabel)) : Math.round(pct) + '%';
+  return '<div class="kf-dashboard-bargauge' + (vertical ? ' kf-dashboard-bargauge-vertical' : ' kf-dashboard-bargauge-horizontal') + '">' +
+    '<div class="kf-dashboard-bargauge-track"><div class="kf-dashboard-bargauge-fill" style="' + (vertical ? 'height' : 'width') + ':' + pct + '%"></div></div>' +
+    '<div class="kf-dashboard-bargauge-label">' + valueLabel + '</div>' +
+  '</div>';
+}
+
+export function renderBarGaugeWidget(widget, project){
+  var resolved;
+  try { resolved = resolveGaugeValue(widget, project); }
+  catch(e){ return errorHtml(e.message || 'Could not run this widget\'s query.'); }
+  if(resolved.error) return errorHtml(resolved.error);
+  var config = parseConfig(widget);
+  return renderBarGauge(resolved.pct, {orientation: config.orientation, valueLabel: resolved.raw + ' / ' + resolved.maxValue});
+}
+
 /* ---- text ---- */
 
 export function renderTextWidget(widget){
@@ -169,6 +217,10 @@ export function renderDashboardWidget(widget, project, opts){
       return { html: renderTableWidget(widget, project, opts), wire: function(rootEl, onRerender){ wireTableWidget(rootEl, widget, project, onRerender); } };
     case 'text':
       return { html: renderTextWidget(widget), wire: null };
+    case 'gauge':
+      return { html: renderGaugeWidget(widget, project), wire: null };
+    case 'barGauge':
+      return { html: renderBarGaugeWidget(widget, project), wire: null };
     default:
       return { html: '<div class="kf-dashboard-tile-empty">' + escapeHTML(WIDGET_TYPE_LABELS[widget.widgetType] || widget.widgetType) + ' — rendering coming soon</div>', wire: null };
   }
