@@ -518,6 +518,48 @@ export var releaseApi = makeEntityApi('releases');
 releaseApi.updateNotes = function(projectId, releaseId, releaseNotes){
   return apiFetch('/projects/' + projectId + '/releases/' + releaseId + '/notes', {method: 'PUT', body: JSON.stringify({releaseNotes: releaseNotes})});
 };
+/* Self-Service Dashboards — see Controllers/DashboardsController.cs. list/get are reachable by any
+   ProjectMember; create/update/remove/widget mutations are ProjectAdmin-gated server-side (the
+   frontend's own canCurrentUserManageProject() gate keeps the UI for those hidden from anyone who'd
+   just get a 403 anyway). Doesn't fit makeEntityApi's single-{resource} shape — it needs GET
+   list/single (not embedded in the project-detail payload, see Dashboard.cs's own doc comment) plus
+   a nested /widgets sub-resource. */
+export var dashboardApi = {
+  list: function(projectId){
+    return apiFetch('/projects/' + projectId + '/dashboards', {method: 'GET'});
+  },
+  get: function(projectId, dashboardId){
+    return apiFetch('/projects/' + projectId + '/dashboards/' + dashboardId, {method: 'GET'});
+  },
+  create: function(projectId, body){
+    return apiFetch('/projects/' + projectId + '/dashboards', {method: 'POST', body: JSON.stringify(body)});
+  },
+  update: function(projectId, dashboardId, body){
+    return apiFetch('/projects/' + projectId + '/dashboards/' + dashboardId, {method: 'PUT', body: JSON.stringify(body)});
+  },
+  remove: function(projectId, dashboardId){
+    return apiFetch('/projects/' + projectId + '/dashboards/' + dashboardId, {method: 'DELETE'});
+  },
+  createWidget: function(projectId, dashboardId, body){
+    return apiFetch('/projects/' + projectId + '/dashboards/' + dashboardId + '/widgets', {method: 'POST', body: JSON.stringify(body)});
+  },
+  updateWidget: function(projectId, dashboardId, widgetId, body){
+    return apiFetch('/projects/' + projectId + '/dashboards/' + dashboardId + '/widgets/' + widgetId, {method: 'PUT', body: JSON.stringify(body)});
+  },
+  removeWidget: function(projectId, dashboardId, widgetId){
+    return apiFetch('/projects/' + projectId + '/dashboards/' + dashboardId + '/widgets/' + widgetId, {method: 'DELETE'});
+  }
+};
+
+/* Org-Admin-only cross-project Dashboard browsing (Portfolio pattern) — Controllers/
+   OrgDashboardsController.cs. Each row carries its own projectId/projectName/projectKey so the
+   picker can show/filter by project without a second round trip. */
+export var orgDashboardApi = {
+  list: function(){
+    return apiFetch('/organisations/me/dashboards', {method: 'GET'});
+  }
+};
+
 export var taskTypeApi = makeEntityApi('task-types');
 export var principleApi = makeEntityApi('principles');
 export var documentApi = makeEntityApi('documents');

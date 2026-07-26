@@ -56,7 +56,10 @@ public static class ProjectSettingsSerializer
             Retrospective: Get("retrospective", false),
             // Opt-in, like Workflow/Retrospective: a missing/corrupted value must never silently
             // turn on a module the project never asked for.
-            Strategy: Get("strategy", false));
+            Strategy: Get("strategy", false),
+            // Opt-in, like Strategy: the Self-Service Dashboard module (nav entry, picker, viewer/
+            // editor) stays invisible until a Project Admin deliberately turns it on.
+            Dashboards: Get("dashboards", false));
 
         doc?.Dispose();
         return result;

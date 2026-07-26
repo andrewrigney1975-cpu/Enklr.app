@@ -161,6 +161,7 @@
         <button type="button" class="kf-side-nav-item" id="navCostBenefitBtn" title="Cost/Benefit Chart"><span class="kf-icon" data-icon="quadrant" data-size="18"></span><span class="kf-side-nav-text">Cost/Benefit Chart</span></button>
         <button type="button" class="kf-side-nav-item" id="navOrgChartBtn" title="Org Chart"><span class="kf-icon" data-icon="orgChart" data-size="18"></span><span class="kf-side-nav-text">Org Chart</span></button>
         <button type="button" class="kf-side-nav-item" id="navGovernanceMapBtn" title="Governance Map"><span class="kf-icon" data-icon="radar" data-size="18"></span><span class="kf-side-nav-text">Governance Map</span></button>
+        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navDashboardsBtn" title="Dashboards"><span class="kf-icon" data-icon="grid" data-size="18"></span><span class="kf-side-nav-text">Dashboards</span></button>
       </div>
       <div class="kf-side-nav-section">
         <div class="kf-side-nav-label">Tools</div>
@@ -1398,6 +1399,70 @@
   </div>
 </div>
 
+<!-- Dashboards Picker -->
+<div class="kf-overlay hidden" id="dashboardsPickerOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="dashboardsPickerTitle">Dashboards</h2>
+      <button class="kf-btn kf-btn-ghost" id="dashboardsPickerClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-tasklist-toolbar">
+      <!-- Org Admin only — toggles between this project's own Dashboards and every Dashboard across
+           the whole organisation (Portfolio pattern). Hidden entirely for anyone else. -->
+      <div class="kf-tabbar hidden" id="dashboardsPickerScopeTabs">
+        <button type="button" class="kf-tabbar-btn active" id="dashboardsScopeProjectBtn">This Project</button>
+        <button type="button" class="kf-tabbar-btn" id="dashboardsScopeOrgBtn">All Projects</button>
+      </div>
+      <button type="button" class="kf-btn kf-btn-primary hidden" id="dashboardsPickerNewBtn" style="margin-left:auto;">
+        <span class="kf-icon" data-icon="plus" data-size="14"></span>New Dashboard
+      </button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="dashboardsPickerFormRow" class="kf-field-row hidden" style="margin-bottom:14px;">
+        <div class="kf-field">
+          <label for="dashboardFormNameInput">Name</label>
+          <input type="text" id="dashboardFormNameInput" maxlength="200" placeholder="e.g. Sprint Health">
+        </div>
+        <div class="kf-field">
+          <label for="dashboardFormDescInput">Description (internal note)</label>
+          <input type="text" id="dashboardFormDescInput" maxlength="1000" placeholder="What this dashboard is for">
+        </div>
+        <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="dashboardFormSaveBtn">Save</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="dashboardFormCancelBtn">Cancel</button>
+      </div>
+      <div id="dashboardsPickerGrid" class="kf-dashboard-tile-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard Viewer/Editor -->
+<div class="kf-overlay hidden" id="dashboardViewerOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <div>
+        <h2 id="dashboardViewerTitle">Dashboard</h2>
+        <p id="dashboardViewerDescription" class="kf-dashboard-viewer-desc hidden"></p>
+      </div>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="dashboardViewerBackBtn" title="Back to Dashboards"><span class="kf-icon" data-icon="chevronLeft" data-size="16"></span>Back</button>
+        <button class="kf-btn kf-btn-ghost hidden" id="dashboardViewerPrintBtn" title="Print"><span class="kf-icon" data-icon="printer" data-size="16"></span></button>
+        <button class="kf-btn kf-btn-secondary hidden" id="dashboardViewerEditBtn">Edit Layout</button>
+        <button class="kf-btn kf-btn-secondary hidden" id="dashboardViewerDoneEditingBtn">Done Editing</button>
+        <button class="kf-btn kf-btn-ghost hidden" id="dashboardViewerRenameBtn" title="Rename / describe"><span class="kf-icon" data-icon="edit" data-size="16"></span></button>
+        <button class="kf-btn kf-btn-ghost hidden" id="dashboardViewerDeleteBtn" title="Delete this dashboard"><span class="kf-icon" data-icon="trash" data-size="16"></span></button>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="dashboardViewerClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-modal-body">
+      <button type="button" class="kf-btn kf-btn-secondary hidden" id="dashboardViewerAddWidgetBtn">
+        <span class="kf-icon" data-icon="plus" data-size="14"></span>Add Widget
+      </button>
+      <div id="dashboardViewerGrid" class="kf-dashboard-widget-grid"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Releases Modal -->
 <div class="kf-overlay hidden" id="releasesOverlay">
   <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
@@ -2110,6 +2175,14 @@
                 <span class="kf-setting-row-text">
                   <span class="kf-setting-row-title">Strategy</span>
                   <span class="kf-setting-row-desc">Define the organisation's strategic Pillars and see exactly how much this project moves each one forward. Compare against the wider portfolio on a radar chart to show where investment is paying off — and where it isn't.</span>
+                </span>
+              </label>
+              <label class="kf-setting-row">
+                <input type="checkbox" id="settingsShowDashboardsBtn">
+                <span class="kf-icon kf-setting-row-icon" data-icon="grid" data-size="16"></span>
+                <span class="kf-setting-row-text">
+                  <span class="kf-setting-row-title">Dashboards</span>
+                  <span class="kf-setting-row-desc">Build your own reporting views — tables, gauges and charts, each backed by a saved query — for the whole team to see at a glance. Project Admins build and edit; everyone else gets a read-only view.</span>
                 </span>
               </label>
             </div>

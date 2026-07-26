@@ -688,7 +688,13 @@ export function normalizeHeaderButtonVisibility(value){
        user never asked for. Also requires isServerAuthoritative(project) regardless of this flag
        (views/board.js's applyHeaderButtonVisibility) — a local-only project has no org/Strategy
        concept to speak of at all. */
-    strategy: v.strategy === true
+    strategy: v.strategy === true,
+    /* Opt-in, like strategy: the Self-Service Dashboard module (nav entry, picker, viewer/editor)
+       stays invisible until a Project Admin deliberately turns it on. Also requires
+       isServerAuthoritative(project) regardless of this flag (views/board.js's
+       applyHeaderButtonVisibility) — a local-only project has no Project Admin/Saved Query concept
+       to speak of at all. */
+    dashboards: v.dashboards === true
   };
 }
 

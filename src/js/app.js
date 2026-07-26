@@ -54,6 +54,7 @@ import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromMo
 import { openTodoOverlay, closeTodoOverlay, isTodoOverlayOpen, addTodoListFromModal } from './modals/todo.js';
 import { openTaskTypesModal, closeTaskTypesModal, addTaskTypeFromModal } from './modals/task-types.js';
 import { openReleasesOverlay, closeReleasesOverlay, isReleasesOverlayOpen, showReleasesFormView, showReleasesListView, saveReleaseFromModal, deleteReleaseFromModal, generateReleaseNotesFromModal, getCurrentReleaseNotesDraft } from './modals/releases.js';
+import { openDashboardsPickerOverlay, closeDashboardsPickerOverlay, isDashboardsPickerOverlayOpen, setDashboardsPickerScope, showDashboardCreateForm, hideDashboardForm, saveDashboardFromForm, closeDashboardViewerOverlay, isDashboardViewerOverlayOpen, backToDashboardsPickerFromViewer, toggleDashboardEditMode, renameDashboardFromViewer, deleteDashboardFromViewer } from './modals/dashboards.js';
 import { openRetrospectivesOverlay, closeRetrospectivesOverlay, isRetrospectivesOverlayOpen, showRetrospectivesFormView, showRetrospectivesListView, saveRetrospectiveFromModal, deleteRetrospectiveFromModal, toggleRetroHowItWorks, cancelRetroPromoteFromModal, saveRetroPromoteFromModal, addRetroActionItemFromInputs } from './modals/retrospectives.js';
 import { openDocumentsOverlay, closeDocumentsOverlay, isDocumentsOverlayOpen, showDocumentsFormView, showDocumentsListView, renderDocumentsList, saveDocumentFromModal, deleteDocumentFromModal, updateDocUrlOpenButtonVisibilityFor, openUrlInputInNewTab } from './modals/documents.js';
 import { scheduleDocumentSuggestions } from './features/document-suggestions.js';
@@ -150,6 +151,27 @@ function wireEvents(){
   document.getElementById('navReleasesBtn').addEventListener('click', openReleasesOverlay);
   document.getElementById('navProjectStorageBtn').addEventListener('click', openProjectStorageModal);
   document.getElementById('navRetrospectiveBtn').addEventListener('click', openRetrospectivesOverlay);
+  document.getElementById('navDashboardsBtn').addEventListener('click', openDashboardsPickerOverlay);
+
+  document.getElementById('dashboardsPickerClose').addEventListener('click', closeDashboardsPickerOverlay);
+  document.getElementById('dashboardsPickerOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'dashboardsPickerOverlay') closeDashboardsPickerOverlay();
+  });
+  document.getElementById('dashboardsScopeProjectBtn').addEventListener('click', function(){ setDashboardsPickerScope('project'); });
+  document.getElementById('dashboardsScopeOrgBtn').addEventListener('click', function(){ setDashboardsPickerScope('org'); });
+  document.getElementById('dashboardsPickerNewBtn').addEventListener('click', showDashboardCreateForm);
+  document.getElementById('dashboardFormCancelBtn').addEventListener('click', hideDashboardForm);
+  document.getElementById('dashboardFormSaveBtn').addEventListener('click', saveDashboardFromForm);
+
+  document.getElementById('dashboardViewerClose').addEventListener('click', closeDashboardViewerOverlay);
+  document.getElementById('dashboardViewerBackBtn').addEventListener('click', backToDashboardsPickerFromViewer);
+  document.getElementById('dashboardViewerOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'dashboardViewerOverlay') closeDashboardViewerOverlay();
+  });
+  document.getElementById('dashboardViewerEditBtn').addEventListener('click', toggleDashboardEditMode);
+  document.getElementById('dashboardViewerDoneEditingBtn').addEventListener('click', toggleDashboardEditMode);
+  document.getElementById('dashboardViewerRenameBtn').addEventListener('click', renameDashboardFromViewer);
+  document.getElementById('dashboardViewerDeleteBtn').addEventListener('click', deleteDashboardFromViewer);
 
   document.getElementById('projectSelect').addEventListener('change', function(e){
     state.db.currentProjectId = e.target.value;
@@ -1548,6 +1570,9 @@ function wireEvents(){
   document.getElementById('settingsShowStrategyBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('strategy', e.target.checked);
   });
+  document.getElementById('settingsShowDashboardsBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('dashboards', e.target.checked);
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);
@@ -1804,6 +1829,8 @@ function wireEvents(){
     else if(document.querySelector('.kf-export-as-panel:not(.hidden)')) closeAllExportAsPanels();
     else if(!document.getElementById('taskTypesOverlay').classList.contains('hidden')) closeTaskTypesModal();
     else if(isReleasesOverlayOpen()) closeReleasesOverlay();
+    else if(isDashboardViewerOverlayOpen()) closeDashboardViewerOverlay();
+    else if(isDashboardsPickerOverlayOpen()) closeDashboardsPickerOverlay();
     else if(isDocumentsOverlayOpen()) closeDocumentsOverlay();
     else if(isRisksOverlayOpen()) closeRisksOverlay();
     else if(isDecisionsOverlayOpen()) closeDecisionsOverlay();

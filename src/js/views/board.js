@@ -178,6 +178,12 @@ export function applyHeaderButtonVisibility(){
      project must deliberately turn this module on before it appears at all. */
   document.getElementById('navStrategyBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.strategy);
 
+  /* Dashboards is server-authoritative-only (Project Admin-managed, backed by real Saved Queries),
+     opt-in via App Settings > Governance like Retrospectives/Strategy above — but, unlike Strategy,
+     NOT restricted to Org Admins turning it on: any Project Admin can opt their own project in, same
+     "any Project Admin, not just Org Admin" shape as Workflow/Retrospective. */
+  document.getElementById('navDashboardsBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.dashboards);
+
   var govMapEnabled = isGovernanceMapEnabled(visibility);
   document.getElementById('governanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);
   document.getElementById('navGovernanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);
@@ -224,6 +230,7 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowSubTasksBtn').checked = visibility.subTasks;
   document.getElementById('settingsShowRetrospectiveBtn').checked = visibility.retrospective;
   document.getElementById('settingsShowStrategyBtn').checked = visibility.strategy;
+  document.getElementById('settingsShowDashboardsBtn').checked = visibility.dashboards;
   // SAML/SCIM configuration is an org-admin-only concern (same gating as the Account menu's own
   // "SSO & Provisioning" link) — shown here purely as a discoverability shortcut into that same
   // modal, not a per-project toggle of its own.
