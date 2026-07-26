@@ -64,71 +64,64 @@ function cbTaskVisible(t){
     (ui.cbColumnFilter.size === 0 || ui.cbColumnFilter.has(t.columnId));
 }
 
-export function computeCostBenefitLayout(project){
-  var tasks = getTasksArray(project).filter(cbTaskVisible);
+/* Shared by the main Cost/Benefit view AND the Dashboard's costBenefit widget
+   (features/dashboard-widgets.js) — the plan's own "extract the core layout-computation ... into a
+   parameterized function both call" note. Each item needs cost/value/priority (for radius+color)
+   plus whatever key/title/archived/taskId it wants surfaced in the tooltip/label/click target —
+   none of those four are required, so a widget's arbitrary query rows work here just as well as a
+   real Task.
 
-  /* Tasks sharing the exact same (cost, value) point — very common
-     since both default to 1 — are spread in a small ring around their
-     shared point instead of stacking exactly on top of each other.
-     The ring radius is sized to the largest marker in the group so
-     bigger (higher-priority) markers don't overlap their neighbors. */
+   Tasks sharing the exact same (cost, value) point — very common since both default to 1 — are
+   spread in a small ring around their shared point instead of stacking exactly on top of each
+   other. The ring radius is sized to the largest marker in the group so bigger (higher-priority)
+   markers don't overlap their neighbors. */
+export function computeCostBenefitScatterPoints(items){
   var groups = {};
-  tasks.forEach(function(t){
-    var cost = clampTaskScore(t.taskCost);
-    var value = clampTaskScore(t.businessValue);
+  items.forEach(function(it){
+    var cost = clampTaskScore(it.cost);
+    var value = clampTaskScore(it.value);
     var key = cost + '_' + value;
     if(!groups[key]) groups[key] = [];
-    groups[key].push(t);
+    groups[key].push(Object.assign({}, it, {cost: cost, value: value}));
   });
 
   var points = [];
-  Object.keys(groups).forEach(function(key){
-    var group = groups[key].sort(function(a, b){ return a.key.localeCompare(b.key, undefined, {numeric:true}); });
-    var cost = clampTaskScore(group[0].taskCost);
-    var value = clampTaskScore(group[0].businessValue);
+  Object.keys(groups).forEach(function(gkey){
+    var group = groups[gkey].sort(function(a, b){ return String(a.key || '').localeCompare(String(b.key || ''), undefined, {numeric:true}); });
+    var cost = group[0].cost;
+    var value = group[0].value;
     var cx = cbScaleX(cost);
     var cy = cbScaleY(value);
-    var maxRadius = Math.max.apply(null, group.map(function(t){ return cbRadiusForPriority(t.priority); }));
+    var maxRadius = Math.max.apply(null, group.map(function(it){ return cbRadiusForPriority(it.priority); }));
     var jitterRadius = group.length > 1 ? maxRadius * 1.3 : 0;
-    group.forEach(function(t, i){
+    group.forEach(function(it, i){
       var angle = group.length > 1 ? (2 * Math.PI * i / group.length) : 0;
       points.push({
-        task: t,
-        cost: cost,
-        value: value,
-        radius: cbRadiusForPriority(t.priority),
+        taskId: it.taskId, key: it.key, title: it.title, archived: it.archived,
+        cost: cost, value: value,
+        radius: cbRadiusForPriority(it.priority),
+        color: getPriority(it.priority).accent,
         x: cx + jitterRadius * Math.cos(angle),
         y: cy + jitterRadius * Math.sin(angle)
       });
     });
   });
 
-  return {points: points};
+  return points;
 }
 
-export function renderCostBenefitChart(){
-  var project = getCurrentProject();
-  var inner = document.getElementById('costBenefitInner');
-  var legend = document.getElementById('costBenefitLegend');
-  document.getElementById('costBenefitTitle').textContent = 'Cost/Benefit Chart' + (project ? ' — ' + project.name : '');
+export function computeCostBenefitLayout(project){
+  var tasks = getTasksArray(project).filter(cbTaskVisible);
+  var items = tasks.map(function(t){
+    return {taskId: t.id, key: t.key, title: t.title, archived: t.archived, priority: t.priority, cost: t.taskCost, value: t.businessValue};
+  });
+  return {points: computeCostBenefitScatterPoints(items)};
+}
 
-  legend.innerHTML = PRIORITY_ORDER.map(function(key){
-    var conf = getPriority(key);
-    var dotSize = Math.round(8 * CB_PRIORITY_RADIUS_MULTIPLIER[key]);
-    return '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:' + conf.accent + ';width:' + dotSize + 'px;height:' + dotSize + 'px;"></span>' + escapeHTML(conf.label) + '</span>';
-  }).join('') +
-  '<span class="kf-legend-item" style="color:var(--kf-text-faint);">Marker size = priority</span>' +
-  '<span class="kf-legend-item" style="margin-left:auto;color:var(--kf-text-faint);">Quadrants split at the midpoint (500) of the 1–1000 scale</span>' +
-  (ui.cbShowArchived ? '<span class="kf-legend-item">' + iconSvg('archive',12) + ' Archived task (greyed out)</span>' : '');
-
-  var hasTasks = project && getTasksArray(project).some(cbTaskVisible);
-  if(!hasTasks){
-    inner.innerHTML = '';
-    inner.appendChild(buildEl('div', 'kf-depmap-empty', iconHTML('inbox',36) + '<div>No tasks yet — set Business Value and Task Cost on a task to plot it here.</div>'));
-    return;
-  }
-
-  var layout = computeCostBenefitLayout(project);
+/* Pure SVG string builder — background quadrants/axes/ticks are always the same shape; only the
+   `points` differ between the main view (real Tasks, clickable, `[Archived]` styling) and the
+   Dashboard widget (arbitrary query rows, read-only). */
+export function buildCostBenefitScatterSvg(points){
   var plotLeft = CB_MARGIN_LEFT, plotRight = CB_WIDTH - CB_MARGIN_RIGHT;
   var plotTop = CB_MARGIN_TOP, plotBottom = CB_HEIGHT - CB_MARGIN_BOTTOM;
   var splitX = cbScaleX(CB_SPLIT), splitY = cbScaleY(CB_SPLIT);
@@ -171,23 +164,47 @@ export function renderCostBenefitChart(){
     '<text x="' + axisMidX + '" y="' + (CB_HEIGHT - 14) + '" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--kf-text-secondary);">Task Cost</text>' +
     '<text x="18" y="' + axisMidY + '" font-size="13" font-weight="700" text-anchor="middle" transform="rotate(-90, 18, ' + axisMidY + ')" style="fill:var(--kf-text-secondary);">Business Value</text>';
 
-  var pointsHTML = layout.points.map(function(p){
-    var t = p.task;
-    var prio = getPriority(t.priority);
+  var pointsHTML = points.map(function(p){
     var labelOffset = p.radius + 6;
+    var tooltip = (p.key ? escapeHTML(p.key) + ' — ' : '') + (p.title ? escapeHTML(p.title) : '') + ' (Cost ' + p.cost + ', Value ' + p.value + ')' + (p.archived ? ' [Archived]' : '');
     return (
-      '<g class="kf-cb-point' + (t.archived ? ' kf-cb-point-archived' : '') + '" data-task-id="' + t.id + '">' +
-        '<title>' + escapeHTML(t.key) + ' — ' + escapeHTML(t.title) + ' (Cost ' + p.cost + ', Value ' + p.value + ')' + (t.archived ? ' [Archived]' : '') + '</title>' +
-        '<circle class="kf-cb-dot" cx="' + p.x + '" cy="' + p.y + '" r="' + p.radius + '" fill="' + prio.accent + '" style="stroke:var(--kf-surface);" stroke-width="1.5"></circle>' +
-        '<text x="' + (p.x + labelOffset) + '" y="' + (p.y + 4) + '" font-size="10" font-weight="600" style="fill:var(--kf-text-secondary);">' + escapeHTML(t.key) + '</text>' +
+      '<g class="kf-cb-point' + (p.archived ? ' kf-cb-point-archived' : '') + '"' + (p.taskId ? ' data-task-id="' + p.taskId + '"' : '') + '>' +
+        '<title>' + tooltip + '</title>' +
+        '<circle class="kf-cb-dot" cx="' + p.x + '" cy="' + p.y + '" r="' + p.radius + '" fill="' + p.color + '" style="stroke:var(--kf-surface);" stroke-width="1.5"></circle>' +
+        (p.key ? '<text x="' + (p.x + labelOffset) + '" y="' + (p.y + 4) + '" font-size="10" font-weight="600" style="fill:var(--kf-text-secondary);">' + escapeHTML(p.key) + '</text>' : '') +
       '</g>'
     );
   }).join('');
 
-  inner.innerHTML =
-    '<svg width="' + CB_WIDTH + '" height="' + CB_HEIGHT + '" viewBox="0 0 ' + CB_WIDTH + ' ' + CB_HEIGHT + '" xmlns="http://www.w3.org/2000/svg">' +
+  return '<svg width="' + CB_WIDTH + '" height="' + CB_HEIGHT + '" viewBox="0 0 ' + CB_WIDTH + ' ' + CB_HEIGHT + '" xmlns="http://www.w3.org/2000/svg">' +
       quadrantsHTML + axesHTML + quadrantLabelsHTML + ticksHTML + axisTitlesHTML + pointsHTML +
     '</svg>';
+}
+
+export function renderCostBenefitChart(){
+  var project = getCurrentProject();
+  var inner = document.getElementById('costBenefitInner');
+  var legend = document.getElementById('costBenefitLegend');
+  document.getElementById('costBenefitTitle').textContent = 'Cost/Benefit Chart' + (project ? ' — ' + project.name : '');
+
+  legend.innerHTML = PRIORITY_ORDER.map(function(key){
+    var conf = getPriority(key);
+    var dotSize = Math.round(8 * CB_PRIORITY_RADIUS_MULTIPLIER[key]);
+    return '<span class="kf-legend-item"><span class="kf-legend-dot" style="background:' + conf.accent + ';width:' + dotSize + 'px;height:' + dotSize + 'px;"></span>' + escapeHTML(conf.label) + '</span>';
+  }).join('') +
+  '<span class="kf-legend-item" style="color:var(--kf-text-faint);">Marker size = priority</span>' +
+  '<span class="kf-legend-item" style="margin-left:auto;color:var(--kf-text-faint);">Quadrants split at the midpoint (500) of the 1–1000 scale</span>' +
+  (ui.cbShowArchived ? '<span class="kf-legend-item">' + iconSvg('archive',12) + ' Archived task (greyed out)</span>' : '');
+
+  var hasTasks = project && getTasksArray(project).some(cbTaskVisible);
+  if(!hasTasks){
+    inner.innerHTML = '';
+    inner.appendChild(buildEl('div', 'kf-depmap-empty', iconHTML('inbox',36) + '<div>No tasks yet — set Business Value and Task Cost on a task to plot it here.</div>'));
+    return;
+  }
+
+  var layout = computeCostBenefitLayout(project);
+  inner.innerHTML = buildCostBenefitScatterSvg(layout.points);
   applyCbZoom();
 }
 

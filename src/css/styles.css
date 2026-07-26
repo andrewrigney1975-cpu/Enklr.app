@@ -3128,6 +3128,68 @@
     white-space: nowrap;
   }
 
+  .kf-dashboard-costbenefit-widget svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Timeline widget — a small generic mini-Gantt (features/dashboard-widgets.js's
+     renderTimelineWidget), always read-only, built on views/timeline.js's own pure column math. */
+  .kf-dashboard-timeline-widget {
+    overflow: hidden;
+  }
+
+  .kf-dashboard-timeline-scroll {
+    overflow-x: auto;
+  }
+
+  .kf-dashboard-timeline-header-row,
+  .kf-dashboard-timeline-row {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .kf-dashboard-timeline-header {
+    display: flex;
+    border-bottom: 1px solid var(--kf-border);
+  }
+
+  .kf-dashboard-timeline-col {
+    flex: 0 0 auto;
+    padding: 4px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--kf-text-faint);
+    border-left: 1px solid var(--kf-border);
+    box-sizing: border-box;
+  }
+
+  .kf-dashboard-timeline-row-label {
+    flex: 0 0 auto;
+    padding: 6px 8px 6px 0;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-sizing: border-box;
+  }
+
+  .kf-dashboard-timeline-row-track {
+    position: relative;
+    flex: 0 0 auto;
+    height: 26px;
+    border-top: 1px solid var(--kf-border);
+  }
+
+  .kf-dashboard-timeline-bar {
+    position: absolute;
+    top: 5px;
+    height: 16px;
+    border-radius: 3px;
+    background: var(--kf-blue);
+  }
+
   #projectQueryCopyJsonBtn.hidden {
     display: none;
   }

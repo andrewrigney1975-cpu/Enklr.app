@@ -71,14 +71,16 @@ function makeMockFetch(state){
     id: 'p1', serverProjectId: 'p1', name: 'Server Project', key: 'SRV', taskCounter: 2,
     columns: [{id: 'col1', name: 'To Do', done: false, order: ['t1', 't2']}, {id: 'col2', name: 'Done', done: true, order: []}],
     tasks: {
-      t1: {id: 't1', key: 'SRV-1', title: 'First Task', priority: 'high', columnId: 'col1', dependencies: [], archived: false},
-      t2: {id: 't2', key: 'SRV-2', title: 'Second Task', priority: 'low', columnId: 'col1', dependencies: [], archived: false}
+      t1: {id: 't1', key: 'SRV-1', title: 'First Task', priority: 'high', columnId: 'col1', dependencies: [], archived: false, businessValue: 800, taskCost: 150},
+      t2: {id: 't2', key: 'SRV-2', title: 'Second Task', priority: 'low', columnId: 'col1', dependencies: [], archived: false, businessValue: 200, taskCost: 700}
     },
     members: [], releases: [], taskTypes: [],
     savedQueries: [
       {id: 'sq1', name: 'All Tasks', sql: 'SELECT key, title, priority FROM tasks', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
       {id: 'sq2', name: 'Completion Pct', sql: 'SELECT 75 AS pct FROM tasks LIMIT 1', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
-      {id: 'sq3', name: 'Task Count', sql: 'SELECT 8 AS taskCount FROM tasks LIMIT 1', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false}
+      {id: 'sq3', name: 'Task Count', sql: 'SELECT 8 AS taskCount FROM tasks LIMIT 1', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
+      {id: 'sq4', name: 'Cost vs Value', sql: 'SELECT key, title, priority, taskCost, businessValue FROM tasks', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false},
+      {id: 'sq5', name: 'Task Schedule', sql: "SELECT title AS label, '2026-01-01' AS s, '2026-03-01' AS e FROM tasks LIMIT 1", dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false}
     ],
     startDate: null, endDate: null, description: '',
     headerButtonVisibility: {dashboards: true},
@@ -217,6 +219,43 @@ function makeMockFetch(state){
   log('bar gauge widget shows the raw value / max label', barGaugeWidget.textContent.indexOf('8 / 10') !== -1, barGaugeWidget.textContent);
   var fillEl = barGaugeWidget.querySelector('.kf-dashboard-bargauge-fill');
   log('bar gauge fill height reflects 80%', fillEl.getAttribute('style').indexOf('height:80%') !== -1, fillEl.getAttribute('style'));
+
+  // ── Cost/Benefit widget ────────────────────────────────────────────────────────────────────
+  doc.getElementById('dashboardViewerAddWidgetBtn').click();
+  await wait(20);
+  doc.getElementById('dashboardWidgetTitleInput').value = 'Cost vs Value';
+  doc.getElementById('dashboardWidgetTypeSelect').value = 'costBenefit';
+  doc.getElementById('dashboardWidgetTypeSelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+  await wait(20);
+  doc.getElementById('dashboardWidgetSavedQuerySelect').value = 'sq4';
+  doc.getElementById('dashboardWidgetFormSaveBtn').click();
+  await wait(150);
+  var cbWidget = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Cost vs Value';
+  });
+  log('costBenefit widget renders an SVG scatter chart', cbWidget.querySelector('svg') !== null);
+  log('costBenefit widget plots a point per row', cbWidget.querySelectorAll('.kf-cb-point').length === 2, cbWidget.querySelectorAll('.kf-cb-point').length);
+  log('costBenefit widget tooltip reports the correct cost/value', cbWidget.textContent.indexOf('SRV-1') !== -1);
+
+  // ── Timeline widget ────────────────────────────────────────────────────────────────────────
+  doc.getElementById('dashboardViewerAddWidgetBtn').click();
+  await wait(20);
+  doc.getElementById('dashboardWidgetTitleInput').value = 'Schedule';
+  doc.getElementById('dashboardWidgetTypeSelect').value = 'timeline';
+  doc.getElementById('dashboardWidgetTypeSelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+  await wait(20);
+  doc.getElementById('dashboardWidgetSavedQuerySelect').value = 'sq5';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="labelColumn"]').value = 'label';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="startColumn"]').value = 's';
+  doc.querySelector('#dashboardWidgetConfigFields [data-config-key="endColumn"]').value = 'e';
+  doc.getElementById('dashboardWidgetFormSaveBtn').click();
+  await wait(150);
+  var timelineWidget = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Schedule';
+  });
+  log('timeline widget renders a header column', timelineWidget.querySelector('.kf-dashboard-timeline-col') !== null);
+  log('timeline widget renders a bar for the row', timelineWidget.querySelector('.kf-dashboard-timeline-bar') !== null);
+  log('timeline widget row label matches the query row', timelineWidget.textContent.indexOf('First Task') !== -1, timelineWidget.textContent);
 
   // ── Read-only for a non-editing member: Done Editing hides edit controls ────────────────────
   doc.getElementById('dashboardViewerDoneEditingBtn').click();

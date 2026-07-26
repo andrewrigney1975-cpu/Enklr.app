@@ -6,6 +6,8 @@ import { sortRows, createRowFilter } from './sort-filter.js';
 import { csvEscapeValue } from '../views/task-list.js';
 import { downloadBlob } from './svg-export.js';
 import { buildGaugeBlock } from '../modals/health.js';
+import { computeCostBenefitScatterPoints, buildCostBenefitScatterSvg } from '../views/cost-benefit.js';
+import { buildTimelineColumns, tlDateToPixel } from '../views/timeline.js';
 
 /* =========================================================
    DASHBOARD WIDGETS — pure per-widget-type renderers for modals/dashboards.js's viewer/editor.
@@ -193,6 +195,91 @@ export function renderBarGaugeWidget(widget, project){
   return renderBarGauge(resolved.pct, {orientation: config.orientation, valueLabel: resolved.raw + ' / ' + resolved.maxValue});
 }
 
+/* ---- costBenefit ---- */
+
+export function renderCostBenefitWidget(widget, project){
+  var result;
+  try { result = runWidgetQuery(project, widget); }
+  catch(e){ return errorHtml(e.message || 'Could not run this widget\'s query.'); }
+
+  var required = ['businessValue', 'taskCost'];
+  var missing = required.filter(function(c){ return result.columns.indexOf(c) === -1; });
+  if(missing.length){
+    return errorHtml('This widget\'s query is missing required column(s): ' + missing.join(', ') + ' (expects businessValue, taskCost, priority, key, title).');
+  }
+  if(result.rows.length === 0) return '<div class="kf-dashboard-tile-empty">This query returned no rows.</div>';
+
+  var items = result.rows.map(function(row){
+    return {taskId: null, key: row.key, title: row.title, priority: row.priority || 'medium', cost: row.taskCost, value: row.businessValue, archived: false};
+  });
+  var points = computeCostBenefitScatterPoints(items);
+  return '<div class="kf-dashboard-costbenefit-widget">' + buildCostBenefitScatterSvg(points) + '</div>';
+}
+
+/* ---- timeline ---- */
+
+function pickTimelineGranularity(days){
+  if(days <= 14) return 'day';
+  if(days <= 90) return 'week';
+  if(days <= 550) return 'month';
+  if(days <= 1460) return 'quarter';
+  return 'year';
+}
+
+var TIMELINE_WIDGET_COL_WIDTH = 80;
+var TIMELINE_WIDGET_LABEL_WIDTH = 140;
+
+export function renderTimelineWidget(widget, project){
+  var config = parseConfig(widget);
+  if(!config.labelColumn || !config.startColumn || !config.endColumn){
+    return errorHtml('Configure a label, start date, and end date column for this widget.');
+  }
+  var result;
+  try { result = runWidgetQuery(project, widget); }
+  catch(e){ return errorHtml(e.message || 'Could not run this widget\'s query.'); }
+
+  var rows = result.rows.map(function(row){
+    var start = row[config.startColumn] ? new Date(row[config.startColumn]) : null;
+    var end = row[config.endColumn] ? new Date(row[config.endColumn]) : null;
+    return {label: row[config.labelColumn], start: start, end: end};
+  }).filter(function(r){ return r.start && !isNaN(r.start.getTime()) && r.end && !isNaN(r.end.getTime()); });
+
+  if(rows.length === 0) return '<div class="kf-dashboard-tile-empty">No rows with valid label/start/end date values.</div>';
+
+  var minStart = new Date(Math.min.apply(null, rows.map(function(r){ return r.start.getTime(); })));
+  var maxEnd = new Date(Math.max.apply(null, rows.map(function(r){ return r.end.getTime(); })));
+  var days = Math.max(1, (maxEnd.getTime() - minStart.getTime()) / 86400000);
+  var columns = buildTimelineColumns(minStart, maxEnd, pickTimelineGranularity(days), TIMELINE_WIDGET_COL_WIDTH);
+  var totalWidth = columns.length * TIMELINE_WIDGET_COL_WIDTH;
+
+  var headerHtml = columns.map(function(c){
+    return '<div class="kf-dashboard-timeline-col" style="width:' + TIMELINE_WIDGET_COL_WIDTH + 'px;">' + escapeHTML(c.label) + '</div>';
+  }).join('');
+
+  var rowsHtml = rows.map(function(r){
+    var x1 = tlDateToPixel(r.start, columns);
+    var x2 = tlDateToPixel(r.end, columns);
+    var left = Math.max(0, Math.min(x1, x2));
+    var width = Math.max(4, Math.abs(x2 - x1));
+    return '<div class="kf-dashboard-timeline-row">' +
+      '<div class="kf-dashboard-timeline-row-label" style="width:' + TIMELINE_WIDGET_LABEL_WIDTH + 'px;">' + escapeHTML(r.label == null ? '' : String(r.label)) + '</div>' +
+      '<div class="kf-dashboard-timeline-row-track" style="width:' + totalWidth + 'px;">' +
+        '<div class="kf-dashboard-timeline-bar" style="left:' + left + 'px;width:' + width + 'px;" title="' + escapeHTML(r.label == null ? '' : String(r.label)) + '"></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="kf-dashboard-timeline-widget">' +
+    '<div class="kf-dashboard-timeline-scroll">' +
+      '<div class="kf-dashboard-timeline-header-row">' +
+        '<div class="kf-dashboard-timeline-row-label" style="width:' + TIMELINE_WIDGET_LABEL_WIDTH + 'px;"></div>' +
+        '<div class="kf-dashboard-timeline-header" style="width:' + totalWidth + 'px;">' + headerHtml + '</div>' +
+      '</div>' +
+      '<div class="kf-dashboard-timeline-rows">' + rowsHtml + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
 /* ---- text ---- */
 
 export function renderTextWidget(widget){
@@ -221,6 +308,10 @@ export function renderDashboardWidget(widget, project, opts){
       return { html: renderGaugeWidget(widget, project), wire: null };
     case 'barGauge':
       return { html: renderBarGaugeWidget(widget, project), wire: null };
+    case 'costBenefit':
+      return { html: renderCostBenefitWidget(widget, project), wire: null };
+    case 'timeline':
+      return { html: renderTimelineWidget(widget, project), wire: null };
     default:
       return { html: '<div class="kf-dashboard-tile-empty">' + escapeHTML(WIDGET_TYPE_LABELS[widget.widgetType] || widget.widgetType) + ' — rendering coming soon</div>', wire: null };
   }
