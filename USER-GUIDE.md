@@ -787,6 +787,25 @@ one task.
 `#hashtags` — write `#launch` into a few related tasks and that hashtag becomes a live, clickable
 thread tying them together, all without anyone having created a formal "tag" entity anywhere.
 
+**AI Assistant** — **What**: a second floating bubble, next to Chat's, that opens a conversation with
+an AI that can actually act on this project — create tasks, edit them, look things up, and answer
+"what should I work on next" or "how do I..." questions (it knows this User Guide). **Who**: Priya,
+turning "I need to log five tasks for this sprint" into one sentence instead of five separate forms;
+Marcus, asking "what's my most critical task" instead of scanning the board himself. **How**: click
+the sparkle bubble, then just talk to it — mention a task by its key (`ENKLR-42`) or enough of its
+title to be unambiguous, and it'll ask a quick clarifying question rather than guessing if something's
+unclear. A microphone button is there too, on browsers that support voice input.
+- **Breaking a task down into sub-tasks**: ask it to draft sub-tasks out of an existing task's own
+  description — e.g. "look at ENKLR-42 and create a sub-task for each item in its description." Each
+  new sub-task is linked back to that task as its parent (the same Parent/Sub-Task relationship from
+  [Section 3](#3-anatomy-of-a-task)) and automatically picks up its start and due dates, so a whole
+  breakdown lands on the board already scheduled alongside the work it came from. You can also ask it
+  to link an *already-existing* task under a parent — that one leaves the task's own dates alone,
+  since it isn't a fresh sub-task being scheduled for the first time.
+- **Who can use it**: only on a server-connected project (Option B or C from Section 1) — a fully
+  local project has no server-side conversation to have. Availability also depends on your
+  organisation's own plan; if the sparkle bubble isn't there, it isn't enabled for your organisation.
+
 ---
 
 ## 9. Portfolio & organisation management
@@ -800,11 +819,13 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
 - **Portfolio Planner** — **What**: a Gantt-style view for planning multiple projects against each
   other before committing to timelines. **Who**: Elena, sanity-checking that two projects aren't
   quietly both claiming the same quarter's capacity.
-- **Strategy fulfilment** (Portfolio Planner) — **What**: once the Strategy module is switched on
-  (see [Section 6](#6-governance--knowledge--the-why-not-just-the-what)), a "Strategy" button appears
-  next to each project in the Portfolio Planner for setting that project's 0-100% fulfilment value
-  against every Pillar — works on active projects and ones still only planned. **Who**: Elena, scoring
-  the whole portfolio against the organisation's Strategy in one place.
+- **Strategy fulfilment** (Portfolio Planner) — **What**: a "Strategy" button appears next to a
+  project in the Portfolio Planner for setting that project's 0-100% fulfilment value against every
+  Pillar — works on active projects and ones still only planned. It only shows once **both** an
+  organisation-wide Strategy is actually active **and** that specific project has switched Strategy on
+  in its own Project Settings (see [Section 6](#6-governance--knowledge--the-why-not-just-the-what)) —
+  a button that opened onto nothing to fulfil would just be confusing. **Who**: Elena, scoring the
+  whole portfolio against the organisation's Strategy in one place.
 - **Manage Users** — **What**: create and manage the organisation's user accounts — including
   deactivating one when someone leaves. **Who**: Elena, onboarding Marcus's replacement without
   needing anyone to self-register, and, later, offboarding Marcus himself the day he moves on.
@@ -999,6 +1020,7 @@ it" tiers, though who's allowed to *initiate* it differs:
 | Build a reporting screen from my own Saved Queries | [Section 7 — Dashboards](#7-search-and-the-advanced-query-workbench) |
 | See every Dashboard across the whole organisation | [Section 7 — Dashboards](#7-search-and-the-advanced-query-workbench) |
 | Talk to a teammate in real time | [Section 8 — Chat](#8-collaboration--chat-and-comments) |
+| Create tasks (or break one into sub-tasks) by just asking | [Section 8 — AI Assistant](#8-collaboration--chat-and-comments) |
 | See how the whole organisation's projects are doing | [Section 9 — Portfolio Dashboard](#9-portfolio--organisation-management) |
 | Add a new person to the organisation | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
 | Offboard someone who's leaving | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
