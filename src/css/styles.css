@@ -9,6 +9,11 @@
     --kf-surface: #ffffff;
     --kf-column-bg: #f1f2f4;
     --kf-column-bg-drag: #e3e6ea;
+    /* Board-color-independent column tint — a flat, low-opacity black darkens whatever's actually
+       behind the board (the plain surface, or a custom color/gradient/image from My Preferences)
+       instead of painting a fixed opaque gray over it, so a column reads as a subtle variation on
+       the user's own board background rather than hiding it. */
+    --kf-column-overlay: rgba(0, 0, 0, .025);
     --kf-border: #dfe1e6;
     --kf-border-strong: #c1c7d0;
     --kf-border-black: #333333;
@@ -68,6 +73,10 @@
     --kf-surface: #22272b;
     --kf-column-bg: #1d2125;
     --kf-column-bg-drag: #282e33;
+    /* Same board-color-independent tint as the light theme's own --kf-column-overlay, just a low-
+       opacity white to lighten instead of darken (a dark board would otherwise vanish under a
+       black overlay). */
+    --kf-column-overlay: rgba(255, 255, 255, .025);
     --kf-border: #3a3f42;
     --kf-border-strong: #56616a;
     --kf-border-black: #777777;
@@ -1961,7 +1970,7 @@
   }
 
   .kf-column {
-    background: var(--kf-column-tint, var(--kf-column-bg));
+    background: var(--kf-column-tint, var(--kf-column-overlay));
     border-radius: 6px;
     width: 280px;
     min-width: 280px;
