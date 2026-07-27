@@ -253,17 +253,29 @@ public class AiAssistantService
         var (_, typeId, typeError) = await ResolveTaskTypeAsync(projectId, input, "typeName");
         if (typeError is not null) return (typeError, true, null);
 
+        var (parentProvided, parent, parentError) = await ResolveParentTaskAsync(projectId, input, "parentTaskKey");
+        if (parentError is not null) return (parentError, true, null);
+
         var priority = NormalizePriority(input["priority"]?.GetValue<string>());
-        var dueDate = ParseDate(input["dueDate"]?.GetValue<string>());
+        var explicitStartDate = ParseDate(input["startDate"]?.GetValue<string>());
+        var explicitDueDate = ParseDate(input["dueDate"]?.GetValue<string>());
+        // A sub-task created against a parent inherits the parent's own start/end dates by default —
+        // the "draft sub-tasks from this task's description, linked to it" use case this was built
+        // for wants the children scheduled alongside their parent unless the caller says otherwise.
+        // An explicitly-supplied date always wins over the inherited one.
+        var startDate = explicitStartDate ?? (parentProvided ? parent?.StartDate : null);
+        var dueDate = explicitDueDate ?? (parentProvided ? parent?.EndDate : null);
 
         var created = await _tasks.CreateAsync(projectId, new CreateTaskRequest(
             Title: title, Description: input["description"]?.GetValue<string>(), Priority: priority ?? "medium",
-            ColumnId: column!.Id, AssigneeId: assigneeId, ReleaseId: null, TypeId: typeId, ParentTaskId: null,
-            DependsOnTaskIds: null, EndDate: dueDate));
+            ColumnId: column!.Id, AssigneeId: assigneeId, ReleaseId: null, TypeId: typeId,
+            ParentTaskId: parentProvided ? parent?.Id : null,
+            DependsOnTaskIds: null, StartDate: startDate, EndDate: dueDate));
 
         if (created is null) return ("Could not create the task — the target column may no longer exist.", true, null);
 
-        return ($"Created task {created.Key}: \"{created.Title}\" in column \"{column.Name}\".", false,
+        var parentNote = parentProvided && parent is not null ? $" as a sub-task of {parent.Key}" : "";
+        return ($"Created task {created.Key}: \"{created.Title}\" in column \"{column.Name}\"{parentNote}.", false,
             new AiAssistantActionDto("task_created", created.Id, created.Key, created.Title));
     }
 
@@ -289,6 +301,13 @@ public class AiAssistantService
         var (typeProvided, typeId, typeError) = await ResolveTaskTypeAsync(projectId, input, "typeName");
         if (typeError is not null) return (typeError, true, null);
 
+        // Note: unlike create_task, updating an existing task's parent never auto-copies the new
+        // parent's dates onto it — the task already has its own dates, and silently overwriting them
+        // just because a parent link changed would be a surprising side effect for an edit that's
+        // ostensibly just about the relationship.
+        var (parentProvided, parent, parentError) = await ResolveParentTaskAsync(projectId, input, "parentTaskKey", excludeTaskId: task.Id);
+        if (parentError is not null) return (parentError, true, null);
+
         var updated = await _tasks.UpdateAsync(projectId, task.Id, new UpdateTaskRequest(
             Title: input["title"]?.GetValue<string>() ?? task.Title,
             Description: input["description"]?.GetValue<string>() ?? task.Description,
@@ -297,7 +316,7 @@ public class AiAssistantService
             AssigneeId: assigneeProvided ? assigneeId : task.AssigneeId,
             ReleaseId: task.ReleaseId,
             TypeId: typeProvided ? typeId : task.TypeId,
-            ParentTaskId: task.ParentTaskId,
+            ParentTaskId: parentProvided ? parent?.Id : task.ParentTaskId,
             DependsOnTaskIds: task.Dependencies.Select(d => d.DependsOnTaskId).ToList(),
             DocumentationUrl: task.DocumentationUrl, StartDate: task.StartDate,
             EndDate: ParseDate(input["dueDate"]?.GetValue<string>()) ?? task.EndDate,
@@ -511,6 +530,27 @@ public class AiAssistantService
         return (true, match.Id, null);
     }
 
+    /// <summary>Same tri-state shape as <see cref="ResolveAssigneeAsync"/>, resolving a parent task by
+    /// key or title (same lookup <see cref="FindTaskAsync"/> uses) rather than to just an id, since
+    /// callers need the parent's own dates too (create_task's date-inheritance). "none" explicitly
+    /// clears an existing parent link. <paramref name="excludeTaskId"/> (update_task only) rejects a
+    /// task naming itself as its own parent with a clear message, rather than letting it fall through
+    /// to TaskService's own cycle-detection generic failure.</summary>
+    private async Task<(bool Provided, TaskItem? Parent, string? Error)> ResolveParentTaskAsync(Guid projectId, JsonObject input, string key, Guid? excludeTaskId = null)
+    {
+        if (!input.ContainsKey(key)) return (false, null, null);
+        var identifier = input[key]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(identifier) || identifier.Equals("none", StringComparison.OrdinalIgnoreCase))
+        {
+            return (true, null, null);
+        }
+
+        var parent = await FindTaskAsync(projectId, identifier);
+        if (parent is null) return (true, null, $"No task found matching \"{identifier}\" to use as the parent.");
+        if (excludeTaskId is { } selfId && parent.Id == selfId) return (true, null, "A task cannot be its own parent.");
+        return (true, parent, null);
+    }
+
     private static string? NormalizePriority(string? priority) =>
         priority is not null && PriorityOrder.Contains(priority.ToLowerInvariant()) ? priority.ToLowerInvariant() : (priority is null ? null : "medium");
 
@@ -531,6 +571,10 @@ public class AiAssistantService
         sb.AppendLine($"Its teams (valid team names) are: {teamList}.");
         sb.AppendLine("Use the provided tools to create tasks, edit tasks, look up task details, search/filter tasks by priority, " +
             "assignee, team, type, or column, and list the most critical open tasks. " +
+            "You can link a task as a sub-task of another via parentTaskKey on create_task/update_task — e.g. when asked to " +
+            "break an existing task's description down into sub-tasks, look up the parent with get_task_details first, then " +
+            "create each sub-task with parentTaskKey set to the parent's key; each one inherits the parent's own start/due " +
+            "dates automatically unless you specify different ones. " +
             "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.");
         sb.AppendLine("Keep replies short and conversational — this is a chat-style assistant, not a report generator.");
         if (!string.IsNullOrWhiteSpace(alertsSummary))
@@ -565,7 +609,9 @@ public class AiAssistantService
                     ["columnName"] = new JsonObject { ["type"] = "string", ["description"] = "Which board column to place it in. Omit to use the first non-done column." },
                     ["assigneeName"] = new JsonObject { ["type"] = "string", ["description"] = "Display name of the project member to assign this task to. Must match one of the project's members." },
                     ["typeName"] = new JsonObject { ["type"] = "string", ["description"] = "Name of the task type. Must match one of the project's defined task types." },
-                    ["dueDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD), optional." }
+                    ["startDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD), optional." },
+                    ["dueDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD), optional." },
+                    ["parentTaskKey"] = new JsonObject { ["type"] = "string", ["description"] = "Key or title of an existing task to make this a sub-task of (e.g. when drawing sub-tasks out of a parent task's description). The new sub-task inherits the parent's own start/due dates unless startDate/dueDate are also given here." }
                 },
                 ["required"] = new JsonArray { "title" }
             }
@@ -587,7 +633,8 @@ public class AiAssistantService
                     ["assigneeName"] = new JsonObject { ["type"] = "string", ["description"] = "Display name of the project member to assign. Pass \"none\"/\"unassigned\" to clear the assignee." },
                     ["typeName"] = new JsonObject { ["type"] = "string", ["description"] = "Name of the task type. Pass \"none\" to clear it." },
                     ["dueDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD)." },
-                    ["progress"] = new JsonObject { ["type"] = "integer", ["description"] = "0-100." }
+                    ["progress"] = new JsonObject { ["type"] = "integer", ["description"] = "0-100." },
+                    ["parentTaskKey"] = new JsonObject { ["type"] = "string", ["description"] = "Key or title of an existing task to make this a sub-task of. Pass \"none\" to unlink it from its current parent. Does not change this task's own dates." }
                 },
                 ["required"] = new JsonArray { "taskIdentifier" }
             }

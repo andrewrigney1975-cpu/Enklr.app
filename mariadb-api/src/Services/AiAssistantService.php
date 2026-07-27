@@ -202,8 +202,20 @@ final class AiAssistantService
             return [$typeError, true, null];
         }
 
+        [$parentProvided, $parent, $parentError] = $this->resolveParentTask($projectId, $input, 'parentTaskKey');
+        if ($parentError !== null) {
+            return [$parentError, true, null];
+        }
+
         $priority = $this->normalizePriority($input['priority'] ?? null) ?? 'medium';
-        $dueDate = $this->parseDate($input['dueDate'] ?? null);
+        $explicitStartDate = $this->parseDate($input['startDate'] ?? null);
+        $explicitDueDate = $this->parseDate($input['dueDate'] ?? null);
+        // A sub-task created against a parent inherits the parent's own start/end dates by default —
+        // the "draft sub-tasks from this task's description, linked to it" use case this was built
+        // for wants the children scheduled alongside their parent unless the caller says otherwise.
+        // An explicitly-supplied date always wins over the inherited one.
+        $startDate = $explicitStartDate ?? ($parentProvided && $parent !== null ? $parent['StartDate'] : null);
+        $dueDate = $explicitDueDate ?? ($parentProvided && $parent !== null ? $parent['EndDate'] : null);
 
         $created = (new TaskService($this->db))->create($projectId, [
             'title' => $title,
@@ -212,6 +224,8 @@ final class AiAssistantService
             'columnId' => $column['Id'],
             'assigneeId' => $assigneeId,
             'typeId' => $typeId,
+            'parentTaskId' => $parentProvided && $parent !== null ? $parent['Id'] : null,
+            'startDate' => $startDate,
             'endDate' => $dueDate,
         ]);
 
@@ -219,8 +233,9 @@ final class AiAssistantService
             return ['Could not create the task — the target column may no longer exist.', true, null];
         }
 
+        $parentNote = $parentProvided && $parent !== null ? " as a sub-task of {$parent['Key']}" : '';
         return [
-            "Created task {$created['key']}: \"{$created['title']}\" in column \"{$column['Name']}\".",
+            "Created task {$created['key']}: \"{$created['title']}\" in column \"{$column['Name']}\"{$parentNote}.",
             false,
             ['type' => 'task_created', 'taskId' => $created['id'], 'taskKey' => $created['key'], 'title' => $created['title']],
         ];
@@ -257,6 +272,15 @@ final class AiAssistantService
             return [$typeError, true, null];
         }
 
+        // Note: unlike create_task, updating an existing task's parent never auto-copies the new
+        // parent's dates onto it — the task already has its own dates, and silently overwriting them
+        // just because a parent link changed would be a surprising side effect for an edit that's
+        // ostensibly just about the relationship.
+        [$parentProvided, $parent, $parentError] = $this->resolveParentTask($projectId, $input, 'parentTaskKey', $task['Id']);
+        if ($parentError !== null) {
+            return [$parentError, true, null];
+        }
+
         $depStmt = $this->db->prepare('SELECT "DependsOnTaskId" FROM "TaskDependencies" WHERE "TaskId" = :id');
         $depStmt->execute(['id' => $task['Id']]);
         $dependsOnTaskIds = $depStmt->fetchAll(PDO::FETCH_COLUMN);
@@ -269,7 +293,7 @@ final class AiAssistantService
             'assigneeId' => $assigneeProvided ? $assigneeId : $task['AssigneeId'],
             'releaseId' => $task['ReleaseId'],
             'typeId' => $typeProvided ? $typeId : $task['TypeId'],
-            'parentTaskId' => $task['ParentTaskId'],
+            'parentTaskId' => $parentProvided ? ($parent['Id'] ?? null) : $task['ParentTaskId'],
             'dependsOnTaskIds' => $dependsOnTaskIds,
             'documentationUrl' => $task['DocumentationUrl'],
             'startDate' => $task['StartDate'],
@@ -611,6 +635,31 @@ final class AiAssistantService
         return [true, null, "No task type named \"{$name}\". Available: {$names}."];
     }
 
+    /** Same tri-state shape as resolveAssignee(), resolving a parent task by key or title (same
+     * lookup findTask() uses) rather than to just an id, since create_task's date-inheritance also
+     * needs the parent's own dates. "none" explicitly clears an existing parent link. $excludeTaskId
+     * (update_task only) rejects a task naming itself as its own parent with a clear message rather
+     * than falling through to TaskService's own generic cycle-detection failure. */
+    private function resolveParentTask(string $projectId, array $input, string $key, ?string $excludeTaskId = null): array
+    {
+        if (!array_key_exists($key, $input)) {
+            return [false, null, null];
+        }
+        $identifier = $input[$key];
+        if ($identifier === null || trim((string) $identifier) === '' || strtolower((string) $identifier) === 'none') {
+            return [true, null, null];
+        }
+
+        $parent = $this->findTask($projectId, (string) $identifier);
+        if ($parent === null) {
+            return [true, null, "No task found matching \"{$identifier}\" to use as the parent."];
+        }
+        if ($excludeTaskId !== null && $parent['Id'] === $excludeTaskId) {
+            return [true, null, 'A task cannot be its own parent.'];
+        }
+        return [true, $parent, null];
+    }
+
     private function normalizePriority(?string $priority): ?string
     {
         if ($priority === null) {
@@ -655,6 +704,10 @@ final class AiAssistantService
             "Its teams (valid team names) are: {$teamList}.\n" .
             "Use the provided tools to create tasks, edit tasks, look up task details, search/filter tasks by priority, " .
             "assignee, team, type, or column, and list the most critical open tasks. " .
+            "You can link a task as a sub-task of another via parentTaskKey on create_task/update_task — e.g. when asked to " .
+            "break an existing task's description down into sub-tasks, look up the parent with get_task_details first, then " .
+            "create each sub-task with parentTaskKey set to the parent's key; each one inherits the parent's own start/due " .
+            "dates automatically unless you specify different ones. " .
             "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.\n" .
             "Keep replies short and conversational — this is a chat-style assistant, not a report generator.\n";
 
@@ -687,7 +740,9 @@ final class AiAssistantService
                         'columnName' => ['type' => 'string', 'description' => 'Which board column to place it in. Omit to use the first non-done column.'],
                         'assigneeName' => ['type' => 'string', 'description' => 'Display name of the project member to assign this task to. Must match one of the project\'s members.'],
                         'typeName' => ['type' => 'string', 'description' => 'Name of the task type. Must match one of the project\'s defined task types.'],
+                        'startDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD), optional.'],
                         'dueDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD), optional.'],
+                        'parentTaskKey' => ['type' => 'string', 'description' => 'Key or title of an existing task to make this a sub-task of (e.g. when drawing sub-tasks out of a parent task\'s description). The new sub-task inherits the parent\'s own start/due dates unless startDate/dueDate are also given here.'],
                     ],
                     'required' => ['title'],
                 ],
@@ -707,6 +762,7 @@ final class AiAssistantService
                         'typeName' => ['type' => 'string', 'description' => 'Name of the task type. Pass "none" to clear it.'],
                         'dueDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD).'],
                         'progress' => ['type' => 'integer', 'description' => '0-100.'],
+                        'parentTaskKey' => ['type' => 'string', 'description' => 'Key or title of an existing task to make this a sub-task of. Pass "none" to unlink it from its current parent. Does not change this task\'s own dates.'],
                     ],
                     'required' => ['taskIdentifier'],
                 ],
