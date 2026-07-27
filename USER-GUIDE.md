@@ -798,10 +798,15 @@ unclear. A microphone button is there too, on browsers that support voice input.
 - **Breaking a task down into sub-tasks**: ask it to draft sub-tasks out of an existing task's own
   description — e.g. "look at ENKLR-42 and create a sub-task for each item in its description." Each
   new sub-task is linked back to that task as its parent (the same Parent/Sub-Task relationship from
-  [Section 3](#3-anatomy-of-a-task)) and automatically picks up its start and due dates, so a whole
-  breakdown lands on the board already scheduled alongside the work it came from. You can also ask it
-  to link an *already-existing* task under a parent — that one leaves the task's own dates alone,
-  since it isn't a fresh sub-task being scheduled for the first time.
+  [Section 3](#3-anatomy-of-a-task)) and inherits the parent's assignee, release, business value, and
+  task cost wherever the parent has them set — so a whole breakdown lands on the board already staffed
+  and costed the same way as the work it came from, not as a set of blank, unowned tasks. If the
+  parent belongs to a Release, its new sub-tasks are also spread evenly across that Release's own
+  dates (three sub-tasks under a ten-day release each get roughly a third of it); with no Release to
+  schedule against, they default to an even split of a two-week window starting today. Naming specific
+  dates for a sub-task while asking always wins over this automatic scheduling. You can also ask it to
+  link an *already-existing* task under a parent — that one leaves the task's own dates alone, since
+  it isn't a fresh sub-task being scheduled for the first time.
 - **Who can use it**: only on a server-connected project (Option B or C from Section 1) — a fully
   local project has no server-side conversation to have. Availability also depends on your
   organisation's own plan; if the sparkle bubble isn't there, it isn't enabled for your organisation.
