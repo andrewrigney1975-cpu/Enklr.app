@@ -3012,6 +3012,42 @@
     margin-left: auto;
   }
 
+  /* Collapse/expand toggle — same chevron-rotation idiom as .kf-tasklist-chevron (views/task-list.js's
+     own collapsible groups), a new class rather than reusing that one since this button also needs
+     its own hit-target sizing/margin distinct from a group-header row. */
+  .kf-dashboard-widget-collapse-btn {
+    background: none;
+    border: none;
+    padding: 2px;
+    margin: 0;
+    cursor: pointer;
+    color: var(--kf-text-faint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    flex: 0 0 auto;
+  }
+
+  .kf-dashboard-widget-collapse-btn:hover {
+    background: var(--kf-hover-tint);
+    color: var(--kf-text);
+  }
+
+  .kf-dashboard-widget-chevron {
+    display: flex;
+    transform: rotate(-90deg);
+    transition: transform .12s;
+  }
+
+  .kf-dashboard-widget-chevron.expanded {
+    transform: rotate(0deg);
+  }
+
+  .kf-dashboard-widget-collapsed .kf-dashboard-widget-body {
+    display: none;
+  }
+
   /* Data Table widget — plain CSS-grid rows, same idiom as the Release "Tasks in this Release"
      table (root CLAUDE.md's own "div-based grid rows, not a native <table>" convention). */
   .kf-dashboard-table-wrap {

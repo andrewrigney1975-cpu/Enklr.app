@@ -184,11 +184,17 @@ var viewerProjectId = null;
 var viewerDashboard = null;
 var viewerEditMode = false;
 
+// Session-only, per-widget — never persisted, reset every time the viewer closes (same convention
+// as tableWidgetState's own sort/filter/pagination). Collapsing is a screen-only display preference;
+// printDashboardFromViewer always prints every widget's full content regardless of this state.
+var collapsedWidgetIds = {};
+
 export function openDashboardViewer(projectId, dashboardId){
   viewerProjectId = projectId;
   dashboardApi.get(projectId, dashboardId).then(function(dashboard){
     viewerDashboard = dashboard;
     viewerEditMode = false;
+    collapsedWidgetIds = {};
     closeDashboardsPickerOverlay();
     renderDashboardViewer();
     document.getElementById('dashboardViewerOverlay').classList.remove('hidden');
@@ -200,6 +206,7 @@ export function closeDashboardViewerOverlay(){
   document.getElementById('dashboardViewerOverlay').classList.add('hidden');
   viewerDashboard = null;
   viewerEditMode = false;
+  collapsedWidgetIds = {};
   resetDashboardTableWidgetState();
 }
 export function isDashboardViewerOverlayOpen(){
@@ -269,15 +276,21 @@ function renderDashboardViewerGrid(){
   // it is NOT the same thing as `editMode` above. A table widget's own sort/filter/CSV-export stay
   // fully interactive whether or not the dashboard's structural layout editor (add/remove/reorder
   // widgets) happens to be open, per the plan's "Any Project Member can sort/filter/print" row.
+  //
+  // Collapsed widgets skip rendering their body content entirely (not just hiding it via CSS) — a
+  // collapsed widget's Saved Query never even runs, so collapsing a slow/large table also saves the
+  // work, not just the screen space.
   grid.innerHTML = widgets.map(function(w, i){
     var widthClass = w.width === 'third' ? ' kf-dashboard-widget-third'
       : w.width === 'half' ? ' kf-dashboard-widget-half'
       : w.width === 'twoThird' ? ' kf-dashboard-widget-two-third'
       : '';
-    var rendered = renderDashboardWidget(w, project, {readOnly: false, canExport: canExport});
+    var collapsed = !!collapsedWidgetIds[w.id];
+    var rendered = collapsed ? {html: '', wire: null} : renderDashboardWidget(w, project, {readOnly: false, canExport: canExport});
     var showHeaderExport = w.widgetType === 'table' && canExport;
-    return '<div class="kf-dashboard-widget' + widthClass + '" data-widget-id="' + w.id + '">' +
+    return '<div class="kf-dashboard-widget' + widthClass + (collapsed ? ' kf-dashboard-widget-collapsed' : '') + '" data-widget-id="' + w.id + '">' +
       '<div class="kf-dashboard-widget-header">' +
+        '<button type="button" class="kf-dashboard-widget-collapse-btn" data-widget-collapse="' + w.id + '" aria-expanded="' + (collapsed ? 'false' : 'true') + '" title="' + (collapsed ? 'Expand' : 'Collapse') + '"><span class="kf-dashboard-widget-chevron' + (collapsed ? '' : ' expanded') + '">' + iconSvg('chevronDown', 14) + '</span></button>' +
         '<span class="kf-dashboard-widget-title">' + escapeHTML(w.title) + '</span>' +
         '<div class="kf-dashboard-widget-actions">' +
           (showHeaderExport ? '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-widget-export-header="' + w.id + '" title="Export as CSV"><span class="kf-icon">' + iconSvg('download', 14) + '</span>Export as CSV</button>' : '') +
@@ -295,8 +308,18 @@ function renderDashboardViewerGrid(){
   }).join('');
 
   widgets.forEach(function(w){
+    if(collapsedWidgetIds[w.id]) return;
     var rendered = renderDashboardWidget(w, project, {readOnly: false, canExport: canExport});
     if(rendered.wire) rendered.wire(grid, renderDashboardViewerGrid);
+  });
+
+  grid.querySelectorAll('[data-widget-collapse]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var id = btn.getAttribute('data-widget-collapse');
+      collapsedWidgetIds[id] = !collapsedWidgetIds[id];
+      renderDashboardViewerGrid();
+    });
   });
 
   grid.querySelectorAll('[data-widget-export-header]').forEach(function(btn){

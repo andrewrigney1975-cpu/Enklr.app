@@ -363,6 +363,53 @@ function makeMockFetch(state){
   log('table widget CSV export stays available for a Project Admin outside edit mode', doc.querySelector('[data-widget-export-header]') !== null);
   log('table widget sort headers stay interactive outside edit mode', doc.querySelector('.kf-dashboard-table-th-sortable') !== null);
 
+  // ── Collapse/expand: each widget independently, works outside edit mode too ────────────────
+  var firstWidgetCard = doc.querySelector('.kf-dashboard-widget');
+  var collapseBtn = firstWidgetCard.querySelector('[data-widget-collapse]');
+  log('collapse toggle button exists on a widget card', collapseBtn !== null);
+  log('collapse toggle has a real rendered icon', collapseBtn && collapseBtn.querySelector('svg') !== null);
+  log('collapse button starts expanded (aria-expanded=true)', collapseBtn.getAttribute('aria-expanded') === 'true');
+  log('widget body is visible before collapsing', firstWidgetCard.querySelector('.kf-dashboard-widget-body').textContent.trim() !== '');
+
+  var secondWidgetCard = doc.querySelectorAll('.kf-dashboard-widget')[1];
+  var secondWidgetId = secondWidgetCard.getAttribute('data-widget-id');
+
+  collapseBtn.click();
+  await wait(50);
+  var firstWidgetIdAfterCollapse = doc.querySelector('.kf-dashboard-widget').getAttribute('data-widget-id');
+  var collapsedCard = doc.querySelector('.kf-dashboard-widget[data-widget-id="' + firstWidgetIdAfterCollapse + '"]');
+  log('widget card gets the collapsed class', collapsedCard.classList.contains('kf-dashboard-widget-collapsed'));
+  log('collapsed widget body is empty (query not re-run, not just visually hidden)', collapsedCard.querySelector('.kf-dashboard-widget-body').innerHTML.trim() === '');
+  log('collapse button flips to aria-expanded=false', collapsedCard.querySelector('[data-widget-collapse]').getAttribute('aria-expanded') === 'false');
+
+  var otherCard = doc.querySelector('.kf-dashboard-widget[data-widget-id="' + secondWidgetId + '"]');
+  log('the OTHER widget is unaffected by collapsing the first one', !otherCard.classList.contains('kf-dashboard-widget-collapsed') && otherCard.querySelector('.kf-dashboard-widget-body').innerHTML.trim() !== '');
+
+  // Collapsing survives toggling Edit Layout on/off (not tied to editMode).
+  doc.getElementById('dashboardViewerEditBtn').click();
+  await wait(50);
+  log('collapsed state persists into edit mode', doc.querySelector('.kf-dashboard-widget[data-widget-id="' + firstWidgetIdAfterCollapse + '"]').classList.contains('kf-dashboard-widget-collapsed'));
+
+  // Re-expand and confirm content comes back.
+  doc.querySelector('.kf-dashboard-widget[data-widget-id="' + firstWidgetIdAfterCollapse + '"] [data-widget-collapse]').click();
+  await wait(50);
+  var reExpandedCard = doc.querySelector('.kf-dashboard-widget[data-widget-id="' + firstWidgetIdAfterCollapse + '"]');
+  log('re-expanding restores the widget body content', !reExpandedCard.classList.contains('kf-dashboard-widget-collapsed') && reExpandedCard.querySelector('.kf-dashboard-widget-body').textContent.trim() !== '');
+
+  doc.getElementById('dashboardViewerDoneEditingBtn').click();
+  await wait(50);
+
+  // Collapse the "Completion" gauge widget right before printing — print must ignore collapse state.
+  var completionCard = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Completion';
+  });
+  completionCard.querySelector('[data-widget-collapse]').click();
+  await wait(50);
+  completionCard = Array.from(doc.querySelectorAll('.kf-dashboard-widget')).find(function(w){
+    return w.querySelector('.kf-dashboard-widget-title').textContent === 'Completion';
+  });
+  log('Completion widget is now collapsed on screen', completionCard.classList.contains('kf-dashboard-widget-collapsed'));
+
   // ── Print: reuses features/reports.js's #reportOverlay ────────────────────────────────────
   doc.getElementById('dashboardViewerPrintBtn').click();
   await wait(50);
@@ -371,6 +418,7 @@ function makeMockFetch(state){
   var reportBody = doc.getElementById('reportBody');
   log('printed report includes every widget title', reportBody.textContent.indexOf('All Tasks Table') !== -1 && reportBody.textContent.indexOf('Completion') !== -1 && reportBody.textContent.indexOf('Schedule') !== -1, reportBody.textContent.indexOf('All Tasks Table') + ',' + reportBody.textContent.indexOf('Completion'));
   log('printed table widget has no sort headers or CSV export (static output)', reportBody.querySelector('.kf-dashboard-table-th-sortable') === null && reportBody.querySelector('[data-widget-export-header]') === null);
+  log('a widget collapsed on screen still prints its full content', reportBody.textContent.indexOf('Completion') !== -1 && reportBody.textContent.indexOf('75%') !== -1, reportBody.textContent.indexOf('75%'));
   doc.getElementById('reportClose').click();
 
   console.log('Dashboards test complete.');
