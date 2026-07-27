@@ -21,6 +21,10 @@ final class AiAssistantService
     private const PRIORITY_ORDER = ['trivial', 'low', 'medium', 'high', 'critical'];
     private const MAX_TOOL_LOOP_ITERATIONS = 6;
 
+    // Default schedule window for sub-tasks with no Release to inherit dates from — see
+    // resolveSubtaskWindow().
+    private const DEFAULT_SUBTASK_WINDOW_DAYS = 14;
+
     // Cached per-process - see php-api/src/Services/AiAssistantService.php's own comment on this
     // same field for the full reasoning (bare-metal deploy, no Docker build step, repo root always
     // reachable relative to this file). Null-safe: a missing file never breaks the assistant.
@@ -144,9 +148,9 @@ final class AiAssistantService
                 $toolUseId = $toolUse['id'];
                 $input = $toolUse['input'] ?? [];
 
-                [$resultText, $isError, $action] = $this->executeTool($projectId, $toolName, $input);
-                if ($action !== null) {
-                    $actions[] = $action;
+                [$resultText, $isError, $toolActions] = $this->executeTool($projectId, $toolName, $input);
+                foreach ($toolActions as $a) {
+                    $actions[] = $a;
                 }
 
                 $toolResult = ['type' => 'tool_result', 'tool_use_id' => $toolUseId, 'content' => $resultText];
@@ -162,21 +166,22 @@ final class AiAssistantService
         return ['reply' => "I wasn't able to finish that within the allotted number of steps — could you try a narrower request?", 'actions' => $actions];
     }
 
-    /** @return array{0: string, 1: bool, 2: ?array<string, mixed>} */
+    /** @return array{0: string, 1: bool, 2: array<int, array<string, mixed>>} */
     private function executeTool(string $projectId, string $toolName, array $input): array
     {
         try {
             return match ($toolName) {
                 'create_task' => $this->createTaskTool($projectId, $input),
+                'create_subtasks' => $this->createSubtasksTool($projectId, $input),
                 'update_task' => $this->updateTaskTool($projectId, $input),
                 'get_task_details' => $this->getTaskDetailsTool($projectId, $input),
                 'list_critical_tasks' => $this->listCriticalTasksTool($projectId, $input),
                 'search_tasks' => $this->searchTasksTool($projectId, $input),
-                default => ["Unknown tool: {$toolName}", true, null],
+                default => ["Unknown tool: {$toolName}", true, []],
             };
         } catch (\Throwable $e) {
             Log::channel()->warning('AI assistant tool failed', ['tool' => $toolName, 'projectId' => $projectId, 'error' => $e->getMessage()]);
-            return ['That action failed: ' . $e->getMessage(), true, null];
+            return ['That action failed: ' . $e->getMessage(), true, []];
         }
     }
 
@@ -184,60 +189,164 @@ final class AiAssistantService
     {
         $title = trim((string) ($input['title'] ?? ''));
         if ($title === '') {
-            return ['A task title is required.', true, null];
+            return ['A task title is required.', true, []];
         }
 
         [$column, $columnError] = $this->resolveColumn($projectId, $input['columnName'] ?? null);
         if ($columnError !== null) {
-            return [$columnError, true, null];
+            return [$columnError, true, []];
         }
 
-        [, $assigneeId, $assigneeError] = $this->resolveAssignee($projectId, $input, 'assigneeName');
+        [$assigneeProvided, $assigneeId, $assigneeError] = $this->resolveAssignee($projectId, $input, 'assigneeName');
         if ($assigneeError !== null) {
-            return [$assigneeError, true, null];
+            return [$assigneeError, true, []];
         }
 
         [, $typeId, $typeError] = $this->resolveTaskType($projectId, $input, 'typeName');
         if ($typeError !== null) {
-            return [$typeError, true, null];
+            return [$typeError, true, []];
         }
 
         [$parentProvided, $parent, $parentError] = $this->resolveParentTask($projectId, $input, 'parentTaskKey');
         if ($parentError !== null) {
-            return [$parentError, true, null];
+            return [$parentError, true, []];
         }
 
         $priority = $this->normalizePriority($input['priority'] ?? null) ?? 'medium';
         $explicitStartDate = $this->parseDate($input['startDate'] ?? null);
         $explicitDueDate = $this->parseDate($input['dueDate'] ?? null);
-        // A sub-task created against a parent inherits the parent's own start/end dates by default —
-        // the "draft sub-tasks from this task's description, linked to it" use case this was built
-        // for wants the children scheduled alongside their parent unless the caller says otherwise.
-        // An explicitly-supplied date always wins over the inherited one.
-        $startDate = $explicitStartDate ?? ($parentProvided && $parent !== null ? $parent['StartDate'] : null);
-        $dueDate = $explicitDueDate ?? ($parentProvided && $parent !== null ? $parent['EndDate'] : null);
+
+        $startDate = $explicitStartDate;
+        $dueDate = $explicitDueDate;
+        if ($parentProvided && $parent !== null && ($explicitStartDate === null || $explicitDueDate === null)) {
+            // A sub-task created against a parent, with no explicit dates of its own, is scheduled to
+            // span the parent's linked Release (or a 2-week-from-today default) — see
+            // resolveSubtaskWindow()'s own doc comment. A single sub-task created this way (as opposed
+            // to create_subtasks' batch of several) gets the WHOLE window, since there are no siblings
+            // to divide it with.
+            [$windowStart, $windowEnd] = $this->resolveSubtaskWindow($parent);
+            $startDate ??= $windowStart;
+            $dueDate ??= $windowEnd;
+        }
 
         $created = (new TaskService($this->db))->create($projectId, [
             'title' => $title,
             'description' => $input['description'] ?? null,
             'priority' => $priority,
             'columnId' => $column['Id'],
-            'assigneeId' => $assigneeId,
+            // A sub-task inherits its parent's assignee/release/business value/cost "where available"
+            // (i.e. only when the parent actually has one set) unless explicitly overridden here.
+            'assigneeId' => $assigneeProvided ? $assigneeId : ($parentProvided && $parent !== null ? $parent['AssigneeId'] : null),
+            'releaseId' => $parentProvided && $parent !== null ? $parent['ReleaseId'] : null,
             'typeId' => $typeId,
             'parentTaskId' => $parentProvided && $parent !== null ? $parent['Id'] : null,
             'startDate' => $startDate,
             'endDate' => $dueDate,
+            'businessValue' => $parentProvided && $parent !== null ? $parent['BusinessValue'] : null,
+            'taskCost' => $parentProvided && $parent !== null ? $parent['TaskCost'] : null,
         ]);
 
         if ($created === null) {
-            return ['Could not create the task — the target column may no longer exist.', true, null];
+            return ['Could not create the task — the target column may no longer exist.', true, []];
         }
 
         $parentNote = $parentProvided && $parent !== null ? " as a sub-task of {$parent['Key']}" : '';
         return [
             "Created task {$created['key']}: \"{$created['title']}\" in column \"{$column['Name']}\"{$parentNote}.",
             false,
-            ['type' => 'task_created', 'taskId' => $created['id'], 'taskKey' => $created['key'], 'title' => $created['title']],
+            [['type' => 'task_created', 'taskId' => $created['id'], 'taskKey' => $created['key'], 'title' => $created['title']]],
+        ];
+    }
+
+    /** Batch sibling-aware counterpart to create_task's own single-item parentTaskKey path — the one
+     * place "spread these N sub-tasks evenly across the parent's Release window" can actually be
+     * computed, since create_task's own per-call resolution has no visibility into how many sibling
+     * sub-tasks are being created alongside it. Each item can still override title (required),
+     * description, priority, assigneeName, typeName, startDate, dueDate — an explicit date on a given
+     * item always wins over its computed segment. */
+    private function createSubtasksTool(string $projectId, array $input): array
+    {
+        $parentIdentifier = trim((string) ($input['parentTaskKey'] ?? ''));
+        if ($parentIdentifier === '') {
+            return ['A parentTaskKey is required.', true, []];
+        }
+
+        $parent = $this->findTask($projectId, $parentIdentifier);
+        if ($parent === null) {
+            return ["No task found matching \"{$parentIdentifier}\" to use as the parent.", true, []];
+        }
+
+        $items = $input['subtasks'] ?? null;
+        if (!is_array($items) || $items === []) {
+            return ['At least one sub-task is required in "subtasks".', true, []];
+        }
+        $items = array_values($items);
+
+        [$windowStart, $windowEnd] = $this->resolveSubtaskWindow($parent);
+        $segments = $this->splitWindowEvenly($windowStart, $windowEnd, count($items));
+
+        $actions = [];
+        $createdSummaries = [];
+        foreach ($items as $i => $item) {
+            if (!is_array($item)) {
+                return ["Sub-task #" . ($i + 1) . " is not a valid object.", true, $actions];
+            }
+            $title = trim((string) ($item['title'] ?? ''));
+            if ($title === '') {
+                return ["Sub-task #" . ($i + 1) . " is missing a title.", true, $actions];
+            }
+
+            [$column, $columnError] = $this->resolveColumn($projectId, $item['columnName'] ?? null);
+            if ($columnError !== null) {
+                return [$columnError, true, $actions];
+            }
+
+            [$assigneeProvided, $assigneeIdOverride, $assigneeError] = $this->resolveAssignee($projectId, $item, 'assigneeName');
+            if ($assigneeError !== null) {
+                return [$assigneeError, true, $actions];
+            }
+
+            [$typeProvided, $typeId, $typeError] = $this->resolveTaskType($projectId, $item, 'typeName');
+            if ($typeError !== null) {
+                return [$typeError, true, $actions];
+            }
+
+            $priority = $this->normalizePriority($item['priority'] ?? null) ?? 'medium';
+            $explicitStart = $this->parseDate($item['startDate'] ?? null);
+            $explicitDue = $this->parseDate($item['dueDate'] ?? null);
+            $segment = $segments[$i];
+
+            $created = (new TaskService($this->db))->create($projectId, [
+                'title' => $title,
+                'description' => $item['description'] ?? null,
+                'priority' => $priority,
+                'columnId' => $column['Id'],
+                'assigneeId' => $assigneeProvided ? $assigneeIdOverride : $parent['AssigneeId'],
+                'releaseId' => $parent['ReleaseId'],
+                'typeId' => $typeProvided ? $typeId : null,
+                'parentTaskId' => $parent['Id'],
+                'startDate' => $explicitStart ?? $segment[0],
+                'endDate' => $explicitDue ?? $segment[1],
+                'businessValue' => $parent['BusinessValue'],
+                'taskCost' => $parent['TaskCost'],
+            ]);
+
+            if ($created === null) {
+                return ["Could not create sub-task \"{$title}\" — the target column may no longer exist.", true, $actions];
+            }
+
+            $actions[] = ['type' => 'task_created', 'taskId' => $created['id'], 'taskKey' => $created['key'], 'title' => $created['title']];
+            $createdSummaries[] = "{$created['key']} \"{$created['title']}\" ({$segment[0]} to {$segment[1]})";
+        }
+
+        $windowNote = $parent['ReleaseId'] !== null
+            ? "its linked Release's dates"
+            : 'a default 2-week window starting today (no Release dates to schedule against)';
+        $count = count($actions);
+        return [
+            "Created {$count} sub-task(s) under {$parent['Key']}, spread evenly across {$windowNote}: " . implode('; ', $createdSummaries) . '.',
+            false,
+            $actions,
         ];
     }
 
@@ -245,31 +354,31 @@ final class AiAssistantService
     {
         $identifier = trim((string) ($input['taskIdentifier'] ?? ''));
         if ($identifier === '') {
-            return ['A task identifier (title or key) is required.', true, null];
+            return ['A task identifier (title or key) is required.', true, []];
         }
 
         $task = $this->findTask($projectId, $identifier);
         if ($task === null) {
-            return ["No task found matching \"{$identifier}\".", true, null];
+            return ["No task found matching \"{$identifier}\".", true, []];
         }
 
         $columnId = $task['ColumnId'];
         if (isset($input['columnName'])) {
             [$column, $columnError] = $this->resolveColumn($projectId, $input['columnName']);
             if ($columnError !== null) {
-                return [$columnError, true, null];
+                return [$columnError, true, []];
             }
             $columnId = $column['Id'];
         }
 
         [$assigneeProvided, $assigneeId, $assigneeError] = $this->resolveAssignee($projectId, $input, 'assigneeName');
         if ($assigneeError !== null) {
-            return [$assigneeError, true, null];
+            return [$assigneeError, true, []];
         }
 
         [$typeProvided, $typeId, $typeError] = $this->resolveTaskType($projectId, $input, 'typeName');
         if ($typeError !== null) {
-            return [$typeError, true, null];
+            return [$typeError, true, []];
         }
 
         // Note: unlike create_task, updating an existing task's parent never auto-copies the new
@@ -278,7 +387,7 @@ final class AiAssistantService
         // ostensibly just about the relationship.
         [$parentProvided, $parent, $parentError] = $this->resolveParentTask($projectId, $input, 'parentTaskKey', $task['Id']);
         if ($parentError !== null) {
-            return [$parentError, true, null];
+            return [$parentError, true, []];
         }
 
         $depStmt = $this->db->prepare('SELECT "DependsOnTaskId" FROM "TaskDependencies" WHERE "TaskId" = :id');
@@ -307,7 +416,7 @@ final class AiAssistantService
         ], 'AI Assistant');
 
         if ($updated === null) {
-            return ['Could not update the task.', true, null];
+            return ['Could not update the task.', true, []];
         }
 
         return [
@@ -321,12 +430,12 @@ final class AiAssistantService
     {
         $identifier = trim((string) ($input['taskIdentifier'] ?? ''));
         if ($identifier === '') {
-            return ['A task identifier (title or key) is required.', true, null];
+            return ['A task identifier (title or key) is required.', true, []];
         }
 
         $task = $this->findTask($projectId, $identifier);
         if ($task === null) {
-            return ["No task found matching \"{$identifier}\".", true, null];
+            return ["No task found matching \"{$identifier}\".", true, []];
         }
 
         $columnStmt = $this->db->prepare('SELECT "Name" FROM "Columns" WHERE "Id" = :id');
@@ -351,7 +460,7 @@ final class AiAssistantService
             "progress {$task['Progress']}%, due " . ($task['EndDate'] ?? 'not set') . '.' .
             (($task['Description'] ?? '') !== '' ? " Description: {$task['Description']}" : '');
 
-        return [$summary, false, null];
+        return [$summary, false, []];
     }
 
     private function listCriticalTasksTool(string $projectId, array $input): array
@@ -367,7 +476,7 @@ final class AiAssistantService
         $openTasks = $stmt->fetchAll();
 
         if ($openTasks === []) {
-            return ['There are no open tasks in this project.', false, null];
+            return ['There are no open tasks in this project.', false, []];
         }
 
         $ids = array_column($openTasks, 'Id');
@@ -401,7 +510,7 @@ final class AiAssistantService
             return "{$t['Key']} \"{$t['Title']}\" — priority {$t['Priority']}, progress {$t['Progress']}%, due {$due}, blocks {$blocks} other task(s)";
         }, $ranked);
 
-        return [implode("\n", $lines), false, null];
+        return [implode("\n", $lines), false, []];
     }
 
     private function searchTasksTool(string $projectId, array $input): array
@@ -421,7 +530,7 @@ final class AiAssistantService
         if (!empty($input['columnName'])) {
             [$column, $columnError] = $this->resolveColumn($projectId, $input['columnName']);
             if ($columnError !== null) {
-                return [$columnError, true, null];
+                return [$columnError, true, []];
             }
             $where[] = 't."ColumnId" = :columnId';
             $params['columnId'] = $column['Id'];
@@ -438,7 +547,7 @@ final class AiAssistantService
             }
             if ($typeMatch === null) {
                 $names = $types === [] ? '(none defined for this project)' : implode(', ', array_column($types, 'Name'));
-                return ["No task type named \"{$input['typeName']}\". Available: {$names}.", true, null];
+                return ["No task type named \"{$input['typeName']}\". Available: {$names}.", true, []];
             }
             $where[] = 't."TypeId" = :typeId';
             $params['typeId'] = $typeMatch['Id'];
@@ -459,7 +568,7 @@ final class AiAssistantService
                 }
                 if ($match === null) {
                     $names = implode(', ', array_column($members, 'DisplayName'));
-                    return ["No project member named \"{$name}\". Available: {$names}.", true, null];
+                    return ["No project member named \"{$name}\". Available: {$names}.", true, []];
                 }
                 $where[] = 't."AssigneeId" = :assigneeId';
                 $params['assigneeId'] = $match['Id'];
@@ -477,13 +586,13 @@ final class AiAssistantService
             }
             if ($teamMatch === null) {
                 $names = $teams === [] ? '(no teams defined for this project)' : implode(', ', array_column($teams, 'Name'));
-                return ["No team named \"{$input['teamName']}\". Available: {$names}.", true, null];
+                return ["No team named \"{$input['teamName']}\". Available: {$names}.", true, []];
             }
             $memberStmt = $this->db->prepare('SELECT "ProjectMemberId" FROM "TeamCommitteeMember" WHERE "TeamCommitteeId" = :id');
             $memberStmt->execute(['id' => $teamMatch['Id']]);
             $teamMemberIds = array_column($memberStmt->fetchAll(), 'ProjectMemberId');
             if ($teamMemberIds === []) {
-                return ["No tasks matched those filters.", false, null];
+                return ["No tasks matched those filters.", false, []];
             }
             $placeholders = implode(',', array_map(static fn($i) => ':tm' . $i, array_keys($teamMemberIds)));
             $where[] = "t.\"AssigneeId\" IN ({$placeholders})";
@@ -508,7 +617,7 @@ final class AiAssistantService
         $results = $stmt->fetchAll();
 
         if ($results === []) {
-            return ['No tasks matched those filters.', false, null];
+            return ['No tasks matched those filters.', false, []];
         }
 
         $lines = array_map(static function (array $t) {
@@ -516,7 +625,7 @@ final class AiAssistantService
             return "{$t['Key']} \"{$t['Title']}\" — priority {$t['Priority']}, column \"{$t['ColumnName']}\", due {$due}";
         }, $results);
 
-        return [implode("\n", $lines), false, null];
+        return [implode("\n", $lines), false, []];
     }
 
     private function findTask(string $projectId, string $identifier): ?array
@@ -660,6 +769,50 @@ final class AiAssistantService
         return [true, $parent, null];
     }
 
+    /** The date range new sub-tasks should be scheduled across when no explicit dates of their own
+     * are given: the parent's linked Release's own dates, if it has one with both dates set;
+     * otherwise a fixed self::DEFAULT_SUBTASK_WINDOW_DAYS-day window starting today.
+     * @return array{0: string, 1: string} [startDate, endDate] as 'YYYY-MM-DD' strings */
+    private function resolveSubtaskWindow(array $parent): array
+    {
+        if ($parent['ReleaseId'] !== null) {
+            $stmt = $this->db->prepare('SELECT "StartDate", "EndDate" FROM "Releases" WHERE "Id" = :id');
+            $stmt->execute(['id' => $parent['ReleaseId']]);
+            $release = $stmt->fetch();
+            if ($release !== false && $release['StartDate'] !== null && $release['EndDate'] !== null && $release['EndDate'] >= $release['StartDate']) {
+                return [$release['StartDate'], $release['EndDate']];
+            }
+        }
+
+        $today = new \DateTimeImmutable('today');
+        return [$today->format('Y-m-d'), $today->modify('+' . self::DEFAULT_SUBTASK_WINDOW_DAYS . ' days')->format('Y-m-d')];
+    }
+
+    /** Splits [windowStart, windowEnd] into $count contiguous, non-overlapping segments covering the
+     * whole window (the last segment is snapped exactly to windowEnd to absorb any rounding
+     * remainder) — used to spread several sub-tasks evenly across their parent's Release (or the
+     * default window) so that, together, "all the sub-tasks fit within the dates of the release". A
+     * single-day (or inverted) window, or count === 1, degenerates safely to every segment equalling
+     * the whole window.
+     * @return array<int, array{0: string, 1: string}> */
+    private function splitWindowEvenly(string $windowStart, string $windowEnd, int $count): array
+    {
+        $start = new \DateTimeImmutable($windowStart);
+        $end = new \DateTimeImmutable($windowEnd);
+        $totalDays = max(0, (int) $start->diff($end)->days);
+
+        $segments = [];
+        for ($i = 0; $i < $count; $i++) {
+            $segStart = $start->modify('+' . intdiv($totalDays * $i, $count) . ' days');
+            $segEnd = $i === $count - 1 ? $end : $start->modify('+' . intdiv($totalDays * ($i + 1), $count) . ' days');
+            if ($segEnd < $segStart) {
+                $segEnd = $segStart;
+            }
+            $segments[] = [$segStart->format('Y-m-d'), $segEnd->format('Y-m-d')];
+        }
+        return $segments;
+    }
+
     private function normalizePriority(?string $priority): ?string
     {
         if ($priority === null) {
@@ -704,10 +857,12 @@ final class AiAssistantService
             "Its teams (valid team names) are: {$teamList}.\n" .
             "Use the provided tools to create tasks, edit tasks, look up task details, search/filter tasks by priority, " .
             "assignee, team, type, or column, and list the most critical open tasks. " .
-            "You can link a task as a sub-task of another via parentTaskKey on create_task/update_task — e.g. when asked to " .
-            "break an existing task's description down into sub-tasks, look up the parent with get_task_details first, then " .
-            "create each sub-task with parentTaskKey set to the parent's key; each one inherits the parent's own start/due " .
-            "dates automatically unless you specify different ones. " .
+            "You can link a task as a sub-task of another via parentTaskKey on create_task/update_task. When asked to break an " .
+            "existing task's description down into MULTIPLE sub-tasks, look up the parent with get_task_details first, then use " .
+            "create_subtasks (not several separate create_task calls) so all of them get scheduled evenly across the parent's " .
+            "linked Release's dates (or a 2-week window from today if it has none) — each sub-task also inherits the parent's " .
+            "assignee, release, business value, and task cost automatically. Use create_task's own parentTaskKey directly only " .
+            "when linking or creating just a single sub-task. " .
             "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.\n" .
             "Keep replies short and conversational — this is a chat-style assistant, not a report generator.\n";
 
@@ -742,9 +897,38 @@ final class AiAssistantService
                         'typeName' => ['type' => 'string', 'description' => 'Name of the task type. Must match one of the project\'s defined task types.'],
                         'startDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD), optional.'],
                         'dueDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD), optional.'],
-                        'parentTaskKey' => ['type' => 'string', 'description' => 'Key or title of an existing task to make this a sub-task of (e.g. when drawing sub-tasks out of a parent task\'s description). The new sub-task inherits the parent\'s own start/due dates unless startDate/dueDate are also given here.'],
+                        'parentTaskKey' => ['type' => 'string', 'description' => 'Key or title of an existing task to make this a sub-task of. The new sub-task inherits the parent\'s assignee, release, business value, and task cost where the parent has them set, and (unless startDate/dueDate are also given here) is scheduled across the parent\'s linked Release\'s dates, or a 2-week window from today if there\'s no Release. For creating SEVERAL sub-tasks under the same parent at once, prefer create_subtasks instead, which spreads them evenly across that same window.'],
                     ],
                     'required' => ['title'],
+                ],
+            ],
+            [
+                'name' => 'create_subtasks',
+                'description' => 'Create several sub-tasks under one existing parent task in a single call — the preferred tool whenever asked to draft/break down a task\'s description into multiple sub-tasks, since it schedules all of them evenly across the parent\'s Release window (or a 2-week default) instead of each independently guessing at dates. Each sub-task inherits the parent\'s assignee, release, business value, and task cost where the parent has them set.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'parentTaskKey' => ['type' => 'string', 'description' => 'Key or title of the existing task these are sub-tasks of.'],
+                        'subtasks' => [
+                            'type' => 'array',
+                            'description' => 'One entry per sub-task to create, in the order they should be scheduled across the window.',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'title' => ['type' => 'string'],
+                                    'description' => ['type' => 'string'],
+                                    'priority' => ['type' => 'string', 'enum' => self::PRIORITY_ORDER],
+                                    'columnName' => ['type' => 'string'],
+                                    'assigneeName' => ['type' => 'string', 'description' => 'Overrides the inherited assignee for just this sub-task.'],
+                                    'typeName' => ['type' => 'string'],
+                                    'startDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD). Overrides the auto-computed segment for just this sub-task.'],
+                                    'dueDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD). Overrides the auto-computed segment for just this sub-task.'],
+                                ],
+                                'required' => ['title'],
+                            ],
+                        ],
+                    ],
+                    'required' => ['parentTaskKey', 'subtasks'],
                 ],
             ],
             [

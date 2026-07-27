@@ -31,6 +31,16 @@ public class AiAssistantService
     private static readonly string[] PriorityOrder = { "trivial", "low", "medium", "high", "critical" };
     private const int MaxToolLoopIterations = 6;
 
+    // A shared, never-mutated empty list for the (near-universal) "this tool call produced no
+    // board-mutating action" case — avoids allocating a fresh empty List<T> at every one of those
+    // return sites, and avoids ever returning a bare `null` that a caller's `actions.AddRange(...)`
+    // would NullReferenceException on.
+    private static readonly List<AiAssistantActionDto> NoActions = new();
+
+    // Default schedule window for sub-tasks with no Release to inherit dates from — see
+    // ResolveSubtaskWindowAsync.
+    private const int DefaultSubtaskWindowDays = 14;
+
     // Loaded once per process, not per-request - USER-GUIDE.md is a few KB, re-reading it from disk
     // on every chat call would be wasteful. Tries the Docker runtime layout first (copied next to the
     // DLL by the Dockerfile - see its own comment for why the build context had to move to the repo
@@ -199,8 +209,8 @@ public class AiAssistantService
                 var toolUseId = toolUse["id"]!.GetValue<string>();
                 var input = toolUse["input"]!.AsObject();
 
-                var (resultText, isError, action) = await ExecuteToolAsync(projectId, toolName, input);
-                if (action is not null) actions.Add(action);
+                var (resultText, isError, toolActions) = await ExecuteToolAsync(projectId, toolName, input);
+                actions.AddRange(toolActions);
 
                 var toolResult = new JsonObject
                 {
@@ -218,95 +228,180 @@ public class AiAssistantService
         return new AiAssistantChatResponse("I wasn't able to finish that within the allotted number of steps — could you try a narrower request?", actions);
     }
 
-    private async Task<(string ResultText, bool IsError, AiAssistantActionDto? Action)> ExecuteToolAsync(Guid projectId, string toolName, JsonObject input)
+    private async Task<(string ResultText, bool IsError, List<AiAssistantActionDto> Actions)> ExecuteToolAsync(Guid projectId, string toolName, JsonObject input)
     {
         try
         {
             return toolName switch
             {
                 "create_task" => await CreateTaskToolAsync(projectId, input),
+                "create_subtasks" => await CreateSubtasksToolAsync(projectId, input),
                 "update_task" => await UpdateTaskToolAsync(projectId, input),
                 "get_task_details" => await GetTaskDetailsToolAsync(projectId, input),
                 "list_critical_tasks" => await ListCriticalTasksToolAsync(projectId, input),
                 "search_tasks" => await SearchTasksToolAsync(projectId, input),
-                _ => ($"Unknown tool: {toolName}", true, null)
+                _ => ($"Unknown tool: {toolName}", true, new List<AiAssistantActionDto>())
             };
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "AI assistant tool {ToolName} failed for project {ProjectId}", toolName, projectId);
-            return ("That action failed: " + ex.Message, true, null);
+            return ("That action failed: " + ex.Message, true, new List<AiAssistantActionDto>());
         }
     }
 
-    private async Task<(string, bool, AiAssistantActionDto?)> CreateTaskToolAsync(Guid projectId, JsonObject input)
+    private async Task<(string, bool, List<AiAssistantActionDto>)> CreateTaskToolAsync(Guid projectId, JsonObject input)
     {
         var title = input["title"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(title)) return ("A task title is required.", true, null);
+        if (string.IsNullOrWhiteSpace(title)) return ("A task title is required.", true, NoActions);
 
         var (column, columnError) = await ResolveColumnAsync(projectId, input["columnName"]?.GetValue<string>());
-        if (columnError is not null) return (columnError, true, null);
+        if (columnError is not null) return (columnError, true, NoActions);
 
-        var (_, assigneeId, assigneeError) = await ResolveAssigneeAsync(projectId, input, "assigneeName");
-        if (assigneeError is not null) return (assigneeError, true, null);
+        var (assigneeProvided, assigneeId, assigneeError) = await ResolveAssigneeAsync(projectId, input, "assigneeName");
+        if (assigneeError is not null) return (assigneeError, true, NoActions);
 
         var (_, typeId, typeError) = await ResolveTaskTypeAsync(projectId, input, "typeName");
-        if (typeError is not null) return (typeError, true, null);
+        if (typeError is not null) return (typeError, true, NoActions);
 
         var (parentProvided, parent, parentError) = await ResolveParentTaskAsync(projectId, input, "parentTaskKey");
-        if (parentError is not null) return (parentError, true, null);
+        if (parentError is not null) return (parentError, true, NoActions);
 
         var priority = NormalizePriority(input["priority"]?.GetValue<string>());
         var explicitStartDate = ParseDate(input["startDate"]?.GetValue<string>());
         var explicitDueDate = ParseDate(input["dueDate"]?.GetValue<string>());
-        // A sub-task created against a parent inherits the parent's own start/end dates by default —
-        // the "draft sub-tasks from this task's description, linked to it" use case this was built
-        // for wants the children scheduled alongside their parent unless the caller says otherwise.
-        // An explicitly-supplied date always wins over the inherited one.
-        var startDate = explicitStartDate ?? (parentProvided ? parent?.StartDate : null);
-        var dueDate = explicitDueDate ?? (parentProvided ? parent?.EndDate : null);
+
+        DateOnly? startDate = explicitStartDate;
+        DateOnly? dueDate = explicitDueDate;
+        if (parentProvided && parent is not null && (explicitStartDate is null || explicitDueDate is null))
+        {
+            // A sub-task created against a parent, with no explicit dates of its own, is scheduled to
+            // span the parent's linked Release (or a 2-week-from-today default when there's no Release
+            // or the Release has no dates of its own) — see ResolveSubtaskWindowAsync's own doc
+            // comment. A single sub-task created this way (as opposed to create_subtasks' batch of
+            // several) gets the WHOLE window, since there are no siblings to divide it with.
+            var (windowStart, windowEnd) = await ResolveSubtaskWindowAsync(parent);
+            startDate ??= windowStart;
+            dueDate ??= windowEnd;
+        }
 
         var created = await _tasks.CreateAsync(projectId, new CreateTaskRequest(
             Title: title, Description: input["description"]?.GetValue<string>(), Priority: priority ?? "medium",
-            ColumnId: column!.Id, AssigneeId: assigneeId, ReleaseId: null, TypeId: typeId,
+            ColumnId: column!.Id,
+            // A sub-task inherits its parent's assignee/release/business value/cost "where available"
+            // (i.e. only when the parent actually has one set) unless explicitly overridden here.
+            AssigneeId: assigneeProvided ? assigneeId : (parentProvided ? parent?.AssigneeId : null),
+            ReleaseId: parentProvided ? parent?.ReleaseId : null,
+            TypeId: typeId,
             ParentTaskId: parentProvided ? parent?.Id : null,
-            DependsOnTaskIds: null, StartDate: startDate, EndDate: dueDate));
+            DependsOnTaskIds: null, StartDate: startDate, EndDate: dueDate,
+            BusinessValue: parentProvided ? parent?.BusinessValue : null,
+            TaskCost: parentProvided ? parent?.TaskCost : null));
 
-        if (created is null) return ("Could not create the task — the target column may no longer exist.", true, null);
+        if (created is null) return ("Could not create the task — the target column may no longer exist.", true, NoActions);
 
         var parentNote = parentProvided && parent is not null ? $" as a sub-task of {parent.Key}" : "";
         return ($"Created task {created.Key}: \"{created.Title}\" in column \"{column.Name}\"{parentNote}.", false,
-            new AiAssistantActionDto("task_created", created.Id, created.Key, created.Title));
+            new List<AiAssistantActionDto> { new("task_created", created.Id, created.Key, created.Title) });
     }
 
-    private async Task<(string, bool, AiAssistantActionDto?)> UpdateTaskToolAsync(Guid projectId, JsonObject input)
+    /// <summary>Batch sibling-aware counterpart to create_task's own single-item parentTaskKey path —
+    /// the one place "spread these N sub-tasks evenly across the parent's Release window" can actually
+    /// be computed, since create_task's own per-call resolution has no visibility into how many
+    /// sibling sub-tasks are being created alongside it. Each item can still override title (required),
+    /// description, priority, assigneeName, typeName, startDate, dueDate — an explicit date on a given
+    /// item always wins over its computed segment.</summary>
+    private async Task<(string, bool, List<AiAssistantActionDto>)> CreateSubtasksToolAsync(Guid projectId, JsonObject input)
+    {
+        var parentIdentifier = input["parentTaskKey"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(parentIdentifier)) return ("A parentTaskKey is required.", true, NoActions);
+
+        var parent = await FindTaskAsync(projectId, parentIdentifier);
+        if (parent is null) return ($"No task found matching \"{parentIdentifier}\" to use as the parent.", true, NoActions);
+
+        if (input["subtasks"] is not JsonArray itemsNode || itemsNode.Count == 0)
+        {
+            return ("At least one sub-task is required in \"subtasks\".", true, NoActions);
+        }
+
+        var (windowStart, windowEnd) = await ResolveSubtaskWindowAsync(parent);
+        var segments = SplitWindowEvenly(windowStart, windowEnd, itemsNode.Count);
+
+        var actions = new List<AiAssistantActionDto>();
+        var createdSummaries = new List<string>();
+        for (var i = 0; i < itemsNode.Count; i++)
+        {
+            if (itemsNode[i] is not JsonObject item)
+            {
+                return ($"Sub-task #{i + 1} is not a valid object.", true, actions);
+            }
+
+            var title = item["title"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(title)) return ($"Sub-task #{i + 1} is missing a title.", true, actions);
+
+            var (column, columnError) = await ResolveColumnAsync(projectId, item["columnName"]?.GetValue<string>());
+            if (columnError is not null) return (columnError, true, actions);
+
+            var (assigneeProvided, assigneeIdOverride, assigneeError) = await ResolveAssigneeAsync(projectId, item, "assigneeName");
+            if (assigneeError is not null) return (assigneeError, true, actions);
+
+            var (typeProvided, typeId, typeError) = await ResolveTaskTypeAsync(projectId, item, "typeName");
+            if (typeError is not null) return (typeError, true, actions);
+
+            var priority = NormalizePriority(item["priority"]?.GetValue<string>());
+            var explicitStart = ParseDate(item["startDate"]?.GetValue<string>());
+            var explicitDue = ParseDate(item["dueDate"]?.GetValue<string>());
+            var segment = segments[i];
+
+            var created = await _tasks.CreateAsync(projectId, new CreateTaskRequest(
+                Title: title, Description: item["description"]?.GetValue<string>(), Priority: priority ?? "medium",
+                ColumnId: column!.Id,
+                AssigneeId: assigneeProvided ? assigneeIdOverride : parent.AssigneeId,
+                ReleaseId: parent.ReleaseId,
+                TypeId: typeProvided ? typeId : null,
+                ParentTaskId: parent.Id,
+                DependsOnTaskIds: null,
+                StartDate: explicitStart ?? segment.Start, EndDate: explicitDue ?? segment.End,
+                BusinessValue: parent.BusinessValue, TaskCost: parent.TaskCost));
+
+            if (created is null) return ($"Could not create sub-task \"{title}\" — the target column may no longer exist.", true, actions);
+
+            actions.Add(new AiAssistantActionDto("task_created", created.Id, created.Key, created.Title));
+            createdSummaries.Add($"{created.Key} \"{created.Title}\" ({segment.Start:yyyy-MM-dd} to {segment.End:yyyy-MM-dd})");
+        }
+
+        var windowNote = parent.ReleaseId is not null ? "its linked Release's dates" : "a default 2-week window starting today (no Release dates to schedule against)";
+        return ($"Created {actions.Count} sub-task(s) under {parent.Key}, spread evenly across {windowNote}: {string.Join("; ", createdSummaries)}.", false, actions);
+    }
+
+    private async Task<(string, bool, List<AiAssistantActionDto>)> UpdateTaskToolAsync(Guid projectId, JsonObject input)
     {
         var identifier = input["taskIdentifier"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(identifier)) return ("A task identifier (title or key) is required.", true, null);
+        if (string.IsNullOrWhiteSpace(identifier)) return ("A task identifier (title or key) is required.", true, NoActions);
 
         var task = await FindTaskAsync(projectId, identifier);
-        if (task is null) return ($"No task found matching \"{identifier}\".", true, null);
+        if (task is null) return ($"No task found matching \"{identifier}\".", true, NoActions);
 
         Guid columnId = task.ColumnId;
         if (input["columnName"]?.GetValue<string>() is { } columnName)
         {
             var (column, columnError) = await ResolveColumnAsync(projectId, columnName);
-            if (columnError is not null) return (columnError, true, null);
+            if (columnError is not null) return (columnError, true, NoActions);
             columnId = column!.Id;
         }
 
         var (assigneeProvided, assigneeId, assigneeError) = await ResolveAssigneeAsync(projectId, input, "assigneeName");
-        if (assigneeError is not null) return (assigneeError, true, null);
+        if (assigneeError is not null) return (assigneeError, true, NoActions);
 
         var (typeProvided, typeId, typeError) = await ResolveTaskTypeAsync(projectId, input, "typeName");
-        if (typeError is not null) return (typeError, true, null);
+        if (typeError is not null) return (typeError, true, NoActions);
 
         // Note: unlike create_task, updating an existing task's parent never auto-copies the new
         // parent's dates onto it — the task already has its own dates, and silently overwriting them
         // just because a parent link changed would be a surprising side effect for an edit that's
         // ostensibly just about the relationship.
         var (parentProvided, parent, parentError) = await ResolveParentTaskAsync(projectId, input, "parentTaskKey", excludeTaskId: task.Id);
-        if (parentError is not null) return (parentError, true, null);
+        if (parentError is not null) return (parentError, true, NoActions);
 
         var updated = await _tasks.UpdateAsync(projectId, task.Id, new UpdateTaskRequest(
             Title: input["title"]?.GetValue<string>() ?? task.Title,
@@ -325,19 +420,19 @@ public class AiAssistantService
             EstimatedEffort: task.EstimatedEffort, ActualEffort: task.ActualEffort, Archived: task.Archived),
             changedByDisplayName: "AI Assistant");
 
-        if (updated is null) return ("Could not update the task.", true, null);
+        if (updated is null) return ("Could not update the task.", true, NoActions);
 
         return ($"Updated task {updated.Key}: \"{updated.Title}\".", false,
-            new AiAssistantActionDto("task_updated", updated.Id, updated.Key, updated.Title));
+            new List<AiAssistantActionDto> { new("task_updated", updated.Id, updated.Key, updated.Title) });
     }
 
-    private async Task<(string, bool, AiAssistantActionDto?)> GetTaskDetailsToolAsync(Guid projectId, JsonObject input)
+    private async Task<(string, bool, List<AiAssistantActionDto>)> GetTaskDetailsToolAsync(Guid projectId, JsonObject input)
     {
         var identifier = input["taskIdentifier"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(identifier)) return ("A task identifier (title or key) is required.", true, null);
+        if (string.IsNullOrWhiteSpace(identifier)) return ("A task identifier (title or key) is required.", true, NoActions);
 
         var task = await FindTaskAsync(projectId, identifier);
-        if (task is null) return ($"No task found matching \"{identifier}\".", true, null);
+        if (task is null) return ($"No task found matching \"{identifier}\".", true, NoActions);
 
         var column = await _db.Columns.AsNoTracking().FirstOrDefaultAsync(c => c.Id == task.ColumnId);
         var assigneeName = task.AssigneeId.HasValue
@@ -352,10 +447,10 @@ public class AiAssistantService
             $"progress {task.Progress}%, due {(task.EndDate.HasValue ? task.EndDate.Value.ToString("yyyy-MM-dd") : "not set")}." +
             (string.IsNullOrWhiteSpace(task.Description) ? "" : $" Description: {task.Description}");
 
-        return (summary, false, null);
+        return (summary, false, NoActions);
     }
 
-    private async Task<(string, bool, AiAssistantActionDto?)> ListCriticalTasksToolAsync(Guid projectId, JsonObject input)
+    private async Task<(string, bool, List<AiAssistantActionDto>)> ListCriticalTasksToolAsync(Guid projectId, JsonObject input)
     {
         var limit = Math.Clamp(input["limit"]?.GetValue<int?>() ?? 5, 1, 20);
 
@@ -381,11 +476,11 @@ public class AiAssistantService
                 $"blocks {dependentCounts.GetValueOrDefault(t.Id, 0)} other task(s)")
             .ToList();
 
-        if (ranked.Count == 0) return ("There are no open tasks in this project.", false, null);
-        return (string.Join("\n", ranked), false, null);
+        if (ranked.Count == 0) return ("There are no open tasks in this project.", false, NoActions);
+        return (string.Join("\n", ranked), false, NoActions);
     }
 
-    private async Task<(string, bool, AiAssistantActionDto?)> SearchTasksToolAsync(Guid projectId, JsonObject input)
+    private async Task<(string, bool, List<AiAssistantActionDto>)> SearchTasksToolAsync(Guid projectId, JsonObject input)
     {
         var query = _db.Tasks.AsNoTracking().Include(t => t.Column).Where(t => t.ProjectId == projectId);
 
@@ -398,7 +493,7 @@ public class AiAssistantService
         if (input["columnName"]?.GetValue<string>() is { } columnName)
         {
             var (column, columnError) = await ResolveColumnAsync(projectId, columnName);
-            if (columnError is not null) return (columnError, true, null);
+            if (columnError is not null) return (columnError, true, NoActions);
             query = query.Where(t => t.ColumnId == column!.Id);
         }
 
@@ -409,7 +504,7 @@ public class AiAssistantService
             if (typeMatch is null)
             {
                 var names = types.Count == 0 ? "(none defined for this project)" : string.Join(", ", types.Select(t => t.Name));
-                return ($"No task type named \"{typeNameFilter}\". Available: {names}.", true, null);
+                return ($"No task type named \"{typeNameFilter}\". Available: {names}.", true, NoActions);
             }
             query = query.Where(t => t.TypeId == typeMatch.Id);
         }
@@ -428,7 +523,7 @@ public class AiAssistantService
                 if (match is null)
                 {
                     var names = string.Join(", ", members.Select(m => m.User.DisplayName));
-                    return ($"No project member named \"{name}\". Available: {names}.", true, null);
+                    return ($"No project member named \"{name}\". Available: {names}.", true, NoActions);
                 }
                 query = query.Where(t => t.AssigneeId == match.Id);
             }
@@ -441,7 +536,7 @@ public class AiAssistantService
             if (teamMatch is null)
             {
                 var names = teams.Count == 0 ? "(no teams defined for this project)" : string.Join(", ", teams.Select(t => t.Name));
-                return ($"No team named \"{teamNameFilter}\". Available: {names}.", true, null);
+                return ($"No team named \"{teamNameFilter}\". Available: {names}.", true, NoActions);
             }
             var teamMemberIds = teamMatch.Members.Select(m => m.ProjectMemberId).ToList();
             query = query.Where(t => t.AssigneeId != null && teamMemberIds.Contains(t.AssigneeId.Value));
@@ -450,11 +545,11 @@ public class AiAssistantService
         var limit = Math.Clamp(input["limit"]?.GetValue<int?>() ?? 10, 1, 25);
         var results = await query.OrderBy(t => t.EndDate ?? DateOnly.MaxValue).Take(limit).ToListAsync();
 
-        if (results.Count == 0) return ("No tasks matched those filters.", false, null);
+        if (results.Count == 0) return ("No tasks matched those filters.", false, NoActions);
 
         var lines = results.Select(t => $"{t.Key} \"{t.Title}\" — priority {t.Priority}, column \"{t.Column.Name}\", " +
             $"due {(t.EndDate.HasValue ? t.EndDate.Value.ToString("yyyy-MM-dd") : "not set")}");
-        return (string.Join("\n", lines), false, null);
+        return (string.Join("\n", lines), false, NoActions);
     }
 
     private async Task<TaskItem?> FindTaskAsync(Guid projectId, string identifier)
@@ -551,6 +646,44 @@ public class AiAssistantService
         return (true, parent, null);
     }
 
+    /// <summary>The date range new sub-tasks should be scheduled across when no explicit dates of
+    /// their own are given: the parent's linked Release's own dates, if it has one with both dates
+    /// set; otherwise a fixed <see cref="DefaultSubtaskWindowDays"/>-day window starting today.</summary>
+    private async Task<(DateOnly Start, DateOnly End)> ResolveSubtaskWindowAsync(TaskItem parent)
+    {
+        if (parent.ReleaseId is { } releaseId)
+        {
+            var release = await _db.Releases.AsNoTracking().FirstOrDefaultAsync(r => r.Id == releaseId);
+            if (release is { StartDate: { } releaseStart, EndDate: { } releaseEnd } && releaseEnd >= releaseStart)
+            {
+                return (releaseStart, releaseEnd);
+            }
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        return (today, today.AddDays(DefaultSubtaskWindowDays));
+    }
+
+    /// <summary>Splits [<paramref name="windowStart"/>, <paramref name="windowEnd"/>] into
+    /// <paramref name="count"/> contiguous, non-overlapping segments covering the whole window (the
+    /// last segment is snapped exactly to windowEnd to absorb any rounding remainder) — used to spread
+    /// several sub-tasks evenly across their parent's Release (or the default window) so that,
+    /// together, "all the sub-tasks fit within the dates of the release". A single-day (or inverted)
+    /// window, or count == 1, degenerates safely to every segment equalling the whole window.</summary>
+    private static List<(DateOnly Start, DateOnly End)> SplitWindowEvenly(DateOnly windowStart, DateOnly windowEnd, int count)
+    {
+        var segments = new List<(DateOnly, DateOnly)>(count);
+        var totalDays = Math.Max(0, windowEnd.DayNumber - windowStart.DayNumber);
+        for (var i = 0; i < count; i++)
+        {
+            var segStart = windowStart.AddDays(totalDays * i / count);
+            var segEnd = i == count - 1 ? windowEnd : windowStart.AddDays(totalDays * (i + 1) / count);
+            if (segEnd < segStart) segEnd = segStart;
+            segments.Add((segStart, segEnd));
+        }
+        return segments;
+    }
+
     private static string? NormalizePriority(string? priority) =>
         priority is not null && PriorityOrder.Contains(priority.ToLowerInvariant()) ? priority.ToLowerInvariant() : (priority is null ? null : "medium");
 
@@ -571,10 +704,12 @@ public class AiAssistantService
         sb.AppendLine($"Its teams (valid team names) are: {teamList}.");
         sb.AppendLine("Use the provided tools to create tasks, edit tasks, look up task details, search/filter tasks by priority, " +
             "assignee, team, type, or column, and list the most critical open tasks. " +
-            "You can link a task as a sub-task of another via parentTaskKey on create_task/update_task — e.g. when asked to " +
-            "break an existing task's description down into sub-tasks, look up the parent with get_task_details first, then " +
-            "create each sub-task with parentTaskKey set to the parent's key; each one inherits the parent's own start/due " +
-            "dates automatically unless you specify different ones. " +
+            "You can link a task as a sub-task of another via parentTaskKey on create_task/update_task. When asked to break an " +
+            "existing task's description down into MULTIPLE sub-tasks, look up the parent with get_task_details first, then use " +
+            "create_subtasks (not several separate create_task calls) so all of them get scheduled evenly across the parent's " +
+            "linked Release's dates (or a 2-week window from today if it has none) — each sub-task also inherits the parent's " +
+            "assignee, release, business value, and task cost automatically. Use create_task's own parentTaskKey directly only " +
+            "when linking or creating just a single sub-task. " +
             "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.");
         sb.AppendLine("Keep replies short and conversational — this is a chat-style assistant, not a report generator.");
         if (!string.IsNullOrWhiteSpace(alertsSummary))
@@ -611,9 +746,44 @@ public class AiAssistantService
                     ["typeName"] = new JsonObject { ["type"] = "string", ["description"] = "Name of the task type. Must match one of the project's defined task types." },
                     ["startDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD), optional." },
                     ["dueDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD), optional." },
-                    ["parentTaskKey"] = new JsonObject { ["type"] = "string", ["description"] = "Key or title of an existing task to make this a sub-task of (e.g. when drawing sub-tasks out of a parent task's description). The new sub-task inherits the parent's own start/due dates unless startDate/dueDate are also given here." }
+                    ["parentTaskKey"] = new JsonObject { ["type"] = "string", ["description"] = "Key or title of an existing task to make this a sub-task of. The new sub-task inherits the parent's assignee, release, business value, and task cost where the parent has them set, and (unless startDate/dueDate are also given here) is scheduled across the parent's linked Release's dates, or a 2-week window from today if there's no Release. For creating SEVERAL sub-tasks under the same parent at once, prefer create_subtasks instead, which spreads them evenly across that same window." }
                 },
                 ["required"] = new JsonArray { "title" }
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "create_subtasks",
+            ["description"] = "Create several sub-tasks under one existing parent task in a single call — the preferred tool whenever asked to draft/break down a task's description into multiple sub-tasks, since it schedules all of them evenly across the parent's Release window (or a 2-week default) instead of each independently guessing at dates. Each sub-task inherits the parent's assignee, release, business value, and task cost where the parent has them set.",
+            ["input_schema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["parentTaskKey"] = new JsonObject { ["type"] = "string", ["description"] = "Key or title of the existing task these are sub-tasks of." },
+                    ["subtasks"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["description"] = "One entry per sub-task to create, in the order they should be scheduled across the window.",
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["properties"] = new JsonObject
+                            {
+                                ["title"] = new JsonObject { ["type"] = "string" },
+                                ["description"] = new JsonObject { ["type"] = "string" },
+                                ["priority"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray { "trivial", "low", "medium", "high", "critical" } },
+                                ["columnName"] = new JsonObject { ["type"] = "string" },
+                                ["assigneeName"] = new JsonObject { ["type"] = "string", ["description"] = "Overrides the inherited assignee for just this sub-task." },
+                                ["typeName"] = new JsonObject { ["type"] = "string" },
+                                ["startDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD). Overrides the auto-computed segment for just this sub-task." },
+                                ["dueDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD). Overrides the auto-computed segment for just this sub-task." }
+                            },
+                            ["required"] = new JsonArray { "title" }
+                        }
+                    }
+                },
+                ["required"] = new JsonArray { "parentTaskKey", "subtasks" }
             }
         },
         new JsonObject
