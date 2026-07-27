@@ -4,7 +4,7 @@ import { getCurrentProject } from '../store.js';
 import { ui } from '../ui.js';
 import { getPriority } from '../ui.js';
 import { iconSvg } from '../icons.js';
-import { utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, localDateValueFromDate, memberInitials, clampProgress } from '../date-utils.js';
+import { utcISOToLocalDisplayDate, utcISOToLocalDateValue, localDateValueToUTCISO, localDateValueFromDate, memberInitials, clampProgress, contrastTextColor } from '../date-utils.js';
 import { isTimeTrackingEnabled } from '../storage.js';
 import { NO_RELEASE_GROUP_KEY, getReleaseStatusMeta, normalizeReleaseStatus } from './task-list.js';
 import { updateTaskDates, updateReleaseDates, renameProject } from '../mutations.js';
@@ -547,11 +547,10 @@ export function renderTimeline(){
    pill + task count, toggling collapse on click) and a Timeline task row's own name-cell/track
    shape (so it lines up in the same two-column grid every other row uses). The release's own bar
    — only drawn when it has at least one of startDate/endDate set, exactly like a task's own "no
-   dates set" fallback — reuses the Portfolio Planner's "inactive project, no styling to imply
-   scheduling urgency" grey-hatched look (portfolio-bars.js's noDatesPatternDefsSVG pattern,
-   reimplemented here as a CSS repeating-linear-gradient since Timeline's own bars are plain DOM
-   elements, not SVG — see .kf-timeline-bar-release in styles.css) rather than a priority color,
-   since a release has no priority of its own to color it by. */
+   dates set" fallback — is filled with the release's own Color (never a priority color, since a
+   release has no priority of its own to color it by), with the label's text color picked via a
+   real WCAG contrast check (date-utils.js's contrastTextColor) against that same Color so it
+   stays legible whatever shade a user picks — see .kf-timeline-bar-release in styles.css. */
 function buildTimelineReleaseGroupHeader(project, groupKey, groupTasks, collapsed, columns, totalTrackWidth, nameColWidth, todayX){
   var row = document.createElement('div');
   row.className = 'kf-timeline-row kf-timeline-group-header';
@@ -603,7 +602,9 @@ function buildTimelineReleaseGroupHeader(project, groupKey, groupTasks, collapse
       bar.className = 'kf-timeline-bar kf-timeline-bar-release';
       bar.style.left = left + 'px';
       bar.style.width = barWidth + 'px';
-      bar.style.setProperty('--kf-release-bar-accent', release.color || '#cccccc');
+      var releaseBarColor = release.color || '#cccccc';
+      bar.style.setProperty('--kf-release-bar-accent', releaseBarColor);
+      bar.style.color = contrastTextColor(releaseBarColor);
       bar.appendChild(buildEl('span', 'kf-timeline-handle kf-timeline-handle-start', ''));
       bar.lastChild.setAttribute('data-role', 'resize-start');
       bar.appendChild(buildEl('span', 'kf-timeline-handle kf-timeline-handle-end', ''));

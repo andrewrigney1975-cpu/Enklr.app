@@ -8487,28 +8487,25 @@
     opacity: 0.65;
   }
 
-  /* Release bar — the hatched "no scheduling urgency implied" look, not a priority color, since a
-     release has no priority of its own. Same tile geometry as portfolio-bars.js's
-     noDatesPatternDefsSVG SVG pattern (6px tile, 45deg, 1.5px line over a var(--kf-surface) base),
-     reimplemented as a CSS repeating-linear-gradient since Timeline's own bars are plain DOM
-     elements rather than SVG. The hatch line color is the release's own Color, set per-bar via the
-     --kf-release-bar-accent custom property in views/timeline.js — falls back to --kf-border-strong
-     if unset. The border stays on --kf-text-faint regardless, so the bar's own outline remains
-     legible against any hatch color. */
+  /* Release bar — a solid fill in the release's own Color (--kf-release-bar-accent, set per-bar in
+     views/timeline.js, falls back to --kf-border-strong if unset), not a priority color, since a
+     release has no priority of its own. The label's text color is picked per-bar via a real WCAG
+     contrast check (date-utils.js's contrastTextColor, same helper portfolio-bars.js already uses
+     for its own on-bar labels) against that same Color, so it stays accessible whatever shade a
+     user picks — never a fixed color here that could land unreadable against a light or dark
+     release Color alike. */
   .kf-timeline-bar-release {
-    background-color: var(--kf-surface);
-    background-image: repeating-linear-gradient(45deg,
-      var(--kf-release-bar-accent, var(--kf-border-strong)) 0, var(--kf-release-bar-accent, var(--kf-border-strong)) 1.5px,
-      transparent 1.5px, transparent 6px);
-    border: 1px solid var(--kf-text-faint);
-    color: var(--kf-text-secondary);
+    background-color: var(--kf-release-bar-accent, var(--kf-border-strong));
+    border: none;
     font-weight: 700;
     box-shadow: none;
   }
 
+  /* filter:none overrides .kf-timeline-bar:hover's brightness(1.1) — this bar's label color is a
+     precise contrast-checked choice, and a hover brightness shift could otherwise nudge the
+     effective background lightness enough to undermine that. */
   .kf-timeline-bar-release:hover {
     filter: none;
-    color: var(--kf-text);
   }
 
   .kf-timeline-progress-marker {

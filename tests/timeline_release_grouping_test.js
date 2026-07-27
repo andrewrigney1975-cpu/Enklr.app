@@ -8,9 +8,9 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 /* Covers Releases-as-a-grouping-element on the Timeline (views/timeline.js's
    buildTimelineReleaseGroupHeader + the grouping/ordering logic added to renderTimeline) — the
    same release-group header/expand-collapse convention as the List view (task-list.js), plus each
-   release's own Gantt bar plotted by its start/end dates using the Portfolio Planner's
-   grey-hatched "no priority to color it by" look, since a release (unlike a task) has no
-   priority. */
+   release's own Gantt bar plotted by its start/end dates, filled with the release's own Color
+   (never a priority color, since a release has no priority of its own) with a WCAG-contrast-picked
+   label. */
 
 function setProjectDates(doc, startVal, endVal){
   doc.getElementById('editProjectBtn').click();
@@ -89,13 +89,22 @@ function taskRowsUnder(doc){
   log('default release status pill reads "Pending"', earlierHeader.querySelector('.kf-release-status-pill').textContent === 'Pending');
   log('"No Release" group has no status pill', noReleaseHeader.querySelector('.kf-release-status-pill') === null);
 
-  // ── Release bar plotted by start/end dates, grey-hatched styling ────────
+  // ── Release bar plotted by start/end dates, solid fill in the release's own Color ────────
   const earlierBar = earlierHeader.querySelector('.kf-timeline-bar-release');
   log('a dated release gets its own Gantt bar', earlierBar !== null);
   log('the release bar is positioned (has a left offset)', earlierBar && earlierBar.style.left !== '');
   log('the release bar shows its task count', earlierBar && earlierBar.textContent.trim() === '2 tasks', earlierBar && earlierBar.textContent);
-  log('the release bar is NOT colored by priority (uses the hatched-release class only)',
+  log('the release bar is NOT colored by priority (uses the release-color class only)',
       earlierBar.className.indexOf('kf-timeline-bar-release') !== -1 && earlierBar.style.background === '');
+
+  // ── Solid fill in the release's own Color, label color picked for real WCAG contrast ──
+  log('the bar is filled with the release\'s own Color via the --kf-release-bar-accent custom property (default #cccccc)',
+      earlierBar.style.getPropertyValue('--kf-release-bar-accent') === '#cccccc', earlierBar.style.getPropertyValue('--kf-release-bar-accent'));
+  log('the bar draws no hatch background-image (solid fill, not a pattern)', earlierBar.style.backgroundImage === '');
+  log('the label color is set inline for a real per-Color contrast check, not left to a fixed CSS default',
+      earlierBar.style.color !== '', earlierBar.style.color);
+  log('against the light-grey default Color, the label resolves to black (the higher-contrast choice)',
+      earlierBar.style.color === 'rgb(0, 0, 0)', earlierBar.style.color);
 
   const laterBar = laterHeader.querySelector('.kf-timeline-bar-release');
   log('the later release\'s bar sits further right than the earlier release\'s bar (real date positions)',
