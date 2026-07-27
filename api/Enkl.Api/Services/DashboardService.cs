@@ -19,7 +19,11 @@ public class DashboardService
         return await _db.Dashboards.AsNoTracking()
             .Where(d => d.ProjectId == projectId)
             .OrderBy(d => d.Name)
-            .Select(d => new DashboardListItemDto(d.Id, d.Name, d.Description, d.Widgets.Count, d.DateLastModified))
+            .Select(d => new DashboardListItemDto(
+                d.Id, d.Name, d.Description, d.Widgets.Count, d.DateLastModified,
+                d.Widgets.OrderBy(w => w.SortOrder)
+                    .Select(w => new DashboardWidgetDto(w.Id, w.WidgetType, w.Title, w.SavedQueryId, w.Width, w.SortOrder, w.ConfigJson))
+                    .ToList()))
             .ToListAsync();
     }
 
@@ -85,7 +89,10 @@ public class DashboardService
             .OrderBy(d => d.Project.Name).ThenBy(d => d.Name)
             .Select(d => new OrgDashboardListItemDto(
                 d.Id, d.Name, d.Description, d.Widgets.Count, d.DateLastModified,
-                d.ProjectId, d.Project.Name, d.Project.Key))
+                d.ProjectId, d.Project.Name, d.Project.Key,
+                d.Widgets.OrderBy(w => w.SortOrder)
+                    .Select(w => new DashboardWidgetDto(w.Id, w.WidgetType, w.Title, w.SavedQueryId, w.Width, w.SortOrder, w.ConfigJson))
+                    .ToList()))
             .ToListAsync();
     }
 

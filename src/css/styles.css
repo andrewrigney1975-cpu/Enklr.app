@@ -2927,6 +2927,21 @@
     color: var(--kf-text-faint);
   }
 
+  /* Layout preview (features/dashboard-tile-preview.js) — dashed widget-area rects + a per-type/
+     sub-type icon, computed fresh from the tile's own already-loaded widget list every render. */
+  .kf-dashboard-tile-preview {
+    border-radius: 3px;
+    background: var(--kf-column-bg);
+    overflow: hidden;
+  }
+
+  .kf-dashboard-tile-preview-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    color: var(--kf-text-faint);
+  }
+
   .kf-dashboard-tile-empty {
     padding: 60px 20px;
     text-align: center;

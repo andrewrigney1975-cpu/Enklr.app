@@ -9,6 +9,7 @@ import { confirmDialog } from './confirm.js';
 import { renderDashboardWidget, resetDashboardTableWidgetState, exportTableWidgetCsv, WIDGET_TYPE_LABELS } from '../features/dashboard-widgets.js';
 import { createRichTextEditor } from '../rich-text/editor.js';
 import { iconSvg } from '../icons.js';
+import { buildDashboardTilePreviewSvg } from '../features/dashboard-tile-preview.js';
 
 /* Print reuses features/reports.js's own #reportOverlay/print-CSS machinery (root CLAUDE.md's own
    "any new long, printable, read-only content is another consumer, not a reason to stand up a
@@ -102,11 +103,13 @@ function renderDashboardsPickerGrid(){
   }
   grid.innerHTML = pickerItems.map(function(d){
     var projectLineHTML = pickerScope === 'org' ? '<div class="kf-dashboard-tile-project">' + escapeHTML(d.projectKey) + ' — ' + escapeHTML(d.projectName) + '</div>' : '';
+    var previewSvg = buildDashboardTilePreviewSvg(d.widgets);
     return '<button type="button" class="kf-dashboard-tile" data-dashboard-id="' + d.id + '"' +
       (pickerScope === 'org' ? ' data-project-id="' + d.projectId + '"' : '') + '>' +
       projectLineHTML +
       '<div class="kf-dashboard-tile-name">' + escapeHTML(d.name) + '</div>' +
       (d.description ? '<div class="kf-dashboard-tile-desc">' + escapeHTML(d.description) + '</div>' : '') +
+      (previewSvg ? '<div class="kf-dashboard-tile-preview">' + previewSvg + '</div>' : '') +
       '<div class="kf-dashboard-tile-meta">' + d.widgetCount + ' widget' + (d.widgetCount === 1 ? '' : 's') +
         ' · updated ' + escapeHTML(utcISOToLocalDisplayDate(d.dateLastModified)) + '</div>' +
       '</button>';

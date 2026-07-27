@@ -85,7 +85,14 @@ public record DashboardWidgetDto(
     Guid Id, string WidgetType, string Title, Guid? SavedQueryId, string Width, int SortOrder,
     string? ConfigJson);
 
-public record DashboardListItemDto(Guid Id, string Name, string? Description, int WidgetCount, DateTime DateLastModified);
+/// <summary>Widgets carries the same lightweight per-widget shape as DashboardDetailDto's own list
+/// (type/width/sortOrder/configJson, no SavedQuery execution involved) so the Dashboards picker's
+/// tiles (modals/dashboards.js's buildDashboardTilePreviewSvg) can draw a layout-accurate SVG preview
+/// — full/half/third/twoThird widget areas plus a per-type/sub-type icon — without a second request
+/// per tile to fetch the full DashboardDetailDto.</summary>
+public record DashboardListItemDto(
+    Guid Id, string Name, string? Description, int WidgetCount, DateTime DateLastModified,
+    List<DashboardWidgetDto> Widgets);
 
 public record DashboardDetailDto(
     Guid Id, string Name, string? Description, DateTime DateCreated, DateTime DateLastModified,
@@ -99,10 +106,10 @@ public record CreateDashboardWidgetRequest(
 /// <summary>Cross-project row for the Org-Admin "browse every Dashboard in the org" picker
 /// (Controllers/OrgDashboardsController.cs) — same Portfolio-pattern shape as
 /// PortfolioService.ListProjectsAsync's own DTOs carrying enough project context for a picker UI
-/// that spans projects.</summary>
+/// that spans projects. Widgets — see DashboardListItemDto's own doc comment; same tile-preview use.</summary>
 public record OrgDashboardListItemDto(
     Guid Id, string Name, string? Description, int WidgetCount, DateTime DateLastModified,
-    Guid ProjectId, string ProjectName, string ProjectKey);
+    Guid ProjectId, string ProjectName, string ProjectKey, List<DashboardWidgetDto> Widgets);
 
 public record ProjectDetailDto(
     Guid Id, string Name, string Key, Guid OrganisationId,

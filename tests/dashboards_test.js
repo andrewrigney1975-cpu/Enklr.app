@@ -20,7 +20,7 @@ function makeMockFetch(state){
 
     if(url === '/api/projects/p1/dashboards' && method === 'GET'){
       return {ok: true, status: 200, json: async () => state.dashboards.map(function(d){
-        return {id: d.id, name: d.name, description: d.description, widgetCount: d.widgets.length, dateCreated: d.dateCreated, dateLastModified: d.dateLastModified};
+        return {id: d.id, name: d.name, description: d.description, widgetCount: d.widgets.length, dateCreated: d.dateCreated, dateLastModified: d.dateLastModified, widgets: d.widgets};
       })};
     }
     if(url === '/api/projects/p1/dashboards' && method === 'POST'){
@@ -420,6 +420,56 @@ function makeMockFetch(state){
   log('printed table widget has no sort headers or CSV export (static output)', reportBody.querySelector('.kf-dashboard-table-th-sortable') === null && reportBody.querySelector('[data-widget-export-header]') === null);
   log('a widget collapsed on screen still prints its full content', reportBody.textContent.indexOf('Completion') !== -1 && reportBody.textContent.indexOf('75%') !== -1, reportBody.textContent.indexOf('75%'));
   doc.getElementById('reportClose').click();
+
+  // ── Picker tile preview: layout-accurate SVG schematic, computed from the widget list ────────
+  doc.getElementById('dashboardViewerBackBtn').click();
+  await wait(200);
+  var sprintTile = Array.from(doc.querySelectorAll('.kf-dashboard-tile')).find(function(t){
+    return t.querySelector('.kf-dashboard-tile-name').textContent === 'Sprint Overview';
+  });
+  var previewSvg = sprintTile.querySelector('.kf-dashboard-tile-preview-svg');
+  log('picker tile shows a layout preview SVG', previewSvg !== null);
+  var previewRects = previewSvg.querySelectorAll('rect[stroke-dasharray]');
+  log('preview draws one dashed box per widget (all full-width, 7 widgets, 7 stacked rows)', previewRects.length === 7, previewRects.length);
+  var previewGlyphGroups = previewSvg.querySelectorAll('g[opacity]');
+  log('preview draws one icon glyph per widget', previewGlyphGroups.length === 7, previewGlyphGroups.length);
+
+  // ── Preview packing: two half-width widgets should land in the SAME row (shared y) ───────────
+  doc.getElementById('dashboardsPickerNewBtn').click();
+  await wait(20);
+  doc.getElementById('dashboardFormNameInput').value = 'Mixed Widths';
+  doc.getElementById('dashboardFormSaveBtn').click();
+  await wait(150);
+  var mixedTile = Array.from(doc.querySelectorAll('[data-dashboard-id]')).find(function(t){
+    return t.querySelector('.kf-dashboard-tile-name').textContent === 'Mixed Widths';
+  });
+  mixedTile.click();
+  await wait(150);
+  doc.getElementById('dashboardViewerEditBtn').click();
+  await wait(20);
+
+  for(var half = 0; half < 2; half++){
+    doc.getElementById('dashboardViewerAddWidgetBtn').click();
+    await wait(20);
+    doc.getElementById('dashboardWidgetTitleInput').value = 'Half ' + half;
+    doc.getElementById('dashboardWidgetWidthSelect').value = 'half';
+    doc.getElementById('dashboardWidgetSavedQuerySelect').value = 'sq1';
+    doc.getElementById('dashboardWidgetFormSaveBtn').click();
+    await wait(150);
+  }
+
+  doc.getElementById('dashboardViewerBackBtn').click();
+  await wait(200);
+  var mixedTileAfter = Array.from(doc.querySelectorAll('.kf-dashboard-tile')).find(function(t){
+    return t.querySelector('.kf-dashboard-tile-name').textContent === 'Mixed Widths';
+  });
+  var mixedRects = mixedTileAfter.querySelectorAll('.kf-dashboard-tile-preview-svg rect[stroke-dasharray]');
+  log('two half-width widgets pack into two boxes', mixedRects.length === 2, mixedRects.length);
+  log('two half-width widgets share the same row (same y)', mixedRects[0].getAttribute('y') === mixedRects[1].getAttribute('y'), mixedRects[0].getAttribute('y') + ' vs ' + mixedRects[1].getAttribute('y'));
+  log('two half-width widgets sit side by side (different x)', mixedRects[0].getAttribute('x') !== mixedRects[1].getAttribute('x'));
+  var w0 = parseFloat(mixedRects[0].getAttribute('width'));
+  var w1 = parseFloat(mixedRects[1].getAttribute('width'));
+  log('both half-width boxes are roughly the same width', Math.abs(w0 - w1) < 1, w0 + ' vs ' + w1);
 
   console.log('Dashboards test complete.');
   process.exit(0);

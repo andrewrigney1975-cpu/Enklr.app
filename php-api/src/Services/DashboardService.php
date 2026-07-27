@@ -27,7 +27,19 @@ final class DashboardService
         return array_map(fn($d) => [
             'id' => $d['Id'], 'name' => $d['Name'], 'description' => $d['Description'],
             'widgetCount' => (int) $d['WidgetCount'], 'dateLastModified' => $d['DateLastModified'],
+            'widgets' => $this->listWidgetsFor($d['Id']),
         ], $stmt->fetchAll());
+    }
+
+    /** Lightweight per-widget shape (type/width/sortOrder/configJson) for the Dashboards picker's
+     * tile preview (modals/dashboards.js's buildDashboardTilePreviewSvg) — same DashboardWidgetDto
+     * shape list()/getForOrg() already return, just fetched once per row here rather than via a JOIN
+     * (row-multiplication-free, and this list is never large enough to matter). */
+    private function listWidgetsFor(string $dashboardId): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM "DashboardWidgets" WHERE "DashboardId" = :did ORDER BY "SortOrder"');
+        $stmt->execute(['did' => $dashboardId]);
+        return array_map(fn($w) => $this->toWidgetDto($w), $stmt->fetchAll());
     }
 
     public function get(string $projectId, string $dashboardId): ?array
@@ -102,6 +114,7 @@ final class DashboardService
             'id' => $d['Id'], 'name' => $d['Name'], 'description' => $d['Description'],
             'widgetCount' => (int) $d['WidgetCount'], 'dateLastModified' => $d['DateLastModified'],
             'projectId' => $d['ProjectId'], 'projectName' => $d['ProjectName'], 'projectKey' => $d['ProjectKey'],
+            'widgets' => $this->listWidgetsFor($d['Id']),
         ], $stmt->fetchAll());
     }
 
