@@ -12,6 +12,11 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
    dialogs: a Task dragged outside its Release's dates, and a Release dragged outside the Project's
    dates, each offering "expand the container" (Confirm) or "fit back inside it" (Cancel).
 
+   Dragging no longer writes immediately — it only stages a pending change and enables the
+   "Save changes" button (#timelineSaveBtn, disabled otherwise); nothing is actually persisted, and
+   the Timeline is not re-rendered, until that button is clicked. Every assertion below that reads
+   dates back out therefore clicks Save first.
+
    At the 'day' timescale, jsdom's zero real layout (.clientWidth always 0) makes every render fall
    back to `availableWidth = 900`, and with that many day-columns in a year-long range, colWidth
    always clamps to TIMESCALE_CONFIG.day.minWidth (30px) — so every drag delta here is a clean,
@@ -107,20 +112,29 @@ function dragBarByDays(doc, bar, role, days){
     log('the bar itself is marked data-role="move"', bar.getAttribute('data-role') === 'move');
   }
 
-  // ── Whole-bar drag ("move") shifts both dates by the same amount ──────────────────────────────
+  // ── Save changes starts disabled, and stays disabled by a plain (non-moved) click ─────────────
+  log('Save changes starts disabled with nothing dragged yet', doc.getElementById('timelineSaveBtn').disabled === true);
+
+  // ── Whole-bar drag ("move") shifts both dates by the same amount, but only once Saved ─────────
   dragBarByDays(doc, taskBar(doc, 'Look at Project and App Settings'), 'move', 5);
+  await wait(20);
+  log('dragging a bar enables the Save changes button', doc.getElementById('timelineSaveBtn').disabled === false);
+  doc.getElementById('timelineSaveBtn').click();
   await wait(20);
   {
     var d = readTaskDates(doc, 'Look at Project and App Settings');
     log('moving the bar 5 days shifts the start date', d.start === '2026-03-15', d.start);
     log('moving the bar 5 days shifts the end date by the same amount (duration preserved)', d.end === '2026-03-17', d.end);
   }
+  log('Save changes is disabled again right after saving', doc.getElementById('timelineSaveBtn').disabled === true);
 
   doc.getElementById('timelineBtn').click();
   await wait(20);
 
   // ── Resize-start handle only moves the start date ────────────────────────────────────────────
   dragBarByDays(doc, taskBar(doc, 'Look at Project and App Settings'), 'resize-start', 2);
+  await wait(20);
+  doc.getElementById('timelineSaveBtn').click();
   await wait(20);
   {
     var d = readTaskDates(doc, 'Look at Project and App Settings');
@@ -134,10 +148,48 @@ function dragBarByDays(doc, bar, role, days){
   // ── Resize-end handle only moves the end date ────────────────────────────────────────────────
   dragBarByDays(doc, taskBar(doc, 'Look at Project and App Settings'), 'resize-end', 4);
   await wait(20);
+  doc.getElementById('timelineSaveBtn').click();
+  await wait(20);
   {
     var d = readTaskDates(doc, 'Look at Project and App Settings');
     log('resizing the end handle leaves the start date alone', d.start === '2026-03-17', d.start);
     log('resizing the end handle moves only the end date', d.end === '2026-03-21', d.end);
+  }
+
+  // ── Dragging snaps to the nearest whole day, not a raw pixel offset ───────────────────────────
+  // At the 'day' timescale colWidth clamps to 30px (see file header comment), so a 10px drag is
+  // well under half a day-width and must round DOWN to a zero-day (no-op) move, while a 20px drag
+  // is over half a day-width and must round UP to a full one-day move.
+  doc.getElementById('timelineBtn').click();
+  await wait(20);
+  {
+    var bar = taskBar(doc, 'Look at Project and App Settings');
+    fireMouse(bar, 'mousedown', 0);
+    fireMouse(doc, 'mousemove', 10);
+    fireMouse(doc, 'mouseup', 10);
+  }
+  await wait(20);
+  doc.getElementById('timelineSaveBtn').click();
+  await wait(20);
+  {
+    var d = readTaskDates(doc, 'Look at Project and App Settings');
+    log('a sub-half-day-width drag snaps back to zero days moved', d.start === '2026-03-17' && d.end === '2026-03-21', JSON.stringify(d));
+  }
+
+  doc.getElementById('timelineBtn').click();
+  await wait(20);
+  {
+    var bar = taskBar(doc, 'Look at Project and App Settings');
+    fireMouse(bar, 'mousedown', 0);
+    fireMouse(doc, 'mousemove', 20);
+    fireMouse(doc, 'mouseup', 20);
+  }
+  await wait(20);
+  doc.getElementById('timelineSaveBtn').click();
+  await wait(20);
+  {
+    var d = readTaskDates(doc, 'Look at Project and App Settings');
+    log('a past-half-day-width drag snaps up to a full one-day move', d.start === '2026-03-18' && d.end === '2026-03-22', JSON.stringify(d));
   }
 
   // ── A non-moved click still opens the Task modal (unaffected by the new drag wiring) ─────────
@@ -193,8 +245,11 @@ function dragBarByDays(doc, bar, role, days){
       doc.getElementById('confirmTitle').textContent.indexOf('Release') !== -1, doc.getElementById('confirmTitle').textContent);
   log('the conflict message mentions the Release by name', doc.getElementById('confirmMessage').textContent.indexOf('Conflict Release') !== -1, doc.getElementById('confirmMessage').textContent);
 
-  // Confirm: expand the Release to cover the Task's new dates.
+  // Confirm only stages the change — nothing is written until Save is clicked.
   doc.getElementById('confirmOkBtn').click();
+  await wait(20);
+  log('confirming the conflict enables Save changes but does not write yet', doc.getElementById('timelineSaveBtn').disabled === false);
+  doc.getElementById('timelineSaveBtn').click();
   await wait(20);
   {
     var taskD = readTaskDates(doc, 'Draft project objectives');
@@ -215,6 +270,8 @@ function dragBarByDays(doc, bar, role, days){
   log('dragging the other direction also opens the conflict dialog', !doc.getElementById('confirmOverlay').classList.contains('hidden'));
 
   doc.getElementById('confirmCancelBtn').click();
+  await wait(20);
+  doc.getElementById('timelineSaveBtn').click();
   await wait(20);
   {
     var taskD = readTaskDates(doc, 'Draft project objectives');
@@ -239,6 +296,8 @@ function dragBarByDays(doc, bar, role, days){
   log('the conflict dialog title mentions the Project', doc.getElementById('confirmTitle').textContent.indexOf('Project') !== -1, doc.getElementById('confirmTitle').textContent);
 
   doc.getElementById('confirmOkBtn').click();
+  await wait(20);
+  doc.getElementById('timelineSaveBtn').click();
   await wait(20);
   {
     doc.getElementById('editProjectBtn').click();
