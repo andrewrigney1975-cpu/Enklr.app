@@ -44,6 +44,11 @@ function errorHtml(message){
 
 /* ---- table ---- */
 
+// Matches task-key-shaped cell values (e.g. "SRV-12", "ENKLR-104") regardless of which query column
+// they came from — see the bodyHtml row-rendering comment below for why this is a shape check, not
+// a real per-project key lookup.
+var TASK_KEY_CELL_RE = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
+
 /* Session-only — never persisted, and never carried over between opens of the same Dashboard
    (resetDashboardTableWidgetState() is called on viewer close, same convention as every other
    session-only ui.* state in this app). Page size defaults to 20 every time; "No need to remember
@@ -76,7 +81,13 @@ export function renderTableWidget(widget, project, opts){
   var filterFn = createRowFilter(state.filters, function(row, field){ return row[field]; });
   var rows = result.rows.filter(filterFn);
   if(state.sort){
-    rows = sortRows(rows, function(row){ return row[state.sort.field]; }, state.sort.dir);
+    // sortRows wants a numeric 1/-1 (see its own doc comment), not the 'asc'/'desc' string this
+    // widget's own state tracks — passing the raw string coerced to NaN < 0 === false every time,
+    // silently freezing every sort at ascending regardless of the toggled direction (real bug,
+    // found live: the header's ▲/▼ indicator flipped correctly since that reads the string state
+    // directly, masking that the actual row order never changed). Same conversion bulk-edit.js's
+    // own sortRows call site already does.
+    rows = sortRows(rows, function(row){ return row[state.sort.field]; }, state.sort.dir === 'asc' ? 1 : -1);
   }
 
   var readOnly = !!opts.readOnly;
@@ -99,7 +110,16 @@ export function renderTableWidget(widget, project, opts){
   }).join('');
   var bodyHtml = pageRows.map(function(row){
     return '<div class="kf-dashboard-table-row">' + result.columns.map(function(col){
-      return '<div class="kf-dashboard-table-td">' + escapeHTML(row[col] == null ? '' : String(row[col])) + '</div>';
+      var text = row[col] == null ? '' : String(row[col]);
+      // Any cell shaped like a task key (e.g. "SRV-12") becomes a real "#!/KEY" hashbang deep link
+      // (features/hash-router.js) — the same convention the dependency popover's own key links use
+      // (views/board.js) — regardless of which column it came from, since an arbitrary query's
+      // column names aren't known ahead of time. Not verified against real tasks at render time
+      // (cheap regex only); an unmatched key just toasts "No task found" on click, same as any other
+      // dead hashbang link elsewhere in this app.
+      return '<div class="kf-dashboard-table-td">' + (TASK_KEY_CELL_RE.test(text)
+        ? '<a class="kf-dep-key kf-search-result-link" href="#!/' + encodeURIComponent(text) + '">' + escapeHTML(text) + '</a>'
+        : escapeHTML(text)) + '</div>';
     }).join('') + '</div>';
   }).join('');
 

@@ -151,6 +151,29 @@ function makeMockFetch(state){
   log('table widget rendered with a header row', widgetBody && widgetBody.textContent.indexOf('title') !== -1, widgetBody && widgetBody.textContent);
   log('table widget shows both task rows', widgetBody && widgetBody.textContent.indexOf('First Task') !== -1 && widgetBody.textContent.indexOf('Second Task') !== -1);
 
+  // ── Task-key cells become real hashbang links ─────────────────────────────────────────────
+  var keyLink = Array.from(widgetBody.querySelectorAll('.kf-dashboard-table-td a')).find(function(a){ return a.textContent === 'SRV-1'; });
+  log('a task-key-shaped cell renders as a hashbang link', keyLink !== null);
+  log('the link points at the real "#!/KEY" hashbang route', keyLink && keyLink.getAttribute('href') === '#!/SRV-1', keyLink && keyLink.getAttribute('href'));
+  var titleCell = Array.from(widgetBody.querySelectorAll('.kf-dashboard-table-td')).find(function(c){ return c.textContent === 'First Task'; });
+  log('a non-key-shaped cell stays plain text (no link)', titleCell && titleCell.querySelector('a') === null);
+
+  // ── Sort toggle: real bug found live — clicking the same header twice never actually reversed
+  // the row order (sortRows() wants a numeric 1/-1, dashboard-widgets.js was passing the raw
+  // 'asc'/'desc' string, which coerces to NaN < 0 === false and silently stays ascending forever;
+  // only the header's own ▲/▼ indicator was actually flipping). ─────────────────────────────────
+  var keyHeader = doc.querySelector('[data-widget-sort-col="key"]');
+  keyHeader.click();
+  await wait(50);
+  var firstRowAfterAsc = doc.querySelector('.kf-dashboard-table-row').textContent;
+  log('sorting by key ascending puts SRV-1 first', firstRowAfterAsc.indexOf('SRV-1') === 0 || firstRowAfterAsc.indexOf('SRV-1') !== -1, firstRowAfterAsc);
+  keyHeader = doc.querySelector('[data-widget-sort-col="key"]');
+  keyHeader.click();
+  await wait(50);
+  var firstRowAfterDesc = doc.querySelector('.kf-dashboard-table-row').textContent;
+  log('clicking the SAME header again actually reverses row order (not frozen ascending)', firstRowAfterDesc !== firstRowAfterAsc, firstRowAfterAsc + ' vs ' + firstRowAfterDesc);
+  log('sorting by key descending puts SRV-2 first', firstRowAfterDesc.indexOf('SRV-2') !== -1, firstRowAfterDesc);
+
   var exportBtn = doc.querySelector('[data-widget-export-header]');
   log('CSV export button shown for a Project Admin in edit mode', exportBtn !== null);
   log('CSV export button lives in the widget header, not the body', exportBtn && exportBtn.closest('.kf-dashboard-widget-header') !== null);

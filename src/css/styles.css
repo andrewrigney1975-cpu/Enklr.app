@@ -405,7 +405,7 @@
 
   .kf-header-btn {
     background: transparent;
-    border: 1px solid var(--kf-header-btn-border, rgba(255, 255, 255, .35));
+    border: none;
     color: var(--kf-header-fg, #fff);
     border-radius: var(--kf-radius);
     padding: 6px 10px;

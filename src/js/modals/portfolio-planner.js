@@ -29,6 +29,7 @@ var PLANNER_CLICK_DELAY_MS = 250;
 
 var _categories = [];
 var _allProjects = [];
+var _strategyActive = false;
 var _collapsedCategoryIds = new Set();
 var _plannerState = {granularity: 'month', start: null, end: null};
 var _addProjectCategoryId = null;
@@ -70,9 +71,15 @@ export function isPortfolioPlannerOverlayOpen(){
 function loadPortfolioPlannerDataAndRender(){
   var groupsEl = document.getElementById('portfolioPlannerGroups');
   groupsEl.innerHTML = '<div class="kf-health-empty">Loading…</div>';
-  Promise.all([portfolioApi.listProjects(), portfolioApi.listCategories()]).then(function(results){
+  // strategyApi.getActive() 404s when the org has no active Strategy at all — resolved to null
+  // rather than left to reject, so a Promise.all here doesn't sink the whole load over a perfectly
+  // normal "Strategy isn't set up yet" state (see renderPortfolioPlannerProjectRow's own use of
+  // _strategyActive: the per-project "Strategy" fulfilment button only makes sense, and is only
+  // shown, once there's an active Strategy to fulfil against).
+  Promise.all([portfolioApi.listProjects(), portfolioApi.listCategories(), strategyApi.getActive().then(function(s){ return s; }, function(){ return null; })]).then(function(results){
     _allProjects = results[0] || [];
     _categories = results[1] || [];
+    _strategyActive = !!results[2];
     if(!_plannerState.start || !_plannerState.end){
       var range = defaultYearRange();
       _plannerState.start = range.start;
@@ -300,7 +307,7 @@ function renderPortfolioPlannerProjectRow(p){
     '<input type="date" class="kf-portfolio-planner-date-input" data-action="change-end-date" value="' + (p.endDate || '') + '" aria-label="End date">' +
     '<select class="kf-portfolio-planner-category-select" data-action="change-category" aria-label="Category">' + categoryOptionsHTML + '</select>' +
     '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-resources" title="Placeholder resourcing">Resources</button>' +
-    '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-strategy" title="Strategy fulfilment">Strategy</button>' +
+    (_strategyActive ? '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-strategy" title="Strategy fulfilment">Strategy</button>' : '') +
     activateHTML +
   '</div>';
 }

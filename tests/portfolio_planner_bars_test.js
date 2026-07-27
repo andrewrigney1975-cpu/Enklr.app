@@ -31,6 +31,8 @@ function makeMockFetch(projects, categories){
     if(resourcesMatch && method === 'GET') return {ok: true, status: 200, json: async () => ([])};
     if(url === '/api/organisations/me/portfolio/roles' && method === 'GET') return {ok: true, status: 200, json: async () => ([])};
     if(url === '/api/organisations/me' && method === 'GET') return {ok: true, status: 200, json: async () => ({name: 'Org', users: []})};
+    // Left unmocked deliberately for the default scenario — falls through to the 404 catch-all
+    // below, exercising the real "org has no active Strategy" case (strategyApi.getActive() 404s).
     return {ok: false, status: 404, json: async () => ({message: 'not found (unhandled mock url in test): ' + method + ' ' + url})};
   };
 }
@@ -113,6 +115,35 @@ function makeMockFetch(projects, categories){
   await wait(350);
   log('double-clicking a bar opens the Resources modal', !doc.getElementById('portfolioPlannerResourcesOverlay').classList.contains('hidden'));
   log('double-clicking a bar does NOT leave the Dates modal open', doc.getElementById('portfolioPlannerProjectDatesOverlay').classList.contains('hidden'));
+
+  // ── Strategy button hidden on project rows when the org has no active Strategy ──────────────
+  var projectRow = doc.querySelector('.kf-portfolio-planner-project-row[data-project-id="wide1"]');
+  log('project row rendered in the Categories list', projectRow !== null);
+  log('Strategy button hidden when no active Strategy exists', projectRow && projectRow.querySelector('[data-action="edit-strategy"]') === null);
+  log('Resources button still shown regardless of Strategy state', projectRow && projectRow.querySelector('[data-action="edit-resources"]') !== null);
+
+  // ── Strategy button shown once the org DOES have an active Strategy ──────────────────────────
+  function makeMockFetchWithActiveStrategy(projects, categories){
+    return async function(url, options){
+      if(url === '/api/organisations/me/strategy/active' && (!options || (options.method || 'GET') === 'GET')){
+        return {ok: true, status: 200, json: async () => ({id: 'strat1', name: 'FY27 Strategy', isActive: true})};
+      }
+      return makeMockFetch(projects, categories)(url, options);
+    };
+  }
+  const dom2 = new JSDOM(html, {
+    runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
+    beforeParse(w){
+      w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'true'}));
+      w.fetch = makeMockFetchWithActiveStrategy(projects, categories);
+    }
+  });
+  await wait(800);
+  const doc2 = dom2.window.document;
+  doc2.getElementById('navPortfolioPlannerBtn').click();
+  await wait(400);
+  var projectRow2 = doc2.querySelector('.kf-portfolio-planner-project-row[data-project-id="wide1"]');
+  log('Strategy button shown once the org has an active Strategy', projectRow2 && projectRow2.querySelector('[data-action="edit-strategy"]') !== null);
 
   console.log('\nPortfolio Planner bars test complete.');
   process.exit(0);

@@ -742,6 +742,26 @@ Two more sit alongside these:
   to ask a question of your project data that no built-in view quite answers ("show me every task
   over budget, grouped by assignee"), this is where you go. Saved queries can also be turned into
   reusable API endpoints for pulling data into something outside Enklr Task entirely.
+- **Dashboards** — **What**: a self-service reporting canvas that turns your Saved Queries into a
+  proper visual dashboard, instead of leaving them as raw result tables. A dashboard is a named page
+  made of widgets — data tables, gauges, bar gauges, bar/line/pie/donut charts, a Cost/Benefit
+  scatter plot, a mini timeline, or a plain text block for notes — each one (except the text block)
+  pointed at one of the project's Saved Queries. **Who**: Priya, building the one screen her
+  stakeholders check every Monday instead of re-explaining the same numbers in a meeting; Marcus gets
+  the same dashboard as a read-only view, so he can sort, filter, and print a table without being
+  able to change what's on the page. **How**: open **Dashboards** from the side nav, click **New
+  Dashboard**, then **Add Widget** to build it out — pick a widget type, a width (a third, a half,
+  two-thirds, or the full page), and, for anything data-driven, which Saved Query feeds it. Widgets
+  can be reordered (drag the arrows on the widget itself, or use the compact **Widget Order** list
+  above the layout for a dashboard with a lot of widgets already on it) and individually collapsed if
+  one's taking up more room than you want to scroll past right now — collapsing is just a display
+  preference, it doesn't affect what prints. A data table's cells that look like a task key (say,
+  `ENKLR-42`) become real clickable links straight to that task. Each dashboard tile in the picker
+  shows a small sketch of its own layout, so you can recognise the right one before opening it. **How
+  to turn it on**: open **Project Settings**, find **Dashboards** under the **General** category, and
+  switch it on — any Project Admin can do this, unlike Strategy below. Elena, as Org Admin, gets an
+  extra **All Projects** tab in the Dashboards picker, letting her browse (read-only) every dashboard
+  across every project in the organisation from one place, without having to be a member of each one.
 
 ---
 
@@ -976,6 +996,8 @@ it" tiers, though who's allowed to *initiate* it differs:
 | Keep a running log of project risk | [Section 6 — Risks](#6-governance--knowledge--the-why-not-just-the-what) |
 | Run a proper end-of-release retro | [Section 6 — Retrospectives](#6-governance--knowledge--the-why-not-just-the-what) |
 | Ask a genuinely custom question of my project data | [Section 7 — Advanced Query](#7-search-and-the-advanced-query-workbench) |
+| Build a reporting screen from my own Saved Queries | [Section 7 — Dashboards](#7-search-and-the-advanced-query-workbench) |
+| See every Dashboard across the whole organisation | [Section 7 — Dashboards](#7-search-and-the-advanced-query-workbench) |
 | Talk to a teammate in real time | [Section 8 — Chat](#8-collaboration--chat-and-comments) |
 | See how the whole organisation's projects are doing | [Section 9 — Portfolio Dashboard](#9-portfolio--organisation-management) |
 | Add a new person to the organisation | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
