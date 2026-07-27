@@ -6,7 +6,12 @@ namespace Enkl.Api.Dtos;
 /// these relies on — none of this is ever populated from a project outside the caller's own
 /// Organisation, regardless of what the client asked for.
 /// </summary>
-public record PortfolioProjectDto(Guid Id, string Name, string Key, DateOnly? StartDate, DateOnly? EndDate, string Priority, bool IsActive, Guid? CategoryId);
+/// <summary>StrategyEnabled reflects this project's own HeaderButtonVisibilityJson.strategy flag
+/// (ProjectSettingsSerializer, defaults false) — the Portfolio Planner's per-project "Strategy"
+/// fulfilment button (src/js/modals/portfolio-planner.js) is only shown when this is true AND the
+/// org has an active Strategy; showing it just because an active Strategy exists org-wide, ignoring
+/// whether this specific project has ever opted into the module, was a real bug found live in QA.</summary>
+public record PortfolioProjectDto(Guid Id, string Name, string Key, DateOnly? StartDate, DateOnly? EndDate, string Priority, bool IsActive, Guid? CategoryId, bool StrategyEnabled);
 
 /// <summary>
 /// Backs the Portfolio Planner's "Add Project" form — creates a placeholder Project with IsActive

@@ -307,7 +307,11 @@ function renderPortfolioPlannerProjectRow(p){
     '<input type="date" class="kf-portfolio-planner-date-input" data-action="change-end-date" value="' + (p.endDate || '') + '" aria-label="End date">' +
     '<select class="kf-portfolio-planner-category-select" data-action="change-category" aria-label="Category">' + categoryOptionsHTML + '</select>' +
     '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-resources" title="Placeholder resourcing">Resources</button>' +
-    (_strategyActive ? '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-strategy" title="Strategy fulfilment">Strategy</button>' : '') +
+    // Requires BOTH: the org has an active Strategy to fulfil against, AND this specific project
+    // has actually opted into the Strategy module itself (App Settings > Governance > Strategy) —
+    // showing the button just because an active Strategy exists org-wide, regardless of whether
+    // THIS project ever turned Strategy on, was a real bug found live in QA.
+    ((_strategyActive && p.strategyEnabled) ? '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-action="edit-strategy" title="Strategy fulfilment">Strategy</button>' : '') +
     activateHTML +
   '</div>';
 }

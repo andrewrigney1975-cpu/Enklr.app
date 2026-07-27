@@ -25,12 +25,15 @@ final class PortfolioService
 
     public function listProjects(string $organisationId): array
     {
-        $stmt = $this->db->prepare('SELECT "Id", "Name", "Key", "StartDate", "EndDate", "Priority", "IsActive", "CategoryId" FROM "Projects" WHERE "OrganisationId" = :orgId ORDER BY "Name"');
+        $stmt = $this->db->prepare('SELECT "Id", "Name", "Key", "StartDate", "EndDate", "Priority", "IsActive", "CategoryId", "HeaderButtonVisibilityJson" FROM "Projects" WHERE "OrganisationId" = :orgId ORDER BY "Name"');
         $stmt->execute(['orgId' => $organisationId]);
         return array_map(static fn(array $p): array => [
             'id' => $p['Id'], 'name' => $p['Name'], 'key' => $p['Key'],
             'startDate' => $p['StartDate'], 'endDate' => $p['EndDate'],
             'priority' => $p['Priority'], 'isActive' => (bool) $p['IsActive'], 'categoryId' => $p['CategoryId'],
+            // Only shown alongside an org-wide active Strategy AND this project's own opt-in — see
+            // PortfolioProjectDto's .NET doc comment for the real bug this closes.
+            'strategyEnabled' => ProjectSettingsSerializer::parse($p['HeaderButtonVisibilityJson'])['strategy'],
         ], $stmt->fetchAll());
     }
 
@@ -79,6 +82,9 @@ final class PortfolioService
             'id' => $projectId, 'name' => $name, 'key' => $uniqueKey,
             'startDate' => $request['startDate'] ?? null, 'endDate' => $request['endDate'] ?? null,
             'priority' => $priority, 'isActive' => false, 'categoryId' => $categoryId,
+            // HeaderButtonVisibilityJson is inserted as '{}' above — ProjectSettingsSerializer's own
+            // default (strategy => false) applies, same as the .NET tier's equivalent comment.
+            'strategyEnabled' => false,
         ];
     }
 

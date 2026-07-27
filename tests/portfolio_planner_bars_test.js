@@ -45,7 +45,7 @@ function makeMockFetch(projects, categories){
     // Spans the whole default year range shown by the chart — wide enough for a 3-char key label
     // alongside the priority marker under any reasonable zoom.
     {id: 'wide1', key: 'WID', name: 'Wide Project', categoryId: null, priority: 'high', isActive: true,
-      startDate: year + '-01-01', endDate: year + '-12-31'},
+      startDate: year + '-01-01', endDate: year + '-12-31', strategyEnabled: true},
     // A single day — narrow enough that no reasonable font/marker combination fits a label in it.
     {id: 'narrow1', key: 'NRW', name: 'Narrow Project', categoryId: null, priority: 'high', isActive: true,
       startDate: year + '-06-15', endDate: year + '-06-15'},
@@ -143,7 +143,9 @@ function makeMockFetch(projects, categories){
   doc2.getElementById('navPortfolioPlannerBtn').click();
   await wait(400);
   var projectRow2 = doc2.querySelector('.kf-portfolio-planner-project-row[data-project-id="wide1"]');
-  log('Strategy button shown once the org has an active Strategy', projectRow2 && projectRow2.querySelector('[data-action="edit-strategy"]') !== null);
+  log('Strategy button shown once the org has an active Strategy AND this project opted in', projectRow2 && projectRow2.querySelector('[data-action="edit-strategy"]') !== null);
+  var narrowRow2 = doc2.querySelector('.kf-portfolio-planner-project-row[data-project-id="narrow1"]');
+  log('Strategy button still hidden for a project that has NOT opted in, even with an active org Strategy', narrowRow2 && narrowRow2.querySelector('[data-action="edit-strategy"]') === null);
 
   console.log('\nPortfolio Planner bars test complete.');
   process.exit(0);

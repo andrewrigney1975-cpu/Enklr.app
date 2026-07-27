@@ -36,11 +36,17 @@ public class PortfolioService
 
     public async Task<List<PortfolioProjectDto>> ListProjectsAsync(Guid organisationId)
     {
-        return await _db.Projects
+        // HeaderButtonVisibilityJson has to come back raw and get parsed in-memory afterward —
+        // ProjectSettingsSerializer.Parse isn't translatable into SQL, so it can't sit inside the
+        // .Select() EF Core turns into the actual query.
+        var rows = await _db.Projects
             .Where(p => p.OrganisationId == organisationId)
             .OrderBy(p => p.Name)
-            .Select(p => new PortfolioProjectDto(p.Id, p.Name, p.Key, p.StartDate, p.EndDate, p.Priority, p.IsActive, p.CategoryId))
+            .Select(p => new { p.Id, p.Name, p.Key, p.StartDate, p.EndDate, p.Priority, p.IsActive, p.CategoryId, p.HeaderButtonVisibilityJson })
             .ToListAsync();
+        return rows.Select(p => new PortfolioProjectDto(
+            p.Id, p.Name, p.Key, p.StartDate, p.EndDate, p.Priority, p.IsActive, p.CategoryId,
+            ProjectSettingsSerializer.Parse(p.HeaderButtonVisibilityJson).Strategy)).ToList();
     }
 
     /// <summary>
@@ -87,7 +93,9 @@ public class PortfolioService
         _db.Projects.Add(project);
         await _db.SaveChangesAsync();
 
-        return new PortfolioProjectDto(project.Id, project.Name, project.Key, project.StartDate, project.EndDate, project.Priority, project.IsActive, project.CategoryId);
+        // HeaderButtonVisibilityJson is never set at creation, so ProjectSettingsSerializer's own
+        // default (Strategy: false) applies — a brand-new placeholder project has never opted in.
+        return new PortfolioProjectDto(project.Id, project.Name, project.Key, project.StartDate, project.EndDate, project.Priority, project.IsActive, project.CategoryId, StrategyEnabled: false);
     }
 
     public async Task<PortfolioAggregateDto> GetAggregateAsync(Guid organisationId, List<Guid> requestedProjectIds)
