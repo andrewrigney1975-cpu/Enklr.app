@@ -390,6 +390,7 @@ export function addRelease(project, data){
     ownerId: data.ownerId || null,
     startDate: data.startDate || null,
     endDate: data.endDate || null,
+    color: data.color || '#cccccc',
     dateCreated: now,
     dateLastModified: now
   };
@@ -406,6 +407,7 @@ export function updateRelease(project, releaseId, data){
   release.ownerId = data.ownerId || null;
   release.startDate = data.startDate || null;
   release.endDate = data.endDate || null;
+  release.color = data.color || '#cccccc';
   release.dateLastModified = new Date().toISOString();
   saveDB();
 }
@@ -419,7 +421,7 @@ export function updateReleaseDates(project, releaseId, startISO, endISO){
   var release = getReleaseById(project, releaseId);
   if(!release) return;
   updateRelease(project, releaseId, {
-    name: release.name, status: release.status, ownerId: release.ownerId,
+    name: release.name, status: release.status, ownerId: release.ownerId, color: release.color,
     startDate: startISO || null, endDate: endISO || null
   });
 }

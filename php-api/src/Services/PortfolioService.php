@@ -186,6 +186,7 @@ final class PortfolioService
                 $releases[] = [
                     'id' => $r['Id'], 'name' => $r['Name'], 'status' => $r['Status'], 'ownerId' => $r['OwnerId'],
                     'startDate' => $r['StartDate'], 'endDate' => $r['EndDate'], 'releaseNotes' => $r['ReleaseNotes'],
+                    'color' => $r['Color'],
                 ];
             }
 

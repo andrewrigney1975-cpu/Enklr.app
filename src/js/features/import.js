@@ -399,6 +399,7 @@ export function buildProjectFromExportDoc(doc){
         ownerId: ownerId,
         startDate: isValidISODateString(r.startDate) ? r.startDate : null,
         endDate: isValidISODateString(r.endDate) ? r.endDate : null,
+        color: (typeof r.color === 'string' && /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(r.color)) ? r.color : '#cccccc',
         dateCreated: typeof r.dateCreated === 'string' ? r.dateCreated : importedAt,
         dateLastModified: typeof r.dateLastModified === 'string' ? r.dateLastModified : importedAt
       };

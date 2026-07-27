@@ -11,6 +11,7 @@ public class ReleaseConfiguration : IEntityTypeConfiguration<Release>
         b.HasKey(r => r.Id);
         b.Property(r => r.Name).HasMaxLength(200).IsRequired();
         b.Property(r => r.Status).HasMaxLength(20).IsRequired();
+        b.Property(r => r.Color).HasMaxLength(20).IsRequired().HasDefaultValue("#cccccc");
 
         b.HasOne(r => r.Project)
             .WithMany(p => p.Releases)

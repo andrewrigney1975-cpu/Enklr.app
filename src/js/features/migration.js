@@ -228,7 +228,7 @@ export async function updateReleaseDatesOnServer(project, releaseId, startISO, e
   var release = getReleaseById(project, releaseId);
   if(!release) return;
   await releaseApi.update(project.serverProjectId, releaseId, {
-    name: release.name, status: release.status, ownerId: release.ownerId || null,
+    name: release.name, status: release.status, ownerId: release.ownerId || null, color: release.color,
     startDate: isoToServerDateOnly(startISO), endDate: isoToServerDateOnly(endISO)
   });
   return refreshProjectFromServer(project.id);
@@ -481,7 +481,7 @@ function buildLocalProjectFromServerDetail(detail, existingLocal){
     return {id: m.id, userId: m.userId || null, name: m.displayName, email: m.email || null, color: m.color, role: m.role || null, allocatedFraction: m.allocatedFraction != null ? m.allocatedFraction : null, reportsToId: m.reportsToId || null, isProjectAdmin: !!m.isProjectAdmin, isActive: m.isActive !== false};
   });
   var releases = (detail.releases || []).map(function(r){
-    return {id: r.id, name: r.name, status: r.status, ownerId: r.ownerId || null, startDate: serverDateOnlyToIso(r.startDate), endDate: serverDateOnlyToIso(r.endDate), releaseNotes: r.releaseNotes || null, dateCreated: now, dateLastModified: now};
+    return {id: r.id, name: r.name, status: r.status, ownerId: r.ownerId || null, startDate: serverDateOnlyToIso(r.startDate), endDate: serverDateOnlyToIso(r.endDate), releaseNotes: r.releaseNotes || null, color: r.color || '#cccccc', dateCreated: now, dateLastModified: now};
   });
   var taskTypes = (detail.taskTypes || []).map(function(t){
     return {id: t.id, name: t.name, iconName: t.iconName || null};

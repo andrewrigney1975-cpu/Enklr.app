@@ -281,8 +281,8 @@ final class MigrationService
     {
         $byName = [];
         $stmt = $this->db->prepare(<<<SQL
-            INSERT INTO "Releases" ("Id", "ProjectId", "Name", "Status", "OwnerId", "StartDate", "EndDate", "DateCreated", "DateLastModified")
-            VALUES (:id, :pid, :name, :status, :ownerId, :start, :end, :created, :modified)
+            INSERT INTO "Releases" ("Id", "ProjectId", "Name", "Status", "OwnerId", "StartDate", "EndDate", "Color", "DateCreated", "DateLastModified")
+            VALUES (:id, :pid, :name, :status, :ownerId, :start, :end, :color, :created, :modified)
         SQL);
         foreach ($releases as $r) {
             $id = Uuid::v4();
@@ -291,6 +291,7 @@ final class MigrationService
                 'status' => in_array($r['status'] ?? null, ['pending', 'in_progress', 'deployed'], true) ? $r['status'] : 'pending',
                 'ownerId' => $memberByOldId[$r['ownerId'] ?? ''] ?? null,
                 'start' => $this->parseDateOnly($r['startDate'] ?? null), 'end' => $this->parseDateOnly($r['endDate'] ?? null),
+                'color' => !empty($r['color']) ? $r['color'] : '#cccccc',
                 'created' => $this->parseDateTime($r['dateCreated'] ?? null) ?? SqlDateTime::now(),
                 'modified' => $this->parseDateTime($r['dateLastModified'] ?? null) ?? SqlDateTime::now(),
             ]);

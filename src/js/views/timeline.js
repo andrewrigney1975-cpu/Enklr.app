@@ -251,6 +251,26 @@ export function closeTimelineOverlay(){
   document.getElementById('timelineOverlay').classList.add('hidden');
   resetTimelinePendingChanges();
 }
+
+/* The Close button / Escape key both route through here rather than calling closeTimelineOverlay
+   directly — if a drag was made but never Saved, closing would otherwise silently discard it with
+   no warning. Confirm = save then close (waits for the save to actually settle before closing —
+   saveTimelineChanges already toasts and clears pending state on a failed write, same as clicking
+   the Save button directly would, so this just defers the close until that's happened rather than
+   closing over a still-in-flight request); Cancel = discard and close immediately, same as the
+   pre-existing behavior; Ignore (the dialog's own pure no-op third button) = stay open, keep
+   editing. A backdrop click or navigating away by clicking a task row are deliberately NOT routed
+   through this guard — only the two interactions the user actually asked to be guarded. */
+export function closeTimelineOverlayGuarded(){
+  if(!hasTimelinePendingChanges()){ closeTimelineOverlay(); return; }
+  _confirmDialog(
+    'Unsaved Timeline changes',
+    'You have unsaved date changes on the Timeline. Save them before closing, or discard them?',
+    function(){ saveTimelineChanges().then(closeTimelineOverlay); },
+    closeTimelineOverlay,
+    true
+  );
+}
 export function isTimelineOverlayOpen(){
   return !document.getElementById('timelineOverlay').classList.contains('hidden');
 }
@@ -583,6 +603,7 @@ function buildTimelineReleaseGroupHeader(project, groupKey, groupTasks, collapse
       bar.className = 'kf-timeline-bar kf-timeline-bar-release';
       bar.style.left = left + 'px';
       bar.style.width = barWidth + 'px';
+      bar.style.setProperty('--kf-release-bar-accent', release.color || '#cccccc');
       bar.appendChild(buildEl('span', 'kf-timeline-handle kf-timeline-handle-start', ''));
       bar.lastChild.setAttribute('data-role', 'resize-start');
       bar.appendChild(buildEl('span', 'kf-timeline-handle kf-timeline-handle-end', ''));
@@ -856,7 +877,7 @@ function saveProjectDatesAnywhere(project, startISO, endISO){
 // regardless of how many bars were dragged since the last save.
 export function saveTimelineChanges(){
   var project = getCurrentProject();
-  if(!project || !hasTimelinePendingChanges()) return;
+  if(!project || !hasTimelinePendingChanges()) return Promise.resolve();
 
   var btn = document.getElementById('timelineSaveBtn');
   if(btn) btn.disabled = true;
@@ -878,7 +899,7 @@ export function saveTimelineChanges(){
   var chain = Promise.resolve();
   ops.forEach(function(op){ chain = chain.then(op); });
 
-  chain.then(function(){
+  return chain.then(function(){
     resetTimelinePendingChanges();
     renderTimeline();
     renderBoard();

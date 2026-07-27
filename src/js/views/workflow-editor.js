@@ -469,6 +469,42 @@ export function isWorkflowOverlayOpen(){
   return !document.getElementById('workflowOverlay').classList.contains('hidden');
 }
 
+/* The Close button / Escape key both route through here rather than calling closeWorkflowOverlay
+   directly — same "warn before silently discarding" guard as views/timeline.js's own
+   closeTimelineOverlayGuarded, applied to the dirty flag instead of a pending-changes map (a
+   local-only project's edits are never "unsaved" in this sense — they already land in local
+   storage the normal way, see workflowEditorState.dirty's own comment — so this is a no-op guard
+   there). Confirm = save then close, but ONLY if the save actually succeeded (saveWorkflowToServer
+   clears `dirty` on success and leaves it set — after already toasting the error itself — on
+   failure, so checking `dirty` afterward is enough to tell which happened without saveWorkflowToServer
+   needing to change its own contract); a failed save leaves the overlay open so the edit isn't lost
+   and the user can retry. Cancel = discard: re-pulls the server's own last-saved workflow over the
+   local dirty draft (the same fetch openWorkflowOverlay itself would have done had this browser had
+   no unsaved draft to protect) and closes regardless of whether that refetch succeeds — the discard
+   intent is clear either way, and the next reopen will refetch again anyway. Ignore (the dialog's
+   own pure no-op third button) = stay open, keep editing. A backdrop click is deliberately NOT
+   routed through this guard — same "only the two interactions actually asked for" scope as the
+   Timeline's own guard. */
+export function closeWorkflowOverlayGuarded(){
+  var project = getCurrentProject();
+  var dirty = !!(project && isServerAuthoritative(project) && workflowEditorState.dirty);
+  if(!dirty){ closeWorkflowOverlay(); return; }
+  _confirmDialog(
+    'Unsaved Workflow changes',
+    'You have unsaved changes to this project\'s Workflow. Save them before closing, or discard them?',
+    function(){
+      saveWorkflowToServer().then(function(){
+        if(!workflowEditorState.dirty) closeWorkflowOverlay();
+      });
+    },
+    function(){
+      workflowEditorState.dirty = false;
+      pullWorkflowFromServer(project).catch(function(){}).then(function(){ closeWorkflowOverlay(); });
+    },
+    true
+  );
+}
+
 /* Reflects workflowEditorState.dirty on the Save button — only meaningful for a server-authoritative
    project (a local-only project has nothing to push, since every edit already lands in local
    storage the normal way — see mutations.js). */

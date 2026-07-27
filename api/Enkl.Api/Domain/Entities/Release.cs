@@ -8,6 +8,9 @@ public class Release
     public string Name { get; set; } = "";
     /// <summary>pending / in_progress / deployed — RELEASE_STATUS_META in src/js/mutations.js.</summary>
     public string Status { get; set; } = "pending";
+    /// <summary>Hex color, rendered as the Release list row's left border and the Timeline bar's
+    /// hatch color. Always set (never null) — defaults to light grey.</summary>
+    public string Color { get; set; } = "#cccccc";
     public Guid? OwnerId { get; set; }
     public ProjectMember? Owner { get; set; }
     public DateOnly? StartDate { get; set; }

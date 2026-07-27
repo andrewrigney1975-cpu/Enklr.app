@@ -26,16 +26,18 @@ final class ReleaseService
 
         $id = Uuid::v4();
         $status = in_array($request['status'] ?? null, self::VALID_STATUSES, true) ? $request['status'] : 'pending';
+        $color = self::resolveColor($request['color'] ?? null);
         $stmt = $this->db->prepare(<<<SQL
-            INSERT INTO "Releases" ("Id", "ProjectId", "Name", "Status", "OwnerId", "StartDate", "EndDate", "DateCreated", "DateLastModified")
-            VALUES (:id, :pid, :name, :status, :ownerId, :start, :end, now(), now())
+            INSERT INTO "Releases" ("Id", "ProjectId", "Name", "Status", "OwnerId", "StartDate", "EndDate", "Color", "DateCreated", "DateLastModified")
+            VALUES (:id, :pid, :name, :status, :ownerId, :start, :end, :color, now(), now())
         SQL);
         $stmt->execute([
             'id' => $id, 'pid' => $projectId, 'name' => $request['name'] ?? '', 'status' => $status,
             'ownerId' => $request['ownerId'] ?? null, 'start' => $request['startDate'] ?? null, 'end' => $request['endDate'] ?? null,
+            'color' => $color,
         ]);
 
-        return ['id' => $id, 'name' => $request['name'] ?? '', 'status' => $status, 'ownerId' => $request['ownerId'] ?? null, 'startDate' => $request['startDate'] ?? null, 'endDate' => $request['endDate'] ?? null, 'releaseNotes' => null];
+        return ['id' => $id, 'name' => $request['name'] ?? '', 'status' => $status, 'ownerId' => $request['ownerId'] ?? null, 'startDate' => $request['startDate'] ?? null, 'endDate' => $request['endDate'] ?? null, 'releaseNotes' => null, 'color' => $color];
     }
 
     public function update(string $projectId, string $releaseId, array $request): ?array
@@ -48,17 +50,18 @@ final class ReleaseService
         }
 
         $status = in_array($request['status'] ?? null, self::VALID_STATUSES, true) ? $request['status'] : 'pending';
+        $color = self::resolveColor($request['color'] ?? null);
         $stmt = $this->db->prepare(<<<SQL
             UPDATE "Releases" SET "Name" = :name, "Status" = :status, "OwnerId" = :ownerId,
-                "StartDate" = :start, "EndDate" = :end, "DateLastModified" = now()
+                "StartDate" = :start, "EndDate" = :end, "Color" = :color, "DateLastModified" = now()
             WHERE "Id" = :id
         SQL);
         $stmt->execute([
             'name' => $request['name'] ?? '', 'status' => $status, 'ownerId' => $request['ownerId'] ?? null,
-            'start' => $request['startDate'] ?? null, 'end' => $request['endDate'] ?? null, 'id' => $releaseId,
+            'start' => $request['startDate'] ?? null, 'end' => $request['endDate'] ?? null, 'color' => $color, 'id' => $releaseId,
         ]);
 
-        return ['id' => $releaseId, 'name' => $request['name'] ?? '', 'status' => $status, 'ownerId' => $request['ownerId'] ?? null, 'startDate' => $request['startDate'] ?? null, 'endDate' => $request['endDate'] ?? null, 'releaseNotes' => $existing['ReleaseNotes']];
+        return ['id' => $releaseId, 'name' => $request['name'] ?? '', 'status' => $status, 'ownerId' => $request['ownerId'] ?? null, 'startDate' => $request['startDate'] ?? null, 'endDate' => $request['endDate'] ?? null, 'releaseNotes' => $existing['ReleaseNotes'], 'color' => $color];
     }
 
     /** The ONLY write path for ReleaseNotes — gated by the controller's own ProjectAdminMiddleware
@@ -66,7 +69,7 @@ final class ReleaseService
      * "one-endpoint-owns-the-field" convention). */
     public function updateNotes(string $projectId, string $releaseId, ?string $releaseNotes): ?array
     {
-        $stmt = $this->db->prepare('SELECT "Id", "Name", "Status", "OwnerId", "StartDate", "EndDate" FROM "Releases" WHERE "Id" = :id AND "ProjectId" = :pid');
+        $stmt = $this->db->prepare('SELECT "Id", "Name", "Status", "OwnerId", "StartDate", "EndDate", "Color" FROM "Releases" WHERE "Id" = :id AND "ProjectId" = :pid');
         $stmt->execute(['id' => $releaseId, 'pid' => $projectId]);
         $row = $stmt->fetch();
         if ($row === false) {
@@ -79,6 +82,7 @@ final class ReleaseService
         return [
             'id' => $row['Id'], 'name' => $row['Name'], 'status' => $row['Status'], 'ownerId' => $row['OwnerId'],
             'startDate' => $row['StartDate'], 'endDate' => $row['EndDate'], 'releaseNotes' => $releaseNotes,
+            'color' => $row['Color'],
         ];
     }
 
@@ -89,5 +93,13 @@ final class ReleaseService
         $stmt = $this->db->prepare('DELETE FROM "Releases" WHERE "Id" = :id AND "ProjectId" = :pid');
         $stmt->execute(['id' => $releaseId, 'pid' => $projectId]);
         return $stmt->rowCount() > 0;
+    }
+
+    /** Falls back to the default grey for anything not a plain #rgb/#rrggbb hex string — same
+     * "invalid input collapses to the safe default" convention as every other defensively-parsed
+     * field in this app (root CLAUDE.md §1). */
+    private static function resolveColor(?string $color): string
+    {
+        return $color !== null && preg_match('/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/', $color) === 1 ? $color : '#cccccc';
     }
 }

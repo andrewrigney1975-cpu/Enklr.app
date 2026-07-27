@@ -3615,12 +3615,17 @@
     max-height: none;
   }
 
+  /* Left-edge accent strip, same 4px width as a board card's own priority strip
+     (.kf-card::before) — set per-row via the --kf-release-accent custom property in
+     modals/releases.js's renderReleasesList(). */
   .kf-release-row {
     display: flex;
     flex-direction: column;
     gap: 6px;
     padding: 10px 12px;
     border: 1px solid var(--kf-border);
+    border-left-width: 4px;
+    border-left-color: var(--kf-release-accent, var(--kf-border));
     border-radius: var(--kf-radius);
     cursor: pointer;
   }
@@ -8482,17 +8487,18 @@
     opacity: 0.65;
   }
 
-  /* Release bar — the grey-hatched "no scheduling urgency implied" look, not a priority color,
-     since a release has no priority of its own. Same tile geometry as portfolio-bars.js's
+  /* Release bar — the hatched "no scheduling urgency implied" look, not a priority color, since a
+     release has no priority of its own. Same tile geometry as portfolio-bars.js's
      noDatesPatternDefsSVG SVG pattern (6px tile, 45deg, 1.5px line over a var(--kf-surface) base),
      reimplemented as a CSS repeating-linear-gradient since Timeline's own bars are plain DOM
-     elements rather than SVG. The hatch line itself uses --kf-border-strong (lighter than
-     --kf-text-faint, still on --kf-border-strong elsewhere) — the border stays on --kf-text-faint
-     so the bar's own outline remains legible against the lighter hatching. */
+     elements rather than SVG. The hatch line color is the release's own Color, set per-bar via the
+     --kf-release-bar-accent custom property in views/timeline.js — falls back to --kf-border-strong
+     if unset. The border stays on --kf-text-faint regardless, so the bar's own outline remains
+     legible against any hatch color. */
   .kf-timeline-bar-release {
     background-color: var(--kf-surface);
     background-image: repeating-linear-gradient(45deg,
-      var(--kf-border-strong) 0, var(--kf-border-strong) 1.5px,
+      var(--kf-release-bar-accent, var(--kf-border-strong)) 0, var(--kf-release-bar-accent, var(--kf-border-strong)) 1.5px,
       transparent 1.5px, transparent 6px);
     border: 1px solid var(--kf-text-faint);
     color: var(--kf-text-secondary);

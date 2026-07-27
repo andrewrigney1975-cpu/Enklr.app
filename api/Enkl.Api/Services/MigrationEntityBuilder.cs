@@ -163,6 +163,7 @@ public class MigrationEntityBuilder
                 OwnerId = r.OwnerId is not null && memberByOldId.TryGetValue(r.OwnerId, out var owner) ? owner.Id : null,
                 StartDate = ParseDateOnly(r.StartDate),
                 EndDate = ParseDateOnly(r.EndDate),
+                Color = string.IsNullOrWhiteSpace(r.Color) ? "#cccccc" : r.Color,
                 DateCreated = ParseDateTime(r.DateCreated) ?? DateTime.UtcNow,
                 DateLastModified = ParseDateTime(r.DateLastModified) ?? DateTime.UtcNow
             };

@@ -1548,9 +1548,15 @@
         <div id="releasesList" class="kf-releases-list"></div>
       </div>
       <div id="releasesFormView" class="hidden">
-        <div class="kf-field">
-          <label for="releaseNameInput">Name</label>
-          <input type="text" id="releaseNameInput" maxlength="80" placeholder="e.g. v1.2 Launch">
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="releaseNameInput">Name</label>
+            <input type="text" id="releaseNameInput" maxlength="80" placeholder="e.g. v1.2 Launch">
+          </div>
+          <div class="kf-field" style="flex:0 0 70px;">
+            <label for="releaseColorInput">Colour</label>
+            <input type="color" class="kf-color-input" id="releaseColorInput" value="#cccccc" style="margin-left:0;">
+          </div>
         </div>
         <div class="kf-field-row">
           <div class="kf-field">

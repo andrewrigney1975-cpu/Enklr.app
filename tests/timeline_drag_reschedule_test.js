@@ -323,5 +323,77 @@ function dragBarByDays(doc, bar, role, days){
     await wait(10);
   }
 
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  // Closing with unsaved changes (close icon + Escape) prompts to save/discard; a backdrop click
+  // does not (deliberately out of scope for this guard).
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+
+  // ── No pending changes: Close and Escape both close immediately, no confirm dialog ────────────
+  doc.getElementById('timelineBtn').click();
+  await wait(20);
+  doc.getElementById('timelineClose').click();
+  await wait(20);
+  log('closing with nothing unsaved does not show a confirm dialog', doc.getElementById('confirmOverlay').classList.contains('hidden'));
+  log('closing with nothing unsaved actually closes the Timeline', doc.getElementById('timelineOverlay').classList.contains('hidden'));
+
+  doc.getElementById('timelineBtn').click();
+  await wait(20);
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+  await wait(20);
+  log('Escape with nothing unsaved does not show a confirm dialog', doc.getElementById('confirmOverlay').classList.contains('hidden'));
+  log('Escape with nothing unsaved actually closes the Timeline', doc.getElementById('timelineOverlay').classList.contains('hidden'));
+
+  // ── Pending changes: Close icon prompts; Ignore stays open, keeps the pending change ───────────
+  doc.getElementById('timelineBtn').click();
+  await wait(20);
+  doc.getElementById('timelineScaleSelect').value = 'day';
+  doc.getElementById('timelineScaleSelect').dispatchEvent(new window.Event('change', {bubbles: true}));
+  await wait(20);
+  dragBarByDays(doc, taskBar(doc, 'Look at Project and App Settings'), 'move', 3);
+  await wait(20);
+
+  doc.getElementById('timelineClose').click();
+  await wait(20);
+  log('closing with unsaved changes opens a confirm dialog', !doc.getElementById('confirmOverlay').classList.contains('hidden'));
+  log('the dialog mentions unsaved Timeline changes', doc.getElementById('confirmTitle').textContent.indexOf('Unsaved') !== -1, doc.getElementById('confirmTitle').textContent);
+  log('the Timeline itself is still open behind the dialog', !doc.getElementById('timelineOverlay').classList.contains('hidden'));
+
+  doc.getElementById('confirmIgnoreBtn').click();
+  await wait(20);
+  log('Ignore closes the dialog but leaves the Timeline open', doc.getElementById('confirmOverlay').classList.contains('hidden') && !doc.getElementById('timelineOverlay').classList.contains('hidden'));
+  log('Ignore leaves the pending change (and Save button) intact', doc.getElementById('timelineSaveBtn').disabled === false);
+
+  // ── Cancel: discards the pending change and closes without saving ─────────────────────────────
+  doc.getElementById('timelineClose').click();
+  await wait(20);
+  doc.getElementById('confirmCancelBtn').click();
+  await wait(20);
+  log('Cancel closes the Timeline', doc.getElementById('timelineOverlay').classList.contains('hidden'));
+  {
+    var d = readTaskDates(doc, 'Look at Project and App Settings');
+    log('Cancel discarded the unsaved drag (dates unchanged)', d.start === '2026-03-18' && d.end === '2026-03-22', JSON.stringify(d));
+  }
+
+  // ── Confirm (via Escape this time): saves the pending change, then closes ─────────────────────
+  doc.getElementById('timelineBtn').click();
+  await wait(20);
+  doc.getElementById('timelineScaleSelect').value = 'day';
+  doc.getElementById('timelineScaleSelect').dispatchEvent(new window.Event('change', {bubbles: true}));
+  await wait(20);
+  dragBarByDays(doc, taskBar(doc, 'Look at Project and App Settings'), 'move', 2);
+  await wait(20);
+
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+  await wait(20);
+  log('Escape with unsaved changes opens the same confirm dialog', !doc.getElementById('confirmOverlay').classList.contains('hidden'));
+
+  doc.getElementById('confirmOkBtn').click();
+  await wait(30);
+  log('Confirm closes the Timeline once the save settles', doc.getElementById('timelineOverlay').classList.contains('hidden'));
+  {
+    var d = readTaskDates(doc, 'Look at Project and App Settings');
+    log('Confirm actually saved the dragged dates before closing', d.start === '2026-03-20' && d.end === '2026-03-24', JSON.stringify(d));
+  }
+
   console.log('Timeline drag-to-reschedule test complete.');
 })().catch(e => { console.error('CRASHED', e); process.exit(1); });

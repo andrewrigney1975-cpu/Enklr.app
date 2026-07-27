@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Enkl.Api.Data;
 using Enkl.Api.Domain.Entities;
 using Enkl.Api.Dtos;
@@ -24,6 +25,7 @@ public class ReleaseService
             Id = Guid.NewGuid(), ProjectId = projectId, Name = request.Name,
             Status = request.Status is "pending" or "in_progress" or "deployed" ? request.Status : "pending",
             OwnerId = request.OwnerId, StartDate = request.StartDate, EndDate = request.EndDate,
+            Color = ResolveColor(request.Color),
             DateCreated = DateTime.UtcNow, DateLastModified = DateTime.UtcNow
         };
         _db.Releases.Add(release);
@@ -41,6 +43,7 @@ public class ReleaseService
         release.OwnerId = request.OwnerId;
         release.StartDate = request.StartDate;
         release.EndDate = request.EndDate;
+        release.Color = ResolveColor(request.Color);
         release.DateLastModified = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return ToDto(release);
@@ -73,5 +76,13 @@ public class ReleaseService
         return true;
     }
 
-    private static ReleaseDto ToDto(Release r) => new(r.Id, r.Name, r.Status, r.OwnerId, r.StartDate, r.EndDate, r.ReleaseNotes);
+    private static readonly Regex HexColorPattern = new(@"^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$", RegexOptions.Compiled);
+
+    /// <summary>Falls back to the default grey for anything not a plain #rgb/#rrggbb hex string —
+    /// same "invalid input collapses to the safe default" convention as every other defensively-
+    /// parsed field in this app (root CLAUDE.md §1).</summary>
+    private static string ResolveColor(string? color) =>
+        !string.IsNullOrWhiteSpace(color) && HexColorPattern.IsMatch(color) ? color : "#cccccc";
+
+    private static ReleaseDto ToDto(Release r) => new(r.Id, r.Name, r.Status, r.OwnerId, r.StartDate, r.EndDate, r.ReleaseNotes, r.Color);
 }

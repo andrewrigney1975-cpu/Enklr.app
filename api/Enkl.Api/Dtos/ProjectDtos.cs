@@ -57,7 +57,7 @@ public record TaskDto(
     decimal? EstimatedEffort, decimal? ActualEffort, bool Archived,
     List<Guid> DependsOnTaskIds, List<TaskAuditLogEntryDto> AuditLog, List<TaskCommentDto> Comments);
 
-public record ReleaseDto(Guid Id, string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? ReleaseNotes);
+public record ReleaseDto(Guid Id, string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? ReleaseNotes, string Color);
 public record TaskTypeDto(Guid Id, string Name, string? IconName);
 public record PrincipleDto(Guid Id, string Key, string Title, string? Description, string? DocumentUrl, bool IsOrganisationWide);
 public record DocumentDto(Guid Id, string Key, string Title, string? Url, string? Description, Guid? OwnerId, Guid? TaskId, List<Guid> RelatedDocumentIds);
@@ -150,8 +150,8 @@ public record UpdateTaskRequest(
     int? BusinessValue, int? TaskCost, int Progress,
     decimal? EstimatedEffort, decimal? ActualEffort, bool Archived);
 
-public record CreateReleaseRequest(string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate);
-public record UpdateReleaseRequest(string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate);
+public record CreateReleaseRequest(string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? Color);
+public record UpdateReleaseRequest(string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? Color);
 public record UpdateReleaseNotesRequest(string? ReleaseNotes);
 
 public record CreateTaskTypeRequest(string Name, string? IconName);

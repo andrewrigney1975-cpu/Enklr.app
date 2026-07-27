@@ -116,6 +116,7 @@ export function buildExportDoc(project, exportedAt){
         ownerName: owner ? owner.name : null,
         startDate: r.startDate || null,
         endDate: r.endDate || null,
+        color: r.color || '#cccccc',
         dateCreated: r.dateCreated || null,
         dateLastModified: r.dateLastModified || null
       };

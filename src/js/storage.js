@@ -339,7 +339,10 @@ export function migrateDB(){
     if(p.endDate === undefined){ p.endDate = null; changed = true; }
     if(p.description === undefined){ p.description = ''; changed = true; }
     var validReleaseIds = {};
-    p.releases.forEach(function(r){ validReleaseIds[r.id] = true; });
+    p.releases.forEach(function(r){
+      validReleaseIds[r.id] = true;
+      if(typeof r.color !== 'string' || !/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(r.color)){ r.color = '#cccccc'; changed = true; }
+    });
     var validTaskTypeIds = {};
     p.taskTypes.forEach(function(tt){
       validTaskTypeIds[tt.id] = true;

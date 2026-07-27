@@ -513,6 +513,7 @@ final class ProjectService
         return array_map(static fn(array $r): array => [
             'id' => $r['Id'], 'name' => $r['Name'], 'status' => $r['Status'], 'ownerId' => $r['OwnerId'],
             'startDate' => $r['StartDate'], 'endDate' => $r['EndDate'], 'releaseNotes' => $r['ReleaseNotes'],
+            'color' => $r['Color'],
         ], $stmt->fetchAll());
     }
 

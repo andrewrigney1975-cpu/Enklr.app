@@ -75,6 +75,7 @@ export function showReleasesFormView(releaseId){
   document.getElementById('deleteReleaseBtn').classList.toggle('hidden', !release);
 
   document.getElementById('releaseNameInput').value = release ? release.name : '';
+  document.getElementById('releaseColorInput').value = (release && release.color) || '#cccccc';
   document.getElementById('releaseStatusSelect').value = release ? normalizeReleaseStatus(release.status) : 'pending';
   populateReleaseOwnerSelect(project, release ? release.ownerId : null);
   document.getElementById('releaseStartDateInput').value = release ? utcISOToLocalDateValue(release.startDate) : '';
@@ -218,6 +219,7 @@ function renderReleasesList(){
     var row = document.createElement('div');
     row.className = 'kf-release-row';
     row.setAttribute('data-release-id', r.id);
+    row.style.setProperty('--kf-release-accent', r.color || '#cccccc');
 
     var dateRangeText = '';
     if(r.startDate || r.endDate){
@@ -263,13 +265,14 @@ export async function saveReleaseFromModal(){
     status: document.getElementById('releaseStatusSelect').value,
     ownerId: document.getElementById('releaseOwnerSelect').value || null,
     startDate: startISO,
-    endDate: endISO
+    endDate: endISO,
+    color: document.getElementById('releaseColorInput').value || '#cccccc'
   };
 
   if(isServerAuthoritative(project)){
     try {
       var editingId = ui.editingReleaseId;
-      var body = {name: data.name, status: data.status, ownerId: data.ownerId, startDate: isoToServerDateOnly(data.startDate), endDate: isoToServerDateOnly(data.endDate)};
+      var body = {name: data.name, status: data.status, ownerId: data.ownerId, startDate: isoToServerDateOnly(data.startDate), endDate: isoToServerDateOnly(data.endDate), color: data.color};
       if(editingId) await releaseApi.update(project.serverProjectId, editingId, body);
       else await releaseApi.create(project.serverProjectId, body);
       // ReleaseNotes is a separate, Project-Admin/Org-Admin-gated write path (see releaseApi.updateNotes's
