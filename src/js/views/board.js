@@ -184,11 +184,14 @@ export function applyHeaderButtonVisibility(){
   document.getElementById('navStrategyBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.strategy);
 
   /* Manage Forms is Org-Admin-only, same Portfolio-Dashboard-style pure permission gate as
-     Portfolio Planner above — this is the AUTHORING surface (Phase 2 of the approved plan), not the
-     fill-out surface: a plain project member gets no nav entry at all yet, since there's nothing for
-     them to reach until the Phase 5 fill-out UI exists. Also requires visibility.forms — no point
-     showing "Manage Forms" for a project that hasn't opted the module in at all. */
+     Portfolio Planner above — this is the AUTHORING surface, not the fill-out surface. Also requires
+     visibility.forms — no point showing "Manage Forms" for a project that hasn't opted the module
+     in at all. */
   document.getElementById('navFormsBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin() && visibility.forms));
+
+  /* "Forms" (Phase 5) is the member-facing fill-out surface — every project member, not just Org
+     Admins, same as Strategy's own read-only member view. */
+  document.getElementById('navFormsFilloutBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.forms);
 
   /* Dashboards is server-authoritative-only (Project Admin-managed, backed by real Saved Queries),
      opt-in via App Settings > Governance like Retrospectives/Strategy above — but, unlike Strategy,

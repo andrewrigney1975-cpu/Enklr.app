@@ -31,16 +31,24 @@ public class ProjectFormsController : ControllerBase
         return Ok(await _forms.ListPublishedAsync(User.OrgId()));
     }
 
+    private bool CallerIsOrgAdmin => User.HasClaim("orgAdmin", "true");
+
     [HttpGet("submissions/mine")]
     public async Task<IActionResult> ListMySubmissions(Guid projectId)
     {
         return Ok(await _submissions.ListMineAsync(projectId, User.UserId()));
     }
 
+    [HttpGet("submissions/awaiting-me")]
+    public async Task<IActionResult> ListAwaitingMyAction(Guid projectId)
+    {
+        return Ok(await _submissions.ListAwaitingMyActionAsync(projectId, User.UserId(), CallerIsOrgAdmin));
+    }
+
     [HttpGet("submissions/{submissionId:guid}")]
     public async Task<IActionResult> GetSubmission(Guid projectId, Guid submissionId)
     {
-        var result = await _submissions.GetAsync(projectId, User.UserId(), submissionId);
+        var result = await _submissions.GetAsync(projectId, submissionId);
         return result is null ? NotFound() : Ok(result);
     }
 
@@ -62,5 +70,21 @@ public class ProjectFormsController : ControllerBase
     public async Task<IActionResult> DeleteSubmission(Guid projectId, Guid submissionId)
     {
         return await _submissions.DeleteAsync(projectId, User.UserId(), submissionId) ? NoContent() : NotFound();
+    }
+
+    [HttpPost("submissions/{submissionId:guid}/submit")]
+    public async Task<IActionResult> Submit(Guid projectId, Guid submissionId)
+    {
+        var (ok, error, dto) = await _submissions.SubmitAsync(projectId, User.UserId(), CallerIsOrgAdmin, submissionId);
+        if (!ok) return error == "not_found" ? NotFound() : BadRequest(new { message = error });
+        return Ok(dto);
+    }
+
+    [HttpPost("submissions/{submissionId:guid}/approval-action")]
+    public async Task<IActionResult> ActOnApproval(Guid projectId, Guid submissionId, FormApprovalActionRequest request)
+    {
+        var (ok, error, dto) = await _submissions.ActOnApprovalAsync(projectId, User.UserId(), CallerIsOrgAdmin, submissionId, request.Action, request.Comment);
+        if (!ok) return error == "not_found" ? NotFound() : BadRequest(new { message = error });
+        return Ok(dto);
     }
 }

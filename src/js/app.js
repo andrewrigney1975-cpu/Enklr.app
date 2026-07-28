@@ -65,6 +65,7 @@ import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioP
 import { openStrategyOverlay, closeStrategyOverlay, isStrategyOverlayOpen, setStrategyDashboardMode } from './modals/strategy.js';
 import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow, hideFormsAdminCreateRow, createFormFromAdmin, closeFormFieldBuilder, saveFormBuilder, openFieldEditor, closeFieldEditor, onFormFieldTypeChanged, saveFieldEditor, closeFormVersionHistory, cloneLatestVersion, openFormWorkflowEditorForBuilder, closeFormWorkflowEditorForBuilder } from './modals/forms-admin.js';
 import { setFormWorkflowEditorDeps, setFormWorkflowMode, addFormWorkflowNode, handleFormWorkflowScrollMouseDown, handleFormWorkflowPointerMove, handleFormWorkflowPointerUp, handleFormWorkflowInnerClick, saveFormWorkflowNodePopover, deleteFormWorkflowNodeFromPopover, closeFormWorkflowNodePopover, isFormWorkflowNodePopoverOpen, deleteFormWorkflowEdgeFromPopover, closeFormWorkflowEdgePopover, isFormWorkflowEdgePopoverOpen } from './views/form-workflow-editor.js';
+import { openFormsFilloutOverlay, closeFormsFilloutOverlay, closeFormFilloutDetailOverlay, saveFormFilloutDraft, submitFormFillout, deleteFormFilloutDraft, approveFormFillout, rejectFormFillout } from './modals/forms-fillout.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
 import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen, showPrinciplesFormView, showPrinciplesListView, renderPrinciplesList, savePrincipleFromModal, deletePrincipleFromModal, switchPrinciplesTab, updatePrincipleShareFromModal } from './modals/principles.js';
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
@@ -548,6 +549,22 @@ function wireEvents(){
     if(isFormWorkflowNodePopoverOpen() && !e.target.closest('#formWorkflowNodePopover') && !e.target.closest('.kf-fwfnode')) closeFormWorkflowNodePopover();
     if(isFormWorkflowEdgePopoverOpen() && !e.target.closest('#formWorkflowEdgePopover') && !e.target.closest('.kf-wfedge-hit')) closeFormWorkflowEdgePopover();
   });
+
+  document.getElementById('navFormsFilloutBtn').addEventListener('click', openFormsFilloutOverlay);
+  document.getElementById('formsFilloutClose').addEventListener('click', closeFormsFilloutOverlay);
+  document.getElementById('formsFilloutOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formsFilloutOverlay') closeFormsFilloutOverlay();
+  });
+  document.getElementById('formFilloutDetailClose').addEventListener('click', closeFormFilloutDetailOverlay);
+  document.getElementById('formFilloutDetailCancelBtn').addEventListener('click', closeFormFilloutDetailOverlay);
+  document.getElementById('formFilloutDetailOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formFilloutDetailOverlay') closeFormFilloutDetailOverlay();
+  });
+  document.getElementById('formFilloutSaveDraftBtn').addEventListener('click', saveFormFilloutDraft);
+  document.getElementById('formFilloutSubmitBtn').addEventListener('click', submitFormFillout);
+  document.getElementById('formFilloutDeleteDraftBtn').addEventListener('click', deleteFormFilloutDraft);
+  document.getElementById('formFilloutApproveBtn').addEventListener('click', approveFormFillout);
+  document.getElementById('formFilloutRejectBtn').addEventListener('click', rejectFormFillout);
   document.getElementById('strategyExportAsBtn').addEventListener('click', function(e){
     e.stopPropagation();
     toggleExportAsPanel('strategyExportAsPanel');

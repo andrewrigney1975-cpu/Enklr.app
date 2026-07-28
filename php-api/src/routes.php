@@ -425,10 +425,13 @@ function registerRoutes(App $app): void
         // Form authoring lives here; every Form write goes through FormsController (OrgAdmin).
         $group->get('/forms', [ProjectFormsController::class, 'listPublished']);
         $group->get('/forms/submissions/mine', [ProjectFormsController::class, 'listMySubmissions']);
+        $group->get('/forms/submissions/awaiting-me', [ProjectFormsController::class, 'listAwaitingMyAction']);
         $group->get('/forms/submissions/{submissionId}', [ProjectFormsController::class, 'getSubmission']);
         $group->post('/forms/submissions', [ProjectFormsController::class, 'createSubmission']);
         $group->put('/forms/submissions/{submissionId}', [ProjectFormsController::class, 'updateSubmission']);
         $group->delete('/forms/submissions/{submissionId}', [ProjectFormsController::class, 'deleteSubmission']);
+        $group->post('/forms/submissions/{submissionId}/submit', [ProjectFormsController::class, 'submitSubmission']);
+        $group->post('/forms/submissions/{submissionId}/approval-action', [ProjectFormsController::class, 'actOnApproval']);
     })->add(ProjectMemberMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Realtime (SSE) — one stream per user, covers every project they're a member of; see

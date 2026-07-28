@@ -180,6 +180,7 @@
         <button type="button" class="kf-side-nav-item" id="navRetrospectiveBtn" title="Retrospectives"><span class="kf-icon" data-icon="retrospective" data-size="21"></span><span class="kf-side-nav-text">Retrospectives</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navStrategyBtn" title="Strategy"><span class="kf-icon" data-icon="strategyCompass" data-size="21"></span><span class="kf-side-nav-text">Strategy</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navFormsBtn" title="Manage Forms"><span class="kf-icon" data-icon="ty_document" data-size="21"></span><span class="kf-side-nav-text">Manage Forms</span></button>
+        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navFormsFilloutBtn" title="Forms"><span class="kf-icon" data-icon="ty_document" data-size="21"></span><span class="kf-side-nav-text">Forms</span></button>
       </div>
     </nav>
 
@@ -1720,6 +1721,58 @@
   <div class="kf-workflow-edge-popover-actions">
     <button class="kf-btn kf-btn-danger" id="formWorkflowEdgeDeleteBtn"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
     <button class="kf-btn kf-btn-secondary" id="formWorkflowEdgeCancelBtn">Close</button>
+  </div>
+</div>
+
+<!-- Forms (member-facing fill-out picker, Phase 5) -->
+<div class="kf-overlay hidden" id="formsFilloutOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Forms</h2>
+      <button class="kf-btn kf-btn-ghost" id="formsFilloutClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="formsFilloutAwaitingSection" class="hidden">
+        <div class="kf-form-fields-header"><label>Awaiting My Action</label></div>
+        <div id="formsFilloutAwaitingList" class="kf-releases-list"></div>
+      </div>
+      <div class="kf-form-fields-header"><label>Available Forms</label></div>
+      <div id="formsFilloutAvailableList" class="kf-releases-list"></div>
+      <div class="kf-member-empty hidden" id="formsFilloutAvailableEmpty">No forms are available to fill out yet.</div>
+      <div class="kf-form-fields-header"><label>My Submissions</label></div>
+      <div id="formsFilloutMineList" class="kf-releases-list"></div>
+      <div class="kf-member-empty hidden" id="formsFilloutMineEmpty">You haven't started any submissions yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Form Fill-out Detail (new/draft submission, or viewing/approving an existing one) -->
+<div class="kf-overlay hidden" id="formFilloutDetailOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="formFilloutDetailTitle">Form</h2>
+      <button class="kf-btn kf-btn-ghost" id="formFilloutDetailClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="formFilloutDetailMissingWarning" class="kf-form-answer-missing-warning hidden"></div>
+      <div id="formFilloutDetailFields"></div>
+      <div id="formFilloutTrailSection" class="hidden">
+        <div class="kf-form-fields-header"><label>Approval Trail</label></div>
+        <div id="formFilloutTrailList"></div>
+      </div>
+      <div class="kf-field hidden" id="formFilloutCommentField">
+        <label for="formFilloutCommentInput">Comment <span style="font-weight:400;color:var(--kf-text-faint);">(optional)</span></label>
+        <textarea id="formFilloutCommentInput" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-danger hidden" id="formFilloutRejectBtn">Reject</button>
+      <button class="kf-btn kf-btn-primary hidden" id="formFilloutApproveBtn">Approve</button>
+      <button class="kf-btn kf-btn-secondary hidden" id="formFilloutSaveDraftBtn">Save Draft</button>
+      <button class="kf-btn kf-btn-primary hidden" id="formFilloutSubmitBtn">Submit</button>
+      <button class="kf-btn kf-btn-danger hidden" id="formFilloutDeleteDraftBtn">Delete Draft</button>
+      <button class="kf-btn kf-btn-ghost" id="formFilloutDetailCancelBtn">Close</button>
+    </div>
   </div>
 </div>
 

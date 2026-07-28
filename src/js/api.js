@@ -891,6 +891,15 @@ export var projectFormsApi = {
   },
   deleteSubmission: function(projectId, submissionId){
     return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId, {method: 'DELETE'});
+  },
+  listAwaitingMyAction: function(projectId){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/awaiting-me', {method: 'GET'});
+  },
+  submit: function(projectId, submissionId){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId + '/submit', {method: 'POST'});
+  },
+  approvalAction: function(projectId, submissionId, action, comment){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId + '/approval-action', {method: 'POST', body: JSON.stringify({action: action, comment: comment || null})});
   }
 };
 

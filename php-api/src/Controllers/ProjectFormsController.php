@@ -39,9 +39,14 @@ final class ProjectFormsController extends BaseController
         return $this->json($response, $this->submissions()->listMine($args['projectId'], $this->callerUserId($request)));
     }
 
+    public function listAwaitingMyAction(Request $request, Response $response, array $args): Response
+    {
+        return $this->json($response, $this->submissions()->listAwaitingMyAction($args['projectId'], $this->callerUserId($request), $this->callerIsOrgAdmin($request)));
+    }
+
     public function getSubmission(Request $request, Response $response, array $args): Response
     {
-        $result = $this->submissions()->get($args['projectId'], $this->callerUserId($request), $args['submissionId']);
+        $result = $this->submissions()->get($args['projectId'], $args['submissionId']);
         return $result !== null ? $this->json($response, $result) : $this->notFound($response);
     }
 
@@ -61,5 +66,27 @@ final class ProjectFormsController extends BaseController
     {
         $deleted = $this->submissions()->delete($args['projectId'], $this->callerUserId($request), $args['submissionId']);
         return $deleted ? $this->noContent($response) : $this->notFound($response);
+    }
+
+    public function submitSubmission(Request $request, Response $response, array $args): Response
+    {
+        $result = $this->submissions()->submit($args['projectId'], $this->callerUserId($request), $this->callerIsOrgAdmin($request), $args['submissionId']);
+        if (!$result['ok']) {
+            return $result['error'] === 'not_found' ? $this->notFound($response) : $this->json($response, ['message' => $result['error']], 400);
+        }
+        return $this->json($response, $result['dto']);
+    }
+
+    public function actOnApproval(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $result = $this->submissions()->actOnApproval(
+            $args['projectId'], $this->callerUserId($request), $this->callerIsOrgAdmin($request),
+            $args['submissionId'], (string) ($body['action'] ?? ''), $body['comment'] ?? null
+        );
+        if (!$result['ok']) {
+            return $result['error'] === 'not_found' ? $this->notFound($response) : $this->json($response, ['message' => $result['error']], 400);
+        }
+        return $this->json($response, $result['dto']);
     }
 }

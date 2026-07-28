@@ -4187,6 +4187,78 @@
     min-width: 0;
   }
 
+  /* Enterprise Forms & Workflow — member-facing fill-out UI (Phase 5). Same "own compound selector
+     per hidden-toggled element" requirement as above. */
+  #formsFilloutAwaitingSection.hidden,
+  #formsFilloutAvailableEmpty.hidden,
+  #formsFilloutMineEmpty.hidden,
+  #formFilloutDetailMissingWarning.hidden,
+  #formFilloutTrailSection.hidden,
+  #formFilloutCommentField.hidden,
+  #formFilloutSaveDraftBtn.hidden,
+  #formFilloutSubmitBtn.hidden,
+  #formFilloutDeleteDraftBtn.hidden,
+  #formFilloutApproveBtn.hidden,
+  #formFilloutRejectBtn.hidden {
+    display: none;
+  }
+
+  .kf-form-answer-field {
+    margin-bottom: 14px;
+  }
+
+  .kf-form-answer-field > label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .kf-form-answer-required {
+    color: var(--kf-danger);
+  }
+
+  .kf-form-answer-help {
+    font-size: 11px;
+    color: var(--kf-text-faint);
+    margin-bottom: 4px;
+  }
+
+  .kf-form-answer-field input[type="text"],
+  .kf-form-answer-field input[type="number"],
+  .kf-form-answer-field input[type="date"],
+  .kf-form-answer-field input[type="datetime-local"],
+  .kf-form-answer-field textarea,
+  .kf-form-answer-field select {
+    width: 100%;
+  }
+
+  .kf-form-answer-option {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    text-transform: none;
+    margin-bottom: 4px;
+  }
+
+  .kf-form-answer-readonly .kf-form-answer-value {
+    font-size: 13px;
+    padding: 4px 0;
+  }
+
+  .kf-form-answer-empty {
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-answer-missing-warning {
+    background: var(--kf-danger-bg, rgba(222,53,11,0.1));
+    color: var(--kf-danger);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
   .kf-form-admin-row {
     padding: 10px 12px;
     border: 1px solid var(--kf-border);
