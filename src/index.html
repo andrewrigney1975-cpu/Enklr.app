@@ -1593,6 +1593,17 @@
       </div>
       <div id="formBuilderFieldsList" class="kf-form-fields-list"></div>
       <div class="kf-member-empty hidden" id="formBuilderFieldsEmpty">No fields yet — click "Add Field" to start.</div>
+      <div class="kf-form-fields-header">
+        <label>Approval Workflow</label>
+      </div>
+      <div class="kf-form-admin-row">
+        <div class="kf-form-admin-row-main">
+          <span class="kf-form-admin-row-name" id="formBuilderWorkflowSummary">No workflow configured yet</span>
+        </div>
+        <div class="kf-form-admin-row-actions">
+          <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="editFormWorkflowBtn"><span class="kf-icon" data-icon="workflow" data-size="13"></span>Edit Workflow</button>
+        </div>
+      </div>
     </div>
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-primary" id="formBuilderSaveBtn">Save Form</button>
@@ -1639,6 +1650,76 @@
       <button class="kf-btn kf-btn-primary" id="formFieldEditorSaveBtn">Save Field</button>
       <button class="kf-btn kf-btn-ghost" id="formFieldEditorCancelBtn">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- Form Action Workflow Editor: one form version's approval graph (Org Admin, Draft versions only) -->
+<div class="kf-overlay hidden" id="formWorkflowEditorOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="formWorkflowEditorTitle">Workflow</h2>
+      <div class="kf-modal-header-actions">
+        <div class="kf-workflow-mode-group">
+          <button class="kf-btn kf-btn-ghost kf-form-workflow-mode-btn" id="formWorkflowModeSelectBtn" data-mode="select" title="Select, move, and edit steps/connectors">Select</button>
+          <button class="kf-btn kf-btn-ghost kf-form-workflow-mode-btn" id="formWorkflowModeConnectBtn" data-mode="connect" title="Drag from one step to another to connect them">Connect</button>
+        </div>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="formWorkflowAddStartBtn" title="Add a Start step"><span class="kf-icon" data-icon="rocket" data-size="14"></span>Start</button>
+        <button class="kf-btn kf-btn-ghost" id="formWorkflowAddAuthorBtn" title="Add an Author step"><span class="kf-icon" data-icon="edit" data-size="14"></span>Author</button>
+        <button class="kf-btn kf-btn-ghost" id="formWorkflowAddApprovalBtn" title="Add an Approval step"><span class="kf-icon" data-icon="check" data-size="14"></span>Approval</button>
+        <button class="kf-btn kf-btn-ghost" id="formWorkflowAddEndBtn" title="Add an End step"><span class="kf-icon" data-icon="checkSquare" data-size="14"></span>End</button>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="formWorkflowEditorClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-depmap-legend" id="formWorkflowLegend">
+      <span class="kf-legend-item">Click a step to configure who may author/approve it</span>
+      <span class="kf-legend-item">Drag a step to reposition it</span>
+      <span class="kf-legend-item">Use Connect mode to draw the flow between steps</span>
+    </div>
+    <div class="kf-depmap-scroll" id="formWorkflowScroll">
+      <div id="formWorkflowInner" class="kf-depmap-inner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Form Workflow Node Popover -->
+<div class="kf-org-member-popover kf-workflow-edge-popover hidden" id="formWorkflowNodePopover">
+  <div class="kf-org-member-popover-title" id="formWorkflowNodePopoverTitle">Step</div>
+  <div class="kf-field">
+    <label for="formWorkflowNodeLabelInput">Label</label>
+    <input type="text" id="formWorkflowNodeLabelInput" maxlength="60">
+  </div>
+  <div id="formWorkflowAuthorGatesSection" class="hidden">
+    <label>Who may submit</label>
+    <div id="formWorkflowAuthorGatesList"></div>
+    <div id="formWorkflowAuthorGateAddWrap"></div>
+  </div>
+  <div id="formWorkflowApprovalGatesSection" class="hidden">
+    <div class="kf-field">
+      <label for="formWorkflowApprovalModeSelect">Quorum</label>
+      <select id="formWorkflowApprovalModeSelect">
+        <option value="any">Any one approver</option>
+        <option value="all">All listed approvers</option>
+      </select>
+    </div>
+    <label>Who may approve</label>
+    <div id="formWorkflowApprovalGatesList"></div>
+    <div id="formWorkflowApprovalGateAddWrap"></div>
+  </div>
+  <div class="kf-workflow-edge-popover-actions">
+    <button class="kf-btn kf-btn-danger" id="formWorkflowNodeDeleteBtn"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
+    <button class="kf-btn kf-btn-secondary" id="formWorkflowNodeCancelBtn">Cancel</button>
+    <button class="kf-btn kf-btn-primary" id="formWorkflowNodeSaveBtn">Save</button>
+  </div>
+</div>
+
+<!-- Form Workflow Edge Popover (delete only — a Form Workflow edge has no type/condition) -->
+<div class="kf-org-member-popover kf-workflow-cap-popover hidden" id="formWorkflowEdgePopover">
+  <div class="kf-org-member-popover-title" id="formWorkflowEdgePopoverTitle">Connector</div>
+  <div class="kf-workflow-edge-popover-actions">
+    <button class="kf-btn kf-btn-danger" id="formWorkflowEdgeDeleteBtn"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>
+    <button class="kf-btn kf-btn-secondary" id="formWorkflowEdgeCancelBtn">Close</button>
   </div>
 </div>
 

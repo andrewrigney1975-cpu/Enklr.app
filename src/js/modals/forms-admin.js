@@ -6,6 +6,8 @@ import { confirmDialog } from './confirm.js';
 import { FIELD_TYPES, defaultFieldConfig, fieldSummary, renderFieldTypeConfigHTML } from '../features/form-fields.js';
 import { iconSvg, hydrateIcons } from '../icons.js';
 import { uid } from '../storage.js';
+import { parseFormWorkflow } from '../features/form-workflow-engine.js';
+import { loadFormWorkflowGraph, getFormWorkflowGraph } from '../views/form-workflow-editor.js';
 
 /* Enterprise Forms & Workflow — Org-Admin authoring UI. Phase 2 built the field builder; Phase 3
    (this pass) adds versioning on top of the same table/service: #formsAdminOverlay's picker now
@@ -273,11 +275,35 @@ export function openFormFieldBuilder(formId){
     document.getElementById('addFormFieldBtn').classList.toggle('hidden', readOnly);
     document.getElementById('formBuilderSaveBtn').classList.toggle('hidden', readOnly);
     renderFormBuilderFieldsList();
+    renderFormBuilderWorkflowSummary();
     document.getElementById('formFieldBuilderOverlay').classList.remove('hidden');
   }, function(e){
     _toast('Could not load form: ' + (e.message || 'unknown error'));
   });
 }
+function renderFormBuilderWorkflowSummary(){
+  var workflow = parseFormWorkflow(builderForm.workflowJson);
+  var el = document.getElementById('formBuilderWorkflowSummary');
+  if(workflow.nodes.length === 0){
+    el.textContent = 'No workflow configured yet';
+    return;
+  }
+  el.textContent = workflow.nodes.length + ' step' + (workflow.nodes.length === 1 ? '' : 's') + ' · ' +
+    workflow.edges.length + ' connection' + (workflow.edges.length === 1 ? '' : 's');
+}
+
+export function openFormWorkflowEditorForBuilder(){
+  if(!builderForm) return;
+  document.getElementById('formWorkflowEditorTitle').textContent = 'Workflow — ' + builderForm.name;
+  loadFormWorkflowGraph(parseFormWorkflow(builderForm.workflowJson), builderForm.status !== 'draft');
+  document.getElementById('formWorkflowEditorOverlay').classList.remove('hidden');
+}
+export function closeFormWorkflowEditorForBuilder(){
+  if(builderForm) builderForm.workflowJson = JSON.stringify(getFormWorkflowGraph());
+  document.getElementById('formWorkflowEditorOverlay').classList.add('hidden');
+  renderFormBuilderWorkflowSummary();
+}
+
 export function closeFormFieldBuilder(){
   document.getElementById('formFieldBuilderOverlay').classList.add('hidden');
   builderForm = null;

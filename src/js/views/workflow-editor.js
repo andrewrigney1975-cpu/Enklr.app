@@ -9,6 +9,7 @@ import { escapeHTML, getColumn } from '../utils.js';
 import { clampColumnCap } from '../storage.js';
 import { renderBoard } from './board.js';
 import { roundedOrthogonalPathD, DEPMAP_CORNER_RADIUS } from './dependency-map.js';
+import { pickAttachmentSide, sideMidpoint as ggSideMidpoint, sideNormal, buildOrthogonalPoints, edgeGeometry, computeMultiEdgeOffsets, computeEdgeLaneOverrides } from '../features/graph-geometry.js';
 
 /* Stub distance a connector travels straight out from a node's face before its first bend — same
    role as dependency-map.js's own DEPMAP_EDGE_STUB, kept as this view's own constant since Workflow
@@ -98,25 +99,11 @@ export function computeWorkflowLayout(project){
   };
 }
 
-/* Which side of a node's rectangle an edge should attach to, given the
-   node's center and the point it's heading toward — whichever axis has
-   the larger delta wins, so a mostly-horizontal relationship attaches
-   left/right and a mostly-vertical one attaches top/bottom. */
-function pickAttachmentSide(fromCenter, toCenter){
-  var dx = toCenter.x - fromCenter.x, dy = toCenter.y - fromCenter.y;
-  if(Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
-  return dy >= 0 ? 'bottom' : 'top';
-}
+/* Attachment-side/geometry primitives now live in features/graph-geometry.js, shared with
+   views/form-workflow-editor.js — these are thin wrappers baking in this editor's own node
+   dimensions, kept so every call site below reads unchanged. */
 function sideMidpoint(pos, side){
-  switch(side){
-    case 'right':  return {x: pos.x + WORKFLOW_NODE_W, y: pos.y + WORKFLOW_NODE_H / 2};
-    case 'left':   return {x: pos.x, y: pos.y + WORKFLOW_NODE_H / 2};
-    case 'top':    return {x: pos.x + WORKFLOW_NODE_W / 2, y: pos.y};
-    default:       return {x: pos.x + WORKFLOW_NODE_W / 2, y: pos.y + WORKFLOW_NODE_H};
-  }
-}
-function sideNormal(side){
-  return {right: {x: 1, y: 0}, left: {x: -1, y: 0}, top: {x: 0, y: -1}, bottom: {x: 0, y: 1}}[side];
+  return ggSideMidpoint(pos, side, WORKFLOW_NODE_W, WORKFLOW_NODE_H);
 }
 
 /* Orthogonal connector with rounded (filleted) corners — same visual style as dependency-map.js's
@@ -126,32 +113,7 @@ function sideNormal(side){
    buildOrthogonalPoints assumes both ends exit horizontally, which doesn't hold once a node can
    attach from its top/bottom too). */
 function buildWorkflowOrthogonalPoints(start, dir1, end, dir2, midOverride){
-  // Already a straight shot out of both faces — skip the stub/bend entirely, same as
-  // dependency-map.js's own y1===y2 "simple" case, rather than drawing needless dog-legs on the
-  // most common adjacent-node layout.
-  if(dir1.x !== 0 && dir2.x !== 0 && start.y === end.y) return [start, end];
-  if(dir1.y !== 0 && dir2.y !== 0 && start.x === end.x) return [start, end];
-
-  var p1 = {x: start.x + dir1.x * WORKFLOW_EDGE_STUB, y: start.y + dir1.y * WORKFLOW_EDGE_STUB};
-  var p2 = {x: end.x + dir2.x * WORKFLOW_EDGE_STUB, y: end.y + dir2.y * WORKFLOW_EDGE_STUB};
-  var mid;
-  if(dir1.x !== 0 && dir2.x !== 0){
-    // midOverride (see computeWorkflowEdgeLaneOverrides) nudges this bend off the exact midpoint so
-    // multiple edges sharing the same stub-out X don't all bend at the same X and draw on top of
-    // each other — mirrors dependency-map.js's assignVerticalLanes/midXOverride mechanism exactly.
-    var midX = midOverride != null ? midOverride : (p1.x + p2.x) / 2;
-    mid = [{x: midX, y: p1.y}, {x: midX, y: p2.y}];
-  } else if(dir1.y !== 0 && dir2.y !== 0){
-    var midY = midOverride != null ? midOverride : (p1.y + p2.y) / 2;
-    mid = [{x: p1.x, y: midY}, {x: p2.x, y: midY}];
-  } else if(dir1.x !== 0){
-    // One side exits horizontally, the other vertically — a single corner, aligned to the
-    // horizontal exit's x-travel first, then turning to match the vertical exit's approach.
-    mid = [{x: p2.x, y: p1.y}];
-  } else {
-    mid = [{x: p1.x, y: p2.y}];
-  }
-  return [start, p1].concat(mid, [p2, end]);
+  return buildOrthogonalPoints(start, dir1, end, dir2, midOverride, WORKFLOW_EDGE_STUB);
 }
 
 /* Perpendicular gap between parallel connectors that both link the exact same pair of nodes — see
@@ -172,22 +134,8 @@ var WORKFLOW_MULTI_EDGE_SPACING = 24;
    keeps the whole connector parallel to (not converging back onto) its siblings along their entire
    shared span, not just at one end. */
 function computeWorkflowMultiEdgeOffsets(edges, positions){
-  var groups = {};
-  edges.forEach(function(e){
-    var fromPos = positions[e.fromColumnId], toPos = positions[e.toColumnId];
-    if(!fromPos || !toPos) return;
-    var pairKey = [e.fromColumnId, e.toColumnId].slice().sort().join('|');
-    (groups[pairKey] = groups[pairKey] || []).push(e.id);
-  });
-  var offsets = {};
-  Object.keys(groups).forEach(function(key){
-    var ids = groups[key];
-    var n = ids.length;
-    ids.forEach(function(id, i){
-      offsets[id] = n < 2 ? 0 : (i - (n - 1) / 2) * WORKFLOW_MULTI_EDGE_SPACING;
-    });
-  });
-  return offsets;
+  return computeMultiEdgeOffsets(edges, positions,
+    function(e){ return e.fromColumnId; }, function(e){ return e.toColumnId; }, WORKFLOW_MULTI_EDGE_SPACING);
 }
 
 /* Pure geometry for one edge (attachment sides + stub-exit directions), split out from edgePathD so
@@ -201,27 +149,7 @@ function computeWorkflowMultiEdgeOffsets(edges, positions){
    to its siblings rather than just nudging one end. Clamped so it can never push the anchor past the
    node's own rounded corner even with several parallel edges sharing one pair. */
 function workflowEdgeGeometry(fromPos, toPos, offset){
-  var fromCenter = {x: fromPos.x + WORKFLOW_NODE_W / 2, y: fromPos.y + WORKFLOW_NODE_H / 2};
-  var toCenter = {x: toPos.x + WORKFLOW_NODE_W / 2, y: toPos.y + WORKFLOW_NODE_H / 2};
-  var startSide = pickAttachmentSide(fromCenter, toCenter);
-  var endSide = pickAttachmentSide(toCenter, fromCenter);
-  var start = sideMidpoint(fromPos, startSide);
-  var end = sideMidpoint(toPos, endSide);
-
-  if(offset){
-    var vertical = startSide === 'left' || startSide === 'right';
-    var maxOffset = (vertical ? WORKFLOW_NODE_H : WORKFLOW_NODE_W) / 2 - 10;
-    var clamped = Math.max(-maxOffset, Math.min(maxOffset, offset));
-    if(vertical){ start.y += clamped; end.y += clamped; }
-    else { start.x += clamped; end.x += clamped; }
-  }
-
-  return {
-    start: start,
-    end: end,
-    dir1: sideNormal(startSide),
-    dir2: sideNormal(endSide)
-  };
+  return edgeGeometry(fromPos, toPos, offset, WORKFLOW_NODE_W, WORKFLOW_NODE_H);
 }
 
 /* Ports dependency-map.js's assignVerticalLanes to Workflow's 4-side attachment model: two or more
@@ -234,32 +162,7 @@ function workflowEdgeGeometry(fromPos, toPos, offset){
    in place, adding `.midOverride` only where a group actually has 2+ members (a lone edge's plain
    exact-midpoint bend never collides with anything, so it's left untouched). */
 function computeWorkflowEdgeLaneOverrides(geoms){
-  var groupsX = {}, groupsY = {};
-  geoms.forEach(function(g){
-    if(g.dir1.x !== 0 && g.dir2.x !== 0 && g.start.y !== g.end.y){
-      g._p1 = g.start.x + g.dir1.x * WORKFLOW_EDGE_STUB;
-      g._p2 = g.end.x + g.dir2.x * WORKFLOW_EDGE_STUB;
-      var keyX = Math.round(g._p1) + '_' + Math.round(g._p2);
-      (groupsX[keyX] = groupsX[keyX] || []).push(g);
-    } else if(g.dir1.y !== 0 && g.dir2.y !== 0 && g.start.x !== g.end.x){
-      g._p1 = g.start.y + g.dir1.y * WORKFLOW_EDGE_STUB;
-      g._p2 = g.end.y + g.dir2.y * WORKFLOW_EDGE_STUB;
-      var keyY = Math.round(g._p1) + '_' + Math.round(g._p2);
-      (groupsY[keyY] = groupsY[keyY] || []).push(g);
-    }
-  });
-  [groupsX, groupsY].forEach(function(groups){
-    Object.keys(groups).forEach(function(key){
-      var group = groups[key];
-      var n = group.length;
-      if(n < 2) return;
-      group.sort(function(a, b){ return (a.start.x + a.start.y) - (b.start.x + b.start.y); });
-      group.forEach(function(g, i){
-        var frac = 0.3 + 0.4 * i / (n - 1);
-        g.midOverride = g._p1 + (g._p2 - g._p1) * frac;
-      });
-    });
-  });
+  return computeEdgeLaneOverrides(geoms, WORKFLOW_EDGE_STUB);
 }
 
 function edgePathD(fromPos, toPos, midOverride, offset){

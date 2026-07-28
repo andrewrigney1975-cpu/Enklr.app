@@ -63,7 +63,8 @@ import { openHealthOverlay, closeHealthOverlay, isHealthOverlayOpen, cancelHealt
 import { openPortfolioDashboardOverlay, closePortfolioDashboardOverlay, isPortfolioDashboardOverlayOpen, onPortfolioProjectSelectionChanged, onPortfolioTimelineControlsChanged, onPortfolioActivityControlsChanged, toggleProjectFilterPanel, closeProjectFilterPanel, isProjectFilterPanelOpen, onPortfolioProjectSearchInput, onPortfolioTimelineBarPointerDown, closePortfolioProjectDatesModal, isPortfolioProjectDatesModalOpen, clearPortfolioProjectDatesInModal, savePortfolioProjectDatesFromModal } from './modals/portfolio-dashboard.js';
 import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, onPortfolioPlannerBarDblClick, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories, closePortfolioPlannerResourcesModal, isPortfolioPlannerResourcesModalOpen, addPortfolioPlannerResourceFromModal, onPortfolioPlannerResourcesListClick, onPortfolioPlannerResourcesListChange, togglePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerStrategyModal, isPortfolioPlannerStrategyModalOpen, onPortfolioPlannerStrategyListChange } from './modals/portfolio-planner.js';
 import { openStrategyOverlay, closeStrategyOverlay, isStrategyOverlayOpen, setStrategyDashboardMode } from './modals/strategy.js';
-import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow, hideFormsAdminCreateRow, createFormFromAdmin, closeFormFieldBuilder, saveFormBuilder, openFieldEditor, closeFieldEditor, onFormFieldTypeChanged, saveFieldEditor, closeFormVersionHistory, cloneLatestVersion } from './modals/forms-admin.js';
+import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow, hideFormsAdminCreateRow, createFormFromAdmin, closeFormFieldBuilder, saveFormBuilder, openFieldEditor, closeFieldEditor, onFormFieldTypeChanged, saveFieldEditor, closeFormVersionHistory, cloneLatestVersion, openFormWorkflowEditorForBuilder, closeFormWorkflowEditorForBuilder } from './modals/forms-admin.js';
+import { setFormWorkflowEditorDeps, setFormWorkflowMode, addFormWorkflowNode, handleFormWorkflowScrollMouseDown, handleFormWorkflowPointerMove, handleFormWorkflowPointerUp, handleFormWorkflowInnerClick, saveFormWorkflowNodePopover, deleteFormWorkflowNodeFromPopover, closeFormWorkflowNodePopover, isFormWorkflowNodePopoverOpen, deleteFormWorkflowEdgeFromPopover, closeFormWorkflowEdgePopover, isFormWorkflowEdgePopoverOpen } from './views/form-workflow-editor.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
 import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen, showPrinciplesFormView, showPrinciplesListView, renderPrinciplesList, savePrincipleFromModal, deletePrincipleFromModal, switchPrinciplesTab, updatePrincipleShareFromModal } from './modals/principles.js';
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
@@ -87,6 +88,7 @@ setDepMapDeps({ toast, openTaskModal });
 setOrgChartDeps({ toast });
 setGovMapDeps({ toast });
 setWorkflowEditorDeps({ toast, confirmDialog });
+setFormWorkflowEditorDeps({ toast });
 setTimelineDeps({ toast, openTaskModal, confirmDialog, openReleaseEditor: function(releaseId){
   openReleasesOverlay();
   showReleasesFormView(releaseId);
@@ -521,6 +523,31 @@ function wireEvents(){
     if(e.target.id === 'formVersionHistoryOverlay') closeFormVersionHistory();
   });
   document.getElementById('formVersionHistoryNewBtn').addEventListener('click', cloneLatestVersion);
+
+  document.getElementById('editFormWorkflowBtn').addEventListener('click', openFormWorkflowEditorForBuilder);
+  document.getElementById('formWorkflowEditorClose').addEventListener('click', closeFormWorkflowEditorForBuilder);
+  document.getElementById('formWorkflowEditorOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formWorkflowEditorOverlay') closeFormWorkflowEditorForBuilder();
+  });
+  document.getElementById('formWorkflowModeSelectBtn').addEventListener('click', function(){ setFormWorkflowMode('select'); });
+  document.getElementById('formWorkflowModeConnectBtn').addEventListener('click', function(){ setFormWorkflowMode('connect'); });
+  document.getElementById('formWorkflowAddStartBtn').addEventListener('click', function(){ addFormWorkflowNode('start'); });
+  document.getElementById('formWorkflowAddAuthorBtn').addEventListener('click', function(){ addFormWorkflowNode('author'); });
+  document.getElementById('formWorkflowAddApprovalBtn').addEventListener('click', function(){ addFormWorkflowNode('approval'); });
+  document.getElementById('formWorkflowAddEndBtn').addEventListener('click', function(){ addFormWorkflowNode('end'); });
+  document.getElementById('formWorkflowInner').addEventListener('click', handleFormWorkflowInnerClick);
+  document.getElementById('formWorkflowScroll').addEventListener('mousedown', handleFormWorkflowScrollMouseDown);
+  document.addEventListener('mousemove', handleFormWorkflowPointerMove);
+  document.addEventListener('mouseup', handleFormWorkflowPointerUp);
+  document.getElementById('formWorkflowNodeSaveBtn').addEventListener('click', saveFormWorkflowNodePopover);
+  document.getElementById('formWorkflowNodeDeleteBtn').addEventListener('click', deleteFormWorkflowNodeFromPopover);
+  document.getElementById('formWorkflowNodeCancelBtn').addEventListener('click', closeFormWorkflowNodePopover);
+  document.getElementById('formWorkflowEdgeDeleteBtn').addEventListener('click', deleteFormWorkflowEdgeFromPopover);
+  document.getElementById('formWorkflowEdgeCancelBtn').addEventListener('click', closeFormWorkflowEdgePopover);
+  document.addEventListener('click', function(e){
+    if(isFormWorkflowNodePopoverOpen() && !e.target.closest('#formWorkflowNodePopover') && !e.target.closest('.kf-fwfnode')) closeFormWorkflowNodePopover();
+    if(isFormWorkflowEdgePopoverOpen() && !e.target.closest('#formWorkflowEdgePopover') && !e.target.closest('.kf-wfedge-hit')) closeFormWorkflowEdgePopover();
+  });
   document.getElementById('strategyExportAsBtn').addEventListener('click', function(e){
     e.stopPropagation();
     toggleExportAsPanel('strategyExportAsPanel');

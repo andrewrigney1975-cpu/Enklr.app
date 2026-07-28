@@ -4125,6 +4125,68 @@
     display: none;
   }
 
+  /* Enterprise Forms & Workflow — Action Workflow builder (Phase 4). Same "own compound selector
+     per hidden-toggled element" requirement as above. */
+  #formWorkflowAuthorGatesSection.hidden,
+  #formWorkflowApprovalGatesSection.hidden,
+  #formWorkflowAddStartBtn.hidden,
+  #formWorkflowAddAuthorBtn.hidden,
+  #formWorkflowAddApprovalBtn.hidden,
+  #formWorkflowAddEndBtn.hidden,
+  #formWorkflowModeConnectBtn.hidden,
+  #formWorkflowNodeDeleteBtn.hidden,
+  #formWorkflowNodeSaveBtn.hidden,
+  #formWorkflowEdgeDeleteBtn.hidden,
+  [id^="formWorkflowGateNamedUserSelect-"].hidden,
+  [id^="formWorkflowGateUserTypeSelect-"].hidden {
+    display: none;
+  }
+
+  #formWorkflowNodePopover, #formWorkflowEdgePopover {
+    width: 280px;
+    max-width: 90vw;
+  }
+
+  #formWorkflowAuthorGatesSection label,
+  #formWorkflowApprovalGatesSection label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-wf-gate-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--kf-border);
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .kf-form-wf-gate-empty {
+    font-size: 12px;
+    color: var(--kf-text-faint);
+    margin-bottom: 6px;
+  }
+
+  .kf-form-wf-gate-add-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .kf-form-wf-gate-add-row select {
+    flex: 1;
+    min-width: 0;
+  }
+
   .kf-form-admin-row {
     padding: 10px 12px;
     border: 1px solid var(--kf-border);
