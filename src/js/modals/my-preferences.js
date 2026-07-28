@@ -19,17 +19,19 @@ var DEFAULT_HEADER_COLOR = '#0c2a52'; // matches --kf-navy, the un-customized de
    background/foreground/border are computed from the custom colour via shadeHexColor, not copied
    from the header's own values, so it keeps that same "distinct panel" relationship at any custom
    colour instead of blending flush into the header or losing contrast against it.
-   Set on #app, not .kf-header itself — custom properties only inherit to DESCENDANTS, and the Chat
-   / AI Assistant bubbles (styles.css's .kf-chat-bubble, which also reads --kf-header-bg/-fg so they
-   match this same custom colour) live under .kf-board-wrap, a *sibling* of .kf-header, not a
-   descendant of it. #app is the nearest ancestor common to both, so setting the properties there
-   once reaches everything that needs them without duplicating the values anywhere. */
+   Set on <html> (document.documentElement), not .kf-header itself or #app — custom properties only
+   inherit to DESCENDANTS, and #app stops being a common-enough ancestor once a consumer needs to
+   live OUTSIDE it entirely: the Chat/AI Assistant bubbles (styles.css's .kf-chat-bubble, which also
+   reads --kf-header-bg/-fg) live under .kf-board-wrap, a sibling of .kf-header but still inside
+   #app, while modal overlays like #appSettingsOverlay (its own .kf-setting-row-icon colouring, see
+   styles.css) are siblings of #app itself, rendered directly under <body>. <html> is the one
+   ancestor common to all of them, so setting the properties there once reaches everything that
+   needs them without duplicating the values anywhere. */
 export function applyHeaderColor(){
-  var app = document.getElementById('app');
-  if(!app) return;
+  var root = document.documentElement;
   ['--kf-header-bg', '--kf-header-fg', '--kf-header-divider', '--kf-header-btn-border', '--kf-header-btn-hover',
    '--kf-header-select-bg', '--kf-header-select-fg', '--kf-header-select-border'].forEach(function(p){
-    app.style.removeProperty(p);
+    root.style.removeProperty(p);
   });
 
   var hex = getHeaderColor();
@@ -37,16 +39,16 @@ export function applyHeaderColor(){
 
   var fg = contrastTextColor(hex);
   var dark = fg === '#ffffff'; // true => header bg is dark enough that the existing translucent-white accents still read; false => they need to flip to translucent-black instead.
-  app.style.setProperty('--kf-header-bg', hex);
-  app.style.setProperty('--kf-header-fg', fg);
-  app.style.setProperty('--kf-header-divider', dark ? 'rgba(255,255,255,.25)' : 'rgba(0,0,0,.2)');
-  app.style.setProperty('--kf-header-btn-border', dark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)');
-  app.style.setProperty('--kf-header-btn-hover', dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)');
+  root.style.setProperty('--kf-header-bg', hex);
+  root.style.setProperty('--kf-header-fg', fg);
+  root.style.setProperty('--kf-header-divider', dark ? 'rgba(255,255,255,.25)' : 'rgba(0,0,0,.2)');
+  root.style.setProperty('--kf-header-btn-border', dark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)');
+  root.style.setProperty('--kf-header-btn-hover', dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)');
 
   var selectBg = shadeHexColor(hex, dark ? 0.12 : -0.1);
-  app.style.setProperty('--kf-header-select-bg', selectBg);
-  app.style.setProperty('--kf-header-select-fg', contrastTextColor(selectBg));
-  app.style.setProperty('--kf-header-select-border', dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.18)');
+  root.style.setProperty('--kf-header-select-bg', selectBg);
+  root.style.setProperty('--kf-header-select-fg', contrastTextColor(selectBg));
+  root.style.setProperty('--kf-header-select-border', dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.18)');
 }
 
 /* Applies the persisted board background preference to #app (the whole-viewport-sized, never-

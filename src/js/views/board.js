@@ -152,8 +152,13 @@ export function applyHeaderButtonVisibility(){
      server-authoritative — a local-only project has no admin/auth concept at all, same "for a
      server project" gating already used for teamsCommitteesBtn above. Unlike the movable-group
      buttons above, this isn't a per-project on/off App Setting — it's a permissions gate, so it's
-     handled here alongside Org Chart/Workflow rather than folded into isEffectivelyVisible. */
-  document.getElementById('portfolioDashboardBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin()));
+     handled here alongside Org Chart/Workflow rather than folded into isEffectivelyVisible.
+     Additionally requires visibility.health — the dashboard's own aggregated gauges/risk-matrix are
+     built from the same per-project health math the Health Dashboard module itself uses (see root
+     CLAUDE.md's §8 Health Dashboard note), so it isn't meaningful for a project that has that module
+     switched off. This one condition is a real per-project App Setting dependency layered on top of
+     the pure Org-Admin permission gate — not itself a new App Setting. */
+  document.getElementById('portfolioDashboardBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin() && visibility.health));
 
   // Portfolio Planner is the same Org-Admin-only, server-authoritative-project gate as Portfolio
   // Dashboard above — a pure permissions gate, not a per-project App Setting.

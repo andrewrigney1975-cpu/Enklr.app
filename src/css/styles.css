@@ -4018,6 +4018,14 @@
     color: var(--kf-text-secondary);
   }
 
+  /* Category-header and per-row icons pick up the app's header colour (default navy, or whatever
+     custom colour is set via My Preferences — see my-preferences.js's applyHeaderColor, which sets
+     --kf-header-bg on <html> precisely so overlays like this one, outside #app, can read it too) —
+     the surrounding label text stays --kf-text-secondary/-faint, only the icon itself recolors. */
+  .kf-settings-category-header .kf-icon {
+    color: var(--kf-header-bg, var(--kf-navy));
+  }
+
   .kf-settings-category-body {
     display: flex;
     flex-direction: column;
@@ -4044,7 +4052,7 @@
   .kf-setting-row-icon {
     flex-shrink: 0;
     margin-top: 1px;
-    color: var(--kf-text-faint);
+    color: var(--kf-header-bg, var(--kf-navy));
   }
 
   .kf-setting-row-text {
