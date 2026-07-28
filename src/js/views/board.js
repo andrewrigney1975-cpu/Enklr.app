@@ -183,6 +183,13 @@ export function applyHeaderButtonVisibility(){
      project must deliberately turn this module on before it appears at all. */
   document.getElementById('navStrategyBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.strategy);
 
+  /* Manage Forms is Org-Admin-only, same Portfolio-Dashboard-style pure permission gate as
+     Portfolio Planner above — this is the AUTHORING surface (Phase 2 of the approved plan), not the
+     fill-out surface: a plain project member gets no nav entry at all yet, since there's nothing for
+     them to reach until the Phase 5 fill-out UI exists. Also requires visibility.forms — no point
+     showing "Manage Forms" for a project that hasn't opted the module in at all. */
+  document.getElementById('navFormsBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin() && visibility.forms));
+
   /* Dashboards is server-authoritative-only (Project Admin-managed, backed by real Saved Queries),
      opt-in via App Settings > Governance like Retrospectives/Strategy above — but, unlike Strategy,
      NOT restricted to Org Admins turning it on: any Project Admin can opt their own project in, same

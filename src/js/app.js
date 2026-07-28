@@ -63,6 +63,7 @@ import { openHealthOverlay, closeHealthOverlay, isHealthOverlayOpen, cancelHealt
 import { openPortfolioDashboardOverlay, closePortfolioDashboardOverlay, isPortfolioDashboardOverlayOpen, onPortfolioProjectSelectionChanged, onPortfolioTimelineControlsChanged, onPortfolioActivityControlsChanged, toggleProjectFilterPanel, closeProjectFilterPanel, isProjectFilterPanelOpen, onPortfolioProjectSearchInput, onPortfolioTimelineBarPointerDown, closePortfolioProjectDatesModal, isPortfolioProjectDatesModalOpen, clearPortfolioProjectDatesInModal, savePortfolioProjectDatesFromModal } from './modals/portfolio-dashboard.js';
 import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, onPortfolioPlannerBarDblClick, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories, closePortfolioPlannerResourcesModal, isPortfolioPlannerResourcesModalOpen, addPortfolioPlannerResourceFromModal, onPortfolioPlannerResourcesListClick, onPortfolioPlannerResourcesListChange, togglePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerStrategyModal, isPortfolioPlannerStrategyModalOpen, onPortfolioPlannerStrategyListChange } from './modals/portfolio-planner.js';
 import { openStrategyOverlay, closeStrategyOverlay, isStrategyOverlayOpen, setStrategyDashboardMode } from './modals/strategy.js';
+import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow, hideFormsAdminCreateRow, createFormFromAdmin, closeFormFieldBuilder, saveFormBuilder, openFieldEditor, closeFieldEditor, onFormFieldTypeChanged, saveFieldEditor } from './modals/forms-admin.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
 import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen, showPrinciplesFormView, showPrinciplesListView, renderPrinciplesList, savePrincipleFromModal, deletePrincipleFromModal, switchPrinciplesTab, updatePrincipleShareFromModal } from './modals/principles.js';
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
@@ -489,6 +490,31 @@ function wireEvents(){
   document.getElementById('strategyModeAggregateBtn').addEventListener('click', function(){ setStrategyDashboardMode('aggregate'); });
   document.getElementById('strategyModeCompareBtn').addEventListener('click', function(){ setStrategyDashboardMode('compare'); });
   document.getElementById('strategyOnAPageBtn').addEventListener('click', openStrategyOnAPageReportOverlay);
+
+  document.getElementById('navFormsBtn').addEventListener('click', openFormsAdminOverlay);
+  document.getElementById('formsAdminClose').addEventListener('click', closeFormsAdminOverlay);
+  document.getElementById('formsAdminOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formsAdminOverlay') closeFormsAdminOverlay();
+  });
+  document.getElementById('newFormBtn').addEventListener('click', showFormsAdminCreateRow);
+  document.getElementById('formsAdminCreateCancelBtn').addEventListener('click', hideFormsAdminCreateRow);
+  document.getElementById('formsAdminCreateSaveBtn').addEventListener('click', createFormFromAdmin);
+
+  document.getElementById('formFieldBuilderClose').addEventListener('click', closeFormFieldBuilder);
+  document.getElementById('formBuilderCancelBtn').addEventListener('click', closeFormFieldBuilder);
+  document.getElementById('formFieldBuilderOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formFieldBuilderOverlay') closeFormFieldBuilder();
+  });
+  document.getElementById('formBuilderSaveBtn').addEventListener('click', saveFormBuilder);
+  document.getElementById('addFormFieldBtn').addEventListener('click', function(){ openFieldEditor(null); });
+
+  document.getElementById('formFieldEditorClose').addEventListener('click', closeFieldEditor);
+  document.getElementById('formFieldEditorCancelBtn').addEventListener('click', closeFieldEditor);
+  document.getElementById('formFieldEditorOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formFieldEditorOverlay') closeFieldEditor();
+  });
+  document.getElementById('formFieldTypeSelect').addEventListener('change', onFormFieldTypeChanged);
+  document.getElementById('formFieldEditorSaveBtn').addEventListener('click', saveFieldEditor);
   document.getElementById('strategyExportAsBtn').addEventListener('click', function(e){
     e.stopPropagation();
     toggleExportAsPanel('strategyExportAsPanel');

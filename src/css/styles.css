@@ -4113,6 +4113,141 @@
     display: none;
   }
 
+  /* Enterprise Forms & Workflow — Org Admin field builder (Phase 2). Same "own compound selector per
+     hidden-toggled element" requirement as above. */
+  #formsAdminCreateRow.hidden,
+  #formsAdminEmpty.hidden,
+  #formBuilderFieldsEmpty.hidden,
+  #formFieldRadioOptionsWrap.hidden,
+  #addFormFieldBtn.hidden,
+  #formBuilderSaveBtn.hidden {
+    display: none;
+  }
+
+  .kf-form-admin-row {
+    padding: 10px 12px;
+    border: 1px solid var(--kf-border);
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  .kf-form-admin-row-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .kf-form-admin-row-name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .kf-form-admin-row-version {
+    font-size: 11px;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-admin-row-desc {
+    font-size: 12px;
+    color: var(--kf-text-faint);
+    margin-top: 4px;
+  }
+
+  .kf-form-admin-row-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .kf-form-status-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+
+  .kf-form-status-draft {
+    background: var(--kf-text-faint);
+    color: var(--kf-surface);
+    opacity: .7;
+  }
+
+  .kf-form-status-published {
+    background: var(--kf-success-bg, #e3fcef);
+    color: var(--kf-success, #00875a);
+  }
+
+  .kf-form-status-archived {
+    background: var(--kf-hover-tint);
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-fields-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 18px 0 10px;
+  }
+
+  .kf-form-fields-header label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: var(--kf-text-secondary);
+  }
+
+  .kf-form-fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .kf-form-field-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--kf-border);
+    border-radius: 6px;
+  }
+
+  .kf-form-field-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .kf-form-field-row-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+  }
+
+  .kf-form-field-row-summary {
+    font-size: 11px;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-options-editor {
+    margin: 8px 0;
+  }
+
+  .kf-form-option-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .kf-form-option-input {
+    flex: 1;
+  }
+
   /* Decisions */
   .kf-decision-type-pill {
     display: inline-flex;

@@ -179,6 +179,7 @@
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navPortfolioPlannerBtn" title="Portfolio Planner"><span class="kf-icon" data-icon="portfolioPlanner" data-size="21"></span><span class="kf-side-nav-text">Portfolio Planner</span></button>
         <button type="button" class="kf-side-nav-item" id="navRetrospectiveBtn" title="Retrospectives"><span class="kf-icon" data-icon="retrospective" data-size="21"></span><span class="kf-side-nav-text">Retrospectives</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navStrategyBtn" title="Strategy"><span class="kf-icon" data-icon="strategyCompass" data-size="21"></span><span class="kf-side-nav-text">Strategy</span></button>
+        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navFormsBtn" title="Manage Forms"><span class="kf-icon" data-icon="ty_document" data-size="21"></span><span class="kf-side-nav-text">Manage Forms</span></button>
       </div>
     </nav>
 
@@ -1541,6 +1542,102 @@
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-primary" id="dashboardWidgetFormSaveBtn">Save</button>
       <button class="kf-btn kf-btn-ghost" id="dashboardWidgetFormCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Forms Admin: picker (Org Admin) -->
+<div class="kf-overlay hidden" id="formsAdminOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Manage Forms</h2>
+      <button class="kf-btn kf-btn-ghost" id="formsAdminClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <button type="button" class="kf-btn kf-btn-secondary" id="newFormBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+        <span class="kf-icon" data-icon="plus" data-size="14"></span>New Form
+      </button>
+      <div id="formsAdminCreateRow" class="kf-field-row hidden" style="margin-bottom:14px;">
+        <div class="kf-field">
+          <label for="formsAdminNameInput">Name</label>
+          <input type="text" id="formsAdminNameInput" maxlength="200" placeholder="e.g. Expense Report">
+        </div>
+        <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="formsAdminCreateSaveBtn">Create</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="formsAdminCreateCancelBtn">Cancel</button>
+      </div>
+      <div id="formsAdminList" class="kf-releases-list"></div>
+      <div class="kf-member-empty hidden" id="formsAdminEmpty">No forms yet — click "New Form" to create one.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Form Field Builder: one form's name/description + field list (Org Admin, Draft versions only) -->
+<div class="kf-overlay hidden" id="formFieldBuilderOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="formFieldBuilderTitle">Edit Form</h2>
+      <button class="kf-btn kf-btn-ghost" id="formFieldBuilderClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="formBuilderNameInput">Name</label>
+        <input type="text" id="formBuilderNameInput" maxlength="200" placeholder="e.g. Expense Report">
+      </div>
+      <div class="kf-field">
+        <label for="formBuilderDescInput">Description</label>
+        <textarea id="formBuilderDescInput" rows="2" placeholder="What is this form for?"></textarea>
+      </div>
+      <div class="kf-form-fields-header">
+        <label>Fields</label>
+        <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="addFormFieldBtn"><span class="kf-icon" data-icon="plus" data-size="13"></span>Add Field</button>
+      </div>
+      <div id="formBuilderFieldsList" class="kf-form-fields-list"></div>
+      <div class="kf-member-empty hidden" id="formBuilderFieldsEmpty">No fields yet — click "Add Field" to start.</div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-primary" id="formBuilderSaveBtn">Save Form</button>
+      <button class="kf-btn kf-btn-ghost" id="formBuilderCancelBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Form Field Editor: add/edit one field within the builder above -->
+<div class="kf-overlay hidden" id="formFieldEditorOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="formFieldEditorTitle">Add Field</h2>
+      <button class="kf-btn kf-btn-ghost" id="formFieldEditorClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="formFieldTypeSelect">Field type</label>
+        <select id="formFieldTypeSelect">
+          <option value="text">Text</option>
+          <option value="textarea">Textarea</option>
+          <option value="numeric">Numeric</option>
+          <option value="checkboxGroup">Checkbox</option>
+          <option value="radio">Radio button</option>
+          <option value="select">Select</option>
+          <option value="datetime">Date and time</option>
+        </select>
+      </div>
+      <div class="kf-field">
+        <label for="formFieldLabelInput">Label</label>
+        <input type="text" id="formFieldLabelInput" maxlength="200" placeholder="e.g. Purpose">
+      </div>
+      <div class="kf-field">
+        <label for="formFieldHelpInput">Help text <span style="font-weight:400;color:var(--kf-text-faint);">(optional)</span></label>
+        <input type="text" id="formFieldHelpInput" maxlength="300">
+      </div>
+      <div class="kf-checkbox-row">
+        <input type="checkbox" id="formFieldRequiredCheckbox">
+        <label for="formFieldRequiredCheckbox" style="text-transform:none;font-weight:500;">Required</label>
+      </div>
+      <div id="formFieldTypeConfigFields"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-primary" id="formFieldEditorSaveBtn">Save Field</button>
+      <button class="kf-btn kf-btn-ghost" id="formFieldEditorCancelBtn">Cancel</button>
     </div>
   </div>
 </div>

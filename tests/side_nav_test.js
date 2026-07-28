@@ -81,11 +81,11 @@ function ruleFor(text, selector){
     // itself moved to Tools), To-Do/Workflow/Portfolio Planner/Retrospectives/Strategy were all
     // added to Tools since this list was written, and API Endpoints (CLAUDE.md's API Endpoints
     // modal entry) landed between Project Storage and Workflow without this list being updated
-    // for it.
+    // for it. Manage Forms (Enterprise Forms & Workflow, Org-Admin-only) landed last, after Strategy.
     log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map, Dashboards',
         viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn,navOrgChartBtn,navGovernanceMapBtn,navDashboardsBtn', viewsOrder.join(','));
-    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy',
-        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn', toolsOrder.join(','));
+    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Manage Forms',
+        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navFormsBtn', toolsOrder.join(','));
 
     viewsOrder.concat(toolsOrder).forEach(id => {
       const el = doc.getElementById(id);
