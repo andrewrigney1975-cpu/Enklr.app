@@ -55,7 +55,8 @@ public record TaskDto(
     DateOnly? StartDate, DateOnly? EndDate,
     int? BusinessValue, int? TaskCost, int Progress,
     decimal? EstimatedEffort, decimal? ActualEffort, bool Archived,
-    List<Guid> DependsOnTaskIds, List<TaskAuditLogEntryDto> AuditLog, List<TaskCommentDto> Comments);
+    List<Guid> DependsOnTaskIds, List<TaskAuditLogEntryDto> AuditLog, List<TaskCommentDto> Comments,
+    bool LocalDelete);
 
 public record ReleaseDto(Guid Id, string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? ReleaseNotes, string Color);
 public record TaskTypeDto(Guid Id, string Name, string? IconName);
@@ -142,13 +143,15 @@ public record CreateTaskRequest(
     Guid? ReleaseId, Guid? TypeId, Guid? ParentTaskId, List<Guid>? DependsOnTaskIds,
     string? DocumentationUrl = null, DateOnly? StartDate = null, DateOnly? EndDate = null,
     int? BusinessValue = null, int? TaskCost = null, int Progress = 0,
-    decimal? EstimatedEffort = null, decimal? ActualEffort = null, bool Archived = false);
+    decimal? EstimatedEffort = null, decimal? ActualEffort = null, bool Archived = false,
+    bool LocalDelete = false);
 public record UpdateTaskRequest(
     string Title, string? Description, string Priority, Guid ColumnId, Guid? AssigneeId,
     Guid? ReleaseId, Guid? TypeId, Guid? ParentTaskId, List<Guid>? DependsOnTaskIds,
     string? DocumentationUrl, DateOnly? StartDate, DateOnly? EndDate,
     int? BusinessValue, int? TaskCost, int Progress,
-    decimal? EstimatedEffort, decimal? ActualEffort, bool Archived);
+    decimal? EstimatedEffort, decimal? ActualEffort, bool Archived,
+    bool LocalDelete = false);
 
 public record CreateReleaseRequest(string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? Color);
 public record UpdateReleaseRequest(string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? Color);

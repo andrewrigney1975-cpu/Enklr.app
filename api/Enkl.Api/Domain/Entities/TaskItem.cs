@@ -37,6 +37,11 @@ public class TaskItem
     public decimal? EstimatedEffort { get; set; }
     public decimal? ActualEffort { get; set; }
     public bool Archived { get; set; }
+    /// <summary>Set true when a browser exports this task's archived content to disk and removes
+    /// its own local copy to reclaim storage — never cleared back to false. GetProjectDetailAsync
+    /// excludes rows with this set, so the row keeps existing here (server-side record retained)
+    /// without ever being re-synced down to any browser again.</summary>
+    public bool LocalDelete { get; set; }
 
     public List<TaskDependency> Dependencies { get; set; } = new();
     public List<TaskAuditLogEntry> AuditLog { get; set; } = new();

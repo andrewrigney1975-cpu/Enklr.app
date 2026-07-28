@@ -77,7 +77,9 @@ public class ProjectService
             project.Id, project.Name, project.Key, project.OrganisationId,
             project.Members.Select(m => new MemberDto(m.Id, m.UserId, m.User.DisplayName, m.User.EmailAddress, m.Color, m.Role, m.AllocatedFraction, m.ReportsToId, m.IsProjectAdmin, m.User.IsActive)).ToList(),
             project.Columns.OrderBy(c => c.Order).Select(c => new ColumnDto(c.Id, c.Name, c.Done, c.Color, c.ColorBackground, c.Order, c.Cap)).ToList(),
-            project.Tasks.Select(ToTaskDto).ToList(),
+            // LocalDelete rows are deliberately excluded here, never re-synced to any browser once
+            // set — see TaskItem.LocalDelete's own doc comment. The row itself stays in the DB.
+            project.Tasks.Where(t => !t.LocalDelete).Select(ToTaskDto).ToList(),
             project.Releases.Select(r => new ReleaseDto(r.Id, r.Name, r.Status, r.OwnerId, r.StartDate, r.EndDate, r.ReleaseNotes, r.Color)).ToList(),
             project.TaskTypes.Select(t => new TaskTypeDto(t.Id, t.Name, t.IconName)).ToList(),
             project.Principles.Select(p => new PrincipleDto(p.Id, p.Key, p.Title, p.Description, p.DocumentUrl, p.IsOrganisationWide)).ToList(),
@@ -405,7 +407,8 @@ public class ProjectService
         // order (previously left unordered here — a real bug, reported as "audit trail order seems
         // random" — while Comments below always had this same OrderBy; now consistent with it).
         t.AuditLog.OrderBy(a => a.Timestamp).Select(a => new TaskAuditLogEntryDto(a.Id, a.Timestamp, a.Field, a.OldValue, a.NewValue, a.ChangedBy)).ToList(),
-        t.Comments.OrderBy(c => c.DateCreated).Select(c => new TaskCommentDto(c.Id, c.Text, c.DateCreated, c.AuthorId, c.AuthorName)).ToList());
+        t.Comments.OrderBy(c => c.DateCreated).Select(c => new TaskCommentDto(c.Id, c.Text, c.DateCreated, c.AuthorId, c.AuthorName)).ToList(),
+        t.LocalDelete);
 
     public static RetrospectiveDto ToRetrospectiveDto(Retrospective r) => new(
         r.Id, r.Key, r.ReleaseId, r.Team, r.Background, r.RetroDate, r.LastTimerDurationSeconds,

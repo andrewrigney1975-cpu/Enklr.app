@@ -9,7 +9,7 @@ var IMAGE_DISPLAY_SIZE = {fill: 'cover', stretch: '100% 100%', tile: 'auto'};
 var IMAGE_DISPLAY_REPEAT = {fill: 'no-repeat', stretch: 'no-repeat', tile: 'repeat'};
 var DEFAULT_HEADER_COLOR = '#0c2a52'; // matches --kf-navy, the un-customized default
 
-/* Applies the persisted header colour preference to .kf-header. Exported for the same reasons as
+/* Applies the persisted header colour preference. Exported for the same reasons as
    applyBoardBackground below (called once at init(), then live on every change in the modal).
    Everything under .kf-header reads its color/border/background through a --kf-header-* custom
    property (see styles.css) that falls back to the normal navy theme when unset, so re-theming the
@@ -18,13 +18,18 @@ var DEFAULT_HEADER_COLOR = '#0c2a52'; // matches --kf-navy, the un-customized de
    --kf-navy-light against --kf-navy today) rather than "header text/border on transparent" — its
    background/foreground/border are computed from the custom colour via shadeHexColor, not copied
    from the header's own values, so it keeps that same "distinct panel" relationship at any custom
-   colour instead of blending flush into the header or losing contrast against it. */
+   colour instead of blending flush into the header or losing contrast against it.
+   Set on #app, not .kf-header itself — custom properties only inherit to DESCENDANTS, and the Chat
+   / AI Assistant bubbles (styles.css's .kf-chat-bubble, which also reads --kf-header-bg/-fg so they
+   match this same custom colour) live under .kf-board-wrap, a *sibling* of .kf-header, not a
+   descendant of it. #app is the nearest ancestor common to both, so setting the properties there
+   once reaches everything that needs them without duplicating the values anywhere. */
 export function applyHeaderColor(){
-  var header = document.querySelector('.kf-header');
-  if(!header) return;
+  var app = document.getElementById('app');
+  if(!app) return;
   ['--kf-header-bg', '--kf-header-fg', '--kf-header-divider', '--kf-header-btn-border', '--kf-header-btn-hover',
    '--kf-header-select-bg', '--kf-header-select-fg', '--kf-header-select-border'].forEach(function(p){
-    header.style.removeProperty(p);
+    app.style.removeProperty(p);
   });
 
   var hex = getHeaderColor();
@@ -32,49 +37,50 @@ export function applyHeaderColor(){
 
   var fg = contrastTextColor(hex);
   var dark = fg === '#ffffff'; // true => header bg is dark enough that the existing translucent-white accents still read; false => they need to flip to translucent-black instead.
-  header.style.setProperty('--kf-header-bg', hex);
-  header.style.setProperty('--kf-header-fg', fg);
-  header.style.setProperty('--kf-header-divider', dark ? 'rgba(255,255,255,.25)' : 'rgba(0,0,0,.2)');
-  header.style.setProperty('--kf-header-btn-border', dark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)');
-  header.style.setProperty('--kf-header-btn-hover', dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)');
+  app.style.setProperty('--kf-header-bg', hex);
+  app.style.setProperty('--kf-header-fg', fg);
+  app.style.setProperty('--kf-header-divider', dark ? 'rgba(255,255,255,.25)' : 'rgba(0,0,0,.2)');
+  app.style.setProperty('--kf-header-btn-border', dark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)');
+  app.style.setProperty('--kf-header-btn-hover', dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)');
 
   var selectBg = shadeHexColor(hex, dark ? 0.12 : -0.1);
-  header.style.setProperty('--kf-header-select-bg', selectBg);
-  header.style.setProperty('--kf-header-select-fg', contrastTextColor(selectBg));
-  header.style.setProperty('--kf-header-select-border', dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.18)');
+  app.style.setProperty('--kf-header-select-bg', selectBg);
+  app.style.setProperty('--kf-header-select-fg', contrastTextColor(selectBg));
+  app.style.setProperty('--kf-header-select-border', dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.18)');
 }
 
-/* Applies the persisted board background preference to .kf-board-wrap. Exported so app.js's
-   init() can call it once at startup (alongside applyOpeningExperience()) and so this modal can
-   re-apply live as the user changes settings, without waiting for a separate "Save" step. The
-   image layer is a ::before pseudo-element (see styles.css) rather than a background-image
-   directly on .kf-board-wrap, so the "faded" CSS filter can be scoped to just the image — a
-   filter on .kf-board-wrap itself would wash out every column/card sitting on top of it too. The
-   gradient case needs no such isolation (no filter involved) so it's just a plain
-   background-image linear-gradient on .kf-board-wrap itself. */
+/* Applies the persisted board background preference to #app (the whole-viewport-sized, never-
+   scrolling app shell — see styles.css's own note on why it lives there and not on .kf-board-wrap,
+   the original home for this). Exported so app.js's init() can call it once at startup (alongside
+   applyOpeningExperience()) and so this modal can re-apply live as the user changes settings,
+   without waiting for a separate "Save" step. The image layer is a ::before pseudo-element (see
+   styles.css) rather than a background-image directly on #app, so the "faded" CSS filter can be
+   scoped to just the image — a filter on #app itself would wash out the whole app, not just the
+   board. The gradient/solid-color cases need no such isolation (no filter involved) so they're
+   just a plain background-color/background-image linear-gradient on #app itself. */
 export function applyBoardBackground(){
-  var wrap = document.querySelector('.kf-board-wrap');
-  if(!wrap) return;
-  wrap.classList.remove('kf-board-bg-image', 'kf-board-bg-faded');
-  wrap.style.backgroundColor = '';
-  wrap.style.backgroundImage = '';
-  wrap.style.removeProperty('--kf-board-bg-image-url');
-  wrap.style.removeProperty('--kf-board-bg-image-size');
-  wrap.style.removeProperty('--kf-board-bg-image-repeat');
+  var app = document.getElementById('app');
+  if(!app) return;
+  app.classList.remove('kf-board-bg-image', 'kf-board-bg-faded');
+  app.style.backgroundColor = '';
+  app.style.backgroundImage = '';
+  app.style.removeProperty('--kf-board-bg-image-url');
+  app.style.removeProperty('--kf-board-bg-image-size');
+  app.style.removeProperty('--kf-board-bg-image-repeat');
 
   var pref = getBoardBackground();
   if(!pref) return;
   if(pref.type === 'color'){
-    wrap.style.backgroundColor = pref.color;
+    app.style.backgroundColor = pref.color;
   } else if(pref.type === 'gradient'){
     var dir = pref.gradientDirection === 'horizontal' ? 'to right' : 'to bottom';
-    wrap.style.backgroundImage = 'linear-gradient(' + dir + ', ' + pref.gradientStart + ', ' + pref.gradientEnd + ')';
+    app.style.backgroundImage = 'linear-gradient(' + dir + ', ' + pref.gradientStart + ', ' + pref.gradientEnd + ')';
   } else if(pref.type === 'image'){
-    wrap.classList.add('kf-board-bg-image');
-    wrap.style.setProperty('--kf-board-bg-image-url', 'url("' + pref.imageData + '")');
-    wrap.style.setProperty('--kf-board-bg-image-size', IMAGE_DISPLAY_SIZE[pref.display]);
-    wrap.style.setProperty('--kf-board-bg-image-repeat', IMAGE_DISPLAY_REPEAT[pref.display]);
-    if(pref.faded) wrap.classList.add('kf-board-bg-faded');
+    app.classList.add('kf-board-bg-image');
+    app.style.setProperty('--kf-board-bg-image-url', 'url("' + pref.imageData + '")');
+    app.style.setProperty('--kf-board-bg-image-size', IMAGE_DISPLAY_SIZE[pref.display]);
+    app.style.setProperty('--kf-board-bg-image-repeat', IMAGE_DISPLAY_REPEAT[pref.display]);
+    if(pref.faded) app.classList.add('kf-board-bg-faded');
   }
 }
 

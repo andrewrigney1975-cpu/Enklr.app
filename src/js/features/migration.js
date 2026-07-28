@@ -193,7 +193,8 @@ function taskToServerBody(t, overrides){
     documentationUrl: t.documentationUrl || null,
     startDate: isoToServerDateOnly(t.startDate), endDate: isoToServerDateOnly(t.endDate),
     businessValue: t.businessValue, taskCost: t.taskCost, progress: t.progress,
-    estimatedEffort: t.estimatedEffort, actualEffort: t.actualEffort, archived: t.archived
+    estimatedEffort: t.estimatedEffort, actualEffort: t.actualEffort, archived: t.archived,
+    localDelete: t.localDelete || false
   }, overrides || {});
 }
 
@@ -272,6 +273,44 @@ export async function setTasksArchivedOnServer(project, taskIds, archived){
     var t = project.tasks[taskIds[i]];
     if(!t || t.isPrivate) continue; // private tasks never exist server-side — see modals/task.js
     await taskApi.update(project.serverProjectId, taskIds[i], taskToServerBody(t, {archived: archived}));
+  }
+  return refreshProjectFromServer(project.id);
+}
+
+/* Used by the Archived Tasks panel's "Export & Delete" action (features/archived-tasks.js) — sets
+   LocalDelete on each selected task's server row (see TaskItem.LocalDelete's own doc comment: the
+   row stays in the DB, just never gets re-synced to any browser again), same one-update-per-task
+   shape as setTasksArchivedOnServer above (no bulk endpoint here either). Deliberately does NOT
+   also remove the tasks from local state itself — the refreshProjectFromServer call at the end
+   already does that for free, since the server's own next GetProjectDetail response simply omits
+   them now (buildLocalProjectFromServerDetail rebuilds project.tasks from scratch each refresh). */
+export async function markTasksLocalDeleteOnServer(project, taskIds){
+  for(var i = 0; i < taskIds.length; i++){
+    var t = project.tasks[taskIds[i]];
+    if(!t || t.isPrivate) continue; // private tasks never exist server-side — see modals/task.js
+    await taskApi.update(project.serverProjectId, taskIds[i], taskToServerBody(t, {localDelete: true}));
+  }
+  return refreshProjectFromServer(project.id);
+}
+
+/* Used by the "Import Tasks" flow (features/import.js) for a server-authoritative project —
+   `resolved` is the same shape mutations.js's insertImportedTasks expects (already fully resolved:
+   real columnId/assigneeId/releaseId/typeId in THIS project, final key decided). No bulk-create
+   endpoint exists (same "loop individual calls, one refresh at the end" shape as every other bulk
+   helper in this file), and dependencies/parentTaskId are always omitted for the same "the tasks
+   they'd point at may not exist here" reason mutations.js's own version documents. */
+export async function createTasksOnServer(project, resolved){
+  for(var i = 0; i < resolved.length; i++){
+    var r = resolved[i];
+    await taskApi.create(project.serverProjectId, {
+      title: r.title, description: r.description || '', priority: r.priority || 'medium',
+      columnId: r.columnId, assigneeId: r.assigneeId || null, releaseId: r.releaseId || null,
+      typeId: r.typeId || null, parentTaskId: null, dependsOnTaskIds: [],
+      documentationUrl: r.documentationUrl || null,
+      startDate: isoToServerDateOnly(r.startDate), endDate: isoToServerDateOnly(r.endDate),
+      businessValue: r.businessValue, taskCost: r.taskCost, progress: r.progress || 0,
+      estimatedEffort: r.estimatedEffort, actualEffort: r.actualEffort, archived: false
+    });
   }
   return refreshProjectFromServer(project.id);
 }
@@ -446,6 +485,11 @@ function buildLocalProjectFromServerDetail(detail, existingLocal){
 
   var tasks = {};
   detail.tasks.forEach(function(t){
+    // Defense in depth — the server already excludes LocalDelete=true rows from this response
+    // entirely (see ProjectService.GetProjectDetailAsync), so this should never actually trigger,
+    // but skipping it here too means a task never re-enters local state even if that server-side
+    // exclusion were ever bypassed or lagged behind a client already holding an older API build.
+    if(t.localDelete) return;
     tasks[t.id] = {
       id: t.id, key: t.key, title: t.title, description: t.description || '',
       priority: t.priority, columnId: t.columnId,
@@ -463,6 +507,7 @@ function buildLocalProjectFromServerDetail(detail, existingLocal){
       estimatedEffort: t.estimatedEffort,
       actualEffort: t.actualEffort,
       archived: !!t.archived,
+      localDelete: !!t.localDelete,
       /* Not modeled server-side yet — a private task's encrypted content does not currently survive
          migration or cross-browser sync. Flagged as a known gap, not silently dropped. */
       isPrivate: false, privateSalt: null, privateVerifier: null, encryptedDescription: null, encryptionIv: null,

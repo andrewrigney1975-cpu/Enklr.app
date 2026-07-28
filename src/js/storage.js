@@ -366,6 +366,7 @@ export function migrateDB(){
       if(t.estimatedEffort === undefined){ t.estimatedEffort = 0; changed = true; }
       if(t.actualEffort === undefined){ t.actualEffort = 0; changed = true; }
       if(t.archived === undefined){ t.archived = false; changed = true; }
+      if(t.localDelete === undefined){ t.localDelete = false; changed = true; }
       if(t.isPrivate === undefined){ t.isPrivate = false; changed = true; }
       if(t.privateSalt === undefined){ t.privateSalt = null; changed = true; }
       if(t.privateVerifier === undefined){ t.privateVerifier = null; changed = true; }

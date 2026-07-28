@@ -125,7 +125,7 @@ public class PortfolioService
         // Core-translatable) — same two-step shape ProjectService.GetProjectDetailAsync itself uses.
         var taskEntities = await _db.Tasks
             .AsNoTracking()
-            .Where(t => validProjectIds.Contains(t.ProjectId))
+            .Where(t => validProjectIds.Contains(t.ProjectId) && !t.LocalDelete)
             .Include(t => t.Dependencies)
             .Include(t => t.AuditLog)
             .Include(t => t.Comments)

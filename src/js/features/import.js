@@ -2,8 +2,10 @@
 import { state, saveDB, uid, makeColumn, defaultTaskTypes, normalizeHeaderButtonVisibility } from '../storage.js';
 import { PRIORITY_META } from '../config.js';
 import { clampTaskScore, clampProgress, clampEffortHours, clampAllocatedFraction, memberColorForIndex, isValidISODateString } from '../date-utils.js';
-import { getColumn, isValidTaskTypeIconName, escapeHTML } from '../utils.js';
-import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue, buildWorkflowEdgeFields, formatAuditValue } from '../mutations.js';
+import { getColumn, getMemberById, getMemberByName, getReleaseById, getTaskTypeById, getTasksArray, escapeHTML, isValidTaskTypeIconName } from '../utils.js';
+import { normalizeReleaseStatus, normalizeRiskStatus, normalizeDecisionType, normalizeDecisionStatus, normalizeTeamCommitteeType, nextDocKey, nextRiskKey, nextDecisionKey, nextPrincipleKey, nextObjectiveKey, nextTeamCommitteeKey, normalizeDocumentationUrl, registerRole, registerApprover, clampRiskScoreValue, buildWorkflowEdgeFields, formatAuditValue, insertImportedTasks } from '../mutations.js';
+import { getCurrentProject } from '../store.js';
+import { isServerAuthoritative, createTasksOnServer } from './migration.js';
 
 var _toast = function(msg){ console.error(msg); };
 export function setImportToast(fn){ _toast = fn; }
@@ -13,6 +15,8 @@ var _resetFilters = function(){ };
 export function setImportResetFilters(fn){ _resetFilters = fn; }
 var _checkSessionAlerts = function(){ };
 export function setImportSessionAlertsCheck(fn){ _checkSessionAlerts = fn; }
+var _confirmDialog = function(title, msg, onConfirm){ if(window.confirm(title + '\n' + msg)) onConfirm(); };
+export function setImportConfirmDialog(fn){ _confirmDialog = fn; }
 
 /* =========================================================
    IMPORT (reads the same hierarchical schema exportProjectJSON
@@ -1078,4 +1082,181 @@ export function finaliseImport(result, wasOverwrite){
 export function closeImportConflictModal(){
   document.getElementById('importConflictOverlay').classList.add('hidden');
   pendingImport = null;
+}
+
+/* =========================================================
+   IMPORT TASKS — a lighter-weight sibling of importProjectFromFile above: adds tasks from a JSON
+   file into the CURRENT project, rather than reconstructing a whole new project. Reads the flat
+   {project, tasks: [...]} shape features/archived-tasks.js's "Export & Delete" produces (each task
+   carrying both an id-reference AND a name-reference for column/assignee/release/type, the same
+   dual shape buildHierarchy's own export nodes already use elsewhere in this app) — id match wins
+   when this browser happens to be re-importing back into the SAME project those ids came from,
+   name match is the fallback for a genuinely different project, and an unmatched
+   assignee/release/type is left empty rather than guessed at (per the feature's own spec).
+   Dependencies/parentTaskId are never restored — the tasks they'd point at may not exist in this
+   project at all (mutations.js's insertImportedTasks documents this same call). ========================================================= */
+
+/* True if `key` isn't shaped like "<anything>-<number>" ending in the same trailing number a
+   PROJECT-KEY-prefixed key would have — used only to pull the numeric suffix back out when
+   regenerating a key under the current project's own prefix, not for validation. */
+function taskKeySuffix(key){
+  var m = /-(\d+)$/.exec(typeof key === 'string' ? key : '');
+  return m ? m[1] : null;
+}
+
+/* Resolves the column/assignee/release/type an imported task record should land on in `project` —
+   shared by both the local-only and server-authoritative import paths below. Column always
+   resolves to SOMETHING (falls back to the project's first column per the feature's own spec, "for
+   any column clashes, assign the imported task to the 1st column") — assignee/release/type default
+   to null (unassigned/no release/no type) when unmatched, also per spec. */
+function resolveImportedTaskFields(project, t){
+  var columnId = null;
+  if(t.columnId && getColumn(project, t.columnId)) columnId = t.columnId;
+  else if(t.columnName){
+    var col = project.columns.filter(function(c){ return c.name.toLowerCase() === String(t.columnName).toLowerCase(); })[0];
+    if(col) columnId = col.id;
+  }
+  if(!columnId) columnId = project.columns.length ? project.columns[0].id : null;
+
+  var assigneeId = null;
+  if(t.assigneeId && getMemberById(project, t.assigneeId)) assigneeId = t.assigneeId;
+  else if(t.assigneeName){
+    var member = getMemberByName(project, t.assigneeName);
+    if(member) assigneeId = member.id;
+  }
+
+  var releaseId = null;
+  if(t.releaseId && getReleaseById(project, t.releaseId)) releaseId = t.releaseId;
+  else if(t.releaseName){
+    var release = (project.releases || []).filter(function(r){ return r.name.toLowerCase() === String(t.releaseName).toLowerCase(); })[0];
+    if(release) releaseId = release.id;
+  }
+
+  var typeId = null;
+  if(t.typeId && getTaskTypeById(project, t.typeId)) typeId = t.typeId;
+  else if(t.typeName){
+    var type = (project.taskTypes || []).filter(function(tt){ return tt.name.toLowerCase() === String(t.typeName).toLowerCase(); })[0];
+    if(type) typeId = type.id;
+  }
+
+  return {
+    columnId: columnId, assigneeId: assigneeId, releaseId: releaseId, typeId: typeId,
+    title: (typeof t.title === 'string' && t.title.trim()) ? t.title.trim().slice(0, 200) : 'Untitled task',
+    description: typeof t.description === 'string' ? t.description.slice(0, 20000) : '',
+    priority: (t.priority && PRIORITY_META[t.priority]) ? t.priority : 'medium',
+    documentationUrl: t.documentationUrl || null,
+    startDate: isValidISODateString(t.startDate) ? t.startDate : null,
+    endDate: isValidISODateString(t.endDate) ? t.endDate : null,
+    businessValue: clampTaskScore(t.businessValue),
+    taskCost: clampTaskScore(t.taskCost),
+    progress: clampProgress(t.progress),
+    estimatedEffort: clampEffortHours(t.estimatedEffort),
+    actualEffort: clampEffortHours(t.actualEffort),
+    dateCreated: typeof t.dateCreated === 'string' ? t.dateCreated : null,
+    comments: Array.isArray(t.comments) ? t.comments.filter(function(c){ return c && typeof c.text === 'string'; }) : []
+  };
+}
+
+export function importTasksFromFile(file){
+  if(!file) return;
+  var project = getCurrentProject();
+  if(!project){ _toast('No project selected.'); return; }
+
+  var reader = new FileReader();
+  reader.onerror = function(){ _toast('Could not read that file.'); };
+  reader.onload = function(){
+    var parsed;
+    try{
+      parsed = JSON.parse(reader.result);
+    }catch(e){
+      _toast('That file isn\'t valid JSON.');
+      return;
+    }
+    if(!parsed || !Array.isArray(parsed.tasks) || parsed.tasks.length === 0){
+      _toast('That file doesn\'t look like an exported tasks file (no tasks found).');
+      return;
+    }
+
+    var currentProject = getCurrentProject();
+    if(!currentProject){ _toast('No project selected.'); return; }
+
+    /* Server-authoritative projects have no client-choosable task key at all — TaskService.CreateAsync
+       (all three tiers) always assigns "{project.Key}-{TaskCounter}" itself, the same as creating a
+       task through any other path in this app. Asking "keep vs update keys" would be a real UI lie
+       there, since neither choice could ever actually take effect, so it's skipped entirely for that
+       path — see createTasksOnServer's own note. */
+    if(isServerAuthoritative(currentProject)){
+      importTasksIntoServerProject(currentProject, parsed.tasks);
+      return;
+    }
+
+    var importedProjectKey = (parsed.project && typeof parsed.project.key === 'string') ? parsed.project.key : null;
+    var mismatchExists = !!importedProjectKey && importedProjectKey !== currentProject.key &&
+      parsed.tasks.some(function(t){
+        var m = /^([^-]+)-\d+$/.exec(typeof t.key === 'string' ? t.key : '');
+        return m && m[1] !== currentProject.key;
+      });
+
+    if(mismatchExists){
+      _confirmDialog(
+        'Imported tasks use a different project key',
+        'These tasks were exported from a project keyed “' + importedProjectKey + '”, not this project’s own key (“' + currentProject.key + '”). ' +
+          'Update their keys to match this project, or keep their original keys as they are?',
+        function(){ importTasksIntoLocalProject(currentProject, parsed.tasks, true); },
+        function(){ importTasksIntoLocalProject(currentProject, parsed.tasks, false); },
+        true
+      );
+    } else {
+      importTasksIntoLocalProject(currentProject, parsed.tasks, false);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function importTasksIntoLocalProject(project, tasksData, regenerateKeys){
+  var usedKeys = {};
+  getTasksArray(project).forEach(function(t){ usedKeys[t.key] = true; });
+  var nextCounter = project.taskCounter;
+
+  var resolved = tasksData.map(function(t){
+    var fields = resolveImportedTaskFields(project, t);
+    var key, drewFromCounter;
+    if(regenerateKeys){
+      var suffix = taskKeySuffix(t.key);
+      key = suffix ? (project.key + '-' + suffix) : (project.key + '-' + nextCounter);
+      drewFromCounter = !suffix;
+    } else if(typeof t.key === 'string' && t.key.trim()){
+      key = t.key.trim();
+      drewFromCounter = false;
+    } else {
+      key = project.key + '-' + nextCounter;
+      drewFromCounter = true;
+    }
+    if(usedKeys[key]){
+      // Real collision against an existing task (or an earlier task in this same batch) — fall back
+      // to a freshly-generated key from this project's own counter rather than silently letting two
+      // tasks share one key (breaks #!/KEY hashbang lookups and anything else keyed off it).
+      key = project.key + '-' + nextCounter;
+      drewFromCounter = true;
+    }
+    if(drewFromCounter) nextCounter++;
+    usedKeys[key] = true;
+    fields.key = key;
+    fields.consumedFromCounter = drewFromCounter;
+    return fields;
+  });
+
+  var count = insertImportedTasks(project, resolved);
+  _renderAll();
+  _toast('Imported ' + count + ' task' + (count === 1 ? '' : 's') + '.');
+}
+
+function importTasksIntoServerProject(project, tasksData){
+  var resolved = tasksData.map(function(t){ return resolveImportedTaskFields(project, t); });
+  createTasksOnServer(project, resolved).then(function(){
+    _renderAll();
+    _toast('Imported ' + resolved.length + ' task' + (resolved.length === 1 ? '' : 's') + '.');
+  }, function(err){
+    _toast('Could not import tasks on the server: ' + (err.message || 'unknown error'));
+  });
 }

@@ -1475,6 +1475,7 @@ export function addTask(project, data){
     estimatedEffort: clampEffortHours(data.estimatedEffort),
     actualEffort: clampEffortHours(data.actualEffort),
     archived: !!data.archived,
+    localDelete: false,
     isPrivate: !!data.isPrivate,
     privateSalt: data.privateSalt || null,
     privateVerifier: data.privateVerifier || null,
@@ -1495,6 +1496,67 @@ export function addTask(project, data){
   col.order.push(t.id);
   saveDB();
   return t.id;
+}
+
+/* Bulk local-only insert for features/import.js's "Import Tasks" flow — `resolved` is a list of
+   already-fully-resolved plain task records (features/import.js owns the column/assignee/release/
+   type matching and the key-mismatch decision; this function just writes what it's handed). Unlike
+   addTask, the caller supplies the final `key` directly (either the task's original key or one
+   freshly generated from this project's own counter, per whatever the user chose) rather than this
+   function always deriving one from project.taskCounter — but it still advances the counter itself
+   whenever a record's key was generated FROM it (recordedFromCounter flag), so a later addTask call
+   in the same session doesn't collide with an imported key. Dependencies/parentTaskId are always
+   dropped (never present in `resolved`) — the tasks those would point at may not exist in this
+   project at all, so importing a dangling reference would be worse than importing none. A single
+   saveDB() at the end, matching every other bulk mutation in this file. */
+export function insertImportedTasks(project, resolved){
+  var now = new Date().toISOString();
+  var count = 0;
+  resolved.forEach(function(r){
+    var col = getColumn(project, r.columnId) || project.columns[0];
+    if(!col) return;
+    var t = {
+      id: uid('task'),
+      key: r.key,
+      title: r.title,
+      description: r.description || '',
+      priority: r.priority || 'medium',
+      columnId: col.id,
+      dependencies: [],
+      assigneeId: r.assigneeId || null,
+      releaseId: r.releaseId || null,
+      typeId: r.typeId || null,
+      documentationUrl: normalizeDocumentationUrl(r.documentationUrl),
+      startDate: r.startDate || null,
+      endDate: r.endDate || null,
+      businessValue: clampTaskScore(r.businessValue),
+      taskCost: clampTaskScore(r.taskCost),
+      progress: clampProgress(r.progress),
+      estimatedEffort: clampEffortHours(r.estimatedEffort),
+      actualEffort: clampEffortHours(r.actualEffort),
+      archived: false,
+      localDelete: false,
+      isPrivate: false,
+      privateSalt: null,
+      privateVerifier: null,
+      encryptedDescription: null,
+      encryptionIv: null,
+      dateCreated: r.dateCreated || now,
+      dateLastModified: now,
+      dateDone: col.done ? now : null,
+      auditLog: [],
+      comments: (r.comments || []).map(function(c){
+        return {id: uid('comment'), text: c.text, dateCreated: c.dateCreated || now, authorId: null, authorName: c.authorName || ''};
+      }),
+      parentTaskId: null
+    };
+    project.tasks[t.id] = t;
+    col.order.push(t.id);
+    if(r.consumedFromCounter) project.taskCounter++;
+    count++;
+  });
+  if(count > 0) saveDB();
+  return count;
 }
 
 /* Local-only path — no session identity to enforce against, so (unlike the server, which always
@@ -1614,6 +1676,43 @@ export function deleteTask(project, taskId){
     if(d.taskId === taskId) d.taskId = null;
   });
   saveDB();
+}
+
+/* Bulk local-only counterpart to deleteTask — used by features/archived-tasks.js's "Export &
+   Delete" action to actually reclaim local storage space after an archived-tasks JSON export.
+   Same cleanup as deleteTask (column order, dependencies, parentTaskId, Document/Risk/Decision
+   taskId references) but done as one pass over every OTHER task/entity rather than one pass per
+   deleted id, and a single saveDB() at the end — matters here since this can be called with
+   dozens/hundreds of archived task ids at once, unlike deleteTask's normal single-task call sites.
+   Returns how many tasks were actually removed. Does not set/consult `localDelete` itself — that
+   flag's only real job is telling the SERVER to stop re-syncing a task down (see
+   features/migration.js's markTasksLocalDeleteOnServer); a task removed here is gone from local
+   storage immediately regardless, so there's nothing local left for the flag to mark. */
+export function deleteTasksLocally(project, taskIds){
+  var idSet = new Set(taskIds);
+  var count = 0;
+  idSet.forEach(function(taskId){
+    if(project.tasks[taskId]){ delete project.tasks[taskId]; count++; }
+  });
+  if(count === 0) return 0;
+  project.columns.forEach(function(c){ c.order = c.order.filter(function(id){ return !idSet.has(id); }); });
+  getTasksArray(project).forEach(function(t){
+    if(t.dependencies && t.dependencies.length){
+      t.dependencies = t.dependencies.filter(function(id){ return !idSet.has(id); });
+    }
+    if(idSet.has(t.parentTaskId)) t.parentTaskId = null;
+  });
+  (project.documents || []).forEach(function(d){
+    if(idSet.has(d.taskId)) d.taskId = null;
+  });
+  (project.risks || []).forEach(function(r){
+    if(idSet.has(r.taskId)) r.taskId = null;
+  });
+  (project.decisions || []).forEach(function(d){
+    if(idSet.has(d.taskId)) d.taskId = null;
+  });
+  saveDB();
+  return count;
 }
 
 /* Sets task `taskId`'s set of sub-tasks (children) to exactly

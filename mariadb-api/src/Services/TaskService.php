@@ -75,12 +75,12 @@ final class TaskService
             INSERT INTO "Tasks" (
                 "Id", "ProjectId", "Key", "Title", "Description", "Priority", "ColumnId", "AssigneeId",
                 "ReleaseId", "TypeId", "ParentTaskId", "DocumentationUrl", "StartDate", "EndDate",
-                "BusinessValue", "TaskCost", "EstimatedEffort", "ActualEffort", "Archived",
+                "BusinessValue", "TaskCost", "EstimatedEffort", "ActualEffort", "Archived", "LocalDelete",
                 "DateCreated", "DateLastModified", "DateDone", "Progress"
             ) VALUES (
                 :id, :pid, :key, :title, :description, :priority, :columnId, :assigneeId,
                 :releaseId, :typeId, :parentTaskId, :documentationUrl, :startDate, :endDate,
-                :businessValue, :taskCost, :estimatedEffort, :actualEffort, :archived,
+                :businessValue, :taskCost, :estimatedEffort, :actualEffort, :archived, :localDelete,
                 now(), now(), :dateDone, :progress
             )
         SQL);
@@ -95,6 +95,7 @@ final class TaskService
             'businessValue' => $request['businessValue'] ?? null, 'taskCost' => $request['taskCost'] ?? null,
             'estimatedEffort' => $request['estimatedEffort'] ?? null, 'actualEffort' => $request['actualEffort'] ?? null,
             'archived' => (int) (bool) ($request['archived'] ?? false),
+            'localDelete' => (int) (bool) ($request['localDelete'] ?? false),
             'progress' => (int) ($request['progress'] ?? 0),
             'dateDone' => $done ? SqlDateTime::now() : null,
         ]);
@@ -175,7 +176,7 @@ final class TaskService
                 "DocumentationUrl" = :documentationUrl, "StartDate" = :startDate, "EndDate" = :endDate,
                 "BusinessValue" = :businessValue, "TaskCost" = :taskCost, "Progress" = :progress,
                 "EstimatedEffort" = :estimatedEffort, "ActualEffort" = :actualEffort, "Archived" = :archived,
-                "DateLastModified" = now(), "DateDone" = :dateDone
+                "LocalDelete" = :localDelete, "DateLastModified" = now(), "DateDone" = :dateDone
             WHERE "Id" = :id
         SQL);
         $stmt->execute([
@@ -188,6 +189,7 @@ final class TaskService
             'businessValue' => $request['businessValue'] ?? null, 'taskCost' => $request['taskCost'] ?? null,
             'progress' => (int) ($request['progress'] ?? 0),
             'estimatedEffort' => $request['estimatedEffort'] ?? null, 'actualEffort' => $request['actualEffort'] ?? null,
+            'localDelete' => (int) (bool) ($request['localDelete'] ?? false),
             // (int), not the raw PHP bool — PDO's array-form execute() would bind false as '' otherwise,
             // which Postgres's boolean parser rejects.
             'archived' => (int) (bool) ($request['archived'] ?? false),
@@ -267,10 +269,12 @@ final class TaskService
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    /** Shared with ProjectService::getProjectDetail — builds every task DTO (with dependencies + audit log + comments) for a project in one pass. */
+    /** Shared with ProjectService::getProjectDetail — builds every task DTO (with dependencies + audit log + comments) for a project in one pass.
+     * "LocalDelete" rows are excluded — deliberately never re-synced to any browser once set, see the
+     * .NET tier's TaskItem.LocalDelete doc comment; the row itself stays in the DB. */
     public static function fetchTaskDtos(PDO $db, string $projectId): array
     {
-        $stmt = $db->prepare('SELECT * FROM "Tasks" WHERE "ProjectId" = :pid');
+        $stmt = $db->prepare('SELECT * FROM "Tasks" WHERE "ProjectId" = :pid AND "LocalDelete" = false');
         $stmt->execute(['pid' => $projectId]);
         $tasks = $stmt->fetchAll();
 
@@ -340,6 +344,7 @@ final class TaskService
             'estimatedEffort' => $t['EstimatedEffort'] !== null ? (float) $t['EstimatedEffort'] : null,
             'actualEffort' => $t['ActualEffort'] !== null ? (float) $t['ActualEffort'] : null,
             'archived' => (bool) $t['Archived'],
+            'localDelete' => (bool) $t['LocalDelete'],
             'dependsOnTaskIds' => $dependsOnTaskIds,
             'auditLog' => $auditLog,
             'comments' => $comments,

@@ -93,6 +93,7 @@
         <button class="kf-header-btn kf-header-nav-projectaction" id="editProjectBtn" title="Edit project"><span class="kf-icon" data-icon="edit" data-size="14"></span>Edit Project</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="newProjectBtn" title="New Project"><span class="kf-icon" data-icon="plus" data-size="14"></span>New Project</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="importProjectBtn" title="Import a project from an Enkl export file"><span class="kf-icon" data-icon="upload" data-size="14"></span>Import Project</button>
+        <button class="kf-header-btn kf-header-nav-projectaction" id="importTasksBtn" title="Add tasks from an exported archived-tasks JSON file into the current project"><span class="kf-icon" data-icon="upload" data-size="14"></span>Import Tasks</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="exportBtn" title="Export the current project"><span class="kf-icon" data-icon="download" data-size="14"></span>Export Project</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="projectMgmtReportBtn" title="View a consolidated, printable Project Management Report"><span class="kf-icon" data-icon="ty_report" data-size="14"></span>Project Management Report</button>
         <button class="kf-header-btn kf-header-nav-projectaction" id="migrateToServerBtn" title="Migrate this project to the server database"><span class="kf-icon" data-icon="upload" data-size="14"></span>Migrate to Server</button>
@@ -107,6 +108,7 @@
             <a href="#" class="kf-header-more-link" data-nav-target="editProjectBtn">Edit Project</a>
             <a href="#" class="kf-header-more-link" data-nav-target="newProjectBtn">New Project</a>
             <a href="#" class="kf-header-more-link" data-nav-target="importProjectBtn">Import Project</a>
+            <a href="#" class="kf-header-more-link" data-nav-target="importTasksBtn">Import Tasks</a>
             <a href="#" class="kf-header-more-link" data-nav-target="exportBtn">Export Project</a>
             <div class="kf-header-more-divider"></div>
             <a href="#" class="kf-header-more-link" data-nav-target="projectMgmtReportBtn">Project Management Report</a>
@@ -119,6 +121,7 @@
         </div>
       </div>
       <input type="file" id="importFileInput" accept="application/json,.json" style="display:none;">
+      <input type="file" id="importTasksFileInput" accept="application/json,.json" style="display:none;">
       <div class="kf-header-divider"></div>
       <div class="kf-header-utility-group" id="headerUtilityGroup">
         <div class="kf-export-as-wrap kf-desktop-menu-wrap" id="accountMenuWrap">
@@ -1340,10 +1343,15 @@
       </div>
       <div id="archivedTasksList" class="kf-archived-list"></div>
     </div>
-    <div class="kf-modal-footer">
-      <button class="kf-btn kf-btn-secondary kf-footer-left" id="archiveDoneTasksBtn" title="Archive every active task currently sitting in a Done column">Archive Done Tasks</button>
-      <button class="kf-btn kf-btn-secondary" id="archivedTasksDoneBtn">Close</button>
-      <button class="kf-btn kf-btn-primary" id="reactivateSelectedBtn" disabled>Reactivate selected</button>
+    <div class="kf-modal-footer kf-modal-footer-2row">
+      <div class="kf-modal-footer-row">
+        <button class="kf-btn kf-btn-secondary" id="archiveDoneTasksBtn" title="Archive every active task currently sitting in a Done column">Archive Done Tasks</button>
+        <button class="kf-btn kf-btn-primary" id="reactivateSelectedBtn" disabled>Reactivate selected</button>
+      </div>
+      <div class="kf-modal-footer-row">
+        <button class="kf-btn kf-btn-danger" id="exportDeleteArchivedTasksBtn" title="Download every archived task as a JSON file, then remove them from this project to free up space"><span class="kf-icon" data-icon="download" data-size="14"></span>Export &amp; Delete</button>
+        <button class="kf-btn kf-btn-secondary" id="archivedTasksDoneBtn">Close</button>
+      </div>
     </div>
   </div>
 </div>

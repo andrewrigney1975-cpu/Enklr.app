@@ -33,7 +33,7 @@ public class TaskService
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var totalCount = await _db.Tasks.CountAsync(t => t.ProjectId == projectId);
+        var totalCount = await _db.Tasks.CountAsync(t => t.ProjectId == projectId && !t.LocalDelete);
 
         // AsSplitQuery, same reasoning as ProjectService.GetProjectDetailAsync's own multi-Include
         // fetch: two collection Includes (Dependencies, AuditLog) on the same paged-down row set would
@@ -41,7 +41,7 @@ public class TaskService
         var pageEntities = await _db.Tasks
             .AsNoTracking()
             .AsSplitQuery()
-            .Where(t => t.ProjectId == projectId)
+            .Where(t => t.ProjectId == projectId && !t.LocalDelete)
             .OrderBy(t => t.DateCreated)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -91,6 +91,7 @@ public class TaskService
             EstimatedEffort = request.EstimatedEffort,
             ActualEffort = request.ActualEffort,
             Archived = request.Archived,
+            LocalDelete = request.LocalDelete,
             DateCreated = now,
             DateLastModified = now,
             // A task created directly into a Done column counts as transitioning to Done immediately,
@@ -152,6 +153,7 @@ public class TaskService
         task.EstimatedEffort = request.EstimatedEffort;
         task.ActualEffort = request.ActualEffort;
         task.Archived = request.Archived;
+        task.LocalDelete = request.LocalDelete;
         task.DateLastModified = now;
 
         // Ported from mutations.js's updateTask (mutations.js:1198-1204): dateDone marks the most

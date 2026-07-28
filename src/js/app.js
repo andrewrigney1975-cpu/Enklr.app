@@ -30,13 +30,13 @@ import { initChat, resetChatState, openChatPanel, closeChatPanel, isChatPanelOpe
 import { initChatView, toggleChatPanel, chatBackClicked, updateChatBubbleVisibility, isChatFullscreenOpen, openChatFullscreen, toggleChatFullscreen, closeChatFullscreen } from './views/chat.js';
 import { resetAiAssistantState } from './features/ai-assistant.js';
 import { initAiAssistantView, setAiAssistantBoardRefreshHook } from './views/ai-assistant.js';
-import { importProjectFromFile, pendingImport, closeImportConflictModal, overwriteProjectFromResult, finaliseImport, uniqueProjectKey, setImportSessionAlertsCheck, setImportToast, setImportRenderAll, setImportResetFilters } from './features/import.js';
+import { importProjectFromFile, importTasksFromFile, pendingImport, closeImportConflictModal, overwriteProjectFromResult, finaliseImport, uniqueProjectKey, setImportSessionAlertsCheck, setImportToast, setImportRenderAll, setImportResetFilters, setImportConfirmDialog } from './features/import.js';
 import { checkProjectAlerts, closeOverdueAlert, closeOverrunAlert, closeDefaultScoreAlert, closeBackupReminderModal, dismissBackupReminder, runBackupForReminder, closeAnnouncementsAlert } from './features/session-alerts.js';
 import { initAnnouncements, resetAnnouncementState, setAnnouncementDeps, getActiveDisruptions } from './features/announcements.js';
 import { renderDespatchesPanel, setDespatchesDeps, initDespatches, resetDespatchLog, getUnreadCount, clearUnread } from './features/despatches.js';
 import { escapeHTML } from './utils.js';
 import { setBulkEditDeps, openBulkEditOverlay, closeBulkEditOverlay, isBulkEditOverlayOpen, saveBulkEditChanges } from './features/bulk-edit.js';
-import { getArchivedTasks, openArchivedTasksOverlay, closeArchivedTasksOverlay, isArchivedTasksOverlayOpen, renderArchivedTasksList, reactivateSelectedArchivedTasks, archiveDoneTasksFromModal } from './features/archived-tasks.js';
+import { getArchivedTasks, openArchivedTasksOverlay, closeArchivedTasksOverlay, isArchivedTasksOverlayOpen, renderArchivedTasksList, reactivateSelectedArchivedTasks, archiveDoneTasksFromModal, exportAndDeleteArchivedTasks } from './features/archived-tasks.js';
 import { closeAllExportAsPanels, toggleExportAsPanel, exportSvgElementAsSvgFile, exportSvgElementAsPng } from './features/svg-export.js';
 
 /* ---- Modals ---- */
@@ -118,6 +118,7 @@ setImportToast(toast);
 setImportRenderAll(renderAll);
 setImportResetFilters(resetFilters);
 setImportSessionAlertsCheck(checkProjectAlerts);
+setImportConfirmDialog(confirmDialog);
 
 /* ---- Console-exposed debug helpers ---- */
 window.go_ufo = openUfoModal;
@@ -200,6 +201,14 @@ function wireEvents(){
   document.getElementById('importFileInput').addEventListener('change', function(e){
     var file = e.target.files && e.target.files[0];
     importProjectFromFile(file);
+    e.target.value = '';
+  });
+  document.getElementById('importTasksBtn').addEventListener('click', function(){
+    document.getElementById('importTasksFileInput').click();
+  });
+  document.getElementById('importTasksFileInput').addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    importTasksFromFile(file);
     e.target.value = '';
   });
   document.getElementById('importConflictClose').addEventListener('click', closeImportConflictModal);
@@ -819,6 +828,7 @@ function wireEvents(){
   });
   document.getElementById('reactivateSelectedBtn').addEventListener('click', reactivateSelectedArchivedTasks);
   document.getElementById('archiveDoneTasksBtn').addEventListener('click', archiveDoneTasksFromModal);
+  document.getElementById('exportDeleteArchivedTasksBtn').addEventListener('click', exportAndDeleteArchivedTasks);
 
   document.getElementById('depMapBtn').addEventListener('click', openDepMapOverlay);
   document.getElementById('depMapClose').addEventListener('click', closeDepMapOverlay);

@@ -175,9 +175,50 @@
 
   /* ===== Layout ===== */
   #app {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100vh;
+  }
+
+  /* My Preferences' board-background feature (modals/my-preferences.js's applyBoardBackground) is
+     applied here, on #app, rather than on .kf-board-wrap (the original shape) — #app is the one
+     element that's always exactly viewport-sized and never scrolls, so a background painted here
+     is genuinely edge-to-edge on any screen width and never clips against anything. .kf-board-wrap
+     itself paints no background of its own (transparent by default, no CSS rule sets one), so
+     whatever's set here shows straight through the board's own scroll area; .kf-header/.kf-side-nav
+     stay visually opaque as before since they paint their own explicit backgrounds regardless.
+     Solid-color and gradient preferences are plain background-color/background-image set directly
+     on #app's own inline style (no isolation needed, no filter involved). An uploaded image gets its
+     own ::before layer instead (z-index -1, behind every normal-flow child) specifically so the
+     "faded" filter below can be scoped to just the image — a filter on #app itself would also wash
+     out literally everything else in the app, header and sidebar included, since filter renders an
+     element and its descendants as one group.
+     Superseds an earlier shape (2026-07-28) that anchored this same image layer to .kf-board-wrap,
+     then to .kf-board — both real, live-verified bugs, not just theoretical: anchoring to
+     .kf-board-wrap sized the image against the WRAP's own viewport-sized box, so it never extended
+     past whatever was on screen when the page first loaded (scrolling right showed nothing);
+     anchoring to .kf-board instead of .kf-board-wrap fixed that specific clipping but still only
+     covered the board's own scroll area, not the header/sidebar — a widescreen layout with room to
+     spare beside the board still cut the image off short of the real screen edge. Anchoring to #app
+     fixes both at once, and needs no `width: max-content` workaround either (#app never scrolls, so
+     there's no "narrower than its own overflowing content" box-sizing problem to work around at
+     all — that whole workaround, added for the .kf-board attempt, was reverted here as dead weight
+     once this shape made it unnecessary). */
+  #app.kf-board-bg-image::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: var(--kf-board-bg-image-url);
+    background-size: var(--kf-board-bg-image-size, cover);
+    background-position: center;
+    background-repeat: var(--kf-board-bg-image-repeat, no-repeat);
+    pointer-events: none;
+  }
+
+  #app.kf-board-bg-image.kf-board-bg-faded::before {
+    filter: saturate(50%) brightness(110%) contrast(85%);
   }
 
   .kf-app-body {
@@ -1184,28 +1225,6 @@
     position: relative;
   }
 
-  /* An uploaded background image is rendered on its own ::before layer (z-index -1, behind every
-     normal-flow child) rather than as .kf-board-wrap's own background-image, so the "faded" filter
-     below can be scoped to just the image — filter on .kf-board-wrap itself would also wash out
-     every column/card sitting on top of it, since filter renders an element and its descendants as
-     one group. Kept off .kf-board itself (untouched here) to stay clear of that element's
-     drag-and-drop-sensitive styling. */
-  .kf-board-wrap.kf-board-bg-image::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background-image: var(--kf-board-bg-image-url);
-    background-size: var(--kf-board-bg-image-size, cover);
-    background-position: center;
-    background-repeat: var(--kf-board-bg-image-repeat, no-repeat);
-    pointer-events: none;
-  }
-
-  .kf-board-wrap.kf-board-bg-image.kf-board-bg-faded::before {
-    filter: saturate(50%) brightness(110%) contrast(85%);
-  }
-
   .kf-board {
     display: flex;
     gap: 12px;
@@ -1225,6 +1244,11 @@
      original ask) is that the app stays usable while the panel is open, same "floats above the app,
      nothing dims/blocks behind it" shape as the widescreen docked task panel's own
      pointer-events:none overlay trick. */
+  /* Shares --kf-header-bg/--kf-header-fg with .kf-header itself (both read the same custom
+     properties, set once on #app by modals/my-preferences.js's applyHeaderColor — see that
+     function's own comment on why #app and not .kf-header) so a custom header colour re-themes
+     the Chat / AI Assistant bubbles too, not just the header bar. Falls back to the normal navy
+     theme when no custom colour is set, identical to .kf-header's own fallback. */
   .kf-chat-bubble {
     position: fixed;
     bottom: 24px;
@@ -1233,8 +1257,8 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: var(--kf-navy);
-    color: #fff;
+    background: var(--kf-header-bg, var(--kf-navy));
+    color: var(--kf-header-fg, #fff);
     border: none;
     display: flex;
     align-items: center;
@@ -1971,6 +1995,12 @@
 
   .kf-column {
     background: var(--kf-column-tint, var(--kf-column-overlay));
+    /* Frosted-glass effect over the board's own background — only visually meaningful against a
+       gradient or uploaded image (My Preferences), a plain flat surface looks the same blurred or
+       not. Needs the -webkit- prefix for Safari; unsupported browsers just fall back to the plain
+       tint above with no blur, a harmless no-op degrade. */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border-radius: 6px;
     width: 280px;
     min-width: 280px;
@@ -5912,6 +5942,22 @@
     border-top: 1px solid var(--kf-border);
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* Archived Tasks modal's footer — four buttons is one too many for this modal's own (kf-modal-sm)
+     width to fit on a single row without wrapping awkwardly, so it stacks as two explicit rows
+     instead (each still right-aligned, matching the single-row footer's own convention) rather than
+     relying on flex-wrap, which would otherwise reflow unpredictably as buttons enable/disable
+     (Reactivate selected toggles disabled based on selection) and change width. */
+  .kf-modal-footer.kf-modal-footer-2row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .kf-modal-footer-row {
+    display: flex;
     justify-content: flex-end;
     gap: 8px;
   }
