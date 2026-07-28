@@ -187,4 +187,5 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   await wait(30);
 
   console.log('\nWorkflow close-guard test complete.');
+  process.exit(0);
 })().catch(e => { console.error('CRASHED', e); process.exit(1); });

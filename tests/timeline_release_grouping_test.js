@@ -160,4 +160,5 @@ function taskRowsUnder(doc){
   log('reopening the Timeline resets every group back to expanded', taskRowsUnder(doc).length === 5, taskRowsUnder(doc).length);
 
   console.log('Timeline release grouping test complete.');
+  process.exit(0);
 })().catch(e => { console.error('CRASHED', e); process.exit(1); });

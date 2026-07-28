@@ -396,4 +396,5 @@ function dragBarByDays(doc, bar, role, days){
   }
 
   console.log('Timeline drag-to-reschedule test complete.');
+  process.exit(0);
 })().catch(e => { console.error('CRASHED', e); process.exit(1); });

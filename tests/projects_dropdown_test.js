@@ -39,16 +39,17 @@ function installFakeFileReader(window){
 
   // "Migrate to Server", "Project Management Report", and "Save as Template..." were added to
   // this panel later, "Edit Project"/"Delete Project" were moved in from the header's project
-  // picker (first and last respectively), and "Manage Templates" was moved in from the Account
-  // menu (between "Save as Template..." and "Delete Project") — it's 9 links now, not the
-  // original 3. "Manage Templates" itself starts kf-vis-hidden (toggled by renderToolbar based on
-  // login/org-admin state, same as in its old home) but that's a CSS class, not a DOM removal, so
-  // it's still one of the <a> elements this query matches.
+  // picker (first and last respectively), "Manage Templates" was moved in from the Account
+  // menu (between "Save as Template..." and "Delete Project"), and "Import Tasks" was added right
+  // after "Import Project" — it's 10 links now, not the original 3. "Manage Templates" itself
+  // starts kf-vis-hidden (toggled by renderToolbar based on login/org-admin state, same as in its
+  // old home) but that's a CSS class, not a DOM removal, so it's still one of the <a> elements
+  // this query matches.
   const links = Array.from(doc.querySelectorAll('#projectsMenuPanel a'));
   const linkTexts = links.map(a => a.textContent);
-  log('panel contains exactly 9 links', links.length === 9, linkTexts.join(','));
-  log('links are Edit Project, New Project, Import Project, Export Project, Project Management Report, Migrate to Server, Save as Template..., Manage Templates, Delete Project, as plain <a> text links (not buttons)',
-      linkTexts.join(',') === 'Edit Project,New Project,Import Project,Export Project,Project Management Report,Migrate to Server,Save as Template...,Manage Templates,Delete Project' && links.every(a => a.tagName === 'A'),
+  log('panel contains exactly 10 links', links.length === 10, linkTexts.join(','));
+  log('links are Edit Project, New Project, Import Project, Import Tasks, Export Project, Project Management Report, Migrate to Server, Save as Template..., Manage Templates, Delete Project, as plain <a> text links (not buttons)',
+      linkTexts.join(',') === 'Edit Project,New Project,Import Project,Import Tasks,Export Project,Project Management Report,Migrate to Server,Save as Template...,Manage Templates,Delete Project' && links.every(a => a.tagName === 'A'),
       linkTexts.join(','));
   log('links use the same text-link styling class as the other More-menu links (consistent visual language)',
       links.every(a => a.classList.contains('kf-header-more-link')));

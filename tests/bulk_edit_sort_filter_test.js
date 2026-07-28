@@ -115,4 +115,5 @@ function filterInput(doc, field){
   log('reopening shows all 5 rows again', doc.querySelectorAll('.kf-bulkedit-row').length === 5);
 
   console.log('Bulk Edit sort/filter test complete.');
-})();
+  process.exit(0);
+})().catch(e => { console.error('CRASHED', e); process.exit(1); });
