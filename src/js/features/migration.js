@@ -382,6 +382,26 @@ export async function createProjectOnServer(name, key, startISO, endISO, templat
   return {project: localProject, warning: response.warning || null};
 }
 
+/* Called from the AI Assistant's "project_created" action chip (views/ai-assistant.js) — that project
+   was created entirely server-side (AiAssistantService's create_project tool calling
+   ProjectService.CreateAsync directly), so unlike createProjectOnServer above, the frontend never got
+   a chance to run buildLocalProjectFromServerDetail at creation time. action.projectToken is the fresh
+   JWT CreateAsync minted (this browser's current token predates the new project, so it isn't in its
+   claims yet) — swapped in before the project-detail fetch below, which is itself gated by the
+   ProjectMember policy that fresh token satisfies. Idempotent (safe if the button is clicked twice, or
+   the project was already pulled in by some other means) — projectOrder only gains a second entry if
+   it doesn't already have one. */
+export async function switchToAiCreatedProject(action){
+  if(action.projectToken) setToken(action.projectToken);
+  var detail = await getProjectDetailApi(action.projectId);
+  var localProject = buildLocalProjectFromServerDetail(detail, undefined);
+  state.db.projects[localProject.id] = localProject;
+  if(state.db.projectOrder.indexOf(localProject.id) === -1) state.db.projectOrder.push(localProject.id);
+  state.db.currentProjectId = localProject.id;
+  saveDB();
+  return localProject;
+}
+
 export async function updateProjectOnServer(project, name, key, startISO, endISO, description){
   await updateProjectApi(project.serverProjectId, {
     name: name, key: key,

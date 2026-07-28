@@ -12,7 +12,13 @@ public record AiAssistantChatMessageDto(string Role, string Content);
 public record AiAssistantChatRequest(List<AiAssistantChatMessageDto> Messages, string? AlertsSummary);
 
 /// <summary>A tool call the assistant actually executed, surfaced to the frontend so it can show
-/// "created TASK-42" style confirmation chips and refresh the board — not just the reply text.</summary>
-public record AiAssistantActionDto(string Type, Guid? TaskId, string? TaskKey, string? Title);
+/// "created TASK-42" style confirmation chips and refresh the board — not just the reply text.
+/// The Project* fields are populated only for a "project_created" action (create_project) — since
+/// AiAssistantChatResponse has no token field of its own, ProjectToken/ProjectTokenExpiresAt carry
+/// the fresh JWT CreateAsync mints (the browser's current token has no claim for a project it didn't
+/// know about yet), so the frontend can call setToken() before switching to the new project.</summary>
+public record AiAssistantActionDto(
+    string Type, Guid? TaskId, string? TaskKey, string? Title,
+    Guid? ProjectId = null, string? ProjectKey = null, string? ProjectToken = null, DateTime? ProjectTokenExpiresAt = null);
 
 public record AiAssistantChatResponse(string Reply, List<AiAssistantActionDto> Actions);

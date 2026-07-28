@@ -83,7 +83,7 @@ final class AiAssistantService
     }
 
     /** @return array{reply: string, actions: array<int, array<string, mixed>>}|null */
-    public function chat(string $projectId, array $request): ?array
+    public function chat(string $projectId, array $request, string $callerUserId, bool $callerIsOrgAdmin): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM "Projects" WHERE "Id" = :id');
         $stmt->execute(['id' => $projectId]);
@@ -105,7 +105,22 @@ final class AiAssistantService
         $members = $this->fetchMembers($projectId);
         $taskTypes = $this->fetchTaskTypes($projectId);
         $teams = $this->fetchTeams($projectId);
-        $systemPrompt = $this->buildSystemPrompt($project['Name'], $columns, $members, $taskTypes, $teams, $request['alertsSummary'] ?? null);
+
+        // Only fetched for an Org Admin (the only caller create_project's tool actually lets through) —
+        // an ordinary member's prompt stays exactly as small as it was before this feature existed.
+        $orgTemplateNames = [];
+        $orgProjectKeys = [];
+        if ($callerIsOrgAdmin) {
+            $tplStmt = $this->db->prepare('SELECT "Name" FROM "ProjectTemplates" WHERE "OrganisationId" = :orgId');
+            $tplStmt->execute(['orgId' => $project['OrganisationId']]);
+            $orgTemplateNames = array_column($tplStmt->fetchAll(), 'Name');
+
+            $keyStmt = $this->db->prepare('SELECT "Key" FROM "Projects" WHERE "OrganisationId" = :orgId');
+            $keyStmt->execute(['orgId' => $project['OrganisationId']]);
+            $orgProjectKeys = array_column($keyStmt->fetchAll(), 'Key');
+        }
+
+        $systemPrompt = $this->buildSystemPrompt($project['Name'], $columns, $members, $taskTypes, $teams, $request['alertsSummary'] ?? null, $callerIsOrgAdmin, $orgTemplateNames, $orgProjectKeys);
 
         $messages = [];
         foreach (($request['messages'] ?? []) as $m) {
@@ -148,7 +163,7 @@ final class AiAssistantService
                 $toolUseId = $toolUse['id'];
                 $input = $toolUse['input'] ?? [];
 
-                [$resultText, $isError, $toolActions] = $this->executeTool($projectId, $toolName, $input);
+                [$resultText, $isError, $toolActions] = $this->executeTool($projectId, $project['OrganisationId'], $callerUserId, $callerIsOrgAdmin, $toolName, $input);
                 foreach ($toolActions as $a) {
                     $actions[] = $a;
                 }
@@ -167,7 +182,7 @@ final class AiAssistantService
     }
 
     /** @return array{0: string, 1: bool, 2: array<int, array<string, mixed>>} */
-    private function executeTool(string $projectId, string $toolName, array $input): array
+    private function executeTool(string $projectId, string $orgId, string $callerUserId, bool $callerIsOrgAdmin, string $toolName, array $input): array
     {
         try {
             return match ($toolName) {
@@ -177,6 +192,7 @@ final class AiAssistantService
                 'get_task_details' => $this->getTaskDetailsTool($projectId, $input),
                 'list_critical_tasks' => $this->listCriticalTasksTool($projectId, $input),
                 'search_tasks' => $this->searchTasksTool($projectId, $input),
+                'create_project' => $this->createProjectTool($orgId, $callerUserId, $callerIsOrgAdmin, $input),
                 default => ["Unknown tool: {$toolName}", true, []],
             };
         } catch (\Throwable $e) {
@@ -628,6 +644,141 @@ final class AiAssistantService
         return [implode("\n", $lines), false, []];
     }
 
+    /** Ported from php-api/src/Services/AiAssistantService.php's own createProjectTool (itself ported
+     * from AiAssistantService.cs's CreateProjectToolAsync) — see that file's own doc comment for the
+     * full design (Org-Admin-only, reuses ProjectService::create directly rather than re-implementing
+     * column/task-type seeding, then adds a fixed setup checklist plus whatever domain-specific
+     * starter tasks the model itself drafted into "tasks"). No dialect divergence in this method. */
+    private function createProjectTool(string $orgId, string $callerUserId, bool $callerIsOrgAdmin, array $input): array
+    {
+        if (!$callerIsOrgAdmin) {
+            return ['Only an Org Admin can create a new project this way. Ask an Org Admin, or use the app\'s own "New Project" button.', true, []];
+        }
+
+        $name = trim((string) ($input['name'] ?? ''));
+        if ($name === '') {
+            return ['A project name is required.', true, []];
+        }
+
+        $templateId = null;
+        if (!empty($input['templateName'])) {
+            $tplStmt = $this->db->prepare('SELECT "Id", "Name" FROM "ProjectTemplates" WHERE "OrganisationId" = :orgId');
+            $tplStmt->execute(['orgId' => $orgId]);
+            $templates = $tplStmt->fetchAll();
+            $match = null;
+            foreach ($templates as $t) {
+                if (strcasecmp($t['Name'], (string) $input['templateName']) === 0) {
+                    $match = $t;
+                    break;
+                }
+            }
+            if ($match === null) {
+                $names = $templates === [] ? '(no templates defined for this organisation)' : implode(', ', array_column($templates, 'Name'));
+                return ["No project template named \"{$input['templateName']}\". Available: {$names}.", true, []];
+            }
+            $templateId = $match['Id'];
+        }
+
+        $startDate = $this->parseDate($input['startDate'] ?? null);
+        $endDate = $this->parseDate($input['endDate'] ?? null);
+
+        $created = (new ProjectService($this->db))->create($callerUserId, [
+            'name' => $name,
+            'key' => $input['key'] ?? null,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'templateId' => $templateId,
+            'description' => $input['description'] ?? null,
+        ]);
+
+        if ($created === null) {
+            return ['Could not create the project — please try again.', true, []];
+        }
+
+        $project = $created['project'];
+        $actions = [[
+            'type' => 'project_created', 'taskId' => null, 'taskKey' => null, 'title' => $project['name'],
+            'projectId' => $project['id'], 'projectKey' => $project['key'],
+            'projectToken' => $created['token'], 'projectTokenExpiresAt' => $created['tokenExpiresAt'],
+        ]];
+
+        // A malformed/empty template's columns would be the only way this project ends up with none —
+        // ProjectService::create's own default (no-template) branch always seeds three, so this is a
+        // pure defensive guard, not an expected path.
+        $columns = $project['columns'];
+        usort($columns, static fn(array $a, array $b) => $a['order'] <=> $b['order']);
+        $firstOpenColumn = null;
+        foreach ($columns as $c) {
+            if (!$c['done']) {
+                $firstOpenColumn = $c;
+                break;
+            }
+        }
+        $firstOpenColumn ??= $columns[0] ?? null;
+
+        $setupSummaries = [];
+        $domainSummaries = [];
+        if ($firstOpenColumn !== null) {
+            $columnId = $firstOpenColumn['id'];
+            $taskService = new TaskService($this->db);
+
+            if ($input['includeSetupTasks'] ?? true) {
+                foreach ($this->buildSetupTaskTitles($startDate, $endDate) as $title) {
+                    $setupTask = $taskService->create($project['id'], [
+                        'title' => $title, 'description' => null, 'priority' => 'medium', 'columnId' => $columnId,
+                    ]);
+                    if ($setupTask === null) {
+                        continue;
+                    }
+                    $actions[] = ['type' => 'task_created', 'taskId' => $setupTask['id'], 'taskKey' => $setupTask['key'], 'title' => $setupTask['title']];
+                    $setupSummaries[] = $setupTask['key'];
+                }
+            }
+
+            if (!empty($input['tasks']) && is_array($input['tasks'])) {
+                foreach ($input['tasks'] as $item) {
+                    if (!is_array($item)) {
+                        continue;
+                    }
+                    $taskTitle = trim((string) ($item['title'] ?? ''));
+                    if ($taskTitle === '') {
+                        continue;
+                    }
+                    $domainTask = $taskService->create($project['id'], [
+                        'title' => $taskTitle, 'description' => $item['description'] ?? null,
+                        'priority' => $this->normalizePriority($item['priority'] ?? null) ?? 'medium',
+                        'columnId' => $columnId,
+                    ]);
+                    if ($domainTask === null) {
+                        continue;
+                    }
+                    $actions[] = ['type' => 'task_created', 'taskId' => $domainTask['id'], 'taskKey' => $domainTask['key'], 'title' => $domainTask['title']];
+                    $domainSummaries[] = $domainTask['key'];
+                }
+            }
+        }
+
+        $warningNote = $created['warning'] !== null ? " ({$created['warning']})" : '';
+        $setupNote = $setupSummaries !== [] ? ' Added ' . count($setupSummaries) . ' setup task(s): ' . implode(', ', $setupSummaries) . '.' : '';
+        $domainNote = $domainSummaries !== [] ? ' Added ' . count($domainSummaries) . ' project task(s): ' . implode(', ', $domainSummaries) . '.' : '';
+        return ["Created project {$project['key']}: \"{$project['name']}\"{$warningNote}.{$setupNote}{$domainNote}", false, $actions];
+    }
+
+    /** Fixed checklist added to every AI-created project (unless includeSetupTasks: false). The dates
+     * item is only added when the caller didn't already supply both dates to create_project itself. */
+    private function buildSetupTaskTitles(?string $startDate, ?string $endDate): array
+    {
+        $titles = [
+            "Verify the board columns match your team's actual workflow",
+            'Review App Settings for extended modules (Documents, Risks, Decisions, Health, Principles, Objectives, Teams & Committees, Workflow, Time Tracking, Change Auditing, Sub-Tasks, Retrospective, Strategy, Dashboards) and enable any that apply',
+            'Confirm the project\'s team members are current — add or remove them via the Team modal',
+        ];
+        if ($startDate === null || $endDate === null) {
+            $titles[] = "Set the project's start and end dates";
+        }
+        return $titles;
+    }
+
     private function findTask(string $projectId, string $identifier): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM "Tasks" WHERE "ProjectId" = :pid AND LOWER("Key") = LOWER(:key)');
@@ -831,7 +982,7 @@ final class AiAssistantService
         return $parsed !== false ? $date : null;
     }
 
-    private function buildSystemPrompt(string $projectName, array $columns, array $members, array $taskTypes, array $teams, ?string $alertsSummary): string
+    private function buildSystemPrompt(string $projectName, array $columns, array $members, array $taskTypes, array $teams, ?string $alertsSummary, bool $callerIsOrgAdmin, array $orgTemplateNames, array $orgProjectKeys): string
     {
         $columnList = implode(', ', array_map(
             static fn(array $c) => '"' . $c['Name'] . '"' . ($c['Done'] ? ' (done)' : ''),
@@ -863,8 +1014,25 @@ final class AiAssistantService
             "linked Release's dates (or a 2-week window from today if it has none) — each sub-task also inherits the parent's " .
             "assignee, release, business value, and task cost automatically. Use create_task's own parentTaskKey directly only " .
             "when linking or creating just a single sub-task. " .
-            "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.\n" .
-            "Keep replies short and conversational — this is a chat-style assistant, not a report generator.\n";
+            "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.\n";
+
+        if ($callerIsOrgAdmin) {
+            $templateList = $orgTemplateNames === [] ? '(none defined in this organisation)' : implode(', ', array_map(static fn(string $t) => "\"{$t}\"", $orgTemplateNames));
+            $keyList = $orgProjectKeys === [] ? '(none yet)' : implode(', ', $orgProjectKeys);
+            $prompt .= "\nYou can also create a brand-new sibling project (via create_project), since you are an Org Admin. Before calling it:\n" .
+                "- If the user hasn't described what the project is for, ask for a short description first. Use it to draft a small " .
+                "set of domain-specific starter tasks (create_project's own \"tasks\" input) inspired by that description — this tool creates " .
+                "exactly the tasks you give it, it does not invent them itself. A fixed setup-task checklist (verify columns, review App " .
+                "Settings for extended modules, confirm team members are current) is added automatically regardless.\n" .
+                "- If the user names a specific existing template, pass its exact name as templateName so its columns/task " .
+                "types/settings are reused instead of the plain default columns. Templates in this org: {$templateList}. If they ask for a " .
+                "template that doesn't match one of these, say so rather than guessing a close name.\n" .
+                "- Only pass \"key\" if the user explicitly wants a specific project key; otherwise omit it and a short key is " .
+                "derived from the project name automatically. Existing keys in this org (avoid suggesting a duplicate): {$keyList}.\n" .
+                "- If the user hasn't mentioned a start or end date, ask for them before calling create_project rather than guessing.\n";
+        }
+
+        $prompt .= "Keep replies short and conversational — this is a chat-style assistant, not a report generator.\n";
 
         if ($alertsSummary !== null && trim($alertsSummary) !== '') {
             $prompt .= "Current alerts for this project (computed client-side, already up to date): {$alertsSummary}\n";
@@ -982,6 +1150,36 @@ final class AiAssistantService
                         'includeArchived' => ['type' => 'boolean', 'description' => 'Default false.'],
                         'limit' => ['type' => 'integer', 'description' => 'How many tasks to return, default 10, max 25.'],
                     ],
+                ],
+            ],
+            [
+                'name' => 'create_project',
+                'description' => 'Create a brand-new sibling project (Org Admin only — the tool itself refuses otherwise). Seeds it with either a named template\'s columns/task types/settings, or the app\'s own default To Do/In Progress/Done columns, then adds a fixed project-setup checklist plus any domain-specific starter tasks you draft into "tasks".',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'name' => ['type' => 'string', 'description' => 'The new project\'s name.'],
+                        'key' => ['type' => 'string', 'description' => 'Optional short project key. Omit to auto-derive one from the name.'],
+                        'description' => ['type' => 'string', 'description' => 'A short description of what the project is for — also stored on the project itself.'],
+                        'startDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD).'],
+                        'endDate' => ['type' => 'string', 'description' => 'ISO date (YYYY-MM-DD).'],
+                        'templateName' => ['type' => 'string', 'description' => 'Name of an existing project template to seed columns/task types/settings from. Must match one of this org\'s templates exactly. Omit for the default columns.'],
+                        'includeSetupTasks' => ['type' => 'boolean', 'description' => 'Whether to add the fixed project-setup checklist (verify columns, review App Settings, confirm team members). Default true.'],
+                        'tasks' => [
+                            'type' => 'array',
+                            'description' => 'Domain-specific starter tasks to create in the new project, drafted by you from the project\'s description. Omit or leave empty if none apply.',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'title' => ['type' => 'string'],
+                                    'description' => ['type' => 'string'],
+                                    'priority' => ['type' => 'string', 'enum' => self::PRIORITY_ORDER],
+                                ],
+                                'required' => ['title'],
+                            ],
+                        ],
+                    ],
+                    'required' => ['name'],
                 ],
             ],
         ];

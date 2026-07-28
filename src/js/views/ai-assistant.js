@@ -89,6 +89,14 @@ var _onTaskMutated = function(){};
 export function setAiAssistantBoardRefreshHook(fn){ _onTaskMutated = fn; }
 function notifyTaskMutated(){ _onTaskMutated(); }
 
+/* Same DI shape as setAiAssistantBoardRefreshHook, for the "project_created" action chip's own
+   button — actually switching the app to the newly-created project needs resetFilters/
+   resetAiAssistantState/renderAll/checkProjectAlerts, all of which live in app.js (importing any of
+   them here would be the same circular-import problem every other cross-view hook in this app avoids
+   the same way). */
+var _onProjectCreated = function(){};
+export function setAiAssistantProjectSwitchHook(fn){ _onProjectCreated = fn; }
+
 function toggleVoiceInput(SpeechRecognitionCtor, micBtn, input){
   if(_recognizing){
     if(_recognition) _recognition.stop();
@@ -148,7 +156,11 @@ export function renderAiAssistantPanel(){
     }
 
     if(!aiAssistantState.sending && aiAssistantState.actions.length > 0){
-      html += '<div class="kf-ai-assistant-actions">' + aiAssistantState.actions.map(function(a){
+      html += '<div class="kf-ai-assistant-actions">' + aiAssistantState.actions.map(function(a, i){
+        if(a.type === 'project_created'){
+          return '<button type="button" class="kf-ai-assistant-action-chip kf-ai-assistant-action-btn" data-action-index="' + i + '">' +
+            'Created project ' + escapeHTML(a.projectKey || '') + ' — Switch to it</button>';
+        }
         var label = a.type === 'task_created' ? 'Created' : 'Updated';
         return '<span class="kf-ai-assistant-action-chip">' + label + ' ' + escapeHTML(a.taskKey || '') + '</span>';
       }).join('') + '</div>';
@@ -160,6 +172,13 @@ export function renderAiAssistantPanel(){
 
     messagesEl.innerHTML = html;
     messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    Array.prototype.forEach.call(messagesEl.querySelectorAll('.kf-ai-assistant-action-btn'), function(btn){
+      btn.addEventListener('click', function(){
+        var action = aiAssistantState.actions[parseInt(btn.getAttribute('data-action-index'), 10)];
+        if(action) _onProjectCreated(action);
+      });
+    });
   }
 
   var sendBtn = document.getElementById('aiAssistantSendBtn');

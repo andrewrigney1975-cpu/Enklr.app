@@ -1,3 +1,4 @@
+using Enkl.Api.Auth;
 using Enkl.Api.Dtos;
 using Enkl.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -31,7 +32,7 @@ public class AiAssistantController : ControllerBase
     {
         try
         {
-            var result = await _assistant.ChatAsync(projectId, request);
+            var result = await _assistant.ChatAsync(projectId, request, User.UserId(), User.IsOrgAdmin());
             return result is null ? NotFound() : Ok(result);
         }
         catch (AiAssistantNotEntitledException)

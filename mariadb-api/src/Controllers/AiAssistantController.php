@@ -22,7 +22,7 @@ final class AiAssistantController extends BaseController
     public function chat(Request $request, Response $response, array $args): Response
     {
         try {
-            $result = $this->service()->chat($args['projectId'], $this->body($request));
+            $result = $this->service()->chat($args['projectId'], $this->body($request), $this->callerUserId($request), $this->callerIsOrgAdmin($request));
             return $result === null ? $this->notFound($response) : $this->json($response, $result);
         } catch (AiAssistantNotEntitledException) {
             return $this->json($response, ['message' => 'AI Assistant is not available for your organisation.'], 403);

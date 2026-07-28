@@ -24,12 +24,12 @@ import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenef
 /* ---- Features ---- */
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
 import { exportProjectJSON, setExportToast } from './features/export.js';
-import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast, refreshProjectFromServer } from './features/migration.js';
+import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast, refreshProjectFromServer, switchToAiCreatedProject } from './features/migration.js';
 import { connectEventStream, disconnectEventStream } from './features/live-updates.js';
 import { initChat, resetChatState, openChatPanel, closeChatPanel, isChatPanelOpen, openChannel } from './features/chat.js';
 import { initChatView, toggleChatPanel, chatBackClicked, updateChatBubbleVisibility, isChatFullscreenOpen, openChatFullscreen, toggleChatFullscreen, closeChatFullscreen } from './views/chat.js';
 import { resetAiAssistantState } from './features/ai-assistant.js';
-import { initAiAssistantView, setAiAssistantBoardRefreshHook } from './views/ai-assistant.js';
+import { initAiAssistantView, setAiAssistantBoardRefreshHook, setAiAssistantProjectSwitchHook } from './views/ai-assistant.js';
 import { importProjectFromFile, importTasksFromFile, pendingImport, closeImportConflictModal, overwriteProjectFromResult, finaliseImport, uniqueProjectKey, setImportSessionAlertsCheck, setImportToast, setImportRenderAll, setImportResetFilters, setImportConfirmDialog } from './features/import.js';
 import { checkProjectAlerts, closeOverdueAlert, closeOverrunAlert, closeDefaultScoreAlert, closeBackupReminderModal, dismissBackupReminder, runBackupForReminder, closeAnnouncementsAlert } from './features/session-alerts.js';
 import { initAnnouncements, resetAnnouncementState, setAnnouncementDeps, getActiveDisruptions } from './features/announcements.js';
@@ -105,6 +105,19 @@ initAiAssistantView();
 setAiAssistantBoardRefreshHook(function(){
   var project = getCurrentProject();
   if(project) refreshProjectFromServer(project.id).then(renderBoard);
+});
+// The AI Assistant's "project_created" action button — same switch-project sequence the Projects
+// dropdown's own change handler runs (state.db.currentProjectId + resetFilters/resetAiAssistantState/
+// renderAll/checkProjectAlerts), just triggered from the chat panel instead.
+setAiAssistantProjectSwitchHook(function(action){
+  switchToAiCreatedProject(action).then(function(){
+    resetFilters();
+    resetAiAssistantState();
+    renderAll();
+    checkProjectAlerts();
+  }, function(err){
+    toast('Could not switch to the new project: ' + (err.message || 'unknown error'));
+  });
 });
 setAnnouncementDeps({ onUpdate: renderDisruptionBanner });
 setDespatchesDeps({

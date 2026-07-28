@@ -69,14 +69,16 @@ public class AiAssistantService
 
     private readonly AppDbContext _db;
     private readonly TaskService _tasks;
+    private readonly ProjectService _projects;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _config;
     private readonly ILogger<AiAssistantService> _logger;
 
-    public AiAssistantService(AppDbContext db, TaskService tasks, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<AiAssistantService> logger)
+    public AiAssistantService(AppDbContext db, TaskService tasks, ProjectService projects, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<AiAssistantService> logger)
     {
         _db = db;
         _tasks = tasks;
+        _projects = projects;
         _httpClientFactory = httpClientFactory;
         _config = config;
         _logger = logger;
@@ -121,7 +123,7 @@ public class AiAssistantService
         return await IsOrgEntitledAsync(orgId.Value, featureKey);
     }
 
-    public async Task<AiAssistantChatResponse?> ChatAsync(Guid projectId, AiAssistantChatRequest request)
+    public async Task<AiAssistantChatResponse?> ChatAsync(Guid projectId, AiAssistantChatRequest request, Guid callerUserId, bool callerIsOrgAdmin)
     {
         var project = await _db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
@@ -141,7 +143,18 @@ public class AiAssistantService
         var members = await _db.ProjectMembers.AsNoTracking().Include(m => m.User).Where(m => m.ProjectId == projectId).ToListAsync();
         var taskTypes = await _db.TaskTypes.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync();
         var teams = await _db.TeamsCommittees.AsNoTracking().Where(t => t.ProjectId == projectId && t.Type == "team").ToListAsync();
-        var systemPrompt = BuildSystemPrompt(project.Name, columns, members, taskTypes, teams, request.AlertsSummary);
+
+        // Only fetched for an Org Admin (the only caller create_project's tool actually lets through) —
+        // an ordinary member's prompt stays exactly as small as it was before this feature existed.
+        List<string> orgTemplateNames = new();
+        List<string> orgProjectKeys = new();
+        if (callerIsOrgAdmin)
+        {
+            orgTemplateNames = await _db.ProjectTemplates.AsNoTracking().Where(t => t.OrganisationId == project.OrganisationId).Select(t => t.Name).ToListAsync();
+            orgProjectKeys = await _db.Projects.AsNoTracking().Where(p => p.OrganisationId == project.OrganisationId).Select(p => p.Key).ToListAsync();
+        }
+
+        var systemPrompt = BuildSystemPrompt(project.Name, columns, members, taskTypes, teams, request.AlertsSummary, callerIsOrgAdmin, orgTemplateNames, orgProjectKeys);
 
         var messages = new JsonArray();
         foreach (var m in request.Messages)
@@ -209,7 +222,7 @@ public class AiAssistantService
                 var toolUseId = toolUse["id"]!.GetValue<string>();
                 var input = toolUse["input"]!.AsObject();
 
-                var (resultText, isError, toolActions) = await ExecuteToolAsync(projectId, toolName, input);
+                var (resultText, isError, toolActions) = await ExecuteToolAsync(projectId, project.OrganisationId, callerUserId, callerIsOrgAdmin, toolName, input);
                 actions.AddRange(toolActions);
 
                 var toolResult = new JsonObject
@@ -228,7 +241,7 @@ public class AiAssistantService
         return new AiAssistantChatResponse("I wasn't able to finish that within the allotted number of steps — could you try a narrower request?", actions);
     }
 
-    private async Task<(string ResultText, bool IsError, List<AiAssistantActionDto> Actions)> ExecuteToolAsync(Guid projectId, string toolName, JsonObject input)
+    private async Task<(string ResultText, bool IsError, List<AiAssistantActionDto> Actions)> ExecuteToolAsync(Guid projectId, Guid orgId, Guid callerUserId, bool callerIsOrgAdmin, string toolName, JsonObject input)
     {
         try
         {
@@ -240,6 +253,7 @@ public class AiAssistantService
                 "get_task_details" => await GetTaskDetailsToolAsync(projectId, input),
                 "list_critical_tasks" => await ListCriticalTasksToolAsync(projectId, input),
                 "search_tasks" => await SearchTasksToolAsync(projectId, input),
+                "create_project" => await CreateProjectToolAsync(orgId, callerUserId, callerIsOrgAdmin, input),
                 _ => ($"Unknown tool: {toolName}", true, new List<AiAssistantActionDto>())
             };
         }
@@ -552,6 +566,123 @@ public class AiAssistantService
         return (string.Join("\n", lines), false, NoActions);
     }
 
+    /// <summary>Creates a brand-new sibling project in the caller's own org — Org-Admin-only (checked
+    /// here, not at the controller/policy level, since the rest of the /ai-assistant/chat endpoint stays
+    /// plain ProjectMember-gated; see ClaimsPrincipalExtensions.IsOrgAdmin's own doc comment for why
+    /// this is the established shape for a single-tool restriction inside an otherwise-open endpoint).
+    /// Reuses ProjectService.CreateAsync directly (same code path the "New Project"/"New Project from
+    /// Template" UI uses) rather than re-implementing column/task-type seeding — a template is applied
+    /// automatically whenever templateName resolves, otherwise the project gets ProjectService's own
+    /// default To Do/In Progress/Done columns. A fixed "project setup" checklist is added afterward
+    /// (skippable via includeSetupTasks: false), plus whichever domain-specific starter tasks the model
+    /// itself drafted into "tasks" — this tool creates exactly the tasks it's given, it does not invent
+    /// them; drafting a sensible list from the user's project description is the model's own job, guided
+    /// by BuildSystemPrompt's create_project instructions.</summary>
+    private async Task<(string, bool, List<AiAssistantActionDto>)> CreateProjectToolAsync(Guid orgId, Guid callerUserId, bool callerIsOrgAdmin, JsonObject input)
+    {
+        if (!callerIsOrgAdmin)
+        {
+            return ("Only an Org Admin can create a new project this way. Ask an Org Admin, or use the app's own \"New Project\" button.", true, NoActions);
+        }
+
+        var name = input["name"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(name)) return ("A project name is required.", true, NoActions);
+
+        Guid? templateId = null;
+        if (input["templateName"]?.GetValue<string>() is { } templateName)
+        {
+            var templates = await _db.ProjectTemplates.AsNoTracking().Where(t => t.OrganisationId == orgId).ToListAsync();
+            var match = templates.FirstOrDefault(t => string.Equals(t.Name, templateName, StringComparison.OrdinalIgnoreCase));
+            if (match is null)
+            {
+                var names = templates.Count == 0 ? "(no templates defined for this organisation)" : string.Join(", ", templates.Select(t => t.Name));
+                return ($"No project template named \"{templateName}\". Available: {names}.", true, NoActions);
+            }
+            templateId = match.Id;
+        }
+
+        var startDate = ParseDate(input["startDate"]?.GetValue<string>());
+        var endDate = ParseDate(input["endDate"]?.GetValue<string>());
+
+        var created = await _projects.CreateAsync(callerUserId, new CreateProjectRequest(
+            Name: name, Key: input["key"]?.GetValue<string>() ?? "", StartDate: startDate, EndDate: endDate,
+            TemplateId: templateId, Description: input["description"]?.GetValue<string>()));
+
+        if (created is null) return ("Could not create the project — please try again.", true, NoActions);
+
+        var project = created.Project;
+        var actions = new List<AiAssistantActionDto>
+        {
+            new("project_created", null, null, project.Name, project.Id, project.Key, created.Token, created.TokenExpiresAt)
+        };
+
+        // A malformed/empty template's columns would be the only way this project ends up with none —
+        // ProjectService.CreateAsync's own default (no-template) branch always seeds three, so this is
+        // a pure defensive guard, not an expected path.
+        var firstOpenColumnId = project.Columns.OrderBy(c => c.Order).FirstOrDefault(c => !c.Done)?.Id
+            ?? project.Columns.OrderBy(c => c.Order).FirstOrDefault()?.Id;
+
+        var setupSummaries = new List<string>();
+        var domainSummaries = new List<string>();
+        if (firstOpenColumnId is { } columnId)
+        {
+            if (input["includeSetupTasks"]?.GetValue<bool?>() ?? true)
+            {
+                foreach (var title in BuildSetupTaskTitles(startDate, endDate))
+                {
+                    var setupTask = await _tasks.CreateAsync(project.Id, new CreateTaskRequest(
+                        Title: title, Description: null, Priority: "medium", ColumnId: columnId,
+                        AssigneeId: null, ReleaseId: null, TypeId: null, ParentTaskId: null, DependsOnTaskIds: null));
+                    if (setupTask is null) continue;
+                    actions.Add(new AiAssistantActionDto("task_created", setupTask.Id, setupTask.Key, setupTask.Title));
+                    setupSummaries.Add(setupTask.Key);
+                }
+            }
+
+            if (input["tasks"] is JsonArray domainTasks)
+            {
+                foreach (var item in domainTasks)
+                {
+                    if (item is not JsonObject taskObj) continue;
+                    var taskTitle = taskObj["title"]?.GetValue<string>();
+                    if (string.IsNullOrWhiteSpace(taskTitle)) continue;
+
+                    var domainTask = await _tasks.CreateAsync(project.Id, new CreateTaskRequest(
+                        Title: taskTitle, Description: taskObj["description"]?.GetValue<string>(),
+                        Priority: NormalizePriority(taskObj["priority"]?.GetValue<string>()) ?? "medium",
+                        ColumnId: columnId, AssigneeId: null, ReleaseId: null, TypeId: null, ParentTaskId: null, DependsOnTaskIds: null));
+                    if (domainTask is null) continue;
+                    actions.Add(new AiAssistantActionDto("task_created", domainTask.Id, domainTask.Key, domainTask.Title));
+                    domainSummaries.Add(domainTask.Key);
+                }
+            }
+        }
+
+        var warningNote = created.Warning is not null ? $" ({created.Warning})" : "";
+        var setupNote = setupSummaries.Count > 0 ? $" Added {setupSummaries.Count} setup task(s): {string.Join(", ", setupSummaries)}." : "";
+        var domainNote = domainSummaries.Count > 0 ? $" Added {domainSummaries.Count} project task(s): {string.Join(", ", domainSummaries)}." : "";
+        return ($"Created project {project.Key}: \"{project.Name}\"{warningNote}.{setupNote}{domainNote}", false, actions);
+    }
+
+    /// <summary>Fixed checklist added to every AI-created project (unless includeSetupTasks: false) —
+    /// covers the same "did you actually mean to keep the defaults" review the app's own New Project
+    /// flow leaves entirely manual today. The dates item is only added when the caller didn't already
+    /// supply both dates to create_project itself.</summary>
+    private static List<string> BuildSetupTaskTitles(DateOnly? startDate, DateOnly? endDate)
+    {
+        var titles = new List<string>
+        {
+            "Verify the board columns match your team's actual workflow",
+            "Review App Settings for extended modules (Documents, Risks, Decisions, Health, Principles, Objectives, Teams & Committees, Workflow, Time Tracking, Change Auditing, Sub-Tasks, Retrospective, Strategy, Dashboards) and enable any that apply",
+            "Confirm the project's team members are current — add or remove them via the Team modal"
+        };
+        if (startDate is null || endDate is null)
+        {
+            titles.Add("Set the project's start and end dates");
+        }
+        return titles;
+    }
+
     private async Task<TaskItem?> FindTaskAsync(Guid projectId, string identifier)
     {
         var normalized = identifier.Trim();
@@ -690,7 +821,7 @@ public class AiAssistantService
     private static DateOnly? ParseDate(string? date) =>
         date is not null && DateOnly.TryParse(date, out var parsed) ? parsed : null;
 
-    private static string BuildSystemPrompt(string projectName, List<Column> columns, List<ProjectMember> members, List<TaskType> taskTypes, List<TeamCommittee> teams, string? alertsSummary)
+    private static string BuildSystemPrompt(string projectName, List<Column> columns, List<ProjectMember> members, List<TaskType> taskTypes, List<TeamCommittee> teams, string? alertsSummary, bool callerIsOrgAdmin, List<string> orgTemplateNames, List<string> orgProjectKeys)
     {
         var columnList = string.Join(", ", columns.Select(c => $"\"{c.Name}\"{(c.Done ? " (done)" : "")}"));
         var memberList = members.Count == 0 ? "(none)" : string.Join(", ", members.Select(m => $"\"{m.User.DisplayName}\""));
@@ -711,6 +842,23 @@ public class AiAssistantService
             "assignee, release, business value, and task cost automatically. Use create_task's own parentTaskKey directly only " +
             "when linking or creating just a single sub-task. " +
             "When a request is ambiguous (e.g. which task, which column, which member), ask a brief clarifying question rather than guessing destructively.");
+        if (callerIsOrgAdmin)
+        {
+            var templateList = orgTemplateNames.Count == 0 ? "(none defined in this organisation)" : string.Join(", ", orgTemplateNames.Select(t => $"\"{t}\""));
+            var keyList = orgProjectKeys.Count == 0 ? "(none yet)" : string.Join(", ", orgProjectKeys);
+            sb.AppendLine();
+            sb.AppendLine("You can also create a brand-new sibling project (via create_project), since you are an Org Admin. Before calling it:");
+            sb.AppendLine("- If the user hasn't described what the project is for, ask for a short description first. Use it to draft a small " +
+                "set of domain-specific starter tasks (create_project's own \"tasks\" input) inspired by that description — this tool creates " +
+                "exactly the tasks you give it, it does not invent them itself. A fixed setup-task checklist (verify columns, review App " +
+                "Settings for extended modules, confirm team members are current) is added automatically regardless.");
+            sb.AppendLine($"- If the user names a specific existing template, pass its exact name as templateName so its columns/task " +
+                $"types/settings are reused instead of the plain default columns. Templates in this org: {templateList}. If they ask for a " +
+                "template that doesn't match one of these, say so rather than guessing a close name.");
+            sb.AppendLine($"- Only pass \"key\" if the user explicitly wants a specific project key; otherwise omit it and a short key is " +
+                $"derived from the project name automatically. Existing keys in this org (avoid suggesting a duplicate): {keyList}.");
+            sb.AppendLine("- If the user hasn't mentioned a start or end date, ask for them before calling create_project rather than guessing.");
+        }
         sb.AppendLine("Keep replies short and conversational — this is a chat-style assistant, not a report generator.");
         if (!string.IsNullOrWhiteSpace(alertsSummary))
         {
@@ -853,6 +1001,42 @@ public class AiAssistantService
                     ["includeArchived"] = new JsonObject { ["type"] = "boolean", ["description"] = "Default false." },
                     ["limit"] = new JsonObject { ["type"] = "integer", ["description"] = "How many tasks to return, default 10, max 25." }
                 }
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "create_project",
+            ["description"] = "Create a brand-new sibling project (Org Admin only — the tool itself refuses otherwise). Seeds it with either a named template's columns/task types/settings, or the app's own default To Do/In Progress/Done columns, then adds a fixed project-setup checklist plus any domain-specific starter tasks you draft into \"tasks\".",
+            ["input_schema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["name"] = new JsonObject { ["type"] = "string", ["description"] = "The new project's name." },
+                    ["key"] = new JsonObject { ["type"] = "string", ["description"] = "Optional short project key. Omit to auto-derive one from the name." },
+                    ["description"] = new JsonObject { ["type"] = "string", ["description"] = "A short description of what the project is for — also stored on the project itself." },
+                    ["startDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD)." },
+                    ["endDate"] = new JsonObject { ["type"] = "string", ["description"] = "ISO date (YYYY-MM-DD)." },
+                    ["templateName"] = new JsonObject { ["type"] = "string", ["description"] = "Name of an existing project template to seed columns/task types/settings from. Must match one of this org's templates exactly. Omit for the default columns." },
+                    ["includeSetupTasks"] = new JsonObject { ["type"] = "boolean", ["description"] = "Whether to add the fixed project-setup checklist (verify columns, review App Settings, confirm team members). Default true." },
+                    ["tasks"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["description"] = "Domain-specific starter tasks to create in the new project, drafted by you from the project's description. Omit or leave empty if none apply.",
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["properties"] = new JsonObject
+                            {
+                                ["title"] = new JsonObject { ["type"] = "string" },
+                                ["description"] = new JsonObject { ["type"] = "string" },
+                                ["priority"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray { "trivial", "low", "medium", "high", "critical" } }
+                            },
+                            ["required"] = new JsonArray { "title" }
+                        }
+                    }
+                },
+                ["required"] = new JsonArray { "name" }
             }
         }
     };

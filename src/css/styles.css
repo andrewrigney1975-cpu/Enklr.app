@@ -1424,6 +1424,16 @@
     background: var(--kf-success-bg, #e3fcef);
     color: var(--kf-success, #00875a);
   }
+  button.kf-ai-assistant-action-btn {
+    border: none;
+    font-family: inherit;
+    cursor: pointer;
+    background: var(--kf-primary-bg, #deebff);
+    color: var(--kf-primary, #0052cc);
+  }
+  button.kf-ai-assistant-action-btn:hover {
+    filter: brightness(0.95);
+  }
   .kf-ai-assistant-compose {
     display: flex;
     align-items: flex-end;
