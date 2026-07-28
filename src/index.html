@@ -2200,30 +2200,6 @@
             </div>
           </div>
 
-          <div class="kf-settings-category hidden" id="appSettingsEnterpriseCategory">
-            <div class="kf-settings-category-header">
-              <span class="kf-icon" data-icon="lock" data-size="20"></span>
-              <span>Enterprise</span>
-            </div>
-            <div class="kf-settings-category-body">
-              <div class="kf-setting-row kf-setting-row-static">
-                <span class="kf-icon kf-setting-row-icon" data-icon="lock" data-size="16"></span>
-                <span class="kf-setting-row-text">
-                  <span class="kf-setting-row-title">Authentication and Provisioning</span>
-                  <span class="kf-setting-row-desc">Available only to Enterprise customers. Enables SAML authentication and SCIM integration, so access and user/group setup can be managed automatically from your enterprise identity platform.</span>
-                  <button type="button" class="kf-btn kf-btn-secondary" id="appSettingsSsoConfigBtn" style="margin-top:8px;">Configure SSO &amp; Provisioning</button>
-                </span>
-              </div>
-              <label class="kf-setting-row">
-                <input type="checkbox" id="settingsShowFormsBtn">
-                <span class="kf-icon kf-setting-row-icon" data-icon="ty_document" data-size="16"></span>
-                <span class="kf-setting-row-text">
-                  <span class="kf-setting-row-title">Forms &amp; Workflow</span>
-                  <span class="kf-setting-row-desc">Enterprise forms with typed fields and a versioned approval workflow — who can submit, who must approve. Authored centrally by Org Admins; once switched on, any project member can fill one out.</span>
-                </span>
-              </label>
-            </div>
-          </div>
         </div>
 
         <div class="kf-settings-column">
@@ -2300,6 +2276,31 @@
               </label>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="kf-settings-category kf-settings-category-full hidden" id="appSettingsEnterpriseCategory">
+        <div class="kf-settings-category-header">
+          <span class="kf-icon" data-icon="lock" data-size="20"></span>
+          <span>Enterprise</span>
+        </div>
+        <div class="kf-settings-category-body kf-settings-category-body-2col">
+          <div class="kf-setting-row kf-setting-row-static">
+            <span class="kf-icon kf-setting-row-icon" data-icon="lock" data-size="16"></span>
+            <span class="kf-setting-row-text">
+              <span class="kf-setting-row-title">Authentication and Provisioning</span>
+              <span class="kf-setting-row-desc">Available only to Enterprise customers. Enables SAML authentication and SCIM integration, so access and user/group setup can be managed automatically from your enterprise identity platform.</span>
+              <button type="button" class="kf-btn kf-btn-secondary" id="appSettingsSsoConfigBtn" style="margin-top:8px;">Configure SSO &amp; Provisioning</button>
+            </span>
+          </div>
+          <label class="kf-setting-row">
+            <input type="checkbox" id="settingsShowFormsBtn">
+            <span class="kf-icon kf-setting-row-icon" data-icon="ty_document" data-size="16"></span>
+            <span class="kf-setting-row-text">
+              <span class="kf-setting-row-title">Forms &amp; Workflow</span>
+              <span class="kf-setting-row-desc">Enterprise forms with typed fields and a versioned approval workflow — who can submit, who must approve. Authored centrally by Org Admins; once switched on, any project member can fill one out.</span>
+            </span>
+          </label>
         </div>
       </div>
     </div>
