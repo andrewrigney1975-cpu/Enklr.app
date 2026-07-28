@@ -558,7 +558,7 @@ export function renderColumn(project, col){
   header.draggable = canManage;
   header.innerHTML =
     iconHTML('grip',14) +
-    '<span class="kf-column-name' + (col.done ? ' done' : '') + '">' + escapeHTML(col.name) + '</span>' +
+    '<span class="kf-column-name' + (col.done ? ' done' : '') + (col.isBlocked ? ' is-blocked-col' : '') + '">' + escapeHTML(col.name) + '</span>' +
     '<span class="kf-count-badge">' + escapeHTML(countBadgeText) + '</span>';
 
   if(canManage){
@@ -638,6 +638,28 @@ export function renderColumn(project, col){
     visibleCount++;
     tasksWrap.appendChild(renderCard(project, t));
   });
+
+  /* A "Blocked" column (col.isBlocked) acts as a normal column — real tasks can be dropped into it
+     via the drop handler below just like any other — but it additionally renders a non-draggable
+     ghost clone of every OTHER task in the project currently blocked by an unfinished dependency
+     (see utils.js's isTaskBlocked). Ghost cards are purely presentational: never written into
+     col.order or any task's columnId, so deleteColumn's cascade (which only ever touches col.order)
+     can't reach them, and they don't affect WIP-cap counting above (activeTaskCount reads col.order
+     only). draggable=false is enough on its own to stop the browser ever firing dragstart on one —
+     renderCard's own dragstart listener stays harmlessly attached but unreachable. */
+  if(col.isBlocked){
+    getTasksArray(project).forEach(function(t){
+      if(t.archived) return;
+      if(t.columnId === col.id) return;
+      if(!isTaskBlocked(project, t)) return;
+      if(!taskMatchesFilters(t)) return;
+      var ghost = renderCard(project, t);
+      ghost.classList.add('kf-ghost-card');
+      ghost.draggable = false;
+      tasksWrap.appendChild(ghost);
+    });
+  }
+
   /* Appended into tasksWrap itself (absolutely positioned, see CSS)
      rather than as a sibling before it — a sibling would push
      tasksWrap's own box down when shown, moving it out from under the

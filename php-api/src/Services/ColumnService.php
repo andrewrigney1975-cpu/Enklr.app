@@ -23,9 +23,10 @@ final class ColumnService
         $id = Uuid::v4();
         $done = (bool) ($request['done'] ?? false);
         $colorBackground = (bool) ($request['colorBackground'] ?? true);
+        $isBlocked = (bool) ($request['isBlocked'] ?? false);
         $stmt = $this->db->prepare(<<<SQL
-            INSERT INTO "Columns" ("Id", "ProjectId", "Name", "Done", "Color", "ColorBackground", "Order")
-            VALUES (:id, :pid, :name, :done, :color, :colorBackground, :order)
+            INSERT INTO "Columns" ("Id", "ProjectId", "Name", "Done", "Color", "ColorBackground", "Order", "IsBlocked")
+            VALUES (:id, :pid, :name, :done, :color, :colorBackground, :order, :isBlocked)
         SQL);
         // PDO's array-form execute() binds every value as PDO::PARAM_STR, and PHP's (string) cast of
         // false is '' — which Postgres's boolean parser rejects (it needs '0'/'1'/'true'/'false'), so
@@ -33,9 +34,10 @@ final class ColumnService
         $stmt->execute([
             'id' => $id, 'pid' => $projectId, 'name' => $request['name'] ?? '',
             'done' => (int) $done, 'color' => $request['color'] ?? null, 'colorBackground' => (int) $colorBackground, 'order' => $nextOrder,
+            'isBlocked' => (int) $isBlocked,
         ]);
 
-        return ['id' => $id, 'name' => $request['name'] ?? '', 'done' => $done, 'color' => $request['color'] ?? null, 'colorBackground' => $colorBackground, 'order' => $nextOrder, 'cap' => -1];
+        return ['id' => $id, 'name' => $request['name'] ?? '', 'done' => $done, 'color' => $request['color'] ?? null, 'colorBackground' => $colorBackground, 'order' => $nextOrder, 'cap' => -1, 'isBlocked' => $isBlocked];
     }
 
     public function update(string $projectId, string $columnId, array $request): ?array
@@ -48,19 +50,21 @@ final class ColumnService
 
         $done = (bool) ($request['done'] ?? false);
         $colorBackground = (bool) ($request['colorBackground'] ?? true);
+        $isBlocked = (bool) ($request['isBlocked'] ?? false);
         // -1 means uncapped; anything <1 (0, other negatives) normalizes back to -1 rather than
         // being rejected — there's no such thing as a column that holds zero tasks — matching
         // clampColumnCap's client-side twin (storage.js).
         $requestedCap = (int) ($request['cap'] ?? -1);
         $cap = $requestedCap < 1 ? -1 : $requestedCap;
 
-        $stmt = $this->db->prepare('UPDATE "Columns" SET "Name" = :name, "Done" = :done, "Color" = :color, "ColorBackground" = :colorBackground, "Order" = :order, "Cap" = :cap WHERE "Id" = :id');
+        $stmt = $this->db->prepare('UPDATE "Columns" SET "Name" = :name, "Done" = :done, "Color" = :color, "ColorBackground" = :colorBackground, "Order" = :order, "Cap" = :cap, "IsBlocked" = :isBlocked WHERE "Id" = :id');
         $stmt->execute([
             'name' => $request['name'] ?? '', 'done' => (int) $done,
             'color' => $request['color'] ?? null, 'colorBackground' => (int) $colorBackground, 'order' => (int) ($request['order'] ?? 0), 'cap' => $cap, 'id' => $columnId,
+            'isBlocked' => (int) $isBlocked,
         ]);
 
-        return ['id' => $columnId, 'name' => $request['name'] ?? '', 'done' => $done, 'color' => $request['color'] ?? null, 'colorBackground' => $colorBackground, 'order' => (int) ($request['order'] ?? 0), 'cap' => $cap];
+        return ['id' => $columnId, 'name' => $request['name'] ?? '', 'done' => $done, 'color' => $request['color'] ?? null, 'colorBackground' => $colorBackground, 'order' => (int) ($request['order'] ?? 0), 'cap' => $cap, 'isBlocked' => $isBlocked];
     }
 
     // ARCHITECTURE-REVIEW.md finding 3.1: unlink ParentTaskId -> delete TaskDependencies -> delete

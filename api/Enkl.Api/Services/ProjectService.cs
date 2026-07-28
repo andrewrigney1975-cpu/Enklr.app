@@ -76,7 +76,7 @@ public class ProjectService
         return new ProjectDetailDto(
             project.Id, project.Name, project.Key, project.OrganisationId,
             project.Members.Select(m => new MemberDto(m.Id, m.UserId, m.User.DisplayName, m.User.EmailAddress, m.Color, m.Role, m.AllocatedFraction, m.ReportsToId, m.IsProjectAdmin, m.User.IsActive)).ToList(),
-            project.Columns.OrderBy(c => c.Order).Select(c => new ColumnDto(c.Id, c.Name, c.Done, c.Color, c.ColorBackground, c.Order, c.Cap)).ToList(),
+            project.Columns.OrderBy(c => c.Order).Select(c => new ColumnDto(c.Id, c.Name, c.Done, c.Color, c.ColorBackground, c.Order, c.Cap, c.IsBlocked)).ToList(),
             // LocalDelete rows are deliberately excluded here, never re-synced to any browser once
             // set — see TaskItem.LocalDelete's own doc comment. The row itself stays in the DB.
             project.Tasks.Where(t => !t.LocalDelete).Select(ToTaskDto).ToList(),
@@ -161,7 +161,7 @@ public class ProjectService
             {
                 var newId = Guid.NewGuid();
                 idMap[col.Id] = newId;
-                _db.Columns.Add(new Column { Id = newId, ProjectId = project.Id, Name = col.Name, Done = col.Done, Color = col.Color, ColorBackground = col.ColorBackground, Order = col.Order, Cap = col.Cap });
+                _db.Columns.Add(new Column { Id = newId, ProjectId = project.Id, Name = col.Name, Done = col.Done, Color = col.Color, ColorBackground = col.ColorBackground, Order = col.Order, Cap = col.Cap, IsBlocked = col.IsBlocked });
             }
             foreach (var tt in templateTaskTypes)
             {

@@ -21,6 +21,7 @@ export function openColumnModal(columnId){
   document.getElementById('columnModalTitle').textContent = col ? 'Edit column' : 'New column';
   document.getElementById('columnNameInput').value = col ? col.name : '';
   document.getElementById('columnDoneCheckbox').checked = col ? col.done : false;
+  document.getElementById('columnIsBlockedCheckbox').checked = col ? !!col.isBlocked : false;
   document.getElementById('columnColorEnabledCheckbox').checked = !!(col && col.color);
   document.getElementById('columnColorInput').value = (col && col.color) || '#4f46e5';
   document.getElementById('columnColorInput').disabled = !(col && col.color);
@@ -40,6 +41,7 @@ export async function saveColumnFromModal(){
   var name = document.getElementById('columnNameInput').value.trim();
   if(!name){ toast('Please enter a column name.'); return; }
   var done = document.getElementById('columnDoneCheckbox').checked;
+  var isBlocked = document.getElementById('columnIsBlockedCheckbox').checked;
   var colorEnabled = document.getElementById('columnColorEnabledCheckbox').checked;
   var color = colorEnabled ? document.getElementById('columnColorInput').value : null;
   var colorBackground = document.getElementById('columnColorBackgroundCheckbox').checked;
@@ -50,9 +52,9 @@ export async function saveColumnFromModal(){
       if(editingId){
         var order = project.columns.findIndex(function(c){ return c.id === editingId; });
         var existingCol = getColumn(project, editingId);
-        await updateColumnApi(project.serverProjectId, editingId, name, done, color, colorBackground, order, existingCol ? existingCol.cap : -1);
+        await updateColumnApi(project.serverProjectId, editingId, name, done, color, colorBackground, order, existingCol ? existingCol.cap : -1, isBlocked);
       } else {
-        await addColumnApi(project.serverProjectId, name, done, color, colorBackground);
+        await addColumnApi(project.serverProjectId, name, done, color, colorBackground, isBlocked);
       }
       await refreshProjectFromServer(project.id);
       closeColumnModal();
@@ -65,10 +67,10 @@ export async function saveColumnFromModal(){
   }
 
   if(editingId){
-    updateColumn(project, editingId, name, done, color, colorBackground);
+    updateColumn(project, editingId, name, done, color, colorBackground, isBlocked);
     toast('Column updated.');
   } else {
-    addColumn(project, name, done, color, colorBackground);
+    addColumn(project, name, done, color, colorBackground, isBlocked);
     toast('Column added.');
   }
   closeColumnModal();

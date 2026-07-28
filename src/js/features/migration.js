@@ -250,7 +250,7 @@ export async function reorderColumnsOnServer(project, draggedId, targetId){
   columns.splice(toIdx, 0, moved);
   for(var i = 0; i < columns.length; i++){
     var c = columns[i];
-    await updateColumnApi(project.serverProjectId, c.id, c.name, c.done, c.color, c.colorBackground, i, c.cap);
+    await updateColumnApi(project.serverProjectId, c.id, c.name, c.done, c.color, c.colorBackground, i, c.cap, c.isBlocked);
   }
   return refreshProjectFromServer(project.id);
 }
@@ -478,7 +478,7 @@ function buildLocalProjectFromServerDetail(detail, existingLocal){
 
   var columnsById = {};
   var columns = detail.columns.slice().sort(function(a, b){ return a.order - b.order; }).map(function(c){
-    var col = {id: c.id, name: c.name, done: c.done, color: c.color || null, colorBackground: c.colorBackground !== false, order: [], cap: c.cap != null ? c.cap : -1};
+    var col = {id: c.id, name: c.name, done: c.done, color: c.color || null, colorBackground: c.colorBackground !== false, order: [], cap: c.cap != null ? c.cap : -1, isBlocked: !!c.isBlocked};
     columnsById[c.id] = col;
     return col;
   });

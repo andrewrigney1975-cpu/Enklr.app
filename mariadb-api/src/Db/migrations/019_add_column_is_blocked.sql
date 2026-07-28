@@ -1,0 +1,1 @@
+ALTER TABLE "Columns" ADD COLUMN "IsBlocked" BOOLEAN NOT NULL DEFAULT false;

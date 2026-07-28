@@ -2091,6 +2091,21 @@
     margin-right: 6px;
   }
 
+  .kf-column-name.is-blocked-col::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #de350b;
+    margin-right: 6px;
+  }
+
+  .kf-ghost-card {
+    opacity: 0.55;
+    cursor: default;
+  }
+
   .kf-count-badge {
     background: var(--kf-border);
     color: var(--kf-text-secondary);

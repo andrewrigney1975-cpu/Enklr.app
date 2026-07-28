@@ -543,6 +543,10 @@
         <label for="columnDoneCheckbox" style="text-transform:none;font-weight:500;">Mark tasks in this column as "Done" (for dependency blocking)</label>
       </div>
       <div class="kf-checkbox-row">
+        <input type="checkbox" id="columnIsBlockedCheckbox">
+        <label for="columnIsBlockedCheckbox" style="text-transform:none;font-weight:500;">Mark as a "Blocked" column <span style="font-weight:400;color:var(--kf-text-faint);">(also shows a ghost card for any task blocked by an unfinished dependency)</span></label>
+      </div>
+      <div class="kf-checkbox-row">
         <input type="checkbox" id="columnColorEnabledCheckbox">
         <label for="columnColorEnabledCheckbox" style="text-transform:none;font-weight:500;">Colour <span style="font-weight:400;color:var(--kf-text-faint);">(top border)</span></label>
         <input type="color" class="kf-color-input" id="columnColorInput" value="#4f46e5" disabled>

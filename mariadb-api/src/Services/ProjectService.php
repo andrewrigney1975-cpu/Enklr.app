@@ -171,7 +171,7 @@ final class ProjectService
             // orphaning itself the way a verbatim WorkflowJson copy would (see remapWorkflowColumnIds).
             $idMap = [];
             $colStmt = $this->db->prepare(
-                'INSERT INTO "Columns" ("Id", "ProjectId", "Name", "Done", "Color", "ColorBackground", "Order", "Cap") VALUES (:id, :pid, :name, :done, :color, :colorBackground, :order, :cap)'
+                'INSERT INTO "Columns" ("Id", "ProjectId", "Name", "Done", "Color", "ColorBackground", "Order", "Cap", "IsBlocked") VALUES (:id, :pid, :name, :done, :color, :colorBackground, :order, :cap, :isBlocked)'
             );
             foreach ($templateColumns as $col) {
                 $newId = Uuid::v4();
@@ -181,7 +181,7 @@ final class ProjectService
                     'id' => $newId, 'pid' => $projectId, 'name' => $col['name'],
                     'done' => (int) $col['done'], 'color' => $col['color'] ?? null,
                     'colorBackground' => (int) (bool) ($col['colorBackground'] ?? true), 'order' => $col['order'],
-                    'cap' => $col['cap'] ?? -1,
+                    'cap' => $col['cap'] ?? -1, 'isBlocked' => (int) (bool) ($col['isBlocked'] ?? false),
                 ]);
             }
 
@@ -502,7 +502,7 @@ final class ProjectService
         return array_map(static fn(array $c): array => [
             'id' => $c['Id'], 'name' => $c['Name'], 'done' => (bool) $c['Done'], 'color' => $c['Color'],
             'colorBackground' => (bool) ($c['ColorBackground'] ?? true), 'order' => (int) $c['Order'],
-            'cap' => (int) ($c['Cap'] ?? -1),
+            'cap' => (int) ($c['Cap'] ?? -1), 'isBlocked' => (bool) ($c['IsBlocked'] ?? false),
         ], $stmt->fetchAll());
     }
 

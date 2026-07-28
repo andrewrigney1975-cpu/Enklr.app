@@ -392,6 +392,7 @@ export function migrateDB(){
     p.columns.forEach(function(c){
       if(c.color === undefined){ c.color = null; changed = true; }
       if(c.colorBackground === undefined){ c.colorBackground = true; changed = true; }
+      if(c.isBlocked === undefined){ c.isBlocked = false; changed = true; }
     });
 
     var validMemberIds = {};
@@ -642,9 +643,9 @@ export function clampColumnCap(value){
   return n;
 }
 
-export function makeColumn(name, done, color, cap, colorBackground){
+export function makeColumn(name, done, color, cap, colorBackground, isBlocked){
   var validColor = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : null;
-  return {id: uid('col'), name: name, done: !!done, order: [], color: validColor, colorBackground: colorBackground !== false, cap: clampColumnCap(cap)};
+  return {id: uid('col'), name: name, done: !!done, order: [], color: validColor, colorBackground: colorBackground !== false, cap: clampColumnCap(cap), isBlocked: !!isBlocked};
 }
 
 export function defaultTaskTypes(){
@@ -851,7 +852,7 @@ export function createSeedDB(){
    views/workflow-editor.js) can never reach back into an already-saved template. */
 export function buildTemplateSnapshotFromProject(project){
   return {
-    columns: project.columns.map(function(c, i){ return {id: c.id, name: c.name, done: !!c.done, color: c.color || null, colorBackground: c.colorBackground !== false, order: i, cap: c.cap != null ? c.cap : -1}; }),
+    columns: project.columns.map(function(c, i){ return {id: c.id, name: c.name, done: !!c.done, color: c.color || null, colorBackground: c.colorBackground !== false, order: i, cap: c.cap != null ? c.cap : -1, isBlocked: !!c.isBlocked}; }),
     taskTypes: project.taskTypes.map(function(tt){ return {name: tt.name, iconName: tt.iconName || null}; }),
     workflow: project.workflow ? JSON.parse(JSON.stringify(project.workflow)) : null,
     settings: normalizeHeaderButtonVisibility(project.headerButtonVisibility)
@@ -875,7 +876,7 @@ export function createProjectFromTemplate(name, key, template){
     var newId = uid('col');
     idMap[c.id] = newId;
     var validColor = typeof c.color === 'string' && /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : null;
-    return {id: newId, name: c.name, done: !!c.done, color: validColor, order: [], cap: clampColumnCap(c.cap)};
+    return {id: newId, name: c.name, done: !!c.done, color: validColor, order: [], cap: clampColumnCap(c.cap), isBlocked: !!c.isBlocked};
   });
 
   project.taskTypes = (template.taskTypes || []).map(function(tt){

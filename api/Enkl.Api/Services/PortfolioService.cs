@@ -118,7 +118,7 @@ public class PortfolioService
 
         var columns = await _db.Columns
             .Where(c => validProjectIds.Contains(c.ProjectId))
-            .Select(c => new ColumnDto(c.Id, c.Name, c.Done, c.Color, c.ColorBackground, c.Order, c.Cap))
+            .Select(c => new ColumnDto(c.Id, c.Name, c.Done, c.Color, c.ColorBackground, c.Order, c.Cap, c.IsBlocked))
             .ToListAsync();
 
         // Materialize entities first, then map in-memory (ProjectService.ToTaskDto isn't EF

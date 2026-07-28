@@ -1190,19 +1190,20 @@ export function buildTeamCommitteeTree(project){
 /* =========================================================
    COLUMNS
    ========================================================= */
-export function addColumn(project, name, done, color, colorBackground){
-  var col = makeColumn(name, done, color, undefined, colorBackground);
+export function addColumn(project, name, done, color, colorBackground, isBlocked){
+  var col = makeColumn(name, done, color, undefined, colorBackground, isBlocked);
   project.columns.push(col);
   saveDB();
   return col;
 }
-export function updateColumn(project, columnId, name, done, color, colorBackground){
+export function updateColumn(project, columnId, name, done, color, colorBackground, isBlocked){
   var col = getColumn(project, columnId);
   if(!col) return;
   col.name = name;
   col.done = !!done;
   col.color = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : null;
   col.colorBackground = colorBackground !== false;
+  col.isBlocked = !!isBlocked;
   saveDB();
 }
 export function setColumnCap(project, columnId, cap){
