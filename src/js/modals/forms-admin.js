@@ -289,12 +289,28 @@ function wireOptionsEditor(){
       renderFieldTypeConfig();
     });
   });
+  document.querySelectorAll('[data-move-option-up]').forEach(function(btn){
+    btn.addEventListener('click', function(){ moveDraftOption(parseInt(btn.getAttribute('data-move-option-up'), 10), -1); });
+  });
+  document.querySelectorAll('[data-move-option-down]').forEach(function(btn){
+    btn.addEventListener('click', function(){ moveDraftOption(parseInt(btn.getAttribute('data-move-option-down'), 10), 1); });
+  });
   document.querySelectorAll('.kf-form-option-input').forEach(function(input){
     input.addEventListener('input', function(){
       var idx = parseInt(input.getAttribute('data-option-index'), 10);
       editingFieldDraft.options[idx].label = input.value;
     });
   });
+}
+
+function moveDraftOption(idx, direction){
+  var options = editingFieldDraft.options;
+  var otherIdx = idx + direction;
+  if(otherIdx < 0 || otherIdx >= options.length) return;
+  var tmp = options[idx];
+  options[idx] = options[otherIdx];
+  options[otherIdx] = tmp;
+  renderFieldTypeConfig();
 }
 
 export function saveFieldEditor(){

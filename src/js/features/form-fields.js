@@ -1,6 +1,7 @@
 "use strict";
 import { escapeHTML } from '../views/board.js';
 import { uid } from '../storage.js';
+import { iconSvg } from '../icons.js';
 
 /* Pure per-field-type helpers for the Enterprise Forms field builder (modals/forms-admin.js) — no
    DOM/API/state here, same "pure renderer" role features/dashboard-widgets.js plays for Dashboard
@@ -73,9 +74,12 @@ export function fieldSummary(field){
    row list, same "no drag reordering, just explicit controls" idiom as the rest of this app's small
    editors (Dashboard's own widget-order list uses up/down buttons, not drag, for the same reason). */
 function renderOptionsEditorHTML(options){
-  var rows = (options || []).map(function(o, i){
+  var list = options || [];
+  var rows = list.map(function(o, i){
     return '<div class="kf-form-option-row" data-option-id="' + escapeHTML(o.id) + '">' +
       '<input type="text" class="kf-form-option-input" value="' + escapeHTML(o.label) + '" placeholder="Option label" data-option-index="' + i + '">' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-option-up="' + i + '" title="Move up"' + (i === 0 ? ' disabled' : '') + '><span class="kf-icon" style="transform:rotate(90deg);">' + iconSvg('chevronLeft', 12) + '</span></button>' +
+      '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-option-down="' + i + '" title="Move down"' + (i === list.length - 1 ? ' disabled' : '') + '><span class="kf-icon" style="transform:rotate(-90deg);">' + iconSvg('chevronLeft', 12) + '</span></button>' +
       '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-remove-option="' + i + '" title="Remove option">&times;</button>' +
     '</div>';
   }).join('');
