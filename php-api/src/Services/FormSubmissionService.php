@@ -139,7 +139,7 @@ final class FormSubmissionService
      * convention for a validated-failure (vs. a genuine exception) elsewhere in this codebase. */
     public function submit(string $projectId, string $callerUserId, bool $callerIsOrgAdmin, string $submissionId): array
     {
-        $stmt = $this->db->prepare('SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson" FROM "FormSubmissions" s JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."Id" = :id AND s."ProjectId" = :pid AND s."SubmittedByUserId" = :uid');
+        $stmt = $this->db->prepare('SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName" FROM "FormSubmissions" s JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."Id" = :id AND s."ProjectId" = :pid AND s."SubmittedByUserId" = :uid');
         $stmt->execute(['id' => $submissionId, 'pid' => $projectId, 'uid' => $callerUserId]);
         $row = $stmt->fetch();
         if ($row === false) {
@@ -176,7 +176,10 @@ final class FormSubmissionService
         $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateSubmitted" = now(), "DateLastModified" = now() WHERE "Id" = :id');
         $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
 
-        return ['ok' => true, 'error' => '', 'dto' => $this->get($projectId, $submissionId)];
+        return [
+            'ok' => true, 'error' => '', 'dto' => $this->get($projectId, $submissionId),
+            'notifyUserIds' => self::resolveNotifyTargets($nextNode, $trail), 'formName' => $row['FormName'],
+        ];
     }
 
     /** Approve/Reject at the submission's own CurrentNodeId — see FormSubmissionService.cs's
@@ -189,7 +192,7 @@ final class FormSubmissionService
             return ['ok' => false, 'error' => 'Unknown action.', 'dto' => null];
         }
 
-        $stmt = $this->db->prepare('SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson" FROM "FormSubmissions" s JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."Id" = :id AND s."ProjectId" = :pid');
+        $stmt = $this->db->prepare('SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName" FROM "FormSubmissions" s JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."Id" = :id AND s."ProjectId" = :pid');
         $stmt->execute(['id' => $submissionId, 'pid' => $projectId]);
         $row = $stmt->fetch();
         if ($row === false) {
@@ -220,20 +223,60 @@ final class FormSubmissionService
 
         $status = $row['Status'];
         $currentNodeId = $row['CurrentNodeId'];
+        $notifyNode = $node;
         if ($action === 'reject') {
             $status = 'rejected';
         } elseif (self::isApprovalComplete($node, $trail)) {
             $edge = self::outgoingEdge($graph, $node['id']);
             $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
             [$status, $currentNodeId] = self::nextNodeState($nextNode);
+            $notifyNode = $nextNode;
         }
+        // else: quorum not yet complete — Status/CurrentNodeId unchanged, and resolveNotifyTargets
+        // below re-checks the SAME node — its own ALL-mode branch is what notices the remaining-
+        // approver count just dropped to one.
 
         $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateLastModified" = now() WHERE "Id" = :id');
         $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
 
         $stmt2 = $this->db->prepare('SELECT * FROM "FormSubmissions" WHERE "Id" = :id');
         $stmt2->execute(['id' => $submissionId]);
-        return ['ok' => true, 'error' => '', 'dto' => self::toDto($stmt2->fetch())];
+        return [
+            'ok' => true, 'error' => '', 'dto' => self::toDto($stmt2->fetch()),
+            'notifyUserIds' => $action === 'approve' ? self::resolveNotifyTargets($notifyNode, $trail) : [],
+            'formName' => $row['FormName'],
+        ];
+    }
+
+    /** Phase 6's deliberately narrow SSE-push scope — see FormSubmissionService.cs's own
+     * NotifyIfNamedApproverNeeded doc comment for the full reasoning (mirrored here exactly). Only
+     * decides WHO to notify; the controller (this tier's own broadcast-ownership convention, see
+     * Controllers/TasksController.php) is what actually calls Broadcaster.
+     * @return string[] */
+    private static function resolveNotifyTargets(?array $node, array $trail): array
+    {
+        if ($node === null || ($node['type'] ?? null) !== 'approval') {
+            return [];
+        }
+        if (($node['approvalMode'] ?? null) === 'all') {
+            $satisfied = [];
+            foreach ($trail as $e) {
+                if (($e['nodeId'] ?? null) === $node['id'] && ($e['action'] ?? null) === 'approved') {
+                    foreach (($e['satisfiedGateKeys'] ?? []) as $k) {
+                        $satisfied[$k] = true;
+                    }
+                }
+            }
+            $remaining = array_values(array_filter($node['approverGates'] ?? [], fn(array $g) => !isset($satisfied[self::gateKey($g)])));
+            if (count($remaining) === 1 && ($remaining[0]['kind'] ?? null) === 'namedUser') {
+                return [(string) $remaining[0]['value']];
+            }
+            return [];
+        }
+        return array_values(array_map(
+            fn(array $g) => (string) $g['value'],
+            array_filter($node['approverGates'] ?? [], fn(array $g) => ($g['kind'] ?? null) === 'namedUser')
+        ));
     }
 
     // ---- Workflow graph helpers — mirror features/form-workflow-engine.js's own shape exactly ----

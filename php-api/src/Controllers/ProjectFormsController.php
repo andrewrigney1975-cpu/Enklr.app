@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Enkl\Api\Controllers;
 
 use Enkl\Api\Db\Database;
+use Enkl\Api\Realtime\Broadcaster;
 use Enkl\Api\Services\FormService;
 use Enkl\Api\Services\FormSubmissionService;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -74,6 +75,7 @@ final class ProjectFormsController extends BaseController
         if (!$result['ok']) {
             return $result['error'] === 'not_found' ? $this->notFound($response) : $this->json($response, ['message' => $result['error']], 400);
         }
+        $this->notifyFormAction($result, $args['projectId']);
         return $this->json($response, $result['dto']);
     }
 
@@ -87,6 +89,22 @@ final class ProjectFormsController extends BaseController
         if (!$result['ok']) {
             return $result['error'] === 'not_found' ? $this->notFound($response) : $this->json($response, ['message' => $result['error']], 400);
         }
+        $this->notifyFormAction($result, $args['projectId']);
         return $this->json($response, $result['dto']);
+    }
+
+    /** Broadcast ownership stays at the controller level (this tier's own convention — see
+     * Controllers/TasksController.php); the service only decides WHO (FormSubmissionService's own
+     * resolveNotifyTargets), never touches the Broadcaster itself. */
+    private function notifyFormAction(array $result, string $projectId): void
+    {
+        $userIds = $result['notifyUserIds'] ?? [];
+        if (count($userIds) === 0) {
+            return;
+        }
+        $broadcaster = new Broadcaster(Database::connection());
+        foreach ($userIds as $userId) {
+            $broadcaster->broadcastFormActionRequired($userId, $projectId, $result['dto']['id'], $result['formName'] ?? '');
+        }
     }
 }

@@ -25,3 +25,10 @@ public record ChatMessageEventDto(
 /// — Reactions is the message's full, recomputed reaction summary (not a delta), so a recipient just
 /// replaces whatever it had cached for MessageId.</summary>
 public record ChatReactionEventDto(Guid ChannelId, Guid MessageId, List<ChatReactionSummaryDto> Reactions);
+
+/// <summary>Pushed over the SSE stream to a single named user whenever a Form submission's own
+/// workflow advances to an Approval node that gates them BY NAME — see FormSubmissionService's own
+/// notification helper for the deliberately narrow v1 scope (a plain userType gate has no single
+/// "specific person" to target, so it never fires this).</summary>
+public record FormActionRequiredEventDto(
+    Guid ProjectId, Guid SubmissionId, string FormName, DateTime Timestamp);

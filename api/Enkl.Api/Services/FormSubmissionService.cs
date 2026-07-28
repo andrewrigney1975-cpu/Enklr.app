@@ -17,6 +17,7 @@ namespace Enkl.Api.Services;
 public class FormSubmissionService
 {
     private readonly AppDbContext _db;
+    private readonly SseBroadcaster _broadcaster;
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     /// <summary>Every other JSON blob this feature touches (FieldsJson, WorkflowJson) is
@@ -29,9 +30,10 @@ public class FormSubmissionService
     /// rendered blank) rather than by reasoning about it.</summary>
     private static readonly JsonSerializerOptions JsonWriteOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public FormSubmissionService(AppDbContext db)
+    public FormSubmissionService(AppDbContext db, SseBroadcaster broadcaster)
     {
         _db = db;
+        _broadcaster = broadcaster;
     }
 
     // ---- Workflow graph model — mirrors features/form-workflow-engine.js's own shape exactly ----
@@ -251,6 +253,7 @@ public class FormSubmissionService
         ApplyNextNode(submission, nextNode);
 
         await _db.SaveChangesAsync();
+        NotifyIfNamedApproverNeeded(submission, nextNode, trail);
         return (true, "", ToDto(submission));
     }
 
@@ -287,6 +290,7 @@ public class FormSubmissionService
         submission.ApprovalTrailJson = JsonSerializer.Serialize(trail, JsonWriteOpts);
         submission.DateLastModified = DateTime.UtcNow;
 
+        WfNode? nextNode = null;
         if (action == "reject")
         {
             submission.Status = "rejected";
@@ -294,12 +298,15 @@ public class FormSubmissionService
         else if (IsApprovalComplete(node, trail))
         {
             var edge = OutgoingEdge(graph, node.Id);
-            var nextNode = edge is null ? null : FindNode(graph, edge.ToNodeId);
+            nextNode = edge is null ? null : FindNode(graph, edge.ToNodeId);
             ApplyNextNode(submission, nextNode);
         }
-        // else: quorum not yet complete — Status stays 'inProgress', CurrentNodeId unchanged.
+        // else: quorum not yet complete — Status stays 'inProgress', CurrentNodeId unchanged, and
+        // NotifyIfNamedApproverNeeded below re-checks the SAME node (not nextNode) — its own
+        // ALL-mode branch is what notices the remaining-approver count just dropped to one.
 
         await _db.SaveChangesAsync();
+        if (action == "approve") NotifyIfNamedApproverNeeded(submission, nextNode ?? node, trail);
         return (true, "", ToDto(submission));
     }
 
@@ -308,6 +315,38 @@ public class FormSubmissionService
         if (nextNode is null) { submission.Status = "submitted"; submission.CurrentNodeId = null; }
         else if (nextNode.Type == "end") { submission.Status = "approved"; submission.CurrentNodeId = nextNode.Id; }
         else { submission.Status = "inProgress"; submission.CurrentNodeId = nextNode.Id; }
+    }
+
+    /// <summary>Phase 6's deliberately narrow SSE-push scope (see the approved plan's own "Deferred:
+    /// broadcast to every qualifying user-type member isn't in v1" note): a plain userType gate has
+    /// no single "specific person" to target, so this only ever fires for (a) a fresh ANY-mode node
+    /// with at least one namedUser gate — notify each of them, since any one of them can act right
+    /// now, or (b) an ALL-mode node where, after the trail update the caller just recorded, exactly
+    /// ONE required gate remains unsatisfied AND it's a namedUser gate — the one person now actually
+    /// able to complete it. Anyone else still finds their pending approvals via "Awaiting My Action"
+    /// (Phase 5), not a push.</summary>
+    private void NotifyIfNamedApproverNeeded(FormSubmission submission, WfNode? node, List<TrailEntry> trail)
+    {
+        if (node is null || node.Type != "approval") return;
+        List<Guid> targets;
+        if (node.ApprovalMode == "all")
+        {
+            var satisfied = new HashSet<string>(trail.Where(t => t.NodeId == node.Id && t.Action == "approved").SelectMany(e => e.SatisfiedGateKeys));
+            var remaining = (node.ApproverGates ?? new()).Where(g => !satisfied.Contains(GateKey(g))).ToList();
+            targets = remaining.Count == 1 && remaining[0].Kind == "namedUser" && Guid.TryParse(remaining[0].Value, out var soleId)
+                ? new List<Guid> { soleId } : new();
+        }
+        else
+        {
+            targets = (node.ApproverGates ?? new())
+                .Where(g => g.Kind == "namedUser")
+                .Select(g => Guid.TryParse(g.Value, out var id) ? id : (Guid?)null)
+                .Where(id => id.HasValue).Select(id => id!.Value).ToList();
+        }
+        if (targets.Count == 0) return;
+
+        var payload = new FormActionRequiredEventDto(submission.ProjectId, submission.Id, submission.FormVersion.Name, DateTime.UtcNow);
+        foreach (var userId in targets) _broadcaster.BroadcastFormActionRequired(userId, payload);
     }
 
     private static FormSubmissionListItemDto ToListItemDto(FormSubmission s)

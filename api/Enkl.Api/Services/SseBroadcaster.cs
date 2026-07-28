@@ -74,6 +74,14 @@ public class SseBroadcaster
         Broadcast("chat-reaction", channelMemberUserIds, payload, excludeClientSessionId);
     }
 
+    /// <summary>Notifies a single named user's every open connection (no excludeClientSessionId —
+    /// unlike the broadcasts above, the acting user and the notified user are always two different
+    /// people here, so there's no "own tab already knows" case to exclude).</summary>
+    public void BroadcastFormActionRequired(Guid targetUserId, FormActionRequiredEventDto payload)
+    {
+        Broadcast("form-action-required", new[] { targetUserId }, payload, null);
+    }
+
     private void Broadcast<T>(string eventName, IEnumerable<Guid> memberUserIds, T payload, string? excludeClientSessionId)
     {
         var frame = "event: " + eventName + "\ndata: " + JsonSerializer.Serialize(payload, JsonOptions) + "\n\n";

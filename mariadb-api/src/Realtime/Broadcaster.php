@@ -102,6 +102,23 @@ final class Broadcaster
         $this->insertEvent('chat_reaction', $payload);
     }
 
+    /** Single named-user target (memberUserIds is a one-element array) — no excludeClientSessionId,
+     * unlike every broadcast above: the acting approver/author and the notified user are always two
+     * different people here, so there's no "own tab already knows" case to exclude. */
+    public function broadcastFormActionRequired(string $targetUserId, string $projectId, string $submissionId, string $formName): void
+    {
+        $payload = json_encode([
+            'memberUserIds' => [$targetUserId],
+            'excludeClientSessionId' => null,
+            'event' => [
+                'projectId' => $projectId, 'submissionId' => $submissionId, 'formName' => $formName,
+                'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+            ],
+        ]);
+
+        $this->insertEvent('form_action_required', $payload);
+    }
+
     private function insertEvent(string $channel, string|false $payload): void
     {
         $stmt = $this->db->prepare('INSERT INTO "Events" ("Channel", "Payload") VALUES (:channel, :payload)');

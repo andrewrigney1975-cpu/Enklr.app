@@ -103,4 +103,22 @@ final class Broadcaster
         $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
         $stmt->execute(['channel' => 'chat_reaction', 'payload' => $payload]);
     }
+
+    /** Single named-user target (memberUserIds is a one-element array) — no excludeClientSessionId,
+     * unlike every broadcast above: the acting approver/author and the notified user are always two
+     * different people here, so there's no "own tab already knows" case to exclude. */
+    public function broadcastFormActionRequired(string $targetUserId, string $projectId, string $submissionId, string $formName): void
+    {
+        $payload = json_encode([
+            'memberUserIds' => [$targetUserId],
+            'excludeClientSessionId' => null,
+            'event' => [
+                'projectId' => $projectId, 'submissionId' => $submissionId, 'formName' => $formName,
+                'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+            ],
+        ]);
+
+        $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
+        $stmt->execute(['channel' => 'form_action_required', 'payload' => $payload]);
+    }
 }

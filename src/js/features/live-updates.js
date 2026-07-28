@@ -52,12 +52,28 @@ function handleTaskChangedEvent(payload){
   }
 }
 
+/* Enterprise Forms & Workflow, Phase 6 — pushed only to a single NAMED approver (see
+   SseBroadcaster.BroadcastFormActionRequired's own doc comment for the deliberately narrow v1
+   scope: a plain user-type gate has no one specific person to target). A pure informational
+   despatch, same as this file's own comment already anticipated — no click-through target yet,
+   since the fill-out UI (Phase 5) has no deep-link/hash-router entry point of its own; the user
+   opens the "Forms" nav button and finds it under Awaiting My Action same as any other pending
+   approval. */
+function handleFormActionRequiredEvent(payload){
+  pushDespatch({
+    icon: 'ty_document',
+    message: '"' + payload.formName + '" is awaiting your approval.'
+  });
+  toastWithAction('"' + payload.formName + '" is awaiting your approval.', null, null);
+}
+
 function dispatchEvent(eventName, data){
-  if(eventName !== 'task-changed' && eventName !== 'chat-message' && eventName !== 'chat-reaction') return;
+  if(eventName !== 'task-changed' && eventName !== 'chat-message' && eventName !== 'chat-reaction' && eventName !== 'form-action-required') return;
   try {
     if(eventName === 'task-changed') handleTaskChangedEvent(JSON.parse(data));
     else if(eventName === 'chat-message') handleChatMessageEvent(JSON.parse(data));
-    else handleChatReactionEvent(JSON.parse(data));
+    else if(eventName === 'chat-reaction') handleChatReactionEvent(JSON.parse(data));
+    else handleFormActionRequiredEvent(JSON.parse(data));
   } catch(e){ /* malformed event payload — ignore rather than break the stream */ }
 }
 
