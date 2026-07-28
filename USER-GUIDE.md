@@ -545,6 +545,14 @@ planning next week or Marcus checking what's landed on him today.
   decide whether it represents *done* work. Marking a column "Done" matters more than it looks: it's
   what the app checks before letting a dependent task move, so a blocked task can't sneak past a
   step it's actually waiting on.
+- **A "Blocked" column** — the same **+ Column** dialog has a second checkbox for this, independent of
+  "Done." Turning it on gets you a red dot next to the column's name (mirroring Done's green one) and,
+  more usefully, a live, read-only *ghost* copy of every task elsewhere on the board that's currently
+  blocked by an unfinished dependency — so a "what's actually stuck right now" view sits permanently on
+  your board instead of needing to be worked out card by card. The column still works normally
+  otherwise (you can drop real tasks into it, name it anything you like); only the ghost cards
+  themselves can't be dragged out, since they're not really "in" that column — deleting it never
+  touches the real tasks it was showing.
 - **Adding a task** — click into any column's add-task control. A minimal task needs only a title;
   everything else in [Section 3](#3-anatomy-of-a-task) is there when you need it, not before.
 - **Moving work** — drag a card between columns, or reorder cards within one column, the way you'd
@@ -807,6 +815,16 @@ unclear. A microphone button is there too, on browsers that support voice input.
   dates for a sub-task while asking always wins over this automatic scheduling. You can also ask it to
   link an *already-existing* task under a parent — that one leaves the task's own dates alone, since
   it isn't a fresh sub-task being scheduled for the first time.
+- **Standing up a whole new project** (Org Admins only): from any project's assistant, ask it to
+  create a new one — e.g. "start a new project for our Q3 website redesign." If you haven't described
+  what it's for yet, it'll ask; it uses that description to draft a handful of relevant starter tasks
+  itself, on top of a fixed setup checklist it always adds (double-check the board's columns, review
+  App Settings for any extended modules this project should have on, confirm the team member list is
+  current). Name an existing project template and it'll build from that instead of the plain default
+  columns; leave the project key unspecified and it'll derive a short one from the name itself rather
+  than asking, unless it collides with one you already have. If you haven't mentioned start/end dates,
+  it asks for them rather than guessing. Once it's done, a "Switch to it" button appears right in the
+  chat to take you straight there.
 - **Who can use it**: only on a server-connected project (Option B or C from Section 1) — a fully
   local project has no server-side conversation to have. Availability also depends on your
   organisation's own plan; if the sparkle bubble isn't there, it isn't enabled for your organisation.
@@ -1026,6 +1044,8 @@ it" tiers, though who's allowed to *initiate* it differs:
 | See every Dashboard across the whole organisation | [Section 7 — Dashboards](#7-search-and-the-advanced-query-workbench) |
 | Talk to a teammate in real time | [Section 8 — Chat](#8-collaboration--chat-and-comments) |
 | Create tasks (or break one into sub-tasks) by just asking | [Section 8 — AI Assistant](#8-collaboration--chat-and-comments) |
+| Stand up a whole new project by just asking (Org Admins) | [Section 8 — AI Assistant](#8-collaboration--chat-and-comments) |
+| See a permanent, live view of what's actually blocked right now | [Section 2 — A "Blocked" column](#2-the-board--your-home-base) |
 | See how the whole organisation's projects are doing | [Section 9 — Portfolio Dashboard](#9-portfolio--organisation-management) |
 | Add a new person to the organisation | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
 | Offboard someone who's leaving | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
