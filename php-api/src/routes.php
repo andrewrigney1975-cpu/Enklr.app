@@ -271,6 +271,9 @@ function registerRoutes(App $app): void
         $group->post('', [FormsController::class, 'create']);
         $group->put('/{formId}', [FormsController::class, 'update']);
         $group->delete('/{formId}', [FormsController::class, 'delete']);
+        $group->get('/groups/{formGroupId}/versions', [FormsController::class, 'listVersions']);
+        $group->post('/groups/{formGroupId}/versions', [FormsController::class, 'cloneVersion']);
+        $group->post('/{formId}/publish', [FormsController::class, 'publish']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Project Templates (Organisation-owned) — list/detail/create need only auth (any signed-in

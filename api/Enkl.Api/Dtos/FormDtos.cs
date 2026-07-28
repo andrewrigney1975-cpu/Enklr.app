@@ -11,6 +11,11 @@ public record FormDto(
 public record CreateFormRequest(string Name, string? Description, string? FieldsJson);
 public record UpdateFormRequest(string Name, string? Description, string? FieldsJson, string? WorkflowJson);
 
+/// <summary>One row per FormGroupId, oldest-to-newest — the version-history list a "New version
+/// from this one" / publish UI is built from.</summary>
+public record FormVersionSummaryDto(
+    Guid Id, int VersionNumber, string Status, DateTime DateCreated, DateTime DateLastModified, DateTime? PublishedAt);
+
 public record FormSubmissionDto(
     Guid Id, Guid FormVersionId, Guid ProjectId, Guid SubmittedByUserId, string Status,
     string? CurrentNodeId, string? AnswersJson, string? ApprovalTrailJson,

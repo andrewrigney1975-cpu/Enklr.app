@@ -49,4 +49,22 @@ final class FormsController extends BaseController
         $deleted = $this->forms()->delete($this->callerOrgId($request), $args['formId']);
         return $deleted ? $this->noContent($response) : $this->notFound($response);
     }
+
+    public function listVersions(Request $request, Response $response, array $args): Response
+    {
+        $result = $this->forms()->listVersions($this->callerOrgId($request), $args['formGroupId']);
+        return $result !== null ? $this->json($response, $result) : $this->notFound($response);
+    }
+
+    public function cloneVersion(Request $request, Response $response, array $args): Response
+    {
+        $result = $this->forms()->clone($this->callerOrgId($request), $args['formGroupId'], $this->callerUserId($request));
+        return $result !== null ? $this->json($response, $result) : $this->notFound($response);
+    }
+
+    public function publish(Request $request, Response $response, array $args): Response
+    {
+        $result = $this->forms()->publish($this->callerOrgId($request), $args['formId']);
+        return $result !== null ? $this->json($response, $result) : $this->notFound($response);
+    }
 }

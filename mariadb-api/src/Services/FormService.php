@@ -10,10 +10,11 @@ use PDO;
 /**
  * Ported from php-api/src/Services/FormService.php (itself ported from Services/FormService.cs).
  * One row per FORM VERSION — no separate parent "Form" table. Org-Admin-only authoring; the
- * read-only/published-list surface for project members is ProjectFormsController instead. Phase 1
- * scope: bare CRUD on a single Draft row — publish/clone-into-new-version (Phase 3) and the
- * Workflow builder (Phase 4) land in later passes, on top of this same table/service. No dialect
- * divergence from the Postgres tier — every statement here is plain ANSI SQL.
+ * read-only/published-list surface for project members is ProjectFormsController instead. Phase 1:
+ * bare CRUD on a single Draft row. Phase 3 (this pass): versioning — clone the latest version into
+ * a new Draft, publish a Draft (demoting whichever version was previously Published to Archived).
+ * The Workflow builder (Phase 4) lands in a later pass. No dialect divergence from the Postgres
+ * tier anywhere in this file — every statement is plain ANSI SQL under ANSI_QUOTES.
  */
 final class FormService
 {
@@ -108,6 +109,82 @@ final class FormService
             'fieldsJson' => $request['fieldsJson'] ?? null, 'workflowJson' => $request['workflowJson'] ?? null,
             'id' => $formId,
         ]);
+
+        return $this->get($organisationId, $formId);
+    }
+
+    /** Every version of one form, oldest-to-newest — the version-history list a "New version from
+     * this one" / publish UI is built from. */
+    public function listVersions(string $organisationId, string $formGroupId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM "Forms" WHERE "OrganisationId" = :orgId AND "FormGroupId" = :formGroupId ORDER BY "VersionNumber" ASC');
+        $stmt->execute(['orgId' => $organisationId, 'formGroupId' => $formGroupId]);
+        $rows = $stmt->fetchAll();
+        if (count($rows) === 0) {
+            return null;
+        }
+        return array_map(static fn(array $f) => [
+            'id' => $f['Id'], 'versionNumber' => (int) $f['VersionNumber'], 'status' => $f['Status'],
+            'dateCreated' => $f['DateCreated'], 'dateLastModified' => $f['DateLastModified'], 'publishedAt' => $f['PublishedAt'],
+        ], $rows);
+    }
+
+    /** Clones the latest version of a form (by VersionNumber, regardless of its own Status) into a
+     * brand-new Draft row — a plain deep copy of FieldsJson/WorkflowJson with the SAME field/node
+     * ids preserved (no id-remap needed, see FormService.cs's own doc comment on CloneAsync for
+     * why this differs from the Board-Column Workflow's clone). */
+    public function clone(string $organisationId, string $formGroupId, string $callerUserId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM "Forms" WHERE "OrganisationId" = :orgId AND "FormGroupId" = :formGroupId ORDER BY "VersionNumber" DESC LIMIT 1');
+        $stmt->execute(['orgId' => $organisationId, 'formGroupId' => $formGroupId]);
+        $latest = $stmt->fetch();
+        if ($latest === false) {
+            return null;
+        }
+
+        $newId = Uuid::v4();
+        $stmt = $this->db->prepare(<<<SQL
+            INSERT INTO "Forms" ("Id", "OrganisationId", "FormGroupId", "Name", "Description", "VersionNumber", "Status", "FieldsJson", "WorkflowJson", "CreatedByUserId", "DateCreated", "DateLastModified")
+            VALUES (:id, :orgId, :formGroupId, :name, :description, :versionNumber, 'draft', :fieldsJson, :workflowJson, :createdBy, now(), now())
+        SQL);
+        $stmt->execute([
+            'id' => $newId, 'orgId' => $organisationId, 'formGroupId' => $formGroupId,
+            'name' => $latest['Name'], 'description' => $latest['Description'],
+            'versionNumber' => ((int) $latest['VersionNumber']) + 1,
+            'fieldsJson' => $latest['FieldsJson'], 'workflowJson' => $latest['WorkflowJson'],
+            'createdBy' => $callerUserId,
+        ]);
+
+        return $this->get($organisationId, $newId);
+    }
+
+    /** Publishes a Draft version, demoting whichever OTHER version of the same FormGroupId is
+     * currently Published to Archived, inside one transaction — same "one endpoint owns the flag"
+     * shape as StrategyService::activate. Standard InnoDB transaction, not the advisory-lock-style
+     * concern this tier's rate limiter needed (see mariadb-api/CLAUDE.md §4.3) — a plain
+     * beginTransaction/commit is all two ordinary UPDATE statements need here. */
+    public function publish(string $organisationId, string $formId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT "FormGroupId", "Status" FROM "Forms" WHERE "Id" = :id AND "OrganisationId" = :orgId');
+        $stmt->execute(['id' => $formId, 'orgId' => $organisationId]);
+        $row = $stmt->fetch();
+        if ($row === false || $row['Status'] !== 'draft') {
+            return null;
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare('UPDATE "Forms" SET "Status" = \'archived\' WHERE "OrganisationId" = :orgId AND "FormGroupId" = :formGroupId AND "Status" = \'published\'')
+                ->execute(['orgId' => $organisationId, 'formGroupId' => $row['FormGroupId']]);
+            $this->db->prepare('UPDATE "Forms" SET "Status" = \'published\', "PublishedAt" = now(), "DateLastModified" = now() WHERE "Id" = :id')
+                ->execute(['id' => $formId]);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
 
         return $this->get($organisationId, $formId);
     }

@@ -856,6 +856,15 @@ export var formsApi = {
   },
   remove: function(formId){
     return apiFetch('/organisations/me/forms/' + formId, {method: 'DELETE'});
+  },
+  listVersions: function(formGroupId){
+    return apiFetch('/organisations/me/forms/groups/' + formGroupId + '/versions', {method: 'GET'});
+  },
+  cloneVersion: function(formGroupId){
+    return apiFetch('/organisations/me/forms/groups/' + formGroupId + '/versions', {method: 'POST'});
+  },
+  publish: function(formId){
+    return apiFetch('/organisations/me/forms/' + formId + '/publish', {method: 'POST'});
   }
 };
 

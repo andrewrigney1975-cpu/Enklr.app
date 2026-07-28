@@ -4120,7 +4120,8 @@
   #formBuilderFieldsEmpty.hidden,
   #formFieldRadioOptionsWrap.hidden,
   #addFormFieldBtn.hidden,
-  #formBuilderSaveBtn.hidden {
+  #formBuilderSaveBtn.hidden,
+  #formVersionHistoryNewBtn.hidden {
     display: none;
   }
 

@@ -7,14 +7,14 @@ import { FIELD_TYPES, defaultFieldConfig, fieldSummary, renderFieldTypeConfigHTM
 import { iconSvg, hydrateIcons } from '../icons.js';
 import { uid } from '../storage.js';
 
-/* Enterprise Forms & Workflow — Org-Admin authoring UI (Phase 2 of the approved plan). Two nested
-   overlays: #formsAdminOverlay (a picker listing every form version in the org — Phase 3 will filter
-   this down to "one row per form group, showing its current version" once versioning exists; for
-   now every row IS its own version, since Phase 1/2 only ever create a single Draft) and
-   #formFieldBuilderOverlay (one form's name/description + its FieldsJson array, edited entirely
-   in-memory and written back in a single PUT on Save — no per-field API calls, unlike Dashboard
-   widgets, since fields aren't separate DB rows here). A third, smaller overlay
-   (#formFieldEditorOverlay) adds/edits one field at a time within the builder. */
+/* Enterprise Forms & Workflow — Org-Admin authoring UI. Phase 2 built the field builder; Phase 3
+   (this pass) adds versioning on top of the same table/service: #formsAdminOverlay's picker now
+   shows one row PER FORM GROUP (not per version — grouped client-side from the flat list the API
+   still returns, see groupFormsByGroupId), and a new #formVersionHistoryOverlay lists every version
+   of one group with per-version Edit/Publish/Delete actions plus a "New Version From Latest" clone
+   action. #formFieldBuilderOverlay (one form VERSION's name/description + its FieldsJson array,
+   edited entirely in-memory and written back in a single PUT on Save) and the smaller
+   #formFieldEditorOverlay (add/edit one field within the builder) are unchanged from Phase 2. */
 
 var _toast = toast;
 
@@ -22,6 +22,8 @@ var adminForms = [];
 var builderForm = null; // {id, formGroupId, name, description, versionNumber, status, fields: [...]}
 var editingFieldId = null; // id of the field currently open in the field editor, or null when adding a brand-new one
 var editingFieldDraft = null; // the in-progress field object the editor overlay is currently mutating
+var historyFormGroupId = null;
+var historyVersions = []; // FormVersionSummaryDto[] for historyFormGroupId, oldest-to-newest (server order)
 
 // ---- Picker ----
 
@@ -45,20 +47,43 @@ function loadAndRenderFormsAdminList(){
 
 var STATUS_LABELS = {draft: 'Draft', published: 'Published', archived: 'Archived'};
 
+/* Groups the flat version list the API returns into one entry per FormGroupId — {formGroupId,
+   name, versions: [...] (all versions of this group), primary: (the version this group's row
+   represents)}. Primary is whichever version a member would currently see (Published) if one
+   exists, else the highest-numbered Draft (the one an admin is actively iterating on), else just
+   the highest version number overall (an edge case: every version somehow archived). */
+function groupFormsByGroupId(forms){
+  var byGroup = {};
+  forms.forEach(function(f){
+    if(!byGroup[f.formGroupId]) byGroup[f.formGroupId] = [];
+    byGroup[f.formGroupId].push(f);
+  });
+  return Object.keys(byGroup).map(function(groupId){
+    var versions = byGroup[groupId].slice().sort(function(a, b){ return b.versionNumber - a.versionNumber; });
+    var primary = versions.filter(function(v){ return v.status === 'published'; })[0]
+      || versions.filter(function(v){ return v.status === 'draft'; })[0]
+      || versions[0];
+    return {formGroupId: groupId, name: primary.name, description: primary.description, versions: versions, primary: primary};
+  }).sort(function(a, b){ return new Date(b.primary.dateLastModified) - new Date(a.primary.dateLastModified); });
+}
+
 function renderFormsAdminList(){
   var list = document.getElementById('formsAdminList');
-  document.getElementById('formsAdminEmpty').classList.toggle('hidden', adminForms.length > 0);
-  list.innerHTML = adminForms.map(function(f){
-    return '<div class="kf-form-admin-row" data-form-id="' + f.id + '">' +
+  var groups = groupFormsByGroupId(adminForms);
+  document.getElementById('formsAdminEmpty').classList.toggle('hidden', groups.length > 0);
+  list.innerHTML = groups.map(function(g){
+    var f = g.primary;
+    return '<div class="kf-form-admin-row" data-form-group-id="' + g.formGroupId + '">' +
       '<div class="kf-form-admin-row-main">' +
-        '<span class="kf-form-admin-row-name">' + escapeHTML(f.name) + '</span>' +
+        '<span class="kf-form-admin-row-name">' + escapeHTML(g.name) + '</span>' +
         '<span class="kf-form-status-badge kf-form-status-' + f.status + '">' + (STATUS_LABELS[f.status] || f.status) + '</span>' +
-        '<span class="kf-form-admin-row-version">v' + f.versionNumber + '</span>' +
+        '<span class="kf-form-admin-row-version">v' + f.versionNumber + (g.versions.length > 1 ? ' • ' + g.versions.length + ' versions' : '') + '</span>' +
       '</div>' +
-      (f.description ? '<div class="kf-form-admin-row-desc">' + escapeHTML(f.description) + '</div>' : '') +
+      (g.description ? '<div class="kf-form-admin-row-desc">' + escapeHTML(g.description) + '</div>' : '') +
       '<div class="kf-form-admin-row-actions">' +
         '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-edit-form="' + f.id + '"><span class="kf-icon" data-icon="edit" data-size="13"></span>Edit</button>' +
-        '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-delete-form="' + f.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span>Delete</button>' +
+        '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-view-versions="' + g.formGroupId + '"><span class="kf-icon" data-icon="clock" data-size="13"></span>Versions</button>' +
+        (g.versions.length === 1 && f.status === 'draft' ? '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-delete-form="' + f.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span>Delete</button>' : '') +
       '</div>' +
     '</div>';
   }).join('');
@@ -66,10 +91,18 @@ function renderFormsAdminList(){
   list.querySelectorAll('[data-edit-form]').forEach(function(btn){
     btn.addEventListener('click', function(){ openFormFieldBuilder(btn.getAttribute('data-edit-form')); });
   });
+  list.querySelectorAll('[data-view-versions]').forEach(function(btn){
+    btn.addEventListener('click', function(){ openFormVersionHistory(btn.getAttribute('data-view-versions'), findGroupName(btn.getAttribute('data-view-versions'))); });
+  });
   list.querySelectorAll('[data-delete-form]').forEach(function(btn){
     btn.addEventListener('click', function(){ deleteFormFromAdmin(btn.getAttribute('data-delete-form')); });
   });
   hydrateIcons(list);
+}
+
+function findGroupName(formGroupId){
+  var match = adminForms.filter(function(f){ return f.formGroupId === formGroupId; })[0];
+  return match ? match.name : 'Form';
 }
 
 function deleteFormFromAdmin(formId){
@@ -87,6 +120,112 @@ function deleteFormFromAdmin(formId){
       });
     }
   );
+}
+
+// ---- Version history (one form group's every version — Phase 3) ----
+
+export function openFormVersionHistory(formGroupId, name){
+  historyFormGroupId = formGroupId;
+  document.getElementById('formVersionHistoryTitle').textContent = 'Versions — ' + (name || 'Form');
+  document.getElementById('formVersionHistoryOverlay').classList.remove('hidden');
+  loadAndRenderVersionHistory();
+}
+export function closeFormVersionHistory(){
+  document.getElementById('formVersionHistoryOverlay').classList.add('hidden');
+  historyFormGroupId = null;
+  historyVersions = [];
+}
+
+function loadAndRenderVersionHistory(){
+  formsApi.listVersions(historyFormGroupId).then(function(versions){
+    historyVersions = versions;
+    renderVersionHistoryList();
+  }, function(e){
+    _toast('Could not load versions: ' + (e.message || 'unknown error'));
+  });
+}
+
+function renderVersionHistoryList(){
+  var list = document.getElementById('formVersionHistoryList');
+  var hasDraft = historyVersions.some(function(v){ return v.status === 'draft'; });
+  document.getElementById('formVersionHistoryNewBtn').classList.toggle('hidden', hasDraft);
+
+  var sorted = historyVersions.slice().sort(function(a, b){ return b.versionNumber - a.versionNumber; });
+  list.innerHTML = sorted.map(function(v){
+    return '<div class="kf-form-admin-row" data-version-id="' + v.id + '">' +
+      '<div class="kf-form-admin-row-main">' +
+        '<span class="kf-form-admin-row-name">v' + v.versionNumber + '</span>' +
+        '<span class="kf-form-status-badge kf-form-status-' + v.status + '">' + (STATUS_LABELS[v.status] || v.status) + '</span>' +
+        '<span class="kf-form-admin-row-version">' + (v.publishedAt ? 'Published ' + new Date(v.publishedAt).toLocaleDateString() : 'Created ' + new Date(v.dateCreated).toLocaleDateString()) + '</span>' +
+      '</div>' +
+      '<div class="kf-form-admin-row-actions">' +
+        '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-edit-version="' + v.id + '"><span class="kf-icon" data-icon="edit" data-size="13"></span>' + (v.status === 'draft' ? 'Edit' : 'View') + '</button>' +
+        (v.status === 'draft' ? '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-publish-version="' + v.id + '"><span class="kf-icon" data-icon="check" data-size="13"></span>Publish</button>' : '') +
+        (v.status === 'draft' ? '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-delete-version="' + v.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span>Delete</button>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  list.querySelectorAll('[data-edit-version]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      // Every .kf-overlay shares one z-index — stacking is purely DOM source order, not "most
+      // recently shown," so a later-in-DOM overlay (this history one) would otherwise render on
+      // top of the builder even after the builder opens. Close history first, same reasoning as
+      // cloneLatestVersion below.
+      closeFormVersionHistory();
+      openFormFieldBuilder(btn.getAttribute('data-edit-version'));
+    });
+  });
+  list.querySelectorAll('[data-publish-version]').forEach(function(btn){
+    btn.addEventListener('click', function(){ publishVersionFromHistory(btn.getAttribute('data-publish-version')); });
+  });
+  list.querySelectorAll('[data-delete-version]').forEach(function(btn){
+    btn.addEventListener('click', function(){ deleteVersionFromHistory(btn.getAttribute('data-delete-version')); });
+  });
+  hydrateIcons(list);
+}
+
+function publishVersionFromHistory(formId){
+  formsApi.publish(formId).then(function(){
+    _toast('Version published.');
+    loadAndRenderVersionHistory();
+    loadAndRenderFormsAdminList();
+  }, function(e){
+    _toast('Could not publish version: ' + (e.message || 'unknown error'));
+  });
+}
+
+function deleteVersionFromHistory(formId){
+  var version = historyVersions.filter(function(v){ return v.id === formId; })[0];
+  if(!version) return;
+  confirmDialog(
+    'Delete v' + version.versionNumber + '?',
+    'This cannot be undone.',
+    function(){
+      formsApi.remove(formId).then(function(){
+        _toast('Version deleted.');
+        loadAndRenderVersionHistory();
+        loadAndRenderFormsAdminList();
+      }, function(e){
+        _toast('Could not delete version: ' + (e.message || 'unknown error'));
+      });
+    }
+  );
+}
+
+export function cloneLatestVersion(){
+  if(!historyFormGroupId) return;
+  formsApi.cloneVersion(historyFormGroupId).then(function(created){
+    _toast('New draft version created.');
+    loadAndRenderFormsAdminList();
+    // Close history before opening the builder — same DOM-order stacking reasoning as the
+    // data-edit-version handler above (both overlays share one z-index, so the later-in-DOM one
+    // would otherwise render on top of the builder regardless of open order).
+    closeFormVersionHistory();
+    openFormFieldBuilder(created.id);
+  }, function(e){
+    _toast('Could not create a new version: ' + (e.message || 'unknown error'));
+  });
 }
 
 export function showFormsAdminCreateRow(){

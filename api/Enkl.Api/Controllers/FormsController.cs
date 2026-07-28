@@ -54,4 +54,25 @@ public class FormsController : ControllerBase
     {
         return await _forms.DeleteAsync(User.OrgId(), formId) ? NoContent() : NotFound();
     }
+
+    [HttpGet("groups/{formGroupId:guid}/versions")]
+    public async Task<IActionResult> ListVersions(Guid formGroupId)
+    {
+        var result = await _forms.ListVersionsAsync(User.OrgId(), formGroupId);
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    [HttpPost("groups/{formGroupId:guid}/versions")]
+    public async Task<IActionResult> Clone(Guid formGroupId)
+    {
+        var result = await _forms.CloneAsync(User.OrgId(), formGroupId, User.UserId());
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    [HttpPost("{formId:guid}/publish")]
+    public async Task<IActionResult> Publish(Guid formId)
+    {
+        var result = await _forms.PublishAsync(User.OrgId(), formId);
+        return result is null ? NotFound() : Ok(result);
+    }
 }
