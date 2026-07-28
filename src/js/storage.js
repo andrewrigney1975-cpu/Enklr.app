@@ -699,7 +699,14 @@ export function normalizeHeaderButtonVisibility(value){
        isServerAuthoritative(project) regardless of this flag (views/board.js's
        applyHeaderButtonVisibility) — a local-only project has no Project Admin/Saved Query concept
        to speak of at all. */
-    dashboards: v.dashboards === true
+    dashboards: v.dashboards === true,
+    /* Opt-in, like strategy: Enterprise Forms & Workflow stays invisible until an Org Admin
+       deliberately turns it on for this project (the App Settings checkbox for this one is itself
+       Org-Admin-only — see #appSettingsEnterpriseCategory — unlike Dashboards/Strategy's checkbox,
+       which any Project Admin can toggle). Also requires isServerAuthoritative(project) regardless
+       of this flag (views/board.js's applyHeaderButtonVisibility) — a local-only project has no
+       Org Admin/Forms concept to speak of at all. */
+    forms: v.forms === true
   };
 }
 

@@ -236,6 +236,7 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowRetrospectiveBtn').checked = visibility.retrospective;
   document.getElementById('settingsShowStrategyBtn').checked = visibility.strategy;
   document.getElementById('settingsShowDashboardsBtn').checked = visibility.dashboards;
+  document.getElementById('settingsShowFormsBtn').checked = visibility.forms;
   // SAML/SCIM configuration is an org-admin-only concern (same gating as the Account menu's own
   // "SSO & Provisioning" link) — shown here purely as a discoverability shortcut into that same
   // modal, not a per-project toggle of its own.

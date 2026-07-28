@@ -12,7 +12,7 @@ namespace Enkl\Api\Services;
  * are camelCase to match both the frontend's own field names and the "changeAuditing" key
  * TaskService::isChangeAuditingEnabled reads from this same column.
  *
- * @phpstan-type ProjectSettings array{documents:bool,risks:bool,decisions:bool,health:bool,principles:bool,objectives:bool,teamsCommittees:bool,workflow:bool,timeTracking:bool,changeAuditing:bool,subTasks:bool,retrospective:bool,strategy:bool,dashboards:bool}
+ * @phpstan-type ProjectSettings array{documents:bool,risks:bool,decisions:bool,health:bool,principles:bool,objectives:bool,teamsCommittees:bool,workflow:bool,timeTracking:bool,changeAuditing:bool,subTasks:bool,retrospective:bool,strategy:bool,dashboards:bool,forms:bool}
  */
 final class ProjectSettingsSerializer
 {
@@ -37,6 +37,9 @@ final class ProjectSettingsSerializer
         // Opt-in, like strategy: the Self-Service Dashboard module stays invisible until a Project
         // Admin deliberately turns it on.
         'dashboards' => false,
+        // Opt-in, Org-Admin-authored: Enterprise Forms & Workflow stays invisible until an Org Admin
+        // deliberately turns it on for this project (same shape as strategy).
+        'forms' => false,
     ];
 
     public static function serialize(array $settings): string

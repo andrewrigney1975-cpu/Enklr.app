@@ -1606,6 +1606,9 @@ function wireEvents(){
   document.getElementById('settingsShowDashboardsBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('dashboards', e.target.checked);
   });
+  document.getElementById('settingsShowFormsBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('forms', e.target.checked);
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);

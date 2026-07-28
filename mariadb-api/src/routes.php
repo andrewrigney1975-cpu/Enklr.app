@@ -30,6 +30,8 @@ use Enkl\Api\Controllers\OrganisationApiKeyController;
 use Enkl\Api\Controllers\PortfolioController;
 use Enkl\Api\Controllers\PrinciplesController;
 use Enkl\Api\Controllers\ProjectsController;
+use Enkl\Api\Controllers\FormsController;
+use Enkl\Api\Controllers\ProjectFormsController;
 use Enkl\Api\Controllers\ProjectStrategyController;
 use Enkl\Api\Controllers\PublicQueryController;
 use Enkl\Api\Controllers\ReleasesController;
@@ -261,6 +263,16 @@ function registerRoutes(App $app): void
         $group->get('/fulfilment-matrix', [StrategyController::class, 'getFulfilmentMatrix']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
+    // ---- Enterprise Forms (OrgAdmin-only authoring; read-only/submission ProjectMember surface
+    // is under /api/projects/{projectId}/forms below instead) ----
+    $app->group('/api/organisations/me/forms', function ($group) {
+        $group->get('', [FormsController::class, 'list']);
+        $group->get('/{formId}', [FormsController::class, 'get']);
+        $group->post('', [FormsController::class, 'create']);
+        $group->put('/{formId}', [FormsController::class, 'update']);
+        $group->delete('/{formId}', [FormsController::class, 'delete']);
+    })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
+
     // ---- Project Templates (Organisation-owned) — list/detail/create need only auth (any signed-in
     // member may save/use a template, same trust level as creating a column or task type today);
     // rename/delete need OrgAdmin, same bar as Organisations' user-management routes above ----
@@ -404,6 +416,15 @@ function registerRoutes(App $app): void
         $group->get('/strategy/tree', [ProjectStrategyController::class, 'getTree']);
         $group->get('/strategy/metrics/{metricId}/entries', [ProjectStrategyController::class, 'getMetricHistory']);
         $group->get('/strategy/fulfilment', [ProjectStrategyController::class, 'getFulfilment']);
+        // Read-only/submission Forms surface for regular project members — see
+        // ProjectFormsController.cs's matching [Authorize(Policy = "ProjectMember")] controller. No
+        // Form authoring lives here; every Form write goes through FormsController (OrgAdmin).
+        $group->get('/forms', [ProjectFormsController::class, 'listPublished']);
+        $group->get('/forms/submissions/mine', [ProjectFormsController::class, 'listMySubmissions']);
+        $group->get('/forms/submissions/{submissionId}', [ProjectFormsController::class, 'getSubmission']);
+        $group->post('/forms/submissions', [ProjectFormsController::class, 'createSubmission']);
+        $group->put('/forms/submissions/{submissionId}', [ProjectFormsController::class, 'updateSubmission']);
+        $group->delete('/forms/submissions/{submissionId}', [ProjectFormsController::class, 'deleteSubmission']);
     })->add(ProjectMemberMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Realtime (SSE) — one stream per user, covers every project they're a member of; see
