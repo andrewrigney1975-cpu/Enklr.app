@@ -683,6 +683,32 @@ drawn.
   allowed transitions between them as edges. **Who**: Elena or Priya, the first time they want to
   *enforce* that a task can't jump straight from "To Do" to "Done" without passing through "Review."
   Once defined, the workflow engine actively blocks moves that don't follow an allowed edge.
+- **Forms & Workflow** — **What**: an optional module (opt-in, like Strategy or Retrospectives — see
+  below) where Org Admins design a typed form — text, number, date, select, checkbox fields, whatever
+  the process needs — and attach an approval workflow to it, drawn the same visual node-and-edge way
+  as the board Workflow editor above, just with a different vocabulary: a Start node leads to an
+  Author node (who's allowed to submit it — say, any Team Member), then one or more Approval nodes
+  (who must sign off — a specific named person, or anyone holding a role like Project Admin), ending
+  at an End node. An Approval node can require just *one* of its listed approvers ("any") or *all* of
+  them ("all"), and a workflow can chain several Approval steps in sequence for a genuine multi-person
+  sign-off process. Once a form is **published**, any project that's switched this module on gets a
+  plain **Forms** entry in its side nav — any member can open it, fill in the fields, save a draft, or
+  submit it straight away; whoever's named as an approver finds it waiting under **Awaiting My
+  Action** and approves or rejects it, with an optional comment either way. **Who**: Elena, defining a
+  process once — an onboarding checklist, an expense approval, a change request — so it lives in the
+  app instead of someone's head or a shared spreadsheet; Marcus and Priya, filling one out and getting
+  a clear, final approved-or-rejected answer back rather than chasing someone down over chat.
+  **Versioning**: editing an already-published form doesn't retroactively change anything already in
+  flight — you clone it into a new draft version, edit that, and publish it when it's ready; every
+  existing submission stays tied to whichever version it was actually started against. **Getting
+  notified**: the moment your own submission is finally approved or rejected — not on every
+  intermediate step of a multi-person chain, only the decision that actually settles it — you get a
+  toast and a Despatches entry (see Section 11) naming both the form and the result, with a one-click
+  link straight back into it; an approver gets the same kind of notification the moment a submission
+  actually needs their decision. **How to turn it on**: open **Project Settings** (the header button
+  next to the board), find **Forms & Workflow** under the **Enterprise** category, and switch it on —
+  **Manage Forms** (build/edit/publish forms, Org Admins only) and the plain **Forms** entry (every
+  member, for filling them out) then both appear in the side nav.
 
 ---
 
@@ -1036,6 +1062,8 @@ it" tiers, though who's allowed to *initiate* it differs:
 | Understand what's blocking a task | [Section 4 — Dependency Map](#4-seeing-your-work-differently--the-views) |
 | Change ten tasks at once | [Section 5 — Bulk Edit](#5-tools--everyday-utilities) |
 | Stop a task moving to Done too early | [Section 5 — Workflow](#5-tools--everyday-utilities) |
+| Set up a form with a required approval process | [Section 5 — Forms & Workflow](#5-tools--everyday-utilities) |
+| Get notified the moment my submission is approved or rejected | [Section 5 — Forms & Workflow](#5-tools--everyday-utilities) |
 | Draft a changelog from what actually shipped | [Section 5 — Release Notes Packager](#5-tools--everyday-utilities) |
 | Keep a running log of project risk | [Section 6 — Risks](#6-governance--knowledge--the-why-not-just-the-what) |
 | Run a proper end-of-release retro | [Section 6 — Retrospectives](#6-governance--knowledge--the-why-not-just-the-what) |
