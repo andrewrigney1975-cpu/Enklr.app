@@ -8,7 +8,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-export var APP_VERSION = '4.142.20260729.1736';
+export var APP_VERSION = '4.144.20260729.1950';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -118,7 +118,21 @@ export var ICON_PATHS = {
   ty_negotiate:   '<path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0Z"/><path d="M19 7l-3 7a3 3 0 0 0 6 0Z"/>',
   ty_schedule:    '<rect x="3" y="5" width="14" height="16" rx="2"/><path d="M7 3v4"/><path d="M13 3v4"/><path d="M3 10h10"/><circle cx="18" cy="17" r="4"/><path d="M18 15.5V17l1 1"/>',
   ty_maintain:    '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"/>',
-  ty_coordinate:  '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7.5 16 7.5"/><path d="M7 8l4 8"/><path d="M17 8l-4 8"/>'
+  ty_coordinate:  '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7.5 16 7.5"/><path d="M7 8l4 8"/><path d="M17 8l-4 8"/>',
+
+  /* Collaborative Whiteboard — nav icon (an easel/board with a diagonal pen, distinct from
+     board/formFillOut so it reads as "draw", not "edit a document") plus the drawing-tool icons. */
+  whiteboard:  '<rect x="3" y="3" width="18" height="13" rx="1.5"/><path d="M8 21l4-5 4 5"/><path d="M8 8.5l3 3 5-5.5"/>',
+  pen:         '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  eraser:      '<path d="M20 20H8l-6-6a2 2 0 0 1 0-2.83l8.59-8.59a2 2 0 0 1 2.82 0l6.59 6.59a2 2 0 0 1 0 2.83L13 20"/><path d="M6.5 12.5 14 20"/>',
+  textBox:     '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M9 9h6"/><path d="M12 9v7"/>',
+  shapeRect:   '<rect x="4" y="6" width="16" height="12" rx="1"/>',
+  shapeCircle: '<circle cx="12" cy="12" r="8.5"/>',
+  shapeOval:   '<ellipse cx="12" cy="12" rx="9" ry="6.5"/>',
+  shapeTriangle: '<path d="M12 4 21 20H3Z"/>',
+  shapeDiamond: '<path d="M12 3 21 12 12 21 3 12Z"/>',
+  connector:   '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h6a4 4 0 0 1 4 4v4"/>',
+  cursorArrow: '<path d="M5 3l14 8-6 2-2 6Z"/>'
 };
 
 /* =========================================================
@@ -182,6 +196,26 @@ export var TASK_PROGRESS_MAX = 100;
    MEMBER PALETTE
    ========================================================= */
 export var MEMBER_PALETTE = ['#0052CC','#00875A','#FF8B00','#974DE2','#DE350B','#006644','#5243AA','#B04632','#1B5E20','#8777D9'];
+
+/* =========================================================
+   WHITEBOARD
+   ========================================================= */
+/* Pen-tool colour palette — 16 common colours, a fixed swatch grid rather than a free colour
+   picker. Deliberately its own list (not MEMBER_PALETTE, which only has 10 and is used
+   programmatically, never rendered as a picker) since a drawing palette needs black/white/gray
+   and a wider spread than member-avatar assignment does. */
+export var WHITEBOARD_PALETTE = [
+  '#000000', '#495057', '#adb5bd', '#ffffff',
+  '#de350b', '#ff8b00', '#ffab00', '#00875a',
+  '#36b37e', '#00b8d9', '#0052cc', '#2684ff',
+  '#5243aa', '#974de2', '#b04632', '#6b778c'
+];
+export var WHITEBOARD_DEFAULT_PEN_COLOR = '#000000';
+export var WHITEBOARD_DEFAULT_PEN_WIDTH = 3;
+export var WHITEBOARD_ERASER_WIDTH = 20;
+/* Throttle for outgoing cursor-position broadcasts — a whole-pointermove-per-broadcast stream
+   would be excessive load for a signal that's purely visual; see CLAUDE.md's cursor-sync note. */
+export var WHITEBOARD_CURSOR_THROTTLE_MS = 120;
 
 /* =========================================================
    RISKS

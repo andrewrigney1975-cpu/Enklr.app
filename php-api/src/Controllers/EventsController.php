@@ -68,6 +68,7 @@ final class EventsController extends BaseController
         pg_query($conn, 'LISTEN whiteboard_participant_changed');
         pg_query($conn, 'LISTEN whiteboard_element_changed');
         pg_query($conn, 'LISTEN whiteboard_session_closed');
+        pg_query($conn, 'LISTEN whiteboard_cursor_moved');
         $socket = pg_socket($conn);
         $lastHeartbeat = time();
         $this->markPresent($userId);

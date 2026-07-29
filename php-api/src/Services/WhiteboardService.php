@@ -48,7 +48,22 @@ final class WhiteboardService
             throw $e;
         }
 
+        $this->cleanupExpiredUnsavedSessionsOpportunistically();
         return $this->buildStateDto($sessionId, $callerUserId);
+    }
+
+    /** "Scratch until saved" — a session closed with IsSaved still false gets purged after a short
+     * grace window (1 hour), same opportunistic 1-in-20-chance-on-write pattern already used by
+     * RateLimitMiddleware's own prune. WhiteboardElements/WhiteboardParticipants cascade-delete
+     * with their parent session (ON DELETE CASCADE, see the migration), so this is a single bulk
+     * delete, not a fan-out. */
+    private function cleanupExpiredUnsavedSessionsOpportunistically(): void
+    {
+        if (random_int(1, 20) !== 1) {
+            return;
+        }
+
+        $this->db->exec('DELETE FROM "WhiteboardSessions" WHERE "Status" = \'closed\' AND "IsSaved" = false AND "ClosedAt" < now() - interval \'1 hour\'');
     }
 
     /**
@@ -165,7 +180,86 @@ final class WhiteboardService
         return $participantUserIds;
     }
 
+    /** Caller must be a currently-present participant of an open session in their own org — a
+     * former participant, a stranger, or a closed session all get the same null.
+     *
+     * @return array{element: array, otherParticipantUserIds: string[]}|null
+     */
+    public function addElement(string $organisationId, string $callerUserId, string $sessionId, string $elementType, string $elementJson): ?array
+    {
+        if (!$this->isCurrentParticipantOfOpenSession($organisationId, $callerUserId, $sessionId)) {
+            return null;
+        }
+
+        $elementId = Uuid::v4();
+        $createdAt = gmdate('Y-m-d\TH:i:s\Z');
+        $this->db->prepare(
+            'INSERT INTO "WhiteboardElements" ("Id", "SessionId", "CreatedByUserId", "ElementType", "ElementJson", "CreatedAt")
+             VALUES (:id, :sid, :uid, :type, :json, :created)'
+        )->execute(['id' => $elementId, 'sid' => $sessionId, 'uid' => $callerUserId, 'type' => $elementType, 'json' => $elementJson, 'created' => $createdAt]);
+
+        $othersStmt = $this->db->prepare('SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL AND "UserId" != :uid');
+        $othersStmt->execute(['sid' => $sessionId, 'uid' => $callerUserId]);
+
+        return [
+            'element' => ['id' => $elementId, 'elementType' => $elementType, 'elementJson' => $elementJson, 'createdByUserId' => $callerUserId, 'createdAt' => $createdAt],
+            'otherParticipantUserIds' => array_column($othersStmt->fetchAll(), 'UserId'),
+        ];
+    }
+
+    /** Soft-delete (eraser) — same currently-present-participant gate as addElement.
+     *
+     * @return string[]|null Other participants' user ids for broadcast, or null if the caller isn't
+     *   a current participant or the element doesn't belong to this session.
+     */
+    public function removeElement(string $organisationId, string $callerUserId, string $sessionId, string $elementId): ?array
+    {
+        if (!$this->isCurrentParticipantOfOpenSession($organisationId, $callerUserId, $sessionId)) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE "WhiteboardElements" SET "DeletedAt" = :deleted WHERE "Id" = :eid AND "SessionId" = :sid AND "DeletedAt" IS NULL'
+        );
+        $stmt->execute(['deleted' => gmdate('Y-m-d\TH:i:s\Z'), 'eid' => $elementId, 'sid' => $sessionId]);
+        if ($stmt->rowCount() === 0) {
+            return null;
+        }
+
+        $othersStmt = $this->db->prepare('SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL AND "UserId" != :uid');
+        $othersStmt->execute(['sid' => $sessionId, 'uid' => $callerUserId]);
+        return array_column($othersStmt->fetchAll(), 'UserId');
+    }
+
+    /** Ephemeral cursor-position broadcast (.NET/php-api tiers only — no MariaDB equivalent). No
+     * DB write at all, unlike addElement — a cursor position is purely transient.
+     *
+     * @return string[]|null Other currently-present participants' user ids, or null if the caller
+     *   isn't a current participant of an open session in their own org.
+     */
+    public function getOtherParticipantUserIdsForCursor(string $organisationId, string $callerUserId, string $sessionId): ?array
+    {
+        if (!$this->isCurrentParticipantOfOpenSession($organisationId, $callerUserId, $sessionId)) {
+            return null;
+        }
+
+        $othersStmt = $this->db->prepare('SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL AND "UserId" != :uid');
+        $othersStmt->execute(['sid' => $sessionId, 'uid' => $callerUserId]);
+        return array_column($othersStmt->fetchAll(), 'UserId');
+    }
+
     // ---- Helpers ----
+
+    private function isCurrentParticipantOfOpenSession(string $organisationId, string $callerUserId, string $sessionId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT p."Id" FROM "WhiteboardParticipants" p
+             JOIN "WhiteboardSessions" s ON s."Id" = p."SessionId"
+             WHERE p."SessionId" = :sid AND p."UserId" = :uid AND p."LeftAt" IS NULL AND s."OrganisationId" = :orgId AND s."Status" = \'open\''
+        );
+        $stmt->execute(['sid' => $sessionId, 'uid' => $callerUserId, 'orgId' => $organisationId]);
+        return $stmt->fetchColumn() !== false;
+    }
 
     private function generateUniqueOpenJoinCode(): string
     {

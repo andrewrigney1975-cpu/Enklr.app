@@ -52,6 +52,46 @@ public class WhiteboardController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [HttpPost("{id:guid}/elements")]
+    public async Task<IActionResult> AddElement(Guid id, AddWhiteboardElementRequest request)
+    {
+        var result = await _whiteboard.AddElementAsync(User.OrgId(), User.UserId(), id, request);
+        if (result is null) return NotFound();
+
+        BroadcastElementChange(id, result.Value.Element, result.Value.OtherParticipantUserIds, "added");
+        return Ok(result.Value.Element);
+    }
+
+    [HttpDelete("{id:guid}/elements/{elementId:guid}")]
+    public async Task<IActionResult> RemoveElement(Guid id, Guid elementId)
+    {
+        var otherParticipantUserIds = await _whiteboard.RemoveElementAsync(User.OrgId(), User.UserId(), id, elementId);
+        if (otherParticipantUserIds is null) return NotFound();
+
+        var removedDto = new WhiteboardElementDto(elementId, "", "", User.UserId(), DateTime.UtcNow);
+        BroadcastElementChange(id, removedDto, otherParticipantUserIds, "removed");
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/cursor")]
+    public async Task<IActionResult> CursorMove(Guid id, WhiteboardCursorMoveRequest request)
+    {
+        var otherParticipantUserIds = await _whiteboard.GetOtherParticipantUserIdsForCursorAsync(User.OrgId(), User.UserId(), id);
+        if (otherParticipantUserIds is null) return NotFound();
+
+        try
+        {
+            _broadcaster.BroadcastWhiteboardCursorMoved(
+                otherParticipantUserIds,
+                new WhiteboardCursorMovedEventDto(id, User.UserId(), CallerDisplayName, request.X, request.Y));
+        }
+        catch
+        {
+            // best-effort, same convention as ChatController's own broadcast helpers
+        }
+        return NoContent();
+    }
+
     [HttpPost("{id:guid}/leave")]
     public async Task<IActionResult> Leave(Guid id)
     {
@@ -84,6 +124,21 @@ public class WhiteboardController : ControllerBase
             // best-effort, same convention as ChatController's own broadcast helpers
         }
         return NoContent();
+    }
+
+    private void BroadcastElementChange(Guid sessionId, WhiteboardElementDto element, List<Guid> otherParticipantUserIds, string changeType)
+    {
+        try
+        {
+            _broadcaster.BroadcastWhiteboardElement(
+                otherParticipantUserIds,
+                new WhiteboardElementEventDto(sessionId, element, changeType),
+                ClientSessionId);
+        }
+        catch
+        {
+            // best-effort, same convention as ChatController's own broadcast helpers
+        }
     }
 
     private void BroadcastParticipantChange(Guid sessionId, List<Guid> otherParticipantUserIds, string changeType)

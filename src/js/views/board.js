@@ -200,6 +200,11 @@ export function applyHeaderButtonVisibility(){
      "any Project Admin, not just Org Admin" shape as Workflow/Retrospective. */
   document.getElementById('navDashboardsBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.dashboards);
 
+  /* Collaborative Whiteboard is org-wide, not project-scoped or feature-flagged at all — the only
+     gate is being logged into a real server (its sessions/participants are org-scoped rows, so a
+     local-only project with no org/auth concept has nothing to show it against). */
+  document.getElementById('navWhiteboardBtn').classList.toggle('kf-vis-hidden', !isServerLoggedIn());
+
   var govMapEnabled = isGovernanceMapEnabled(visibility);
   document.getElementById('governanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);
   document.getElementById('navGovernanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);

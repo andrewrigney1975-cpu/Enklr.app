@@ -6321,6 +6321,159 @@
     border: none;
   }
 
+  /* Collaborative Whiteboard — entry view (Start/Join) shares the plain .kf-modal-body look; the
+     canvas view is its own flex-row body (left rail + drawing surface), same "toolbar in the
+     header, extra controls down the side" layout the feature was designed around — the first
+     modal in this app to put controls on a left rail rather than the header row. */
+  .kf-wb-entry {
+    max-width: 360px;
+    margin: 40px auto 0;
+    text-align: center;
+  }
+
+  .kf-wb-entry-divider {
+    margin: 18px 0;
+    color: var(--kf-text-secondary);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .kf-wb-entry .kf-field {
+    text-align: left;
+  }
+
+  #wbEntryView.hidden {
+    display: none;
+  }
+
+  .kf-wb-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  #wbCanvasView.hidden {
+    display: none;
+  }
+
+  .kf-wb-rail {
+    width: 180px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--kf-border);
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+  }
+
+  .kf-wb-rail-btn {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .kf-wb-joincode {
+    font-size: 12px;
+    color: var(--kf-text-secondary);
+    text-align: center;
+    padding: 4px 0;
+    letter-spacing: 0.08em;
+  }
+
+  .kf-wb-participants {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--kf-border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    overflow-y: auto;
+  }
+
+  .kf-wb-participant-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .kf-wb-participant-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--kf-good-fg, #00875a);
+    flex-shrink: 0;
+  }
+
+  .kf-wb-participant-dot.kf-wb-offline {
+    background: var(--kf-text-secondary);
+  }
+
+  .kf-wb-canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    background: var(--kf-surface-sunken, #f4f5f7);
+  }
+
+  .kf-wb-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+
+  .kf-wb-cursors {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .kf-wb-remote-cursor {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transform: translate(-2px, -2px);
+    transition: left 0.08s linear, top 0.08s linear;
+  }
+
+  .kf-wb-remote-cursor-label {
+    font-size: 11px;
+    background: var(--kf-surface);
+    border-radius: 3px;
+    padding: 1px 5px;
+    box-shadow: var(--kf-modal-shadow);
+    white-space: nowrap;
+  }
+
+  .kf-wb-tool.kf-wb-tool-active {
+    background: var(--kf-accent-subtle, rgba(38, 132, 255, 0.15));
+    color: var(--kf-accent, #2684ff);
+  }
+
+  .kf-wb-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    max-width: 92px;
+  }
+
+  .kf-wb-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid var(--kf-border);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .kf-wb-swatch.kf-wb-swatch-active {
+    outline: 2px solid var(--kf-accent, #2684ff);
+    outline-offset: 1px;
+  }
+
   .kf-modal-footer .kf-footer-left {
     margin-right: auto;
   }

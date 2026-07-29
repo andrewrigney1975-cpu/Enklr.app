@@ -6,12 +6,37 @@ import { getTasksArray } from '../utils.js';
    pattern of prefixing the fragment with "!" so it reads as a real
    route rather than an in-page anchor. */
 var TASK_HASH_PREFIX = '#!/';
+/* A whiteboard join code isn't a task key (not globally/per-project unique — scoped only to
+   currently-open sessions), so it gets its own, more specific prefix, checked BEFORE falling
+   through to task-key parsing rather than sharing one ambiguous parser. */
+var WHITEBOARD_HASH_PREFIX = '#!/whiteboard/';
 
 export function parseTaskKeyFromHash(){
   var hash = window.location.hash || '';
+  if(hash.indexOf(WHITEBOARD_HASH_PREFIX) === 0) return null;
   if(hash.indexOf(TASK_HASH_PREFIX) !== 0) return null;
   var key = decodeURIComponent(hash.slice(TASK_HASH_PREFIX.length)).trim();
   return key || null;
+}
+
+export function parseWhiteboardCodeFromHash(){
+  var hash = window.location.hash || '';
+  if(hash.indexOf(WHITEBOARD_HASH_PREFIX) !== 0) return null;
+  var code = decodeURIComponent(hash.slice(WHITEBOARD_HASH_PREFIX.length)).trim();
+  return code || null;
+}
+
+/* Same replaceState reasoning as setTaskHash — avoid history spam and avoid retriggering our own
+   'hashchange' listener. */
+export function setWhiteboardHash(joinCode){
+  var target = WHITEBOARD_HASH_PREFIX + encodeURIComponent(joinCode);
+  if(window.location.hash === target) return;
+  history.replaceState(null, '', target);
+}
+
+export function clearWhiteboardHash(){
+  if(window.location.hash.indexOf(WHITEBOARD_HASH_PREFIX) !== 0) return;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
 }
 
 /* Task keys are only guaranteed unique within their own project — two

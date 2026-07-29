@@ -112,6 +112,14 @@ public class SseBroadcaster
         Broadcast("whiteboard-session-closed", participantUserIds, payload, null);
     }
 
+    /// <summary>Ephemeral, not persisted anywhere (unlike every other broadcast here, which mirrors
+    /// a durable DB write) — see WhiteboardService.GetOtherParticipantUserIdsForCursorAsync's own
+    /// doc comment. .NET/php-api tiers only; no MariaDB equivalent exists at all.</summary>
+    public void BroadcastWhiteboardCursorMoved(IEnumerable<Guid> participantUserIds, WhiteboardCursorMovedEventDto payload)
+    {
+        Broadcast("whiteboard-cursor-moved", participantUserIds, payload, null);
+    }
+
     private void Broadcast<T>(string eventName, IEnumerable<Guid> memberUserIds, T payload, string? excludeClientSessionId)
     {
         var frame = "event: " + eventName + "\ndata: " + JsonSerializer.Serialize(payload, JsonOptions) + "\n\n";

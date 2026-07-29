@@ -45,6 +45,47 @@ final class WhiteboardController extends BaseController
         return $result === null ? $this->notFound($response) : $this->json($response, $result);
     }
 
+    public function addElement(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $result = $this->service()->addElement(
+            $this->callerOrgId($request), $this->callerUserId($request), $args['id'],
+            (string) ($body['elementType'] ?? ''), (string) ($body['elementJson'] ?? '')
+        );
+        if ($result === null) {
+            return $this->notFound($response);
+        }
+
+        $this->broadcastElement($request, $args['id'], $result['element'], $result['otherParticipantUserIds'], 'added');
+        return $this->json($response, $result['element']);
+    }
+
+    public function removeElement(Request $request, Response $response, array $args): Response
+    {
+        $otherParticipantUserIds = $this->service()->removeElement(
+            $this->callerOrgId($request), $this->callerUserId($request), $args['id'], $args['elementId']
+        );
+        if ($otherParticipantUserIds === null) {
+            return $this->notFound($response);
+        }
+
+        $removedElement = ['id' => $args['elementId'], 'elementType' => '', 'elementJson' => '', 'createdByUserId' => $this->callerUserId($request), 'createdAt' => gmdate('Y-m-d\TH:i:s\Z')];
+        $this->broadcastElement($request, $args['id'], $removedElement, $otherParticipantUserIds, 'removed');
+        return $this->noContent($response);
+    }
+
+    // Best-effort — a notification failure must never fail the mutation itself, same convention as
+    // ChatController's own broadcast helper.
+    private function broadcastElement(Request $request, string $sessionId, array $element, array $otherParticipantUserIds, string $changeType): void
+    {
+        try {
+            $clientSessionId = $request->getHeaderLine('X-Client-Session-Id') ?: null;
+            (new Broadcaster(Database::connection()))->broadcastWhiteboardElement($otherParticipantUserIds, $sessionId, $element, $changeType, $clientSessionId);
+        } catch (\Throwable) {
+            // best-effort, see comment above
+        }
+    }
+
     public function leave(Request $request, Response $response, array $args): Response
     {
         $remaining = $this->service()->leaveSession($this->callerOrgId($request), $this->callerUserId($request), $args['id']);

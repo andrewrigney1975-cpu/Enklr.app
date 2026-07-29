@@ -23,6 +23,7 @@ import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenef
 
 /* ---- Features ---- */
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
+import { wireWhiteboardEvents, openWhiteboardOverlay, openWhiteboardFromHashIfPresent } from './modals/whiteboard.js';
 import { exportProjectJSON, setExportToast } from './features/export.js';
 import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast, refreshProjectFromServer, switchToAiCreatedProject } from './features/migration.js';
 import { connectEventStream, disconnectEventStream, setLiveUpdatesDeps } from './features/live-updates.js';
@@ -172,6 +173,8 @@ function wireEvents(){
   document.getElementById('navProjectStorageBtn').addEventListener('click', openProjectStorageModal);
   document.getElementById('navRetrospectiveBtn').addEventListener('click', openRetrospectivesOverlay);
   document.getElementById('navDashboardsBtn').addEventListener('click', openDashboardsPickerOverlay);
+  document.getElementById('navWhiteboardBtn').addEventListener('click', openWhiteboardOverlay);
+  wireWhiteboardEvents();
 
   document.getElementById('dashboardsPickerClose').addEventListener('click', closeDashboardsPickerOverlay);
   document.getElementById('dashboardsPickerOverlay').addEventListener('mousedown', function(e){
@@ -1705,6 +1708,7 @@ function wireEvents(){
     refitBoardForOpenTaskModal();
   });
   window.addEventListener('hashchange', openTaskFromHashIfPresent);
+  window.addEventListener('hashchange', openWhiteboardFromHashIfPresent);
 
   document.getElementById('searchInput').addEventListener('input', function(e){
     ui.searchTerm = e.target.value.trim();
@@ -2199,6 +2203,7 @@ function init(){
     initAnnouncements();
     initDespatches();
     openChatFullscreenFromQueryParamIfPresent();
+    openWhiteboardFromHashIfPresent();
     pullServerProjectsIntoLocal().then(function(count){
       if(count > 0) renderAll();
     });

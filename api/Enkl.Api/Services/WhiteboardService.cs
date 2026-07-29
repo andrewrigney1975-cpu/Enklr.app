@@ -50,8 +50,25 @@ public class WhiteboardService
             JoinedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync();
+        await CleanupExpiredUnsavedSessionsOpportunisticallyAsync();
 
         return await BuildStateDtoAsync(session.Id, callerUserId) ?? throw new InvalidOperationException("Session vanished immediately after creation.");
+    }
+
+    /// <summary>"Scratch until saved" — a session closed with IsSaved still false gets purged after
+    /// a short grace window (1 hour), same opportunistic 1-in-20-chance-on-write pattern already
+    /// used by mariadb-api's Events outbox and the PHP tiers' RateLimitHits table, rather than a
+    /// separate scheduled job. WhiteboardElements/WhiteboardParticipants cascade-delete with their
+    /// parent session (see WhiteboardElementConfiguration/WhiteboardParticipantConfiguration's own
+    /// DeleteBehavior.Cascade), so this is a single bulk delete, not a fan-out.</summary>
+    private async Task CleanupExpiredUnsavedSessionsOpportunisticallyAsync()
+    {
+        if (JoinCodeRandom.Next(20) != 0) return;
+
+        var cutoff = DateTime.UtcNow.AddHours(-1);
+        await _db.WhiteboardSessions
+            .Where(s => s.Status == "closed" && !s.IsSaved && s.ClosedAt != null && s.ClosedAt < cutoff)
+            .ExecuteDeleteAsync();
     }
 
     /// <summary>Resolves a join code to a session (must be open, must belong to the caller's own org)
@@ -156,6 +173,80 @@ public class WhiteboardService
         await _db.SaveChangesAsync();
 
         return participantUserIds;
+    }
+
+    /// <summary>Caller must be a currently-present participant of an open session in their own
+    /// org — a former participant, a stranger, or a closed session all get the same null. Returns
+    /// the new element plus every OTHER currently-present participant's user id, for the
+    /// controller's broadcast (the acting client already rendered its own stroke locally).</summary>
+    public async Task<(WhiteboardElementDto Element, List<Guid> OtherParticipantUserIds)?> AddElementAsync(
+        Guid organisationId, Guid callerUserId, Guid sessionId, AddWhiteboardElementRequest request)
+    {
+        var isCurrentParticipant = await _db.WhiteboardParticipants.AsNoTracking()
+            .AnyAsync(p => p.SessionId == sessionId && p.UserId == callerUserId && p.LeftAt == null
+                && p.Session.OrganisationId == organisationId && p.Session.Status == "open");
+        if (!isCurrentParticipant) return null;
+
+        var element = new WhiteboardElement
+        {
+            Id = Guid.NewGuid(),
+            SessionId = sessionId,
+            CreatedByUserId = callerUserId,
+            ElementType = request.ElementType,
+            ElementJson = request.ElementJson,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.WhiteboardElements.Add(element);
+        await _db.SaveChangesAsync();
+
+        var otherParticipantUserIds = await _db.WhiteboardParticipants.AsNoTracking()
+            .Where(p => p.SessionId == sessionId && p.LeftAt == null && p.UserId != callerUserId)
+            .Select(p => p.UserId)
+            .ToListAsync();
+
+        var dto = new WhiteboardElementDto(element.Id, element.ElementType, element.ElementJson, element.CreatedByUserId, element.CreatedAt);
+        return (dto, otherParticipantUserIds);
+    }
+
+    /// <summary>Soft-delete (eraser) — same currently-present-participant gate as AddElementAsync.
+    /// Returns the other participants' user ids for broadcast, or null if the caller isn't a current
+    /// participant or the element doesn't belong to this session.</summary>
+    public async Task<List<Guid>?> RemoveElementAsync(Guid organisationId, Guid callerUserId, Guid sessionId, Guid elementId)
+    {
+        var isCurrentParticipant = await _db.WhiteboardParticipants.AsNoTracking()
+            .AnyAsync(p => p.SessionId == sessionId && p.UserId == callerUserId && p.LeftAt == null
+                && p.Session.OrganisationId == organisationId && p.Session.Status == "open");
+        if (!isCurrentParticipant) return null;
+
+        var element = await _db.WhiteboardElements
+            .FirstOrDefaultAsync(e => e.Id == elementId && e.SessionId == sessionId && e.DeletedAt == null);
+        if (element is null) return null;
+
+        element.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return await _db.WhiteboardParticipants.AsNoTracking()
+            .Where(p => p.SessionId == sessionId && p.LeftAt == null && p.UserId != callerUserId)
+            .Select(p => p.UserId)
+            .ToListAsync();
+    }
+
+    /// <summary>Ephemeral cursor-position broadcast (.NET/php-api tiers only — no MariaDB
+    /// equivalent, see mariadb-api/CLAUDE.md's own trade-off note; the frontend simply never
+    /// receives this event on that tier). No DB write at all, unlike AddElementAsync — a cursor
+    /// position is purely transient. Returns the other currently-present participants' user ids, or
+    /// null if the caller isn't a current participant of an open session in their own org.</summary>
+    public async Task<List<Guid>?> GetOtherParticipantUserIdsForCursorAsync(Guid organisationId, Guid callerUserId, Guid sessionId)
+    {
+        var isCurrentParticipant = await _db.WhiteboardParticipants.AsNoTracking()
+            .AnyAsync(p => p.SessionId == sessionId && p.UserId == callerUserId && p.LeftAt == null
+                && p.Session.OrganisationId == organisationId && p.Session.Status == "open");
+        if (!isCurrentParticipant) return null;
+
+        return await _db.WhiteboardParticipants.AsNoTracking()
+            .Where(p => p.SessionId == sessionId && p.LeftAt == null && p.UserId != callerUserId)
+            .Select(p => p.UserId)
+            .ToListAsync();
     }
 
     // ---- Helpers ----

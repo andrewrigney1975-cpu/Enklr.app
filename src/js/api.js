@@ -917,3 +917,38 @@ export var projectStrategyApi = {
     return apiFetch('/projects/' + projectId + '/strategy/fulfilment', {method: 'GET'});
   }
 };
+
+/* Collaborative Whiteboard — org-wide, no ProjectMember/OrgAdmin gating (route base
+   /api/whiteboard/sessions, see Controllers/WhiteboardController.cs/.php). cursorMove is
+   best-effort and only actually broadcasts on the .NET/php-api tiers (mariadb-api has no matching
+   endpoint at all — see mariadb-api/CLAUDE.md's own live-cursor trade-off note); features/
+   whiteboard.js swallows a 404 from it silently rather than surfacing an error toast. */
+export var whiteboardApi = {
+  create: function(title){
+    return apiFetch('/whiteboard/sessions', {method: 'POST', body: JSON.stringify({title: title || null})});
+  },
+  join: function(joinCode){
+    return apiFetch('/whiteboard/sessions/join', {method: 'POST', body: JSON.stringify({joinCode: joinCode})});
+  },
+  getState: function(sessionId){
+    return apiFetch('/whiteboard/sessions/' + sessionId, {method: 'GET'});
+  },
+  addElement: function(sessionId, elementType, elementJson){
+    return apiFetch('/whiteboard/sessions/' + sessionId + '/elements', {method: 'POST', body: JSON.stringify({elementType: elementType, elementJson: elementJson})});
+  },
+  removeElement: function(sessionId, elementId){
+    return apiFetch('/whiteboard/sessions/' + sessionId + '/elements/' + elementId, {method: 'DELETE'});
+  },
+  leave: function(sessionId){
+    return apiFetch('/whiteboard/sessions/' + sessionId + '/leave', {method: 'POST'});
+  },
+  save: function(sessionId){
+    return apiFetch('/whiteboard/sessions/' + sessionId + '/save', {method: 'POST'});
+  },
+  close: function(sessionId){
+    return apiFetch('/whiteboard/sessions/' + sessionId + '/close', {method: 'POST'});
+  },
+  cursorMove: function(sessionId, x, y){
+    return apiFetch('/whiteboard/sessions/' + sessionId + '/cursor', {method: 'POST', body: JSON.stringify({x: x, y: y})});
+  }
+};

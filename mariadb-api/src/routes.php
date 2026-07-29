@@ -181,6 +181,8 @@ function registerRoutes(App $app): void
         $group->post('', [WhiteboardController::class, 'create']);
         $group->post('/join', [WhiteboardController::class, 'join']);
         $group->get('/{id}', [WhiteboardController::class, 'getState']);
+        $group->post('/{id}/elements', [WhiteboardController::class, 'addElement']);
+        $group->delete('/{id}/elements/{elementId}', [WhiteboardController::class, 'removeElement']);
         $group->post('/{id}/leave', [WhiteboardController::class, 'leave']);
         $group->post('/{id}/save', [WhiteboardController::class, 'save']);
         $group->post('/{id}/close', [WhiteboardController::class, 'close']);

@@ -181,6 +181,7 @@
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navStrategyBtn" title="Strategy"><span class="kf-icon" data-icon="strategyCompass" data-size="21"></span><span class="kf-side-nav-text">Strategy</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navFormsBtn" title="Manage Forms"><span class="kf-icon" data-icon="ty_document" data-size="21"></span><span class="kf-side-nav-text">Manage Forms</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navFormsFilloutBtn" title="Forms"><span class="kf-icon" data-icon="formFillOut" data-size="21"></span><span class="kf-side-nav-text">Forms</span></button>
+        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navWhiteboardBtn" title="Whiteboard"><span class="kf-icon" data-icon="whiteboard" data-size="21"></span><span class="kf-side-nav-text">Whiteboard</span></button>
       </div>
     </nav>
 
@@ -935,6 +936,74 @@
     <div class="kf-depmap-legend" id="depMapLegend"></div>
     <div class="kf-depmap-scroll" id="depMapScroll">
       <div id="depMapInner" class="kf-depmap-inner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Collaborative Whiteboard Overlay -->
+<div class="kf-overlay hidden" id="whiteboardOverlay">
+  <div class="kf-modal kf-modal-lg kf-whiteboard-modal" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="whiteboardTitle">Whiteboard</h2>
+      <div class="kf-modal-header-actions" id="whiteboardToolbar">
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="pen" id="wbToolPen" title="Pen"><span class="kf-icon" data-icon="pen" data-size="16"></span></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="eraser" id="wbToolEraser" title="Eraser"><span class="kf-icon" data-icon="eraser" data-size="16"></span></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="text" id="wbToolText" title="Text Box"><span class="kf-icon" data-icon="textBox" data-size="16"></span></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="rect" id="wbToolRect" title="Rectangle"><span class="kf-icon" data-icon="shapeRect" data-size="16"></span></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="circle" id="wbToolCircle" title="Circle"><span class="kf-icon" data-icon="shapeCircle" data-size="16"></span></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="oval" id="wbToolOval" title="Oval"><span class="kf-icon" data-icon="shapeOval" data-size="16"></span></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="triangle" id="wbToolTriangle" title="Triangle"><span class="kf-icon" data-icon="shapeTriangle" data-size="16"></span></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="diamond" id="wbToolDiamond" title="Diamond"><span class="kf-icon" data-icon="shapeDiamond" data-size="16"></span></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="connector" id="wbToolConnector" title="Connector Line"><span class="kf-icon" data-icon="connector" data-size="16"></span></button>
+        <div class="kf-header-divider-light"></div>
+        <input type="range" id="wbPenWidth" min="1" max="20" value="3" title="Pen width">
+        <div class="kf-header-divider-light"></div>
+        <div class="kf-wb-palette" id="wbPalette"></div>
+        <div class="kf-header-divider-light"></div>
+        <div class="kf-export-as-wrap">
+          <button class="kf-btn kf-btn-ghost" id="wbExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+          <div class="kf-export-as-panel hidden" id="wbExportAsPanel">
+            <button type="button" class="kf-export-as-option" data-export-type="svg">Export as SVG</button>
+          </div>
+        </div>
+        <div class="kf-header-divider-light"></div>
+        <button class="kf-btn kf-btn-ghost" id="whiteboardClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+
+    <!-- Entry view: shown until the caller has started or joined a session -->
+    <div class="kf-modal-body" id="wbEntryView">
+      <div class="kf-wb-entry">
+        <button type="button" class="kf-btn kf-btn-primary" id="wbStartBtn">Start a New Whiteboard</button>
+        <div class="kf-wb-entry-divider">or join one with a code</div>
+        <div class="kf-field">
+          <label for="wbJoinCodeInput">6-digit code</label>
+          <input type="text" id="wbJoinCodeInput" inputmode="numeric" maxlength="6" placeholder="123456">
+        </div>
+        <div class="kf-field-error hidden" id="wbJoinError"></div>
+        <button type="button" class="kf-btn kf-btn-secondary" id="wbJoinBtn">Join Whiteboard</button>
+      </div>
+    </div>
+
+    <!-- Canvas view: shown once inside a session -->
+    <div class="kf-wb-body hidden" id="wbCanvasView">
+      <div class="kf-wb-rail" id="wbRail">
+        <button type="button" class="kf-btn kf-btn-secondary kf-wb-rail-btn" id="wbCopyLinkBtn" title="Copy shareable link"><span class="kf-icon" data-icon="link" data-size="15"></span>Copy Link</button>
+        <div class="kf-wb-joincode" id="wbJoinCodeDisplay"></div>
+        <button type="button" class="kf-btn kf-btn-secondary kf-wb-rail-btn" id="wbSaveBtn" title="Save this whiteboard permanently"><span class="kf-icon" data-icon="check" data-size="15"></span>Save</button>
+        <button type="button" class="kf-btn kf-btn-danger kf-wb-rail-btn" id="wbExitBtn" title="Leave or close this whiteboard"><span class="kf-icon" data-icon="logout" data-size="15"></span><span id="wbExitBtnLabel">Exit</span></button>
+        <div class="kf-wb-participants" id="wbParticipants"></div>
+      </div>
+      <div class="kf-wb-canvas-wrap" id="wbCanvasWrap">
+        <svg id="wbCanvas" class="kf-wb-canvas" viewBox="0 0 1600 900" preserveAspectRatio="xMinYMin meet">
+          <defs>
+            <marker id="kf-wb-dot-start" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="#5243aa"/></marker>
+            <marker id="kf-wb-dot-end" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="#5243aa"/></marker>
+          </defs>
+          <g id="wbElementsLayer"></g>
+        </svg>
+        <div class="kf-wb-cursors" id="wbCursorsLayer"></div>
+      </div>
     </div>
   </div>
 </div>

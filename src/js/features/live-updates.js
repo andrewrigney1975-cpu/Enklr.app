@@ -6,6 +6,10 @@ import { renderBoard } from '../views/board.js';
 import { toastWithAction } from '../ui.js';
 import { handleChatMessageEvent, handleChatReactionEvent } from './chat.js';
 import { pushDespatch } from './despatches.js';
+import {
+  handleWhiteboardParticipantEvent, handleWhiteboardElementEvent,
+  handleWhiteboardSessionClosedEvent, handleWhiteboardCursorMovedEvent
+} from './whiteboard.js';
 
 /* Server-Sent Events client for Controllers/EventsController.cs's /api/events/stream — deliberately
    NOT the native EventSource API, since EventSource can't send an Authorization header and this app's
@@ -102,15 +106,23 @@ function handleFormSubmissionDecidedEvent(payload){
   });
 }
 
+var KNOWN_EVENT_NAMES = [
+  'task-changed', 'chat-message', 'chat-reaction', 'form-action-required', 'form-submission-decided',
+  'whiteboard-participant-changed', 'whiteboard-element-changed', 'whiteboard-session-closed', 'whiteboard-cursor-moved'
+];
+
 function dispatchEvent(eventName, data){
-  if(eventName !== 'task-changed' && eventName !== 'chat-message' && eventName !== 'chat-reaction' &&
-     eventName !== 'form-action-required' && eventName !== 'form-submission-decided') return;
+  if(KNOWN_EVENT_NAMES.indexOf(eventName) === -1) return;
   try {
     if(eventName === 'task-changed') handleTaskChangedEvent(JSON.parse(data));
     else if(eventName === 'chat-message') handleChatMessageEvent(JSON.parse(data));
     else if(eventName === 'chat-reaction') handleChatReactionEvent(JSON.parse(data));
     else if(eventName === 'form-action-required') handleFormActionRequiredEvent(JSON.parse(data));
-    else handleFormSubmissionDecidedEvent(JSON.parse(data));
+    else if(eventName === 'form-submission-decided') handleFormSubmissionDecidedEvent(JSON.parse(data));
+    else if(eventName === 'whiteboard-participant-changed') handleWhiteboardParticipantEvent(JSON.parse(data));
+    else if(eventName === 'whiteboard-element-changed') handleWhiteboardElementEvent(JSON.parse(data));
+    else if(eventName === 'whiteboard-session-closed') handleWhiteboardSessionClosedEvent(JSON.parse(data));
+    else handleWhiteboardCursorMovedEvent(JSON.parse(data));
   } catch(e){ /* malformed event payload — ignore rather than break the stream */ }
 }
 

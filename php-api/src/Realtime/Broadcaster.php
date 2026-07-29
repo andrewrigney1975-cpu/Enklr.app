@@ -208,4 +208,29 @@ final class Broadcaster
         $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
         $stmt->execute(['channel' => 'whiteboard_session_closed', 'payload' => $payload]);
     }
+
+    /** Ephemeral, not persisted anywhere (unlike every other broadcast here, which mirrors a
+     * durable DB write) — a cursor position is purely transient. .NET/php-api tiers only; no
+     * MariaDB equivalent exists at all. X/Y are in the frontend's fixed 1600x900 SVG viewBox
+     * coordinate space, not raw pixels.
+     *
+     * @param string[] $participantUserIds
+     */
+    public function broadcastWhiteboardCursorMoved(
+        array $participantUserIds,
+        string $sessionId,
+        string $userId,
+        string $displayName,
+        float $x,
+        float $y
+    ): void {
+        $payload = json_encode([
+            'memberUserIds' => $participantUserIds,
+            'excludeClientSessionId' => null,
+            'event' => ['sessionId' => $sessionId, 'userId' => $userId, 'displayName' => $displayName, 'x' => $x, 'y' => $y],
+        ]);
+
+        $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
+        $stmt->execute(['channel' => 'whiteboard_cursor_moved', 'payload' => $payload]);
+    }
 }

@@ -17,6 +17,8 @@ public record JoinWhiteboardSessionRequest(string JoinCode);
 
 public record AddWhiteboardElementRequest(string ElementType, string ElementJson);
 
+public record WhiteboardCursorMoveRequest(double X, double Y);
+
 /// <summary>Pushed over the SSE stream whenever a participant joins or leaves a whiteboard session —
 /// ChangeType is "joined" | "left", same convention as TaskChangedEventDto's ChangeType.</summary>
 public record WhiteboardParticipantEventDto(Guid SessionId, Guid UserId, string DisplayName, string ChangeType);
@@ -29,3 +31,8 @@ public record WhiteboardElementEventDto(Guid SessionId, WhiteboardElementDto Ele
 /// <summary>Pushed over the SSE stream to every participant when the host closes the session — no
 /// separate "removed" cleanup event is needed since the frontend just exits the modal on receipt.</summary>
 public record WhiteboardSessionClosedEventDto(Guid SessionId);
+
+/// <summary>Pushed over the SSE stream on every throttled cursor move — .NET/php-api tiers only,
+/// see WhiteboardService.GetOtherParticipantUserIdsForCursorAsync's own doc comment. X/Y are in the
+/// frontend's fixed 1600x900 SVG viewBox coordinate space, not raw pixels.</summary>
+public record WhiteboardCursorMovedEventDto(Guid SessionId, Guid UserId, string DisplayName, double X, double Y);
