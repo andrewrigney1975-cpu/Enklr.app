@@ -821,6 +821,25 @@ one task.
 `#hashtags` — write `#launch` into a few related tasks and that hashtag becomes a live, clickable
 thread tying them together, all without anyone having created a formal "tag" entity anywhere.
 
+**Whiteboard** — **What**: an org-wide, real-time shared drawing surface — anyone can start one from
+the Whiteboard item in the side navigation (Tools section), no setup or feature toggle required.
+Starting one gives you a 6-digit code and a shareable link; anyone else in your organisation who
+enters that code (or opens the link) lands straight in the same board and sees your cursor moving,
+and everyone else's, live, as well as everything anyone draws the instant they draw it. **Who**:
+Priya, sketching a quick flow with a teammate on a call instead of describing it in words; Marcus,
+walking through a diagram live with someone in another office. **How**: pick a tool from the toolbar
+along the top — pen (choose a width and any of 16 colours), eraser, text box, five basic shapes
+(rectangle, circle, oval, triangle, diamond — hold the circle tool and it stays a true circle no
+matter how you drag), and a connector line for pointing one thing at another. Down the left side:
+**Copy Link** (puts a shareable join link on your clipboard), **Save**, and **Exit**.
+**Save vs. Exit matters**: a whiteboard is scratch space until someone actually clicks Save — closing
+it beforehand (only the person who started it can close it for everyone; anyone else can just leave)
+discards it for good, and you'll get an explicit warning first if there's anything undrawn-over on
+it. Click Save any time you want to keep it. Once you're done, **Export As...** in the toolbar saves
+the whole board as a real SVG file you can drop into a doc or a design tool. **Who can use it**: like
+Chat, this only exists once you're on Option B or C from Section 1 — it's an organisation-wide
+feature, so a fully local, never-migrated project has no one to share a board with.
+
 **AI Assistant** — **What**: a second floating bubble, next to Chat's, that opens a conversation with
 an AI that can actually act on this project — create tasks, edit them, look things up, and answer
 "what should I work on next" or "how do I..." questions (it knows this User Guide). **Who**: Priya,
@@ -1071,6 +1090,8 @@ it" tiers, though who's allowed to *initiate* it differs:
 | Build a reporting screen from my own Saved Queries | [Section 7 — Dashboards](#7-search-and-the-advanced-query-workbench) |
 | See every Dashboard across the whole organisation | [Section 7 — Dashboards](#7-search-and-the-advanced-query-workbench) |
 | Talk to a teammate in real time | [Section 8 — Chat](#8-collaboration--chat-and-comments) |
+| Sketch a diagram live with a teammate, in real time | [Section 8 — Whiteboard](#8-collaboration--chat-and-comments) |
+| Share a whiteboard with a 6-digit code or a link | [Section 8 — Whiteboard](#8-collaboration--chat-and-comments) |
 | Create tasks (or break one into sub-tasks) by just asking | [Section 8 — AI Assistant](#8-collaboration--chat-and-comments) |
 | Stand up a whole new project by just asking (Org Admins) | [Section 8 — AI Assistant](#8-collaboration--chat-and-comments) |
 | See a permanent, live view of what's actually blocked right now | [Section 2 — A "Blocked" column](#2-the-board--your-home-base) |
