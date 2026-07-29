@@ -253,7 +253,9 @@ public class FormSubmissionService
         ApplyNextNode(submission, nextNode);
 
         await _db.SaveChangesAsync();
-        NotifyIfNamedApproverNeeded(submission, nextNode, trail);
+        // Always a fresh arrival — the submission is moving off the Author node onto nextNode for
+        // the very first time.
+        NotifyIfNamedApproverNeeded(submission, nextNode, trail, isFreshArrival: true);
         return (true, "", ToDto(submission));
     }
 
@@ -308,7 +310,12 @@ public class FormSubmissionService
         await _db.SaveChangesAsync();
         if (action == "approve")
         {
-            NotifyIfNamedApproverNeeded(submission, nextNode ?? node, trail);
+            // isFreshArrival is true only when this approval actually completed the CURRENT node's
+            // quorum and advanced to a genuinely new nextNode (a multi-step Approval chain) — that's
+            // a fresh arrival needing a full fan-out at nextNode, same as SubmitAsync's own first
+            // arrival. When nextNode is null, quorum wasn't complete and we're still re-checking node
+            // itself after a partial approval — not fresh, just the "narrows to one" case.
+            NotifyIfNamedApproverNeeded(submission, nextNode ?? node, trail, isFreshArrival: nextNode is not null);
             // Only the FINAL approval (the one that actually advances the submission all the way to
             // an End node) notifies the submitter — an intermediate approval in a multi-step chain
             // just moves CurrentNodeId to the next Approval node, Status stays 'inProgress', and the
@@ -330,15 +337,18 @@ public class FormSubmissionService
         else { submission.Status = "inProgress"; submission.CurrentNodeId = nextNode.Id; }
     }
 
-    /// <summary>Phase 6's deliberately narrow SSE-push scope (see the approved plan's own "Deferred:
-    /// broadcast to every qualifying user-type member isn't in v1" note): a plain userType gate has
-    /// no single "specific person" to target, so this only ever fires for (a) a fresh ANY-mode node
-    /// with at least one namedUser gate — notify each of them, since any one of them can act right
-    /// now, or (b) an ALL-mode node where, after the trail update the caller just recorded, exactly
-    /// ONE required gate remains unsatisfied AND it's a namedUser gate — the one person now actually
-    /// able to complete it. Anyone else still finds their pending approvals via "Awaiting My Action"
-    /// (Phase 5), not a push.</summary>
-    private void NotifyIfNamedApproverNeeded(FormSubmission submission, WfNode? node, List<TrailEntry> trail)
+    /// <summary>Phase 6's SSE-push scope (a plain userType gate has no single "specific person" to
+    /// target, so this only ever fires for named-user gates), widened in Phase 9 for ALL-mode:
+    /// (a) a fresh ANY-mode node — notify every namedUser gate at once, since any one of them can act
+    /// right now; (b) a FRESHLY-REACHED ALL-mode node (isFreshArrival) — fan out to every remaining
+    /// namedUser gate at once too, not just the last one, so a multi-person parallel approval doesn't
+    /// leave everyone but the final approver to discover it only via "Awaiting My Action" polling; or
+    /// (c) a re-check of the SAME ALL-mode node after a partial approval (isFreshArrival false) —
+    /// only once exactly ONE required gate remains unsatisfied, so partial progress on a large
+    /// approver list doesn't re-notify everyone still pending on every single approval, just the one
+    /// person now actually able to complete it. Anyone else still finds their pending approvals via
+    /// "Awaiting My Action" (Phase 5), not a push.</summary>
+    private void NotifyIfNamedApproverNeeded(FormSubmission submission, WfNode? node, List<TrailEntry> trail, bool isFreshArrival)
     {
         if (node is null || node.Type != "approval") return;
         List<Guid> targets;
@@ -346,8 +356,17 @@ public class FormSubmissionService
         {
             var satisfied = new HashSet<string>(trail.Where(t => t.NodeId == node.Id && t.Action == "approved").SelectMany(e => e.SatisfiedGateKeys));
             var remaining = (node.ApproverGates ?? new()).Where(g => !satisfied.Contains(GateKey(g))).ToList();
-            targets = remaining.Count == 1 && remaining[0].Kind == "namedUser" && Guid.TryParse(remaining[0].Value, out var soleId)
-                ? new List<Guid> { soleId } : new();
+            if (isFreshArrival)
+            {
+                targets = remaining.Where(g => g.Kind == "namedUser")
+                    .Select(g => Guid.TryParse(g.Value, out var id) ? id : (Guid?)null)
+                    .Where(id => id.HasValue).Select(id => id!.Value).ToList();
+            }
+            else
+            {
+                targets = remaining.Count == 1 && remaining[0].Kind == "namedUser" && Guid.TryParse(remaining[0].Value, out var soleId)
+                    ? new List<Guid> { soleId } : new();
+            }
         }
         else
         {

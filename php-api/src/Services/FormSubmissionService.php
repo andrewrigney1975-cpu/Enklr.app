@@ -178,7 +178,9 @@ final class FormSubmissionService
 
         return [
             'ok' => true, 'error' => '', 'dto' => $this->get($projectId, $submissionId),
-            'notifyUserIds' => self::resolveNotifyTargets($nextNode, $trail), 'formName' => $row['FormName'],
+            // Always a fresh arrival — the submission is moving off the Author node onto nextNode
+            // for the very first time.
+            'notifyUserIds' => self::resolveNotifyTargets($nextNode, $trail, true), 'formName' => $row['FormName'],
         ];
     }
 
@@ -224,6 +226,12 @@ final class FormSubmissionService
         $status = $row['Status'];
         $currentNodeId = $row['CurrentNodeId'];
         $notifyNode = $node;
+        // True only when this approval actually completed the CURRENT node's quorum and advanced to
+        // a genuinely new node (a multi-step Approval chain) — a fresh arrival needing a full
+        // fan-out there, same as submit()'s own first arrival. Stays false when quorum wasn't
+        // complete and we're still re-checking $node itself after a partial approval — the "narrows
+        // to one" case, not a fresh one.
+        $notifyIsFreshArrival = false;
         if ($action === 'reject') {
             $status = 'rejected';
         } elseif (self::isApprovalComplete($node, $trail)) {
@@ -231,6 +239,7 @@ final class FormSubmissionService
             $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
             [$status, $currentNodeId] = self::nextNodeState($nextNode);
             $notifyNode = $nextNode;
+            $notifyIsFreshArrival = true;
         }
         // else: quorum not yet complete — Status/CurrentNodeId unchanged, and resolveNotifyTargets
         // below re-checks the SAME node — its own ALL-mode branch is what notices the remaining-
@@ -256,20 +265,24 @@ final class FormSubmissionService
         $stmt2->execute(['id' => $submissionId]);
         return [
             'ok' => true, 'error' => '', 'dto' => self::toDto($stmt2->fetch()),
-            'notifyUserIds' => $action === 'approve' ? self::resolveNotifyTargets($notifyNode, $trail) : [],
+            'notifyUserIds' => $action === 'approve' ? self::resolveNotifyTargets($notifyNode, $trail, $notifyIsFreshArrival) : [],
             'decisionNotify' => $decisionNotify,
             'formName' => $row['FormName'],
         ];
     }
 
-    /** Phase 6's deliberately narrow SSE-push scope — see FormSubmissionService.cs's own
-     * NotifyIfNamedApproverNeeded doc comment for the full reasoning (mirrored here exactly). Only
+    /** Phase 6's SSE-push scope (a plain userType gate has no single "specific person" to target),
+     * widened in Phase 9 for ALL-mode — see FormSubmissionService.cs's own NotifyIfNamedApproverNeeded
+     * doc comment for the full reasoning (mirrored here exactly): fresh ANY-mode notifies every
+     * namedUser gate; a FRESHLY-REACHED ALL-mode node ($isFreshArrival) fans out to every remaining
+     * namedUser gate at once, not just the last one; a re-check of the SAME ALL-mode node after a
+     * partial approval ($isFreshArrival false) only notifies once exactly one gate remains. Only
      * decides WHO to notify; the controller (this tier's own broadcast-ownership convention, see
      * Controllers/TasksController.php) is what actually calls Broadcaster. (Phase 7's rejection
      * notification has no equivalent "who" ambiguity to resolve — see actOnApproval's own
      * $decisionNotify, computed inline rather than via a second resolver like this one.)
      * @return string[] */
-    private static function resolveNotifyTargets(?array $node, array $trail): array
+    private static function resolveNotifyTargets(?array $node, array $trail, bool $isFreshArrival): array
     {
         if ($node === null || ($node['type'] ?? null) !== 'approval') {
             return [];
@@ -284,6 +297,12 @@ final class FormSubmissionService
                 }
             }
             $remaining = array_values(array_filter($node['approverGates'] ?? [], fn(array $g) => !isset($satisfied[self::gateKey($g)])));
+            if ($isFreshArrival) {
+                return array_values(array_map(
+                    fn(array $g) => (string) $g['value'],
+                    array_filter($remaining, fn(array $g) => ($g['kind'] ?? null) === 'namedUser')
+                ));
+            }
             if (count($remaining) === 1 && ($remaining[0]['kind'] ?? null) === 'namedUser') {
                 return [(string) $remaining[0]['value']];
             }
