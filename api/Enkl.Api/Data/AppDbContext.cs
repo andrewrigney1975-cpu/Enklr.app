@@ -55,6 +55,9 @@ public class AppDbContext : DbContext
     public DbSet<ProjectPillarFulfilment> ProjectPillarFulfilments => Set<ProjectPillarFulfilment>();
     public DbSet<Form> Forms => Set<Form>();
     public DbSet<FormSubmission> FormSubmissions => Set<FormSubmission>();
+    public DbSet<WhiteboardSession> WhiteboardSessions => Set<WhiteboardSession>();
+    public DbSet<WhiteboardParticipant> WhiteboardParticipants => Set<WhiteboardParticipant>();
+    public DbSet<WhiteboardElement> WhiteboardElements => Set<WhiteboardElement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
