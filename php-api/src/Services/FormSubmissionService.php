@@ -236,6 +236,19 @@ final class FormSubmissionService
         // below re-checks the SAME node — its own ALL-mode branch is what notices the remaining-
         // approver count just dropped to one.
 
+        // Phase 7/8: notify the original submitter of a FINAL decision, always and unconditionally —
+        // no gate-satisfaction ambiguity to resolve here (unlike resolveNotifyTargets), skipped only
+        // if the decider IS the submitter (a userType-gated approver acting on their own submission).
+        // Reject is always final; approve is only final once $status actually became 'approved' — an
+        // intermediate approval in a multi-step chain leaves $status 'inProgress' and doesn't notify.
+        $decisionNotify = null;
+        if (($action === 'reject' || $status === 'approved') && $row['SubmittedByUserId'] !== $callerUserId) {
+            $decisionNotify = [
+                'userId' => $row['SubmittedByUserId'], 'displayName' => $this->resolveDisplayName($callerUserId),
+                'decision' => $action === 'reject' ? 'rejected' : 'approved',
+            ];
+        }
+
         $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateLastModified" = now() WHERE "Id" = :id');
         $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
 
@@ -244,6 +257,7 @@ final class FormSubmissionService
         return [
             'ok' => true, 'error' => '', 'dto' => self::toDto($stmt2->fetch()),
             'notifyUserIds' => $action === 'approve' ? self::resolveNotifyTargets($notifyNode, $trail) : [],
+            'decisionNotify' => $decisionNotify,
             'formName' => $row['FormName'],
         ];
     }
@@ -251,7 +265,9 @@ final class FormSubmissionService
     /** Phase 6's deliberately narrow SSE-push scope — see FormSubmissionService.cs's own
      * NotifyIfNamedApproverNeeded doc comment for the full reasoning (mirrored here exactly). Only
      * decides WHO to notify; the controller (this tier's own broadcast-ownership convention, see
-     * Controllers/TasksController.php) is what actually calls Broadcaster.
+     * Controllers/TasksController.php) is what actually calls Broadcaster. (Phase 7's rejection
+     * notification has no equivalent "who" ambiguity to resolve — see actOnApproval's own
+     * $decisionNotify, computed inline rather than via a second resolver like this one.)
      * @return string[] */
     private static function resolveNotifyTargets(?array $node, array $trail): array
     {
@@ -411,6 +427,14 @@ final class FormSubmissionService
         $stmt = $this->db->prepare('SELECT 1 FROM "ProjectMembers" WHERE "ProjectId" = :pid AND "UserId" = :uid AND "IsProjectAdmin" = true');
         $stmt->execute(['pid' => $projectId, 'uid' => $userId]);
         return ['id' => $userId, 'isOrgAdmin' => $callerIsOrgAdmin, 'isProjectAdmin' => $stmt->fetch() !== false];
+    }
+
+    private function resolveDisplayName(string $userId): string
+    {
+        $stmt = $this->db->prepare('SELECT "DisplayName" FROM "Users" WHERE "Id" = :id');
+        $stmt->execute(['id' => $userId]);
+        $name = $stmt->fetchColumn();
+        return $name !== false ? (string) $name : 'someone';
     }
 
     private static function toListItemDto(array $s): array

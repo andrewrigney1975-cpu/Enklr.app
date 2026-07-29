@@ -12,9 +12,12 @@ use PDO;
  * Services/FormSubmissionService.cs). Project-member-facing Draft management + workflow progression
  * for Form submissions — single table for every form type. Phase 1: create/edit/delete a Draft only.
  * Phase 5: Submit/Approve/Reject — a compact SERVER-SIDE re-implementation of
- * features/form-workflow-engine.js's gate/quorum logic. Phase 6 (this pass): resolveNotifyTargets +
+ * features/form-workflow-engine.js's gate/quorum logic. Phase 6: resolveNotifyTargets +
  * the 'notifyUserIds'/'formName' result keys the controller uses to broadcast
- * form-action-required. No dialect divergence from the Postgres tier anywhere in this file.
+ * form-action-required. Phase 7/8: the 'decisionNotify' result key (always the original submitter,
+ * fired for both a rejection and a submission's FINAL approval — never an intermediate one in a
+ * multi-step chain — computed inline in actOnApproval, no gate-satisfaction ambiguity to resolve
+ * like resolveNotifyTargets has). No dialect divergence from the Postgres tier anywhere in this file.
  */
 final class FormSubmissionService
 {
@@ -237,6 +240,19 @@ final class FormSubmissionService
         // below re-checks the SAME node — its own ALL-mode branch is what notices the remaining-
         // approver count just dropped to one.
 
+        // Phase 7/8: notify the original submitter of a FINAL decision, always and unconditionally —
+        // no gate-satisfaction ambiguity to resolve here (unlike resolveNotifyTargets), skipped only
+        // if the decider IS the submitter (a userType-gated approver acting on their own submission).
+        // Reject is always final; approve is only final once $status actually became 'approved' — an
+        // intermediate approval in a multi-step chain leaves $status 'inProgress' and doesn't notify.
+        $decisionNotify = null;
+        if (($action === 'reject' || $status === 'approved') && $row['SubmittedByUserId'] !== $callerUserId) {
+            $decisionNotify = [
+                'userId' => $row['SubmittedByUserId'], 'displayName' => $this->resolveDisplayName($callerUserId),
+                'decision' => $action === 'reject' ? 'rejected' : 'approved',
+            ];
+        }
+
         $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateLastModified" = now() WHERE "Id" = :id');
         $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
 
@@ -245,6 +261,7 @@ final class FormSubmissionService
         return [
             'ok' => true, 'error' => '', 'dto' => self::toDto($stmt2->fetch()),
             'notifyUserIds' => $action === 'approve' ? self::resolveNotifyTargets($notifyNode, $trail) : [],
+            'decisionNotify' => $decisionNotify,
             'formName' => $row['FormName'],
         ];
     }
@@ -412,6 +429,14 @@ final class FormSubmissionService
         $stmt = $this->db->prepare('SELECT 1 FROM "ProjectMembers" WHERE "ProjectId" = :pid AND "UserId" = :uid AND "IsProjectAdmin" = true');
         $stmt->execute(['pid' => $projectId, 'uid' => $userId]);
         return ['id' => $userId, 'isOrgAdmin' => $callerIsOrgAdmin, 'isProjectAdmin' => $stmt->fetch() !== false];
+    }
+
+    private function resolveDisplayName(string $userId): string
+    {
+        $stmt = $this->db->prepare('SELECT "DisplayName" FROM "Users" WHERE "Id" = :id');
+        $stmt->execute(['id' => $userId]);
+        $name = $stmt->fetchColumn();
+        return $name !== false ? (string) $name : 'someone';
     }
 
     private static function toListItemDto(array $s): array

@@ -82,6 +82,14 @@ public class SseBroadcaster
         Broadcast("form-action-required", new[] { targetUserId }, payload, null);
     }
 
+    /// <summary>Notifies the original submitter's every open connection that their submission reached
+    /// a final decision (approved or rejected) — same single-target, no-exclude shape as
+    /// BroadcastFormActionRequired.</summary>
+    public void BroadcastFormSubmissionDecided(Guid targetUserId, FormSubmissionDecidedEventDto payload)
+    {
+        Broadcast("form-submission-decided", new[] { targetUserId }, payload, null);
+    }
+
     private void Broadcast<T>(string eventName, IEnumerable<Guid> memberUserIds, T payload, string? excludeClientSessionId)
     {
         var frame = "event: " + eventName + "\ndata: " + JsonSerializer.Serialize(payload, JsonOptions) + "\n\n";

@@ -90,6 +90,7 @@ final class ProjectFormsController extends BaseController
             return $result['error'] === 'not_found' ? $this->notFound($response) : $this->json($response, ['message' => $result['error']], 400);
         }
         $this->notifyFormAction($result, $args['projectId']);
+        $this->notifyFormDecision($result, $args['projectId'], $body['comment'] ?? null);
         return $this->json($response, $result['dto']);
     }
 
@@ -106,5 +107,21 @@ final class ProjectFormsController extends BaseController
         foreach ($userIds as $userId) {
             $broadcaster->broadcastFormActionRequired($userId, $projectId, $result['dto']['id'], $result['formName'] ?? '');
         }
+    }
+
+    /** Phase 7/8 — same broadcast-ownership split as notifyFormAction above, just for the final-
+     * decision path's single, unconditional target (FormSubmissionService's own $decisionNotify,
+     * computed inline since there's no gate-satisfaction "who" question to resolve here). Fires for
+     * BOTH a rejection and the FINAL approval of a multi-step chain — never an intermediate one. */
+    private function notifyFormDecision(array $result, string $projectId, ?string $comment): void
+    {
+        $target = $result['decisionNotify'] ?? null;
+        if ($target === null) {
+            return;
+        }
+        $broadcaster = new Broadcaster(Database::connection());
+        $broadcaster->broadcastFormSubmissionDecided(
+            $target['userId'], $projectId, $result['dto']['id'], $result['formName'] ?? '', $target['decision'], $target['displayName'], $comment
+        );
     }
 }

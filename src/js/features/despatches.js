@@ -35,17 +35,20 @@ var unreadCount = 0; // logged (pushed) entries only — live conditions (alerts
 
 var _onUpdate = function(){};
 var _openChat = function(){}; // (channelId) => void — provided by app.js (openChatPanel() + openChannel())
+var _openForm = function(){}; // (serverProjectId, submissionId, mode) => void — provided by app.js
 
 export function setDespatchesDeps(deps){
   if(deps.onUpdate) _onUpdate = deps.onUpdate;
   if(deps.openChat) _openChat = deps.openChat;
+  if(deps.openForm) _openForm = deps.openForm;
 }
 
 function notify(){ _onUpdate(); }
 
-/* icon: an ICON_PATHS name. message: plain text. taskKey/channelId: at most one should be set — the
-   despatch's click target, if any (a pure informational despatch — e.g. none currently, but kept
-   general — passes neither). */
+/* icon: an ICON_PATHS name. message: plain text. taskKey/channelId/formSubmission: at most one
+   should be set — the despatch's click target, if any (a pure informational despatch — e.g. none
+   currently, but kept general — passes none). formSubmission, if set, is
+   {projectId, submissionId, mode} — see features/live-updates.js's Enterprise Forms handlers. */
 export function pushDespatch(entry){
   despatchLog.unshift({
     id: 'despatch-' + Date.now() + '-' + Math.random().toString(36).slice(2),
@@ -53,7 +56,8 @@ export function pushDespatch(entry){
     message: entry.message,
     timestamp: entry.timestamp || Date.now(),
     taskKey: entry.taskKey || null,
-    channelId: entry.channelId || null
+    channelId: entry.channelId || null,
+    formSubmission: entry.formSubmission || null
   });
   if(despatchLog.length > DESPATCH_LOG_CAP) despatchLog.length = DESPATCH_LOG_CAP;
   unreadCount++;
@@ -87,7 +91,7 @@ export function resetDespatchLog(){
 export function getMergedDespatches(){
   var now = Date.now();
   var liveRows = summarizeProjectAlerts().map(function(a){
-    return {id: 'live-' + a.icon + '-' + a.message, icon: a.icon, message: a.message, timestamp: now, taskKey: null, channelId: null};
+    return {id: 'live-' + a.icon + '-' + a.message, icon: a.icon, message: a.message, timestamp: now, taskKey: null, channelId: null, formSubmission: null};
   });
   return liveRows.concat(despatchLog)
     .sort(function(a, b){ return b.timestamp - a.timestamp; })
@@ -109,11 +113,20 @@ export function renderDespatchesPanel(){
       if(r.channelId){
         return '<div class="kf-despatch-row kf-despatch-row-clickable" data-channel-id="' + escapeHTML(r.channelId) + '">' + iconHTML + textHTML + '</div>';
       }
+      if(r.formSubmission){
+        return '<div class="kf-despatch-row kf-despatch-row-clickable" data-form-project-id="' + escapeHTML(r.formSubmission.projectId) +
+          '" data-form-submission-id="' + escapeHTML(r.formSubmission.submissionId) + '" data-form-mode="' + escapeHTML(r.formSubmission.mode) + '">' + iconHTML + textHTML + '</div>';
+      }
       return '<div class="kf-despatch-row">' + iconHTML + textHTML + '</div>';
     }).join('');
 
-    panel.querySelectorAll('.kf-despatch-row-clickable').forEach(function(row){
+    panel.querySelectorAll('[data-channel-id]').forEach(function(row){
       row.addEventListener('click', function(){ _openChat(row.getAttribute('data-channel-id')); });
+    });
+    panel.querySelectorAll('[data-form-submission-id]').forEach(function(row){
+      row.addEventListener('click', function(){
+        _openForm(row.getAttribute('data-form-project-id'), row.getAttribute('data-form-submission-id'), row.getAttribute('data-form-mode'));
+      });
     });
   }
   hydrateIcons(panel);

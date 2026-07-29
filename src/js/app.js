@@ -2,7 +2,7 @@
 
 /* ---- Core ---- */
 import { state, loadDB, saveDB, getOpeningExperience } from './storage.js';
-import { getCurrentProject } from './store.js';
+import { getCurrentProject, findProjectByServerId } from './store.js';
 import { ui, toast, resetFilters, renderThemeToggleIcon, toggleTheme, setThemeDeps, relocateViewButtonsForViewport, toggleSideNav, toggleMobileDrawer, closeMobileDrawer, isMobileDrawerOpen } from './ui.js';
 import { hydrateIcons } from './icons.js';
 import { setOnAuthExpired, setOnMustChangePassword, clearToken, ssoLookupApi } from './api.js';
@@ -25,7 +25,7 @@ import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenef
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
 import { exportProjectJSON, setExportToast } from './features/export.js';
 import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast, refreshProjectFromServer, switchToAiCreatedProject } from './features/migration.js';
-import { connectEventStream, disconnectEventStream } from './features/live-updates.js';
+import { connectEventStream, disconnectEventStream, setLiveUpdatesDeps } from './features/live-updates.js';
 import { initChat, resetChatState, openChatPanel, closeChatPanel, isChatPanelOpen, openChannel } from './features/chat.js';
 import { initChatView, toggleChatPanel, chatBackClicked, updateChatBubbleVisibility, isChatFullscreenOpen, openChatFullscreen, toggleChatFullscreen, closeChatFullscreen } from './views/chat.js';
 import { resetAiAssistantState } from './features/ai-assistant.js';
@@ -65,7 +65,7 @@ import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioP
 import { openStrategyOverlay, closeStrategyOverlay, isStrategyOverlayOpen, setStrategyDashboardMode } from './modals/strategy.js';
 import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow, hideFormsAdminCreateRow, createFormFromAdmin, closeFormFieldBuilder, saveFormBuilder, openFieldEditor, closeFieldEditor, onFormFieldTypeChanged, saveFieldEditor, closeFormVersionHistory, cloneLatestVersion, openFormWorkflowEditorForBuilder, closeFormWorkflowEditorForBuilder } from './modals/forms-admin.js';
 import { setFormWorkflowEditorDeps, setFormWorkflowMode, addFormWorkflowNode, handleFormWorkflowScrollMouseDown, handleFormWorkflowPointerMove, handleFormWorkflowPointerUp, handleFormWorkflowInnerClick, saveFormWorkflowNodePopover, deleteFormWorkflowNodeFromPopover, closeFormWorkflowNodePopover, isFormWorkflowNodePopoverOpen, deleteFormWorkflowEdgeFromPopover, closeFormWorkflowEdgePopover, isFormWorkflowEdgePopoverOpen } from './views/form-workflow-editor.js';
-import { openFormsFilloutOverlay, closeFormsFilloutOverlay, closeFormFilloutDetailOverlay, saveFormFilloutDraft, submitFormFillout, deleteFormFilloutDraft, approveFormFillout, rejectFormFillout } from './modals/forms-fillout.js';
+import { openFormsFilloutOverlay, closeFormsFilloutOverlay, closeFormFilloutDetailOverlay, saveFormFilloutDraft, submitFormFillout, deleteFormFilloutDraft, approveFormFillout, rejectFormFillout, openFormSubmissionDetail } from './modals/forms-fillout.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
 import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen, showPrinciplesFormView, showPrinciplesListView, renderPrinciplesList, savePrincipleFromModal, deletePrincipleFromModal, switchPrinciplesTab, updatePrincipleShareFromModal } from './modals/principles.js';
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
@@ -126,8 +126,10 @@ setAiAssistantProjectSwitchHook(function(action){
 setAnnouncementDeps({ onUpdate: renderDisruptionBanner });
 setDespatchesDeps({
   onUpdate: function(){ renderDespatchesPanel(); updateDespatchesBadge(); },
-  openChat: function(channelId){ openChatPanel(); openChannel(channelId); }
+  openChat: function(channelId){ openChatPanel(); openChannel(channelId); },
+  openForm: openFormSubmissionFromNotification
 });
+setLiveUpdatesDeps({ openFormSubmission: openFormSubmissionFromNotification });
 setMutationsToast(toast);
 setMigrationToast(toast);
 setExportToast(toast);
@@ -2050,6 +2052,30 @@ function openTaskFromHashIfPresent(){
     renderAll();
   }
   openTaskModal(found.task.id, found.task.columnId);
+}
+
+/* Enterprise Forms & Workflow, Phase 7 — the deep-link target for both the Despatches panel's
+   clickable formSubmission rows and a live SSE toast's "Open" action (features/despatches.js's
+   openForm DI hook, features/live-updates.js's openFormSubmission DI hook — both wired to this same
+   function so the two entry points can never drift apart). Forms have no hashbang/task-key-style
+   deep-link mechanism of their own (a submission's id only means anything within its own server
+   project, unlike a globally-searched task key — see hash-router.js) — this switches the LOCAL
+   project matching the payload's serverProjectId first, same project-switch shape as the
+   projectSelect dropdown's own change handler, then opens the fill-out overlay straight to that
+   submission. */
+function openFormSubmissionFromNotification(serverProjectId, submissionId, mode){
+  var localProject = findProjectByServerId(serverProjectId);
+  if(!localProject){ toast('That project is no longer available.'); return; }
+  if(localProject.id !== state.db.currentProjectId){
+    state.db.currentProjectId = localProject.id;
+    saveDB();
+    resetFilters();
+    resetAiAssistantState();
+    renderAll();
+    checkProjectAlerts();
+  }
+  openFormsFilloutOverlay();
+  openFormSubmissionDetail(submissionId, mode);
 }
 
 /* Handles the ?ssoCode=/?ssoError= this page was reloaded with after a round trip through the

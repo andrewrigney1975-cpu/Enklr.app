@@ -149,8 +149,8 @@ export function renderFormWorkflowEditor(){
   computeEdgeLaneOverrides(Object.keys(edgeGeoms).map(function(id){ return edgeGeoms[id]; }), FORM_WF_EDGE_STUB);
 
   var defsHTML = '<defs>' +
-    '<marker id="kf-fwf-dot-start" viewBox="0 0 10 10" refX="0.75" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-surface)" stroke="var(--kf-accent)" stroke-width="1.6"/></marker>' +
-    '<marker id="kf-fwf-dot-end" viewBox="0 0 10 10" refX="9.25" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-accent)" stroke="var(--kf-accent)" stroke-width="1.6"/></marker>' +
+    '<marker id="kf-fwf-dot-start" viewBox="0 0 10 10" refX="0.75" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-surface)" stroke="var(--kf-blue)" stroke-width="1.6"/></marker>' +
+    '<marker id="kf-fwf-dot-end" viewBox="0 0 10 10" refX="9.25" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-blue)" stroke="var(--kf-blue)" stroke-width="1.6"/></marker>' +
   '</defs>';
 
   var edgesHTML = workflow.edges.map(function(e){
@@ -159,7 +159,7 @@ export function renderFormWorkflowEditor(){
     var d = edgePathD(fromPos, toPos, edgeGeoms[e.id] ? edgeGeoms[e.id].midOverride : null, edgeOffsets[e.id]);
     return (
       '<g class="kf-wfedge-group" data-edge-id="' + e.id + '">' +
-        '<path class="kf-wfedge" d="' + d + '" fill="none" stroke="var(--kf-accent)" stroke-width="2.5" marker-start="url(#kf-fwf-dot-start)" marker-end="url(#kf-fwf-dot-end)"></path>' +
+        '<path class="kf-wfedge" d="' + d + '" fill="none" stroke="var(--kf-blue)" stroke-width="2.5" marker-start="url(#kf-fwf-dot-start)" marker-end="url(#kf-fwf-dot-end)"></path>' +
         '<path class="kf-wfedge-hit" data-edge-id="' + e.id + '" d="' + d + '" fill="none" stroke="transparent" stroke-width="16"></path>' +
       '</g>'
     );
@@ -173,7 +173,7 @@ export function renderFormWorkflowEditor(){
     return (
       '<g class="kf-wfnode kf-fwfnode kf-fwfnode-' + n.type + '" data-node-id="' + n.id + '" transform="translate(' + pos.x + ',' + pos.y + ')">' +
         '<rect class="kf-wfnode-box" x="0" y="0" width="' + FORM_WF_NODE_W + '" height="' + FORM_WF_NODE_H + '" rx="6" style="fill:var(--kf-surface);stroke:var(--kf-border-strong);" stroke-width="1.5"></rect>' +
-        '<g transform="translate(10,10)" style="color:var(--kf-accent);">' + iconSvg(meta.icon, 16) + '</g>' +
+        '<g transform="translate(10,10)" style="color:var(--kf-blue);">' + iconSvg(meta.icon, 16) + '</g>' +
         '<text x="34" y="26" font-size="13" font-weight="600" style="fill:var(--kf-text);">' + escapeHTML(label.length > 16 ? label.slice(0, 15) + '…' : label) + '</text>' +
         '<text x="12" y="46" font-size="10" style="fill:var(--kf-text-faint);">' + escapeHTML(meta.label) + (summary ? ' · ' + escapeHTML(summary) : '') + '</text>' +
       '</g>'
@@ -277,7 +277,7 @@ function startFormWorkflowEdgeDraw(nodeId, clientX, clientY){
   var draft = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   draft.setAttribute('id', 'formWorkflowDraftEdge');
   draft.setAttribute('fill', 'none');
-  draft.setAttribute('stroke', 'var(--kf-accent)');
+  draft.setAttribute('stroke', 'var(--kf-blue)');
   draft.setAttribute('stroke-width', '2.5');
   draft.setAttribute('stroke-dasharray', '5,4');
   svg.appendChild(draft);

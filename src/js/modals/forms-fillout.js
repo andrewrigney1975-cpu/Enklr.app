@@ -153,6 +153,18 @@ function openApprovalReview(submissionId){
   loadSubmissionDetail(submissionId, 'approve');
 }
 
+/* Deep-link entry point for a Despatches-panel click or a live SSE toast's "Open" action
+   (features/despatches.js's openForm hook / features/live-updates.js's openFormSubmission hook,
+   both wired from app.js) — assumes the caller has already switched the LOCAL project to match and
+   called openFormsFilloutOverlay() (which sets the module-local projectId this relies on), same
+   two-step shape as this file's own row-click handlers just skipping the picker UI itself. mode is
+   'approve' for a form-action-required push, 'view' for a form-submission-decided one (fields
+   read-only + trail shown, no actions) — the exact "future notification link" case this file's own
+   top-of-file doc comment already anticipated for mode 'view'. */
+export function openFormSubmissionDetail(submissionId, mode){
+  loadSubmissionDetail(submissionId, mode);
+}
+
 function loadSubmissionDetail(submissionId, mode){
   projectFormsApi.getSubmission(projectId, submissionId).then(function(submission){
     formsApi.get(submission.formVersionId).then(function(form){

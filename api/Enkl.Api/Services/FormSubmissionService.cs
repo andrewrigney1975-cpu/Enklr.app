@@ -306,7 +306,20 @@ public class FormSubmissionService
         // ALL-mode branch is what notices the remaining-approver count just dropped to one.
 
         await _db.SaveChangesAsync();
-        if (action == "approve") NotifyIfNamedApproverNeeded(submission, nextNode ?? node, trail);
+        if (action == "approve")
+        {
+            NotifyIfNamedApproverNeeded(submission, nextNode ?? node, trail);
+            // Only the FINAL approval (the one that actually advances the submission all the way to
+            // an End node) notifies the submitter — an intermediate approval in a multi-step chain
+            // just moves CurrentNodeId to the next Approval node, Status stays 'inProgress', and the
+            // submitter has nothing new to know yet (they'll be notified once someone actually
+            // decides it, same as every other pending-approval step).
+            if (submission.Status == "approved") await NotifySubmitterOfDecisionAsync(submission, callerUserId, "approved", comment);
+        }
+        else
+        {
+            await NotifySubmitterOfDecisionAsync(submission, callerUserId, "rejected", comment);
+        }
         return (true, "", ToDto(submission));
     }
 
@@ -347,6 +360,21 @@ public class FormSubmissionService
 
         var payload = new FormActionRequiredEventDto(submission.ProjectId, submission.Id, submission.FormVersion.Name, DateTime.UtcNow);
         foreach (var userId in targets) _broadcaster.BroadcastFormActionRequired(userId, payload);
+    }
+
+    /// <summary>Phase 7/8: notifies the original submitter of a final decision (approved or
+    /// rejected), always and unconditionally — no gate-satisfaction ambiguity to resolve, a decision
+    /// has exactly one interested party. Skipped if the decider and the submitter are the same person
+    /// (a userType-gated approver acting on their own submission is possible in principle) — nothing
+    /// to tell them they don't already know.</summary>
+    private async Task NotifySubmitterOfDecisionAsync(FormSubmission submission, Guid decidedByUserId, string decision, string? comment)
+    {
+        if (submission.SubmittedByUserId == decidedByUserId) return;
+        var actedByDisplayName = await _db.Users.AsNoTracking()
+            .Where(u => u.Id == decidedByUserId).Select(u => u.DisplayName).FirstOrDefaultAsync() ?? "someone";
+        var payload = new FormSubmissionDecidedEventDto(
+            submission.ProjectId, submission.Id, submission.FormVersion.Name, decision, actedByDisplayName, comment, DateTime.UtcNow);
+        _broadcaster.BroadcastFormSubmissionDecided(submission.SubmittedByUserId, payload);
     }
 
     private static FormSubmissionListItemDto ToListItemDto(FormSubmission s)
