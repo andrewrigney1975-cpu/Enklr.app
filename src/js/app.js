@@ -65,6 +65,12 @@ import { openPortfolioDashboardOverlay, closePortfolioDashboardOverlay, isPortfo
 import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, onPortfolioPlannerBarDblClick, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories, closePortfolioPlannerResourcesModal, isPortfolioPlannerResourcesModalOpen, addPortfolioPlannerResourceFromModal, onPortfolioPlannerResourcesListClick, onPortfolioPlannerResourcesListChange, togglePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerStrategyModal, isPortfolioPlannerStrategyModalOpen, onPortfolioPlannerStrategyListChange } from './modals/portfolio-planner.js';
 import { openStrategyOverlay, closeStrategyOverlay, isStrategyOverlayOpen, setStrategyDashboardMode } from './modals/strategy.js';
 import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow, hideFormsAdminCreateRow, createFormFromAdmin, closeFormFieldBuilder, saveFormBuilder, openFieldEditor, closeFieldEditor, onFormFieldTypeChanged, saveFieldEditor, closeFormVersionHistory, cloneLatestVersion, openFormWorkflowEditorForBuilder, closeFormWorkflowEditorForBuilder } from './modals/forms-admin.js';
+import {
+  openPortalsAdminOverlay, closePortalsAdminOverlay, showPortalsAdminCreateRow, hidePortalsAdminCreateRow, createPortalFromAdmin,
+  openPortalEdit, closePortalEdit, setPortalEditTab, savePortalEditDetails, publishPortalFromEdit, archivePortalFromEdit, deletePortalFromEdit,
+  addPortalAccessGrantFromEdit, attachPortalFormFromEdit,
+  showPortalQaAddTopicRow, hidePortalQaAddTopicRow, savePortalQaTopicFromEdit, showPortalQaAddEntryRow, hidePortalQaAddEntryRow, savePortalQaEntryFromEdit
+} from './modals/portals-admin.js';
 import { setFormWorkflowEditorDeps, setFormWorkflowMode, addFormWorkflowNode, handleFormWorkflowScrollMouseDown, handleFormWorkflowPointerMove, handleFormWorkflowPointerUp, handleFormWorkflowInnerClick, saveFormWorkflowNodePopover, deleteFormWorkflowNodeFromPopover, closeFormWorkflowNodePopover, isFormWorkflowNodePopoverOpen, deleteFormWorkflowEdgeFromPopover, closeFormWorkflowEdgePopover, isFormWorkflowEdgePopoverOpen } from './views/form-workflow-editor.js';
 import { openFormsFilloutOverlay, closeFormsFilloutOverlay, closeFormFilloutDetailOverlay, saveFormFilloutDraft, submitFormFillout, deleteFormFilloutDraft, approveFormFillout, rejectFormFillout, openFormSubmissionDetail } from './modals/forms-fillout.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
@@ -555,6 +561,35 @@ function wireEvents(){
     if(isFormWorkflowNodePopoverOpen() && !e.target.closest('#formWorkflowNodePopover') && !e.target.closest('.kf-fwfnode')) closeFormWorkflowNodePopover();
     if(isFormWorkflowEdgePopoverOpen() && !e.target.closest('#formWorkflowEdgePopover') && !e.target.closest('.kf-wfedge-hit')) closeFormWorkflowEdgePopover();
   });
+
+  document.getElementById('navPortalsBtn').addEventListener('click', openPortalsAdminOverlay);
+  document.getElementById('portalsAdminClose').addEventListener('click', closePortalsAdminOverlay);
+  document.getElementById('portalsAdminOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'portalsAdminOverlay') closePortalsAdminOverlay();
+  });
+  document.getElementById('newPortalBtn').addEventListener('click', showPortalsAdminCreateRow);
+  document.getElementById('portalsAdminCreateCancelBtn').addEventListener('click', hidePortalsAdminCreateRow);
+  document.getElementById('portalsAdminCreateSaveBtn').addEventListener('click', createPortalFromAdmin);
+
+  document.getElementById('portalEditClose').addEventListener('click', closePortalEdit);
+  document.getElementById('portalEditOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'portalEditOverlay') closePortalEdit();
+  });
+  document.querySelectorAll('.kf-portal-edit-tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ setPortalEditTab(btn.getAttribute('data-portal-tab')); });
+  });
+  document.getElementById('portalEditDetailsSaveBtn').addEventListener('click', savePortalEditDetails);
+  document.getElementById('portalEditPublishBtn').addEventListener('click', publishPortalFromEdit);
+  document.getElementById('portalEditArchiveBtn').addEventListener('click', archivePortalFromEdit);
+  document.getElementById('portalEditDeleteBtn').addEventListener('click', deletePortalFromEdit);
+  document.getElementById('portalAccessAddBtn').addEventListener('click', addPortalAccessGrantFromEdit);
+  document.getElementById('portalFormsAttachBtn').addEventListener('click', attachPortalFormFromEdit);
+  document.getElementById('portalQaAddTopicBtn').addEventListener('click', showPortalQaAddTopicRow);
+  document.getElementById('portalQaTopicCancelBtn').addEventListener('click', hidePortalQaAddTopicRow);
+  document.getElementById('portalQaTopicSaveBtn').addEventListener('click', savePortalQaTopicFromEdit);
+  document.getElementById('portalQaAddEntryBtn').addEventListener('click', showPortalQaAddEntryRow);
+  document.getElementById('portalQaEntryCancelBtn').addEventListener('click', hidePortalQaAddEntryRow);
+  document.getElementById('portalQaEntrySaveBtn').addEventListener('click', savePortalQaEntryFromEdit);
 
   document.getElementById('navFormsFilloutBtn').addEventListener('click', openFormsFilloutOverlay);
   document.getElementById('formsFilloutClose').addEventListener('click', closeFormsFilloutOverlay);
@@ -1693,6 +1728,9 @@ function wireEvents(){
   });
   document.getElementById('settingsShowPortfolioPlannerBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('portfolioPlanner', e.target.checked);
+  });
+  document.getElementById('settingsShowPortalsBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('portals', e.target.checked);
   });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);

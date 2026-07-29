@@ -205,6 +205,17 @@ export function applyHeaderButtonVisibility(){
      local-only project with no org/auth concept has nothing to show it against). */
   document.getElementById('navWhiteboardBtn').classList.toggle('kf-vis-hidden', !isServerLoggedIn());
 
+  /* Manage Portals is Org-Admin-only, same Portfolio-Planner/Manage-Forms-style pure permission
+     gate — this is the authoring surface (create/publish Portals, manage access/forms/Q&A), not the
+     end-user browsing surface. */
+  document.getElementById('navPortalsBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin() && visibility.portals));
+
+  /* "Portals" (browse) is the member-facing entry point — any org user, same shape as Forms' own
+     fill-out surface. Actual per-Portal access is independently re-derived server-side
+     (PortalAccessService) whenever a specific Portal is opened; this toggle only decides whether the
+     org-wide entry point is worth showing at all. */
+  document.getElementById('navPortalsBrowseBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.portals);
+
   var govMapEnabled = isGovernanceMapEnabled(visibility);
   document.getElementById('governanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);
   document.getElementById('navGovernanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);
@@ -254,6 +265,7 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowDashboardsBtn').checked = visibility.dashboards;
   document.getElementById('settingsShowFormsBtn').checked = visibility.forms;
   document.getElementById('settingsShowPortfolioPlannerBtn').checked = visibility.portfolioPlanner;
+  document.getElementById('settingsShowPortalsBtn').checked = visibility.portals;
   // SAML/SCIM configuration is an org-admin-only concern (same gating as the Account menu's own
   // "SSO & Provisioning" link) — shown here purely as a discoverability shortcut into that same
   // modal, not a per-project toggle of its own.

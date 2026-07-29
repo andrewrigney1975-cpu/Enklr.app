@@ -182,6 +182,8 @@
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navFormsBtn" title="Manage Forms"><span class="kf-icon" data-icon="ty_document" data-size="21"></span><span class="kf-side-nav-text">Manage Forms</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navFormsFilloutBtn" title="Forms"><span class="kf-icon" data-icon="formFillOut" data-size="21"></span><span class="kf-side-nav-text">Forms</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navWhiteboardBtn" title="Whiteboard"><span class="kf-icon" data-icon="whiteboard" data-size="21"></span><span class="kf-side-nav-text">Whiteboard</span></button>
+        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navPortalsBtn" title="Manage Portals"><span class="kf-icon" data-icon="sparkle" data-size="21"></span><span class="kf-side-nav-text">Manage Portals</span></button>
+        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navPortalsBrowseBtn" title="Portals"><span class="kf-icon" data-icon="sparkle" data-size="21"></span><span class="kf-side-nav-text">Portals</span></button>
       </div>
     </nav>
 
@@ -1641,6 +1643,128 @@
   </div>
 </div>
 
+<!-- Manage Portals (Org Admin authoring) — list overlay -->
+<div class="kf-overlay hidden" id="portalsAdminOverlay">
+  <div class="kf-modal kf-modal-md" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Manage Portals</h2>
+      <button class="kf-btn kf-btn-ghost" id="portalsAdminClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <button type="button" class="kf-btn kf-btn-secondary" id="newPortalBtn" style="width:100%;justify-content:center;margin-bottom:14px;">
+        <span class="kf-icon" data-icon="plus" data-size="14"></span>New Portal
+      </button>
+      <div id="portalsAdminCreateRow" class="kf-field-row hidden" style="margin-bottom:14px;">
+        <div class="kf-field">
+          <label for="portalsAdminNameInput">Name</label>
+          <input type="text" id="portalsAdminNameInput" maxlength="200" placeholder="e.g. IT Service Desk">
+        </div>
+        <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="portalsAdminCreateSaveBtn">Create</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="portalsAdminCreateCancelBtn">Cancel</button>
+      </div>
+      <div id="portalsAdminList" class="kf-releases-list"></div>
+      <div class="kf-member-empty hidden" id="portalsAdminEmpty">No Portals yet — click "New Portal" to create one.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Portal editor — Details / Access / Forms / Q&A tabs (Org Admin authoring) -->
+<div class="kf-overlay hidden" id="portalEditOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="portalEditTitle">Portal</h2>
+      <div class="kf-modal-header-actions">
+        <span class="kf-form-status-badge" id="portalEditStatusBadge"></span>
+        <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="portalEditPublishBtn">Publish</button>
+        <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="portalEditArchiveBtn">Archive</button>
+        <button class="kf-btn kf-btn-ghost" id="portalEditClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+      </div>
+    </div>
+    <div class="kf-workflow-mode-group" style="margin:10px 16px 0;">
+      <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn active" data-portal-tab="details">Details</button>
+      <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn" data-portal-tab="access">Access</button>
+      <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn" data-portal-tab="forms">Forms</button>
+      <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn" data-portal-tab="qa">Q&amp;A</button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="portalEditTabDetails">
+        <div class="kf-field">
+          <label for="portalEditNameInput">Name</label>
+          <input type="text" id="portalEditNameInput" maxlength="200">
+        </div>
+        <div class="kf-field">
+          <label for="portalEditSlugInput">Slug — hashbang URL: #!/portal/&lt;slug&gt;</label>
+          <input type="text" id="portalEditSlugInput" maxlength="80">
+        </div>
+        <div class="kf-field">
+          <label for="portalEditDescInput">Description</label>
+          <textarea id="portalEditDescInput" rows="3"></textarea>
+        </div>
+        <div class="kf-field-row">
+          <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="portalEditDetailsSaveBtn">Save</button>
+          <button type="button" class="kf-btn kf-btn-danger kf-btn-sm" id="portalEditDeleteBtn">Delete Portal</button>
+        </div>
+      </div>
+      <div id="portalEditTabAccess" class="hidden">
+        <p class="kf-legend-item">Closed by default — a Portal with no grants below is invisible to every org user.</p>
+        <div class="kf-field-row">
+          <select id="portalAccessKindSelect">
+            <option value="namedUser">Specific person</option>
+            <option value="orgTeam">OrgTeam (business unit)</option>
+            <option value="teamCommittee">Team / Committee</option>
+          </select>
+          <select id="portalAccessValueSelect"></select>
+          <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="portalAccessAddBtn">Grant Access</button>
+        </div>
+        <div id="portalAccessGrantsList"></div>
+        <div class="kf-member-empty hidden" id="portalAccessEmpty">No one has access yet.</div>
+      </div>
+      <div id="portalEditTabForms" class="hidden">
+        <div class="kf-field-row">
+          <select id="portalFormsAttachSelect"></select>
+          <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="portalFormsAttachBtn">Attach Form</button>
+        </div>
+        <div id="portalFormsList"></div>
+        <div class="kf-member-empty hidden" id="portalFormsEmpty">No forms attached yet.</div>
+      </div>
+      <div id="portalEditTabQa" class="hidden">
+        <div class="kf-field-row">
+          <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="portalQaAddTopicBtn"><span class="kf-icon" data-icon="plus" data-size="13"></span>Add Topic</button>
+          <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="portalQaAddEntryBtn"><span class="kf-icon" data-icon="plus" data-size="13"></span>Add Q&amp;A Entry</button>
+        </div>
+        <div id="portalQaAddTopicRow" class="kf-field-row hidden">
+          <div class="kf-field">
+            <label for="portalQaTopicTitleInput">Topic title</label>
+            <input type="text" id="portalQaTopicTitleInput" maxlength="200">
+          </div>
+          <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="portalQaTopicSaveBtn">Save</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="portalQaTopicCancelBtn">Cancel</button>
+        </div>
+        <div id="portalQaAddEntryRow" class="hidden">
+          <div class="kf-field">
+            <label for="portalQaEntryTopicSelect">Topic (optional)</label>
+            <select id="portalQaEntryTopicSelect"><option value="">No topic</option></select>
+          </div>
+          <div class="kf-field">
+            <label for="portalQaEntryQuestionInput">Question</label>
+            <input type="text" id="portalQaEntryQuestionInput" maxlength="500">
+          </div>
+          <div class="kf-field">
+            <label for="portalQaEntryAnswerInput">Answer</label>
+            <textarea id="portalQaEntryAnswerInput" rows="3"></textarea>
+          </div>
+          <div class="kf-field-row">
+            <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="portalQaEntrySaveBtn">Save</button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" id="portalQaEntryCancelBtn">Cancel</button>
+          </div>
+        </div>
+        <div id="portalQaList"></div>
+        <div class="kf-member-empty hidden" id="portalQaEmpty">No Q&amp;A entries yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Form Field Builder: one form's name/description + field list (Org Admin, Draft versions only) -->
 <div class="kf-overlay hidden" id="formFieldBuilderOverlay">
   <div class="kf-modal kf-modal-md" role="dialog" aria-modal="true">
@@ -2650,6 +2774,14 @@
             <span class="kf-setting-row-text">
               <span class="kf-setting-row-title">Portfolio Planner</span>
               <span class="kf-setting-row-desc">Sketch out a portfolio of not-yet-real projects, grouped into swimlanes, before they're activated. Org Admins only. Applies to every project in the organisation, not just this one.</span>
+            </span>
+          </label>
+          <label class="kf-setting-row">
+            <input type="checkbox" id="settingsShowPortalsBtn">
+            <span class="kf-icon kf-setting-row-icon" data-icon="sparkle" data-size="16"></span>
+            <span class="kf-setting-row-text">
+              <span class="kf-setting-row-title">Portals</span>
+              <span class="kf-setting-row-desc">A curated home page for org users who aren't necessarily project members — a place to fill in forms, track submitted requests, and browse answers to common questions. Authored centrally by Org Admins. Applies to every project in the organisation, not just this one.</span>
             </span>
           </label>
         </div>
