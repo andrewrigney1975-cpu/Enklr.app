@@ -148,14 +148,25 @@ export function buildApprovalTrailEntry(node, actingUser, action, comment){
 export function computeNextNodeId(formVersion, node, action, trail){
   if(action === 'reject') return node.id;
   var workflow = parseFormWorkflow(formVersion ? formVersion.workflowJson : null);
+  var current = null;
   if(node.type === 'author'){
     var edge = outgoingEdge(workflow, node.id);
-    return edge ? edge.toNodeId : node.id;
-  }
-  if(node.type === 'approval'){
+    current = edge ? findWorkflowNode(workflow, edge.toNodeId) : null;
+  } else if(node.type === 'approval'){
     if(!isNodeApprovalComplete(node, trail)) return node.id;
     var edge2 = outgoingEdge(workflow, node.id);
-    return edge2 ? edge2.toNodeId : node.id;
+    current = edge2 ? findWorkflowNode(workflow, edge2.toNodeId) : null;
+  } else {
+    return node.id;
   }
-  return node.id;
+  // Auto-pass-through any consecutive "action" nodes (e.g. "Raise task in Portal") — mirrors the
+  // server's own auto-execution exactly (FormSubmissionService.ApplyNextNodeAsync and its PHP
+  // twins), so CurrentNodeId is never actually set to an action node's id. This module never
+  // raises a task itself (pure, no side effects, per this file's own doc comment) — it only
+  // predicts, for UI purposes, which non-action node the server will actually land on.
+  while(current && current.type === 'action'){
+    var actionEdge = outgoingEdge(workflow, current.id);
+    current = actionEdge ? findWorkflowNode(workflow, actionEdge.toNodeId) : null;
+  }
+  return current ? current.id : node.id;
 }

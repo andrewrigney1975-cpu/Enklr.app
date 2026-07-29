@@ -171,7 +171,7 @@ final class FormSubmissionService
 
         $nextEdge = self::outgoingEdge($graph, $authorNode['id']);
         $nextNode = $nextEdge !== null ? self::findNode($graph, $nextEdge['toNodeId']) : null;
-        [$status, $currentNodeId] = self::nextNodeState($nextNode);
+        [$status, $currentNodeId, $nextNode] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
 
         $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateSubmitted" = now(), "DateLastModified" = now() WHERE "Id" = :id');
         $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
@@ -237,7 +237,7 @@ final class FormSubmissionService
         } elseif (self::isApprovalComplete($node, $trail)) {
             $edge = self::outgoingEdge($graph, $node['id']);
             $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
-            [$status, $currentNodeId] = self::nextNodeState($nextNode);
+            [$status, $currentNodeId, $nextNode] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
             $notifyNode = $nextNode;
             $notifyIsFreshArrival = true;
         }
@@ -439,6 +439,98 @@ final class FormSubmissionService
             return ['approved', $nextNode['id']];
         }
         return ['inProgress', $nextNode['id']];
+    }
+
+    /** Walks past any consecutive "action" nodes (each auto-executed the instant the graph
+     * transitions into it — no gating, no user action needed, unlike Author/Approval), appending to
+     * $trail as it goes, before returning the same [status, currentNodeId] shape nextNodeState()
+     * always has, plus the final non-action $nextNode itself (needed by callers for notify-target
+     * resolution). Deliberately NOT wrapped in an explicit transaction here (unlike the .NET tier) —
+     * TaskService::create() already wraps itself in its own transaction (PDO has no native nested-
+     * transaction support), so the Task row and this method's own later FormSubmissions UPDATE are
+     * each independently atomic rather than one combined unit; an interruption between the two would
+     * leave a raised Task with no corresponding trail entry, an acceptable, narrow edge case given
+     * PDO's constraint, not a silently-accepted gap.
+     * @return array{0: string, 1: ?string, 2: ?array} [status, currentNodeId, finalNode] */
+    private function applyNextNodeActions(array $graph, ?array $nextNode, array &$trail, array $submissionRow): array
+    {
+        while ($nextNode !== null && ($nextNode['type'] ?? null) === 'action') {
+            $this->executeActionNode($nextNode, $trail, $submissionRow);
+            $edge = self::outgoingEdge($graph, $nextNode['id']);
+            $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
+        }
+        [$status, $currentNodeId] = self::nextNodeState($nextNode);
+        return [$status, $currentNodeId, $nextNode];
+    }
+
+    /** The one action type implemented so far: raises a Task in the target Portal's own
+     * auto-provisioned actioner Project, in whichever of its 5 fixed priority columns
+     * (Trivial..Critical) config.priorityColumn names (case-insensitive; falls back to the lowest-
+     * Order column if the name doesn't match any of them). assigneeId resolves via
+     * resolveActionAssignee — "assigned to the form's approver if known." Silently no-ops for any
+     * unrecognized actionType or missing/foreign portalId — a misconfigured or since-deleted Portal
+     * must never break the whole Submit/Approve flow. */
+    private function executeActionNode(array $node, array &$trail, array $submissionRow): void
+    {
+        $actionType = $node['actionType'] ?? null;
+        $config = $node['config'] ?? [];
+        $portalId = $config['portalId'] ?? null;
+        if ($actionType !== 'raiseTaskInPortal' || $portalId === null) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('SELECT "ProjectId" FROM "Portals" WHERE "Id" = :id');
+        $stmt->execute(['id' => $portalId]);
+        $portal = $stmt->fetch();
+        if ($portal === false) {
+            return;
+        }
+
+        $colStmt = $this->db->prepare('SELECT "Id", "Name" FROM "Columns" WHERE "ProjectId" = :pid ORDER BY "Order"');
+        $colStmt->execute(['pid' => $portal['ProjectId']]);
+        $columns = $colStmt->fetchAll();
+        if (count($columns) === 0) {
+            return;
+        }
+        $wantedName = strtolower((string) ($config['priorityColumn'] ?? ''));
+        $column = null;
+        foreach ($columns as $c) {
+            if (strtolower((string) $c['Name']) === $wantedName) {
+                $column = $c;
+                break;
+            }
+        }
+        $column ??= $columns[0];
+
+        $assigneeId = self::resolveActionAssignee($config['assigneeGate'] ?? null, $trail);
+        $title = trim((string) ($config['titleTemplate'] ?? ''));
+        if ($title === '') {
+            $title = ($submissionRow['FormName'] ?? 'Form') . ' — submission review';
+        }
+
+        $task = (new TaskService($this->db))->create($portal['ProjectId'], [
+            'title' => $title, 'columnId' => $column['Id'], 'assigneeId' => $assigneeId, 'priority' => 'medium',
+        ]);
+
+        $trail[] = [
+            'nodeId' => $node['id'], 'actorUserId' => '00000000-0000-0000-0000-000000000000', 'action' => 'raisedTask',
+            'satisfiedGateKeys' => [], 'comment' => $task['key'] ?? null, 'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
+    }
+
+    private static function resolveActionAssignee(?array $gate, array $trail): ?string
+    {
+        if ($gate !== null && ($gate['kind'] ?? null) === 'namedUser' && !empty($gate['value'])) {
+            return (string) $gate['value'];
+        }
+        // Default/"formApprover" behavior: the most recent approver in the trail, if any known yet.
+        $lastApproval = null;
+        foreach ($trail as $entry) {
+            if (($entry['action'] ?? null) === 'approved') {
+                $lastApproval = $entry;
+            }
+        }
+        return $lastApproval['actorUserId'] ?? null;
     }
 
     private function resolveActingUser(string $projectId, string $userId, bool $callerIsOrgAdmin): array

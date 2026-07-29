@@ -541,6 +541,7 @@ function wireEvents(){
   document.getElementById('formWorkflowAddAuthorBtn').addEventListener('click', function(){ addFormWorkflowNode('author'); });
   document.getElementById('formWorkflowAddApprovalBtn').addEventListener('click', function(){ addFormWorkflowNode('approval'); });
   document.getElementById('formWorkflowAddEndBtn').addEventListener('click', function(){ addFormWorkflowNode('end'); });
+  document.getElementById('formWorkflowAddActionBtn').addEventListener('click', function(){ addFormWorkflowNode('action'); });
   document.getElementById('formWorkflowInner').addEventListener('click', handleFormWorkflowInnerClick);
   document.getElementById('formWorkflowScroll').addEventListener('mousedown', handleFormWorkflowScrollMouseDown);
   document.addEventListener('mousemove', handleFormWorkflowPointerMove);

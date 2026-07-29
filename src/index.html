@@ -1738,6 +1738,7 @@
         <button class="kf-btn kf-btn-ghost" id="formWorkflowAddAuthorBtn" title="Add an Author step"><span class="kf-icon" data-icon="edit" data-size="14"></span>Author</button>
         <button class="kf-btn kf-btn-ghost" id="formWorkflowAddApprovalBtn" title="Add an Approval step"><span class="kf-icon" data-icon="check" data-size="14"></span>Approval</button>
         <button class="kf-btn kf-btn-ghost" id="formWorkflowAddEndBtn" title="Add an End step"><span class="kf-icon" data-icon="checkSquare" data-size="14"></span>End</button>
+        <button class="kf-btn kf-btn-ghost" id="formWorkflowAddActionBtn" title="Add an Action step (e.g. raise a task in a Portal)"><span class="kf-icon" data-icon="sparkle" data-size="14"></span>Action</button>
         <div class="kf-header-divider-light"></div>
         <button class="kf-btn kf-btn-ghost" id="formWorkflowEditorClose" title="Close"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
       </div>
@@ -1776,6 +1777,32 @@
     <label>Who may approve</label>
     <div id="formWorkflowApprovalGatesList"></div>
     <div id="formWorkflowApprovalGateAddWrap"></div>
+  </div>
+  <div id="formWorkflowActionSection" class="hidden">
+    <div class="kf-field">
+      <label for="formWorkflowActionPortalSelect">Raise a task in Portal</label>
+      <select id="formWorkflowActionPortalSelect"></select>
+    </div>
+    <div class="kf-field">
+      <label for="formWorkflowActionPrioritySelect">Priority column</label>
+      <select id="formWorkflowActionPrioritySelect">
+        <option value="trivial">Trivial</option>
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+    </div>
+    <div class="kf-field">
+      <label for="formWorkflowActionAssigneeSelect">Assign to</label>
+      <select id="formWorkflowActionAssigneeSelect">
+        <option value="">Form's approver, if known</option>
+      </select>
+    </div>
+    <div class="kf-field">
+      <label for="formWorkflowActionTitleInput">Task title (optional)</label>
+      <input type="text" id="formWorkflowActionTitleInput" maxlength="200" placeholder="Defaults to the form name">
+    </div>
   </div>
   <div class="kf-workflow-edge-popover-actions">
     <button class="kf-btn kf-btn-danger" id="formWorkflowNodeDeleteBtn"><span class="kf-icon" data-icon="trash" data-size="14"></span>Delete</button>

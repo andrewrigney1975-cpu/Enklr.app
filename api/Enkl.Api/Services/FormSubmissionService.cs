@@ -18,6 +18,7 @@ public class FormSubmissionService
 {
     private readonly AppDbContext _db;
     private readonly SseBroadcaster _broadcaster;
+    private readonly TaskService _tasks;
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     /// <summary>Every other JSON blob this feature touches (FieldsJson, WorkflowJson) is
@@ -30,14 +31,24 @@ public class FormSubmissionService
     /// rendered blank) rather than by reasoning about it.</summary>
     private static readonly JsonSerializerOptions JsonWriteOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public FormSubmissionService(AppDbContext db, SseBroadcaster broadcaster)
+    public FormSubmissionService(AppDbContext db, SseBroadcaster broadcaster, TaskService tasks)
     {
         _db = db;
         _broadcaster = broadcaster;
+        _tasks = tasks;
     }
 
     // ---- Workflow graph model — mirrors features/form-workflow-engine.js's own shape exactly ----
     private class WfGate { public string Kind { get; set; } = ""; public string Value { get; set; } = ""; }
+    /// <summary>Config for a "action" node's "raiseTaskInPortal" ActionType — see
+    /// ExecuteActionNodeAsync's own doc comment for how each field is resolved at execution time.</summary>
+    private class WfActionConfig
+    {
+        public Guid? PortalId { get; set; }
+        public string? PriorityColumn { get; set; }
+        public WfGate? AssigneeGate { get; set; }
+        public string? TitleTemplate { get; set; }
+    }
     private class WfNode
     {
         public string Id { get; set; } = "";
@@ -46,6 +57,11 @@ public class FormSubmissionService
         public List<WfGate>? AuthorGates { get; set; }
         public List<WfGate>? ApproverGates { get; set; }
         public string? ApprovalMode { get; set; }
+        // "action" node fields only — ActionType is currently only ever "raiseTaskInPortal", kept as
+        // a plain string (not an enum) matching this codebase's usual "no CHECK constraint, app-level
+        // interpretation only" convention for type-discriminator fields.
+        public string? ActionType { get; set; }
+        public WfActionConfig? Config { get; set; }
     }
     private class WfEdge { public string Id { get; set; } = ""; public string FromNodeId { get; set; } = ""; public string ToNodeId { get; set; } = ""; }
     private class WfGraph { public List<WfNode> Nodes { get; set; } = new(); public List<WfEdge> Edges { get; set; } = new(); }
@@ -247,12 +263,21 @@ public class FormSubmissionService
         var nextEdge = OutgoingEdge(graph, authorNode.Id);
         var nextNode = nextEdge is null ? null : FindNode(graph, nextEdge.ToNodeId);
 
+        // Explicit transaction (api/Enkl.Api/CLAUDE.md's standing rule): ApplyNextNodeAsync may call
+        // TaskService.CreateAsync (a committing call) for any "action" node(s) on the way to nextNode,
+        // and this method does its own separate save afterward for the submission's own fields.
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        nextNode = await ApplyNextNodeAsync(submission, graph, nextNode, trail);
+
+        // Serialized AFTER ApplyNextNodeAsync, not before — an action node along the way appends its
+        // own "raisedTask" entry to trail, which must be captured in what actually gets persisted.
         submission.ApprovalTrailJson = JsonSerializer.Serialize(trail, JsonWriteOpts);
         submission.DateSubmitted = DateTime.UtcNow;
         submission.DateLastModified = DateTime.UtcNow;
-        ApplyNextNode(submission, nextNode);
 
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
         // Always a fresh arrival — the submission is moving off the Author node onto nextNode for
         // the very first time.
         NotifyIfNamedApproverNeeded(submission, nextNode, trail, isFreshArrival: true);
@@ -289,8 +314,12 @@ public class FormSubmissionService
             SatisfiedGateKeys = MatchingGateKeys(node.ApproverGates, user), Comment = comment,
             Timestamp = DateTime.UtcNow.ToString("o")
         });
-        submission.ApprovalTrailJson = JsonSerializer.Serialize(trail, JsonWriteOpts);
         submission.DateLastModified = DateTime.UtcNow;
+
+        // Explicit transaction (api/Enkl.Api/CLAUDE.md's standing rule): ApplyNextNodeAsync may call
+        // TaskService.CreateAsync (a committing call) for any "action" node(s) along the way, and this
+        // method does its own separate save afterward for the submission's own fields.
+        await using var transaction = await _db.Database.BeginTransactionAsync();
 
         WfNode? nextNode = null;
         if (action == "reject")
@@ -301,13 +330,18 @@ public class FormSubmissionService
         {
             var edge = OutgoingEdge(graph, node.Id);
             nextNode = edge is null ? null : FindNode(graph, edge.ToNodeId);
-            ApplyNextNode(submission, nextNode);
+            nextNode = await ApplyNextNodeAsync(submission, graph, nextNode, trail);
         }
         // else: quorum not yet complete — Status stays 'inProgress', CurrentNodeId unchanged, and
         // NotifyIfNamedApproverNeeded below re-checks the SAME node (not nextNode) — its own
         // ALL-mode branch is what notices the remaining-approver count just dropped to one.
 
+        // Serialized AFTER ApplyNextNodeAsync, not before — an action node along the way appends its
+        // own "raisedTask" entry to trail, which must be captured in what actually gets persisted.
+        submission.ApprovalTrailJson = JsonSerializer.Serialize(trail, JsonWriteOpts);
+
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         if (action == "approve")
         {
             // isFreshArrival is true only when this approval actually completed the CURRENT node's
@@ -330,11 +364,72 @@ public class FormSubmissionService
         return (true, "", ToDto(submission));
     }
 
-    private static void ApplyNextNode(FormSubmission submission, WfNode? nextNode)
+    /// <summary>Walks past any consecutive "action" nodes (each auto-executed the instant the graph
+    /// transitions into it — no gating, no user action needed, unlike Author/Approval), before
+    /// applying the same terminal-status logic as before: null -> 'submitted', an End node ->
+    /// 'approved', anything else (an Approval node) -> 'inProgress'. Callers MUST wrap this in an
+    /// explicit transaction (api/Enkl.Api/CLAUDE.md's standing rule) — ExecuteActionNodeAsync below
+    /// can call TaskService.CreateAsync, which commits its own SaveChangesAsync, and the caller does
+    /// its own separate save afterward for the submission's own field changes.</summary>
+    private async Task<WfNode?> ApplyNextNodeAsync(FormSubmission submission, WfGraph graph, WfNode? nextNode, List<TrailEntry> trail)
     {
+        while (nextNode is not null && nextNode.Type == "action")
+        {
+            await ExecuteActionNodeAsync(submission, nextNode, trail);
+            var edge = OutgoingEdge(graph, nextNode.Id);
+            nextNode = edge is null ? null : FindNode(graph, edge.ToNodeId);
+        }
+
         if (nextNode is null) { submission.Status = "submitted"; submission.CurrentNodeId = null; }
         else if (nextNode.Type == "end") { submission.Status = "approved"; submission.CurrentNodeId = nextNode.Id; }
         else { submission.Status = "inProgress"; submission.CurrentNodeId = nextNode.Id; }
+
+        return nextNode;
+    }
+
+    /// <summary>The one action type implemented so far: raises a Task in the target Portal's own
+    /// auto-provisioned actioner Project, in whichever of its 5 fixed priority columns
+    /// (Trivial..Critical) Config.PriorityColumn names (case-insensitive; falls back to the lowest-
+    /// Order column if the name doesn't match any of them, never throws for a misconfigured value).
+    /// AssigneeId resolves via ResolveActionAssignee — "assigned to the form's approver if known": a
+    /// namedUser AssigneeGate always wins; otherwise the most recent "approved" trail entry's actor,
+    /// or unassigned if none exists yet (e.g. an action node placed before any Approval node).
+    /// Silently no-ops (never throws) for any unrecognized ActionType or missing/foreign PortalId —
+    /// a misconfigured or since-deleted Portal must never break the whole Submit/Approve flow for a
+    /// caller who has nothing to do with authoring that workflow.</summary>
+    private async Task ExecuteActionNodeAsync(FormSubmission submission, WfNode actionNode, List<TrailEntry> trail)
+    {
+        if (actionNode.ActionType != "raiseTaskInPortal" || actionNode.Config?.PortalId is not Guid portalId) return;
+
+        var portal = await _db.Portals.AsNoTracking().FirstOrDefaultAsync(p => p.Id == portalId);
+        if (portal is null) return;
+
+        var columns = await _db.Columns.AsNoTracking().Where(c => c.ProjectId == portal.ProjectId).OrderBy(c => c.Order).ToListAsync();
+        if (columns.Count == 0) return;
+        var wantedName = actionNode.Config.PriorityColumn ?? "";
+        var column = columns.FirstOrDefault(c => string.Equals(c.Name, wantedName, StringComparison.OrdinalIgnoreCase)) ?? columns[0];
+
+        var assigneeId = ResolveActionAssignee(actionNode.Config.AssigneeGate, trail);
+        var title = string.IsNullOrWhiteSpace(actionNode.Config.TitleTemplate)
+            ? $"{submission.FormVersion.Name} — submission review"
+            : actionNode.Config.TitleTemplate!;
+
+        var task = await _tasks.CreateAsync(portal.ProjectId, new CreateTaskRequest(
+            Title: title, Description: null, Priority: "medium", ColumnId: column.Id, AssigneeId: assigneeId,
+            ReleaseId: null, TypeId: null, ParentTaskId: null, DependsOnTaskIds: null));
+
+        trail.Add(new TrailEntry
+        {
+            NodeId = actionNode.Id, ActorUserId = Guid.Empty, Action = "raisedTask",
+            SatisfiedGateKeys = new(), Comment = task?.Key, Timestamp = DateTime.UtcNow.ToString("o")
+        });
+    }
+
+    private static Guid? ResolveActionAssignee(WfGate? gate, List<TrailEntry> trail)
+    {
+        if (gate is not null && gate.Kind == "namedUser" && Guid.TryParse(gate.Value, out var namedId)) return namedId;
+        // Default/"formApprover" behavior: the most recent approver in the trail, if any known yet.
+        return trail.LastOrDefault(t => t.Action == "approved")?.ActorUserId;
     }
 
     /// <summary>Phase 6's SSE-push scope (a plain userType gate has no single "specific person" to
