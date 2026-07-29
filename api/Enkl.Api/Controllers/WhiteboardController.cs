@@ -41,7 +41,7 @@ public class WhiteboardController : ControllerBase
         var result = await _whiteboard.JoinSessionAsync(User.OrgId(), User.UserId(), CallerDisplayName, request.JoinCode ?? "");
         if (result is null) return NotFound();
 
-        BroadcastParticipantChange(result.Value.State.Id, result.Value.OtherParticipantUserIds, "joined");
+        BroadcastParticipantChange(result.Value.State.Id, result.Value.ParticipantUserIds, "joined");
         return Ok(result.Value.State);
     }
 
@@ -58,7 +58,7 @@ public class WhiteboardController : ControllerBase
         var result = await _whiteboard.AddElementAsync(User.OrgId(), User.UserId(), id, request);
         if (result is null) return NotFound();
 
-        BroadcastElementChange(id, result.Value.Element, result.Value.OtherParticipantUserIds, "added");
+        BroadcastElementChange(id, result.Value.Element, result.Value.ParticipantUserIds, "added");
         return Ok(result.Value.Element);
     }
 

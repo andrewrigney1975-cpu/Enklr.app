@@ -16,12 +16,21 @@ var VIEW_BOX_HEIGHT = 900;
    clientX/clientY needs rescaling by the element's actual on-screen size, same
    getBoundingClientRect-based approach already established in views/form-workflow-editor.js's own
    clientPointToSvgPoint (no equivalent freehand-path helper existed anywhere before this feature —
-   see CLAUDE.md's note on this). */
+   see CLAUDE.md's note on this).
+
+   The canvas's preserveAspectRatio="xMinYMin meet" means the browser scales the 1600x900 viewBox
+   UNIFORMLY (by whichever of width/height is more constraining), not independently per axis — the
+   wrap element is essentially never exactly 16:9, so using separate scaleX/scaleY derived from the
+   raw element box (as an earlier version of this function did) drifts from the real rendered scale
+   whenever the two axes' ratios differ, registering drawn points increasingly off from the actual
+   cursor position the further the container's aspect ratio is from 16:9. A single uniform scale
+   factor (the smaller of the two ratios, matching "meet") is what the browser actually renders at;
+   xMinYMin keeps any leftover space on the right/bottom only, so the top-left origin needs no
+   offset correction. */
 export function clientPointToSvgPoint(svgEl, clientX, clientY){
   var rect = svgEl.getBoundingClientRect();
-  var scaleX = VIEW_BOX_WIDTH / rect.width;
-  var scaleY = VIEW_BOX_HEIGHT / rect.height;
-  return {x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY};
+  var scale = Math.min(rect.width / VIEW_BOX_WIDTH, rect.height / VIEW_BOX_HEIGHT);
+  return {x: (clientX - rect.left) / scale, y: (clientY - rect.top) / scale};
 }
 
 function escapeXml(text){

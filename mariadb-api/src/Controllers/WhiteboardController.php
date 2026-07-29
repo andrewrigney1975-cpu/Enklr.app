@@ -35,7 +35,7 @@ final class WhiteboardController extends BaseController
             return $this->notFound($response);
         }
 
-        $this->broadcastParticipant($request, $result['state']['id'], $result['otherParticipantUserIds'], 'joined');
+        $this->broadcastParticipant($request, $result['state']['id'], $result['participantUserIds'], 'joined');
         return $this->json($response, $result['state']);
     }
 
@@ -56,7 +56,7 @@ final class WhiteboardController extends BaseController
             return $this->notFound($response);
         }
 
-        $this->broadcastElement($request, $args['id'], $result['element'], $result['otherParticipantUserIds'], 'added');
+        $this->broadcastElement($request, $args['id'], $result['element'], $result['participantUserIds'], 'added');
         return $this->json($response, $result['element']);
     }
 

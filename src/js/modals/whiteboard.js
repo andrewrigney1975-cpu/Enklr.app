@@ -12,6 +12,7 @@ import {
 } from '../features/whiteboard.js';
 import { clientPointToSvgPoint, renderElementsLayer } from '../features/whiteboard-draw.js';
 import { getCurrentUserId } from '../api.js';
+import { iconSvg } from '../icons.js';
 
 /* Collaborative Whiteboard modal — the render-heavy half of the feature (state/API/SSE lives in
    features/whiteboard.js, SVG element construction in features/whiteboard-draw.js). Two views
@@ -39,7 +40,7 @@ export function openWhiteboardOverlay(){
 function showEntryView(){
   document.getElementById('wbEntryView').classList.remove('hidden');
   document.getElementById('wbCanvasView').classList.add('hidden');
-  document.getElementById('wbToolbar').classList.add('kf-vis-hidden');
+  document.getElementById('whiteboardToolbar').classList.add('kf-vis-hidden');
   document.getElementById('wbJoinError').classList.add('hidden');
   document.getElementById('wbJoinCodeInput').value = '';
 }
@@ -47,7 +48,7 @@ function showEntryView(){
 function showCanvasView(){
   document.getElementById('wbEntryView').classList.add('hidden');
   document.getElementById('wbCanvasView').classList.remove('hidden');
-  document.getElementById('wbToolbar').classList.remove('kf-vis-hidden');
+  document.getElementById('whiteboardToolbar').classList.remove('kf-vis-hidden');
   renderWhiteboardState();
 }
 
@@ -175,8 +176,17 @@ function renderPalette(){
   });
 }
 
-function normalizeBox(x1, y1, x2, y2){
-  return {x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1)};
+/* `square` forces a 1:1 box (the "circle" tool only — "oval" stays free-form, that's the whole
+   reason both tools exist) — anchored at the drag's start point (x1,y1), extending toward
+   whichever direction the cursor (x2,y2) actually moved, sized by the larger of the two deltas so
+   the shape tracks the more decisive axis of the drag rather than shrinking to the smaller one. */
+function normalizeBox(x1, y1, x2, y2, square){
+  var w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+  if(square){
+    var side = Math.max(w, h);
+    return {x: x2 >= x1 ? x1 : x1 - side, y: y2 >= y1 ? y1 : y1 - side, w: side, h: side};
+  }
+  return {x: Math.min(x1, x2), y: Math.min(y1, y2), w: w, h: h};
 }
 
 function elementAtPoint(clientX, clientY){
@@ -240,7 +250,7 @@ function renderLivePreview(){
   } else if(_drawing.tool === 'connector'){
     markup = '<line x1="' + _drawing.startX + '" y1="' + _drawing.startY + '" x2="' + (_drawing.curX || _drawing.startX) + '" y2="' + (_drawing.curY || _drawing.startY) + '" stroke="' + _penColor + '" stroke-width="2.5" stroke-dasharray="4 3"/>';
   } else {
-    var box = normalizeBox(_drawing.startX, _drawing.startY, _drawing.curX || _drawing.startX, _drawing.curY || _drawing.startY);
+    var box = normalizeBox(_drawing.startX, _drawing.startY, _drawing.curX || _drawing.startX, _drawing.curY || _drawing.startY, _drawing.tool === 'circle');
     markup = '<rect x="' + box.x + '" y="' + box.y + '" width="' + box.w + '" height="' + box.h + '" fill="none" stroke="' + _penColor + '" stroke-width="2" stroke-dasharray="4 3"/>';
   }
   g.innerHTML = markup;
@@ -268,7 +278,7 @@ function handleCanvasPointerUp(e){
     return;
   }
   // shape tools
-  var box = normalizeBox(drawing.startX, drawing.startY, drawing.curX || drawing.startX, drawing.curY || drawing.startY);
+  var box = normalizeBox(drawing.startX, drawing.startY, drawing.curX || drawing.startX, drawing.curY || drawing.startY, drawing.tool === 'circle');
   if(box.w > 2 && box.h > 2){
     addWhiteboardElement('shape-' + drawing.tool, JSON.stringify({x: box.x, y: box.y, w: box.w, h: box.h, color: _penColor})).then(renderWhiteboardState);
   }
@@ -281,14 +291,19 @@ function renderRemoteCursor(userId, displayName, x, y){
   var canvas = document.getElementById('wbCanvas');
   var rect = canvas.getBoundingClientRect();
   var layerRect = layer.getBoundingClientRect();
-  var pxX = (x / 1600) * rect.width + (rect.left - layerRect.left);
-  var pxY = (y / 900) * rect.height + (rect.top - layerRect.top);
+  // Same uniform-scale (not independent per-axis) math as clientPointToSvgPoint's own fix — the
+  // canvas's preserveAspectRatio="xMinYMin meet" scales both axes by whichever is more
+  // constraining, so scaling x by rect.width and y by rect.height independently drifts off the
+  // real rendered position whenever the wrap element isn't exactly 16:9.
+  var scale = Math.min(rect.width / 1600, rect.height / 900);
+  var pxX = x * scale + (rect.left - layerRect.left);
+  var pxY = y * scale + (rect.top - layerRect.top);
 
   var el = _cursorEls[userId];
   if(!el){
     el = document.createElement('div');
     el.className = 'kf-wb-remote-cursor';
-    el.innerHTML = '<span class="kf-icon" data-icon="cursorArrow" data-size="14"></span><span class="kf-wb-remote-cursor-label"></span>';
+    el.innerHTML = iconSvg('cursorArrow', 14) + '<span class="kf-wb-remote-cursor-label"></span>';
     layer.appendChild(el);
     _cursorEls[userId] = el;
   }

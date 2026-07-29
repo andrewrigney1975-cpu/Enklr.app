@@ -75,7 +75,7 @@ public class WhiteboardService
     /// and creates/reactivates the caller's participant row. Returns null for a wrong code OR a
     /// right code belonging to a different org OR a closed session — all three cases are
     /// indistinguishable to the caller, deliberately.</summary>
-    public async Task<(WhiteboardSessionStateDto State, List<Guid> OtherParticipantUserIds)?> JoinSessionAsync(
+    public async Task<(WhiteboardSessionStateDto State, List<Guid> ParticipantUserIds)?> JoinSessionAsync(
         Guid organisationId, Guid callerUserId, string callerDisplayName, string joinCode)
     {
         var session = await _db.WhiteboardSessions
@@ -101,13 +101,17 @@ public class WhiteboardService
         }
         await _db.SaveChangesAsync();
 
-        var otherParticipantUserIds = await _db.WhiteboardParticipants.AsNoTracking()
-            .Where(p => p.SessionId == session.Id && p.LeftAt == null && p.UserId != callerUserId)
+        // Includes the caller's own userId — broadcasting only needs to skip the ORIGINATING TAB
+        // (excludeClientSessionId, applied by the controller), not the whole user, so a second tab
+        // of the same joining user still gets notified. Same convention as ChatService's own
+        // BroadcastChatMessage, which targets the full channel membership including the sender.
+        var participantUserIds = await _db.WhiteboardParticipants.AsNoTracking()
+            .Where(p => p.SessionId == session.Id && p.LeftAt == null)
             .Select(p => p.UserId)
             .ToListAsync();
 
         var state = await BuildStateDtoAsync(session.Id, callerUserId);
-        return state is null ? null : (state, otherParticipantUserIds);
+        return state is null ? null : (state, participantUserIds);
     }
 
     /// <summary>Current state for a resync (e.g. after an SSE reconnect) — the caller must be a
@@ -177,9 +181,11 @@ public class WhiteboardService
 
     /// <summary>Caller must be a currently-present participant of an open session in their own
     /// org — a former participant, a stranger, or a closed session all get the same null. Returns
-    /// the new element plus every OTHER currently-present participant's user id, for the
-    /// controller's broadcast (the acting client already rendered its own stroke locally).</summary>
-    public async Task<(WhiteboardElementDto Element, List<Guid> OtherParticipantUserIds)?> AddElementAsync(
+    /// the new element plus every currently-present participant's user id (including the caller —
+    /// the controller's own excludeClientSessionId is what skips the originating tab specifically,
+    /// same convention as ChatService.PostMessageAsync, so a second tab of the same acting user
+    /// still gets the broadcast).</summary>
+    public async Task<(WhiteboardElementDto Element, List<Guid> ParticipantUserIds)?> AddElementAsync(
         Guid organisationId, Guid callerUserId, Guid sessionId, AddWhiteboardElementRequest request)
     {
         var isCurrentParticipant = await _db.WhiteboardParticipants.AsNoTracking()
@@ -199,18 +205,19 @@ public class WhiteboardService
         _db.WhiteboardElements.Add(element);
         await _db.SaveChangesAsync();
 
-        var otherParticipantUserIds = await _db.WhiteboardParticipants.AsNoTracking()
-            .Where(p => p.SessionId == sessionId && p.LeftAt == null && p.UserId != callerUserId)
+        var participantUserIds = await _db.WhiteboardParticipants.AsNoTracking()
+            .Where(p => p.SessionId == sessionId && p.LeftAt == null)
             .Select(p => p.UserId)
             .ToListAsync();
 
         var dto = new WhiteboardElementDto(element.Id, element.ElementType, element.ElementJson, element.CreatedByUserId, element.CreatedAt);
-        return (dto, otherParticipantUserIds);
+        return (dto, participantUserIds);
     }
 
     /// <summary>Soft-delete (eraser) — same currently-present-participant gate as AddElementAsync.
-    /// Returns the other participants' user ids for broadcast, or null if the caller isn't a current
-    /// participant or the element doesn't belong to this session.</summary>
+    /// Returns every currently-present participant's user id (including the caller — see
+    /// AddElementAsync's own doc comment for why) for broadcast, or null if the caller isn't a
+    /// current participant or the element doesn't belong to this session.</summary>
     public async Task<List<Guid>?> RemoveElementAsync(Guid organisationId, Guid callerUserId, Guid sessionId, Guid elementId)
     {
         var isCurrentParticipant = await _db.WhiteboardParticipants.AsNoTracking()
@@ -226,7 +233,7 @@ public class WhiteboardService
         await _db.SaveChangesAsync();
 
         return await _db.WhiteboardParticipants.AsNoTracking()
-            .Where(p => p.SessionId == sessionId && p.LeftAt == null && p.UserId != callerUserId)
+            .Where(p => p.SessionId == sessionId && p.LeftAt == null)
             .Select(p => p.UserId)
             .ToListAsync();
     }
@@ -234,8 +241,9 @@ public class WhiteboardService
     /// <summary>Ephemeral cursor-position broadcast (.NET/php-api tiers only — no MariaDB
     /// equivalent, see mariadb-api/CLAUDE.md's own trade-off note; the frontend simply never
     /// receives this event on that tier). No DB write at all, unlike AddElementAsync — a cursor
-    /// position is purely transient. Returns the other currently-present participants' user ids, or
-    /// null if the caller isn't a current participant of an open session in their own org.</summary>
+    /// position is purely transient. Returns every currently-present participant's user id
+    /// (including the caller — see AddElementAsync's own doc comment for why), or null if the
+    /// caller isn't a current participant of an open session in their own org.</summary>
     public async Task<List<Guid>?> GetOtherParticipantUserIdsForCursorAsync(Guid organisationId, Guid callerUserId, Guid sessionId)
     {
         var isCurrentParticipant = await _db.WhiteboardParticipants.AsNoTracking()
@@ -244,7 +252,7 @@ public class WhiteboardService
         if (!isCurrentParticipant) return null;
 
         return await _db.WhiteboardParticipants.AsNoTracking()
-            .Where(p => p.SessionId == sessionId && p.LeftAt == null && p.UserId != callerUserId)
+            .Where(p => p.SessionId == sessionId && p.LeftAt == null)
             .Select(p => p.UserId)
             .ToListAsync();
     }

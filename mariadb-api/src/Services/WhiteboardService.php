@@ -81,7 +81,7 @@ final class WhiteboardService
      * creates/reactivates the caller's participant row. Returns null for a wrong code OR a right
      * code belonging to a different org OR a closed session — all three indistinguishable, deliberately.
      *
-     * @return array{state: array, otherParticipantUserIds: string[]}|null
+     * @return array{state: array, participantUserIds: string[]}|null
      */
     public function joinSession(string $organisationId, string $callerUserId, string $joinCode): ?array
     {
@@ -109,13 +109,17 @@ final class WhiteboardService
             )->execute(['joined' => $dateNow, 'id' => $participant['Id']]);
         }
 
-        $othersStmt = $this->db->prepare(
-            'SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL AND "UserId" != :uid'
+        // Includes the caller's own userId — broadcasting only needs to skip the ORIGINATING TAB
+        // (excludeClientSessionId, applied by the controller), not the whole user, so a second tab
+        // of the same joining user still gets notified. Same convention as ChatService's own
+        // broadcastChatMessage, which targets the full channel membership including the sender.
+        $participantsStmt = $this->db->prepare(
+            'SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL'
         );
-        $othersStmt->execute(['sid' => $sessionId, 'uid' => $callerUserId]);
-        $otherParticipantUserIds = array_column($othersStmt->fetchAll(), 'UserId');
+        $participantsStmt->execute(['sid' => $sessionId]);
+        $participantUserIds = array_column($participantsStmt->fetchAll(), 'UserId');
 
-        return ['state' => $this->buildStateDto((string) $sessionId, $callerUserId), 'otherParticipantUserIds' => $otherParticipantUserIds];
+        return ['state' => $this->buildStateDto((string) $sessionId, $callerUserId), 'participantUserIds' => $participantUserIds];
     }
 
     /** Current state for a resync — the caller must be a currently-present participant (LeftAt IS
@@ -196,7 +200,12 @@ final class WhiteboardService
     /** Caller must be a currently-present participant of an open session in their own org — a
      * former participant, a stranger, or a closed session all get the same null.
      *
-     * @return array{element: array, otherParticipantUserIds: string[]}|null
+     * Broadcast target includes the caller's own userId — only the ORIGINATING TAB needs skipping
+     * (excludeClientSessionId, applied by the controller), not the whole user, so a second tab of
+     * the same acting user still gets the broadcast (same convention as ChatService's own
+     * postMessage, which targets the full channel membership including the sender).
+     *
+     * @return array{element: array, participantUserIds: string[]}|null
      */
     public function addElement(string $organisationId, string $callerUserId, string $sessionId, string $elementType, string $elementJson): ?array
     {
@@ -211,19 +220,20 @@ final class WhiteboardService
              VALUES (:id, :sid, :uid, :type, :json, :created)'
         )->execute(['id' => $elementId, 'sid' => $sessionId, 'uid' => $callerUserId, 'type' => $elementType, 'json' => $elementJson, 'created' => $createdAt]);
 
-        $othersStmt = $this->db->prepare('SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL AND "UserId" != :uid');
-        $othersStmt->execute(['sid' => $sessionId, 'uid' => $callerUserId]);
+        $participantsStmt = $this->db->prepare('SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL');
+        $participantsStmt->execute(['sid' => $sessionId]);
 
         return [
             'element' => ['id' => $elementId, 'elementType' => $elementType, 'elementJson' => $elementJson, 'createdByUserId' => $callerUserId, 'createdAt' => $createdAt],
-            'otherParticipantUserIds' => array_column($othersStmt->fetchAll(), 'UserId'),
+            'participantUserIds' => array_column($participantsStmt->fetchAll(), 'UserId'),
         ];
     }
 
     /** Soft-delete (eraser) — same currently-present-participant gate as addElement.
      *
-     * @return string[]|null Other participants' user ids for broadcast, or null if the caller isn't
-     *   a current participant or the element doesn't belong to this session.
+     * @return string[]|null Every currently-present participant's user id (including the caller —
+     *   see addElement's own doc comment for why) for broadcast, or null if the caller isn't a
+     *   current participant or the element doesn't belong to this session.
      */
     public function removeElement(string $organisationId, string $callerUserId, string $sessionId, string $elementId): ?array
     {
@@ -239,9 +249,9 @@ final class WhiteboardService
             return null;
         }
 
-        $othersStmt = $this->db->prepare('SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL AND "UserId" != :uid');
-        $othersStmt->execute(['sid' => $sessionId, 'uid' => $callerUserId]);
-        return array_column($othersStmt->fetchAll(), 'UserId');
+        $participantsStmt = $this->db->prepare('SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL');
+        $participantsStmt->execute(['sid' => $sessionId]);
+        return array_column($participantsStmt->fetchAll(), 'UserId');
     }
 
     // ---- Helpers ----
