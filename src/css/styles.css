@@ -5969,6 +5969,26 @@
     max-height: 86vh;
   }
 
+  /* True edge-to-edge fullscreen tier — reserved for front-end/end-user-facing surfaces (Portal home
+     pages) that want to feel like their own standalone experience rather than a dialog floating over
+     the board, unlike every other .kf-modal-lg feature (Whiteboard, Forms, Portfolio Planner, ...)
+     which stays a centered-with-backdrop 98vw×86vh dialog. The overlay wrapper needs its own
+     "-full" modifier class (added by whichever markup uses kf-modal-full) to zero out the base
+     .kf-overlay's 20px padding, matching this codebase's "no generic utility class, every component
+     gets its own compound selector" convention — .kf-modal-full alone isn't enough, since the parent
+     .kf-overlay's padding would otherwise leave a 20px backdrop gap around the "fullscreen" modal. */
+  .kf-modal.kf-modal-full {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .kf-overlay.kf-overlay-full {
+    padding: 0;
+  }
+
   /* The Team modal's member rows (avatar + name + role + allocated-fraction + Admin checkbox +
      remove button, see .kf-member-row) don't fit the shared .kf-modal-md width without the Admin
      checkbox scrolling out of view — widened just for this modal rather than the shared class,

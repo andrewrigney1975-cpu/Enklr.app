@@ -8,17 +8,18 @@ namespace Enkl\Api\Services;
  * Ported from php-api/src/Services/EnterpriseSettingsSerializer.php (itself ported from
  * Services/EnterpriseSettingsSerializer.cs). Shared camelCase (de)serialization for
  * Organisations.EnterpriseSettingsJson — the small subset of App Settings' "Enterprise" category
- * that applies org-WIDE (Forms & Workflow, Portfolio Planner) rather than per-project like every
- * other App Settings toggle. Both fields are opt-in (default false). No dialect divergence from the
- * Postgres tier anywhere in this file.
+ * that applies org-WIDE (Forms & Workflow, Portfolio Planner, Portals) rather than per-project like
+ * every other App Settings toggle. Every field is opt-in (default false). No dialect divergence from
+ * the Postgres tier anywhere in this file.
  *
- * @phpstan-type EnterpriseSettings array{forms:bool,portfolioPlanner:bool}
+ * @phpstan-type EnterpriseSettings array{forms:bool,portfolioPlanner:bool,portals:bool}
  */
 final class EnterpriseSettingsSerializer
 {
     private const DEFAULTS = [
         'forms' => false,
         'portfolioPlanner' => false,
+        'portals' => false,
     ];
 
     public static function serialize(array $settings): string

@@ -47,14 +47,15 @@ final class ProjectService
             return null;
         }
 
-        // Forms/PortfolioPlanner are org-WIDE settings (see Organisations.EnterpriseSettingsJson's
+        // Forms/PortfolioPlanner/Portals are org-WIDE settings (see Organisations.EnterpriseSettingsJson's
         // own migration comment) — whatever this project's own HeaderButtonVisibilityJson happens to
-        // still hold for these two keys is always overridden here with the real, org-level value,
+        // still hold for these keys is always overridden here with the real, org-level value,
         // never trusted from the project's own row (see updateSettings's own comment for why).
         $settings = ProjectSettingsSerializer::parse($project['HeaderButtonVisibilityJson']);
         $orgEnterprise = $this->getOrgEnterpriseSettings($project['OrganisationId']);
         $settings['forms'] = $orgEnterprise['forms'];
         $settings['portfolioPlanner'] = $orgEnterprise['portfolioPlanner'];
+        $settings['portals'] = $orgEnterprise['portals'];
 
         return [
             'id' => $project['Id'],
@@ -381,17 +382,17 @@ final class ProjectService
     }
 
     /**
-     * Forms/PortfolioPlanner inside $settings are only ever actually applied when the caller is an
-     * Org Admin (re-validated server-side, never trusted from the client) — this endpoint's own auth
-     * is ProjectAdmin, not OrgAdmin, since every OTHER field here is a genuine per-project setting a
-     * plain Project Admin is allowed to change. A non-Org-Admin Project Admin including
-     * forms:true/portfolioPlanner:true in their payload (e.g. by calling this endpoint directly,
-     * bypassing the UI's own Enterprise-category admin gate) has those two fields silently ignored
-     * rather than applied — same "server independently re-derives, never trusts the client's claimed
-     * value" principle as every cross-scope write elsewhere in this app. The returned array's
-     * forms/portfolioPlanner always reflect the REAL, currently-effective org-wide value, whether or
-     * not this call actually changed it, so a non-Org-Admin caller never sees a misleading echo of
-     * what they merely attempted to send.
+     * Forms/PortfolioPlanner/Portals inside $settings are only ever actually applied when the caller
+     * is an Org Admin (re-validated server-side, never trusted from the client) — this endpoint's own
+     * auth is ProjectAdmin, not OrgAdmin, since every OTHER field here is a genuine per-project setting
+     * a plain Project Admin is allowed to change. A non-Org-Admin Project Admin including
+     * forms:true/portfolioPlanner:true/portals:true in their payload (e.g. by calling this endpoint
+     * directly, bypassing the UI's own Enterprise-category admin gate) has those fields silently
+     * ignored rather than applied — same "server independently re-derives, never trusts the client's
+     * claimed value" principle as every cross-scope write elsewhere in this app. The returned array's
+     * forms/portfolioPlanner/portals always reflect the REAL, currently-effective org-wide value,
+     * whether or not this call actually changed it, so a non-Org-Admin caller never sees a misleading
+     * echo of what they merely attempted to send.
      */
     public function updateSettings(string $projectId, array $settings, bool $callerIsOrgAdmin): ?array
     {
@@ -412,6 +413,7 @@ final class ProjectService
             if ($orgRow !== false) {
                 $newOrgJson = EnterpriseSettingsSerializer::serialize([
                     'forms' => $parsed['forms'], 'portfolioPlanner' => $parsed['portfolioPlanner'],
+                    'portals' => $parsed['portals'],
                 ]);
                 $this->db->prepare('UPDATE "Organisations" SET "EnterpriseSettingsJson" = :json WHERE "Id" = :id')
                     ->execute(['json' => $newOrgJson, 'id' => $organisationId]);
@@ -426,6 +428,7 @@ final class ProjectService
         $orgEnterprise = $this->getOrgEnterpriseSettings($organisationId);
         $parsed['forms'] = $orgEnterprise['forms'];
         $parsed['portfolioPlanner'] = $orgEnterprise['portfolioPlanner'];
+        $parsed['portals'] = $orgEnterprise['portals'];
         return $parsed;
     }
 
