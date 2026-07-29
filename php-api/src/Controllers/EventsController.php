@@ -65,6 +65,9 @@ final class EventsController extends BaseController
         pg_query($conn, 'LISTEN chat_reaction');
         pg_query($conn, 'LISTEN form_action_required');
         pg_query($conn, 'LISTEN form_submission_decided');
+        pg_query($conn, 'LISTEN whiteboard_participant_changed');
+        pg_query($conn, 'LISTEN whiteboard_element_changed');
+        pg_query($conn, 'LISTEN whiteboard_session_closed');
         $socket = pg_socket($conn);
         $lastHeartbeat = time();
         $this->markPresent($userId);

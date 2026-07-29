@@ -51,6 +51,7 @@ use Enkl\Api\Controllers\TeamsCommitteesController;
 use Enkl\Api\Controllers\TelemetryController;
 use Enkl\Api\Controllers\TemplatesController;
 use Enkl\Api\Controllers\ToDoController;
+use Enkl\Api\Controllers\WhiteboardController;
 use Slim\App;
 
 /**
@@ -172,6 +173,17 @@ function registerRoutes(App $app): void
         $group->group('', function ($adminGroup) {
             $adminGroup->post('/truncate', [ChatController::class, 'truncate']);
         })->add(OrgAdminMiddleware::class);
+    })->add(RequireAuthMiddleware::class);
+
+    // ---- Collaborative Whiteboard (org-wide, any authenticated org user — deliberately NO
+    // ProjectMemberMiddleware, same "org concept, not a project one" shape as Chat above) ----
+    $app->group('/api/whiteboard/sessions', function ($group) {
+        $group->post('', [WhiteboardController::class, 'create']);
+        $group->post('/join', [WhiteboardController::class, 'join']);
+        $group->get('/{id}', [WhiteboardController::class, 'getState']);
+        $group->post('/{id}/leave', [WhiteboardController::class, 'leave']);
+        $group->post('/{id}/save', [WhiteboardController::class, 'save']);
+        $group->post('/{id}/close', [WhiteboardController::class, 'close']);
     })->add(RequireAuthMiddleware::class);
 
     // ---- Announcements: any authenticated user reads what's currently active/relevant to them and

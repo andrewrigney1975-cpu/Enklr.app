@@ -149,4 +149,63 @@ final class Broadcaster
         $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
         $stmt->execute(['channel' => 'form_submission_decided', 'payload' => $payload]);
     }
+
+    /**
+     * @param string[] $participantUserIds
+     */
+    public function broadcastWhiteboardParticipant(
+        array $participantUserIds,
+        string $sessionId,
+        string $userId,
+        string $displayName,
+        string $changeType,
+        ?string $excludeClientSessionId
+    ): void {
+        $payload = json_encode([
+            'memberUserIds' => $participantUserIds,
+            'excludeClientSessionId' => $excludeClientSessionId,
+            'event' => ['sessionId' => $sessionId, 'userId' => $userId, 'displayName' => $displayName, 'changeType' => $changeType],
+        ]);
+
+        $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
+        $stmt->execute(['channel' => 'whiteboard_participant_changed', 'payload' => $payload]);
+    }
+
+    /**
+     * @param string[] $participantUserIds
+     * @param array{id: string, elementType: string, elementJson: string, createdByUserId: string, createdAt: string} $element
+     */
+    public function broadcastWhiteboardElement(
+        array $participantUserIds,
+        string $sessionId,
+        array $element,
+        string $changeType,
+        ?string $excludeClientSessionId
+    ): void {
+        $payload = json_encode([
+            'memberUserIds' => $participantUserIds,
+            'excludeClientSessionId' => $excludeClientSessionId,
+            'event' => ['sessionId' => $sessionId, 'element' => $element, 'changeType' => $changeType],
+        ]);
+
+        $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
+        $stmt->execute(['channel' => 'whiteboard_element_changed', 'payload' => $payload]);
+    }
+
+    /** No excludeClientSessionId — the closing tab navigates away via its own HTTP response, not
+     * this broadcast, so every one of the host's own tabs still needs the event too.
+     *
+     * @param string[] $participantUserIds
+     */
+    public function broadcastWhiteboardSessionClosed(array $participantUserIds, string $sessionId): void
+    {
+        $payload = json_encode([
+            'memberUserIds' => $participantUserIds,
+            'excludeClientSessionId' => null,
+            'event' => ['sessionId' => $sessionId],
+        ]);
+
+        $stmt = $this->db->prepare('SELECT pg_notify(:channel, :payload)');
+        $stmt->execute(['channel' => 'whiteboard_session_closed', 'payload' => $payload]);
+    }
 }

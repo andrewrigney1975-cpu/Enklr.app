@@ -90,6 +90,28 @@ public class SseBroadcaster
         Broadcast("form-submission-decided", new[] { targetUserId }, payload, null);
     }
 
+    /// <summary>Notifies every other current participant's open connections that someone joined/left a
+    /// whiteboard session — same explicit-recipient-list, self-tab-exclusion shape as BroadcastChatMessage.</summary>
+    public void BroadcastWhiteboardParticipant(IEnumerable<Guid> participantUserIds, WhiteboardParticipantEventDto payload, string? excludeClientSessionId)
+    {
+        Broadcast("whiteboard-participant-changed", participantUserIds, payload, excludeClientSessionId);
+    }
+
+    /// <summary>Notifies every other current participant's open connections that a drawn element was
+    /// added/removed — excludes the acting client's own tab, which already rendered the element locally.</summary>
+    public void BroadcastWhiteboardElement(IEnumerable<Guid> participantUserIds, WhiteboardElementEventDto payload, string? excludeClientSessionId)
+    {
+        Broadcast("whiteboard-element-changed", participantUserIds, payload, excludeClientSessionId);
+    }
+
+    /// <summary>Notifies every participant (including the host's own other tabs) that the session was
+    /// closed — no excludeClientSessionId, since the closing tab navigates away via its own HTTP
+    /// response, not this broadcast.</summary>
+    public void BroadcastWhiteboardSessionClosed(IEnumerable<Guid> participantUserIds, WhiteboardSessionClosedEventDto payload)
+    {
+        Broadcast("whiteboard-session-closed", participantUserIds, payload, null);
+    }
+
     private void Broadcast<T>(string eventName, IEnumerable<Guid> memberUserIds, T payload, string? excludeClientSessionId)
     {
         var frame = "event: " + eventName + "\ndata: " + JsonSerializer.Serialize(payload, JsonOptions) + "\n\n";
