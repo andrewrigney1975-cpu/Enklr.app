@@ -234,7 +234,7 @@ public class PortalService
         {
             existing.Order = request.Order;
             await _db.SaveChangesAsync();
-            return new PortalFormDto(existing.Id, existing.FormGroupId, existing.Order, published.Name, published.Status);
+            return new PortalFormDto(existing.Id, existing.FormGroupId, existing.Order, published.Name, published.Status, published.FieldsJson, published.Id);
         }
 
         var portalForm = new PortalForm
@@ -247,7 +247,7 @@ public class PortalService
         };
         _db.PortalForms.Add(portalForm);
         await _db.SaveChangesAsync();
-        return new PortalFormDto(portalForm.Id, portalForm.FormGroupId, portalForm.Order, published.Name, published.Status);
+        return new PortalFormDto(portalForm.Id, portalForm.FormGroupId, portalForm.Order, published.Name, published.Status, published.FieldsJson, published.Id);
     }
 
     public async Task<bool> DetachFormAsync(Guid organisationId, Guid portalId, Guid portalFormId)
@@ -271,7 +271,7 @@ public class PortalService
         return portalForms.Select(f =>
         {
             published.TryGetValue(f.FormGroupId, out var form);
-            return new PortalFormDto(f.Id, f.FormGroupId, f.Order, form?.Name, form?.Status);
+            return new PortalFormDto(f.Id, f.FormGroupId, f.Order, form?.Name, form?.Status, form?.FieldsJson, form?.Id);
         }).ToList();
     }
 

@@ -1765,6 +1765,55 @@
   </div>
 </div>
 
+<!-- Portal home page — the end-user, fullscreen Organisational Portals experience -->
+<div class="kf-overlay hidden kf-overlay-full" id="portalHomeOverlay">
+  <div class="kf-modal kf-modal-full" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 class="kf-portal-home-greeting" id="portalHomeGreeting">Welcome</h2>
+      <div class="kf-portal-home-desc" id="portalHomeDesc"></div>
+      <div class="kf-modal-header-actions">
+        <button class="kf-btn kf-btn-ghost" id="portalHomeClose"><span class="kf-icon" data-icon="close" data-size="20"></span></button>
+      </div>
+    </div>
+    <div class="kf-portal-home-body">
+      <div class="kf-portal-home-pane">
+        <div class="kf-portal-home-pane-title">Start a request</div>
+        <div id="portalHomeFormsList"></div>
+        <div class="kf-member-empty hidden" id="portalHomeFormsEmpty">No forms available on this Portal yet.</div>
+      </div>
+      <div class="kf-portal-home-pane">
+        <div class="kf-portal-home-pane-title">My requests</div>
+        <div id="portalHomeRequestsList"></div>
+        <div class="kf-member-empty hidden" id="portalHomeRequestsEmpty">You haven't submitted anything here yet.</div>
+      </div>
+      <div class="kf-portal-home-pane">
+        <div class="kf-portal-home-pane-title">Answers</div>
+        <div id="portalHomeQaList"></div>
+        <div class="kf-member-empty hidden" id="portalHomeQaEmpty">No answers published yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Portal home page — form fill-out detail (layered above #portalHomeOverlay when a form is opened) -->
+<div class="kf-overlay hidden" id="portalHomeFilloutOverlay">
+  <div class="kf-modal kf-modal-md" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2 id="portalHomeFilloutTitle">Form</h2>
+      <button class="kf-btn kf-btn-ghost" id="portalHomeFilloutClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div id="portalHomeFilloutMissingWarning" class="kf-form-answer-missing-warning hidden"></div>
+      <div id="portalHomeFilloutFields"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button type="button" class="kf-btn kf-btn-danger hidden" id="portalHomeFilloutDeleteBtn">Delete Draft</button>
+      <button type="button" class="kf-btn kf-btn-secondary" id="portalHomeFilloutSaveDraftBtn">Save Draft</button>
+      <button type="button" class="kf-btn kf-btn-primary" id="portalHomeFilloutSubmitBtn">Submit</button>
+    </div>
+  </div>
+</div>
+
 <!-- Form Field Builder: one form's name/description + field list (Org Admin, Draft versions only) -->
 <div class="kf-overlay hidden" id="formFieldBuilderOverlay">
   <div class="kf-modal kf-modal-md" role="dialog" aria-modal="true">

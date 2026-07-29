@@ -10,13 +10,38 @@ var TASK_HASH_PREFIX = '#!/';
    currently-open sessions), so it gets its own, more specific prefix, checked BEFORE falling
    through to task-key parsing rather than sharing one ambiguous parser. */
 var WHITEBOARD_HASH_PREFIX = '#!/whiteboard/';
+/* An Organisational Portal's slug is org-wide-server-resolved (like a Whiteboard join code), not a
+   local-DB task key — same "more specific prefix, checked BEFORE falling through to task-key
+   parsing" reasoning as WHITEBOARD_HASH_PREFIX above. */
+var PORTAL_HASH_PREFIX = '#!/portal/';
 
 export function parseTaskKeyFromHash(){
   var hash = window.location.hash || '';
   if(hash.indexOf(WHITEBOARD_HASH_PREFIX) === 0) return null;
+  if(hash.indexOf(PORTAL_HASH_PREFIX) === 0) return null;
   if(hash.indexOf(TASK_HASH_PREFIX) !== 0) return null;
   var key = decodeURIComponent(hash.slice(TASK_HASH_PREFIX.length)).trim();
   return key || null;
+}
+
+export function parsePortalSlugFromHash(){
+  var hash = window.location.hash || '';
+  if(hash.indexOf(PORTAL_HASH_PREFIX) !== 0) return null;
+  var slug = decodeURIComponent(hash.slice(PORTAL_HASH_PREFIX.length)).trim();
+  return slug || null;
+}
+
+/* Same replaceState reasoning as setTaskHash — avoid history spam and avoid retriggering our own
+   'hashchange' listener. */
+export function setPortalHash(slug){
+  var target = PORTAL_HASH_PREFIX + encodeURIComponent(slug);
+  if(window.location.hash === target) return;
+  history.replaceState(null, '', target);
+}
+
+export function clearPortalHash(){
+  if(window.location.hash.indexOf(PORTAL_HASH_PREFIX) !== 0) return;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
 }
 
 export function parseWhiteboardCodeFromHash(){

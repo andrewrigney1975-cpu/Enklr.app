@@ -236,7 +236,7 @@ final class PortalService
         $formGroupId = (string) ($request['formGroupId'] ?? '');
         $order = (int) ($request['order'] ?? 0);
 
-        $formStmt = $this->db->prepare('SELECT "Name", "Status" FROM "Forms" WHERE "FormGroupId" = :groupId AND "OrganisationId" = :orgId AND "Status" = \'published\'');
+        $formStmt = $this->db->prepare('SELECT "Name", "Status", "FieldsJson" FROM "Forms" WHERE "FormGroupId" = :groupId AND "OrganisationId" = :orgId AND "Status" = \'published\'');
         $formStmt->execute(['groupId' => $formGroupId, 'orgId' => $organisationId]);
         $form = $formStmt->fetch();
         if ($form === false) {
@@ -249,7 +249,7 @@ final class PortalService
 
         if ($existingId !== false) {
             $this->db->prepare('UPDATE "PortalForms" SET "Order" = :order WHERE "Id" = :id')->execute(['order' => $order, 'id' => $existingId]);
-            return ['id' => $existingId, 'formGroupId' => $formGroupId, 'order' => $order, 'formName' => $form['Name'], 'formStatus' => $form['Status']];
+            return ['id' => $existingId, 'formGroupId' => $formGroupId, 'order' => $order, 'formName' => $form['Name'], 'formStatus' => $form['Status'], 'fieldsJson' => $form['FieldsJson']];
         }
 
         $portalFormId = Uuid::v4();
@@ -258,7 +258,7 @@ final class PortalService
         );
         $insert->execute(['id' => $portalFormId, 'portalId' => $portalId, 'groupId' => $formGroupId, 'order' => $order]);
 
-        return ['id' => $portalFormId, 'formGroupId' => $formGroupId, 'order' => $order, 'formName' => $form['Name'], 'formStatus' => $form['Status']];
+        return ['id' => $portalFormId, 'formGroupId' => $formGroupId, 'order' => $order, 'formName' => $form['Name'], 'formStatus' => $form['Status'], 'fieldsJson' => $form['FieldsJson']];
     }
 
     public function detachForm(string $organisationId, string $portalId, string $portalFormId): bool
@@ -278,7 +278,7 @@ final class PortalService
         }
         $groupIds = array_column($portalForms, 'FormGroupId');
         $placeholders = implode(',', array_map(static fn($i) => ":g{$i}", array_keys($groupIds)));
-        $stmt = $this->db->prepare("SELECT \"FormGroupId\", \"Name\", \"Status\" FROM \"Forms\" WHERE \"Status\" = 'published' AND \"FormGroupId\" IN ({$placeholders})");
+        $stmt = $this->db->prepare("SELECT \"FormGroupId\", \"Name\", \"Status\", \"FieldsJson\" FROM \"Forms\" WHERE \"Status\" = 'published' AND \"FormGroupId\" IN ({$placeholders})");
         $params = [];
         foreach ($groupIds as $i => $id) {
             $params["g{$i}"] = $id;
@@ -294,6 +294,7 @@ final class PortalService
             return [
                 'id' => $f['Id'], 'formGroupId' => $f['FormGroupId'], 'order' => (int) $f['Order'],
                 'formName' => $form['Name'] ?? null, 'formStatus' => $form['Status'] ?? null,
+                'fieldsJson' => $form['FieldsJson'] ?? null,
             ];
         }, $portalForms);
     }

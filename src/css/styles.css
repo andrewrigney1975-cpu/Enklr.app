@@ -27,6 +27,14 @@
     --kf-font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --kf-depnode-opacity: 0.8;
 
+    /* Portal home page's own accent pair (views/portal-home... see modals/portal-home.js) — a warm
+       terracotta distinct from every priority/status color already in use elsewhere, applied only to
+       the Portal's own header band, active-stepper state, and form-tile hover. Deliberately NOT used
+       anywhere else in the app — signals "you're in a different room" for this one end-user surface
+       without touching the board's own color vocabulary. */
+    --kf-portal-accent: #c1622d;
+    --kf-portal-accent-soft: rgba(193, 98, 45, .12);
+
     /* Dashboard Chart widget's categorical palette (features/dashboard-charts.js) — the dataviz
        skill's validated default order/hues, fixed order, never cycled past slot 8 (a 9th category
        folds into "Other" instead). Re-validated against this app's own --kf-surface value (both
@@ -86,6 +94,9 @@
     --kf-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 0 1px rgba(0, 0, 0, .4);
     --kf-shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, .6), 0 0 1px rgba(0, 0, 0, .5);
     --kf-modal-shadow: 0 8px 28px rgba(0, 0, 0, .55);
+
+    --kf-portal-accent: #e08a55;
+    --kf-portal-accent-soft: rgba(224, 138, 85, .16);
 
     --kf-chip-bg: var(--kf-surface);
     --kf-chip-active-bg: var(--kf-blue);
@@ -5987,6 +5998,209 @@
 
   .kf-overlay.kf-overlay-full {
     padding: 0;
+  }
+
+  /* ===== Portal home page (end-user Organisational Portals experience, kf-modal-full) =====
+     A deliberately calmer, more spacious register than the board's dense project-management chrome
+     — see PORTALS.md's own design brief. Everything below is scoped under #portalHomeOverlay so it
+     can never leak into any other modal. */
+
+  #portalHomeOverlay .kf-modal-header {
+    background: linear-gradient(180deg, var(--kf-portal-accent-soft), transparent);
+    border-bottom: 1px solid var(--kf-border);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 20px 28px 16px;
+  }
+
+  #portalHomeOverlay .kf-modal-header .kf-modal-header-actions {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+  }
+
+  .kf-portal-home-greeting {
+    font-size: 30px;
+    font-weight: 300;
+    color: var(--kf-text);
+    line-height: 1.2;
+  }
+
+  .kf-portal-home-desc {
+    font-size: 13px;
+    color: var(--kf-text-secondary);
+    max-width: 640px;
+  }
+
+  .kf-portal-home-body {
+    display: grid;
+    grid-template-columns: 260px 1fr 320px;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .kf-portal-home-pane {
+    padding: 20px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .kf-portal-home-pane + .kf-portal-home-pane {
+    border-left: 1px solid var(--kf-border);
+  }
+
+  .kf-portal-home-pane-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--kf-text-faint);
+    margin-bottom: 12px;
+  }
+
+  /* Left pane — Start a request (available forms), plain icon+label list, deliberately NOT numbered
+     — these forms aren't a sequence, so a 01/02/03 marker would encode nothing true about them. */
+  .kf-portal-home-form-tile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--kf-radius);
+    cursor: pointer;
+    color: var(--kf-text);
+    margin-bottom: 4px;
+  }
+  .kf-portal-home-form-tile:hover {
+    background: var(--kf-portal-accent-soft);
+  }
+  .kf-portal-home-form-tile .kf-icon {
+    color: var(--kf-portal-accent);
+    flex-shrink: 0;
+  }
+
+  /* Middle pane — My requests, the signature status-stepper device (Draft -> Submitted -> In review
+     -> Approved), reused nowhere else in the app — see PORTALS.md's design note on why this replaces
+     a plain status badge here specifically: it directly encodes the submission's real state machine. */
+  .kf-portal-request-card {
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .kf-portal-request-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+    margin-bottom: 10px;
+  }
+  .kf-portal-stepper {
+    display: flex;
+    align-items: center;
+  }
+  .kf-portal-stepper-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+  }
+  .kf-portal-stepper-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--kf-border-strong);
+    z-index: 1;
+  }
+  .kf-portal-stepper-step.done .kf-portal-stepper-dot,
+  .kf-portal-stepper-step.current .kf-portal-stepper-dot {
+    background: var(--kf-portal-accent);
+  }
+  .kf-portal-stepper-step.rejected .kf-portal-stepper-dot {
+    background: var(--kf-danger);
+  }
+  .kf-portal-stepper-line {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: var(--kf-border-strong);
+    z-index: 0;
+  }
+  .kf-portal-stepper-step:last-child .kf-portal-stepper-line {
+    display: none;
+  }
+  .kf-portal-stepper-step.done .kf-portal-stepper-line {
+    background: var(--kf-portal-accent);
+  }
+  .kf-portal-stepper-label {
+    font-size: 10px;
+    color: var(--kf-text-faint);
+    margin-top: 5px;
+    text-align: center;
+  }
+  .kf-portal-stepper-step.current .kf-portal-stepper-label {
+    color: var(--kf-portal-accent);
+    font-weight: 600;
+  }
+
+  /* Right pane — Answers (Q&A), a knowledge-base-style expand/collapse accordion per entry, grouped
+     under small-caps topic labels — a real structural label (matches the side-nav "Views"/"Tools"
+     section-label precedent), not decoration. */
+  .kf-portal-qa-topic {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--kf-portal-accent);
+    margin: 16px 0 6px;
+  }
+  .kf-portal-qa-topic:first-child {
+    margin-top: 0;
+  }
+  .kf-portal-qa-entry {
+    border-bottom: 1px solid var(--kf-border);
+  }
+  .kf-portal-qa-question {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 0;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--kf-text);
+  }
+  .kf-portal-qa-question .kf-icon {
+    color: var(--kf-text-faint);
+    flex-shrink: 0;
+    transition: transform .15s;
+  }
+  .kf-portal-qa-entry.expanded .kf-portal-qa-question .kf-icon {
+    transform: rotate(90deg);
+  }
+  .kf-portal-qa-answer {
+    font-size: 12.5px;
+    color: var(--kf-text-secondary);
+    padding: 0 0 12px;
+    white-space: pre-wrap;
+  }
+  .kf-portal-qa-answer.hidden {
+    display: none;
+  }
+
+  @media (max-width: 860px) {
+    .kf-portal-home-body {
+      grid-template-columns: 1fr;
+      overflow-y: auto;
+    }
+    .kf-portal-home-pane + .kf-portal-home-pane {
+      border-left: none;
+      border-top: 1px solid var(--kf-border);
+    }
   }
 
   /* The Team modal's member rows (avatar + name + role + allocated-fraction + Admin checkbox +

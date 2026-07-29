@@ -8,9 +8,13 @@ public record UpdatePortalRequest(string Name, string? Slug, string? Description
 public record PortalAccessGrantDto(Guid Id, string Kind, Guid Value, DateTime DateCreated);
 public record CreatePortalAccessGrantRequest(string Kind, Guid Value);
 
-/// <summary>FormName/FormStatus are resolved at read time from whichever Form row is currently
-/// published for FormGroupId, for the authoring UI's convenience — not stored on PortalForm itself.</summary>
-public record PortalFormDto(Guid Id, Guid FormGroupId, int Order, string? FormName, string? FormStatus);
+/// <summary>FormVersionId/FormName/FormStatus/FieldsJson are resolved at read time from whichever
+/// Form row is currently published for FormGroupId — not stored on PortalForm itself. FormVersionId
+/// is that resolved Form row's own Id — what a client actually needs to pass as
+/// CreateFormSubmissionRequest.FormVersionId. FieldsJson is what lets the end-user Portal home page
+/// (PortalHomeService.ListAvailableFormsAsync) render a brand-new submission's fields without
+/// needing its own Org-Admin-only formsApi access.</summary>
+public record PortalFormDto(Guid Id, Guid FormGroupId, int Order, string? FormName, string? FormStatus, string? FieldsJson, Guid? FormVersionId);
 public record AttachPortalFormRequest(Guid FormGroupId, int Order);
 
 public record PortalTopicDto(Guid Id, string Title, int Order);
