@@ -102,6 +102,50 @@ final class Broadcaster
         $this->insertEvent('chat_reaction', $payload);
     }
 
+    /** Single named-user target (memberUserIds is a one-element array) — no excludeClientSessionId,
+     * unlike every broadcast above: the acting approver/author and the notified user are always two
+     * different people here, so there's no "own tab already knows" case to exclude. */
+    public function broadcastFormActionRequired(string $targetUserId, string $projectId, string $submissionId, string $formName): void
+    {
+        $payload = json_encode([
+            'memberUserIds' => [$targetUserId],
+            'excludeClientSessionId' => null,
+            'event' => [
+                'projectId' => $projectId, 'submissionId' => $submissionId, 'formName' => $formName,
+                'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+            ],
+        ]);
+
+        $this->insertEvent('form_action_required', $payload);
+    }
+
+    /** Single named-user target: the ORIGINAL SUBMITTER, always and unconditionally (unlike
+     * broadcastFormActionRequired's gate-satisfaction-dependent targeting) — a final decision
+     * (approved or rejected) has exactly one unambiguous interested party. No excludeClientSessionId,
+     * same reasoning as above. FormName travels alongside Decision specifically so the toast reads
+     * as "X was approved/rejected" rather than a bare result with no context. */
+    public function broadcastFormSubmissionDecided(
+        string $targetUserId,
+        string $projectId,
+        string $submissionId,
+        string $formName,
+        string $decision,
+        string $actedByDisplayName,
+        ?string $comment
+    ): void {
+        $payload = json_encode([
+            'memberUserIds' => [$targetUserId],
+            'excludeClientSessionId' => null,
+            'event' => [
+                'projectId' => $projectId, 'submissionId' => $submissionId, 'formName' => $formName,
+                'decision' => $decision, 'actedByDisplayName' => $actedByDisplayName, 'comment' => $comment,
+                'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+            ],
+        ]);
+
+        $this->insertEvent('form_submission_decided', $payload);
+    }
+
     private function insertEvent(string $channel, string|false $payload): void
     {
         $stmt = $this->db->prepare('INSERT INTO "Events" ("Channel", "Payload") VALUES (:channel, :payload)');

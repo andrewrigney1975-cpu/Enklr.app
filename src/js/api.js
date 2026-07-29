@@ -836,6 +836,73 @@ export var strategyApi = {
   }
 };
 
+/* Enterprise Forms & Workflow — Org-Admin authoring (api/Enkl.Api/Controllers/FormsController.cs).
+   One row per form VERSION, no separate parent "Form" shape — see Domain/Entities/Form.cs's own doc
+   comment. Every one of these is OrgAdmin-gated server-side regardless of what this client sends.
+   Regular project members read the published set + manage their own submissions through
+   projectFormsApi below instead. */
+export var formsApi = {
+  list: function(){
+    return apiFetch('/organisations/me/forms', {method: 'GET'});
+  },
+  get: function(formId){
+    return apiFetch('/organisations/me/forms/' + formId, {method: 'GET'});
+  },
+  create: function(body){
+    return apiFetch('/organisations/me/forms', {method: 'POST', body: JSON.stringify(body)});
+  },
+  update: function(formId, body){
+    return apiFetch('/organisations/me/forms/' + formId, {method: 'PUT', body: JSON.stringify(body)});
+  },
+  remove: function(formId){
+    return apiFetch('/organisations/me/forms/' + formId, {method: 'DELETE'});
+  },
+  listVersions: function(formGroupId){
+    return apiFetch('/organisations/me/forms/groups/' + formGroupId + '/versions', {method: 'GET'});
+  },
+  cloneVersion: function(formGroupId){
+    return apiFetch('/organisations/me/forms/groups/' + formGroupId + '/versions', {method: 'POST'});
+  },
+  publish: function(formId){
+    return apiFetch('/organisations/me/forms/' + formId + '/publish', {method: 'POST'});
+  }
+};
+
+/* Project-member-facing surface (api/Enkl.Api/Controllers/ProjectFormsController.cs) — read the
+   published forms available to this project, and manage the caller's own submission drafts. No
+   Form authoring lives here; every Form write goes through formsApi above (OrgAdmin). Wired here in
+   Phase 1/2 alongside formsApi for completeness even though the fill-out UI itself (Phase 5) doesn't
+   exist yet. */
+export var projectFormsApi = {
+  listPublished: function(projectId){
+    return apiFetch('/projects/' + projectId + '/forms', {method: 'GET'});
+  },
+  listMySubmissions: function(projectId){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/mine', {method: 'GET'});
+  },
+  getSubmission: function(projectId, submissionId){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId, {method: 'GET'});
+  },
+  createSubmission: function(projectId, body){
+    return apiFetch('/projects/' + projectId + '/forms/submissions', {method: 'POST', body: JSON.stringify(body)});
+  },
+  updateSubmission: function(projectId, submissionId, body){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId, {method: 'PUT', body: JSON.stringify(body)});
+  },
+  deleteSubmission: function(projectId, submissionId){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId, {method: 'DELETE'});
+  },
+  listAwaitingMyAction: function(projectId){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/awaiting-me', {method: 'GET'});
+  },
+  submit: function(projectId, submissionId){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId + '/submit', {method: 'POST'});
+  },
+  approvalAction: function(projectId, submissionId, action, comment){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId + '/approval-action', {method: 'POST', body: JSON.stringify({action: action, comment: comment || null})});
+  }
+};
+
 /* Read-only Strategy surface for regular project members — route base
    /api/projects/{projectId}/strategy, see ProjectStrategyController.cs/.php. No CRUD lives here;
    every write goes through strategyApi (OrgAdmin) or portfolioApi.upsertStrategyFulfilment. */

@@ -183,6 +183,16 @@ export function applyHeaderButtonVisibility(){
      project must deliberately turn this module on before it appears at all. */
   document.getElementById('navStrategyBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.strategy);
 
+  /* Manage Forms is Org-Admin-only, same Portfolio-Dashboard-style pure permission gate as
+     Portfolio Planner above — this is the AUTHORING surface, not the fill-out surface. Also requires
+     visibility.forms — no point showing "Manage Forms" for a project that hasn't opted the module
+     in at all. */
+  document.getElementById('navFormsBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin() && visibility.forms));
+
+  /* "Forms" (Phase 5) is the member-facing fill-out surface — every project member, not just Org
+     Admins, same as Strategy's own read-only member view. */
+  document.getElementById('navFormsFilloutBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.forms);
+
   /* Dashboards is server-authoritative-only (Project Admin-managed, backed by real Saved Queries),
      opt-in via App Settings > Governance like Retrospectives/Strategy above — but, unlike Strategy,
      NOT restricted to Org Admins turning it on: any Project Admin can opt their own project in, same
@@ -236,6 +246,7 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowRetrospectiveBtn').checked = visibility.retrospective;
   document.getElementById('settingsShowStrategyBtn').checked = visibility.strategy;
   document.getElementById('settingsShowDashboardsBtn').checked = visibility.dashboards;
+  document.getElementById('settingsShowFormsBtn').checked = visibility.forms;
   // SAML/SCIM configuration is an org-admin-only concern (same gating as the Account menu's own
   // "SSO & Provisioning" link) — shown here purely as a discoverability shortcut into that same
   // modal, not a per-project toggle of its own.

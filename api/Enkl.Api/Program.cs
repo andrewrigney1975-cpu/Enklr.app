@@ -116,6 +116,8 @@ builder.Services.AddScoped<StrategyService>();
 builder.Services.AddScoped<StrategyPillarService>();
 builder.Services.AddScoped<StrategyMetricService>();
 builder.Services.AddScoped<StrategyFulfilmentService>();
+builder.Services.AddScoped<FormService>();
+builder.Services.AddScoped<FormSubmissionService>();
 builder.Services.AddScoped<DecisionService>();
 builder.Services.AddScoped<MemberService>();
 builder.Services.AddScoped<TemplateService>();

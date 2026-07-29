@@ -4004,6 +4004,16 @@
     margin-bottom: 0;
   }
 
+  /* Enterprise sits below .kf-settings-columns as its own full-width block (not one more item
+     inside either column) — its own content is varied enough (a static SSO row alongside real
+     toggles) that constraining it to a single column's width was cramped. */
+  .kf-settings-category-full {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--kf-border);
+  }
+
+
   .kf-settings-category-header {
     display: flex;
     align-items: center;
@@ -4030,6 +4040,21 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  /* Overrides the plain flex-column layout above for Enterprise specifically — must come after it
+     in source order to actually win (same specificity, both plain single-class selectors). */
+  .kf-settings-category-body-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 700px) {
+    .kf-settings-category-body-2col {
+      grid-template-columns: 1fr;
+    }
   }
 
   .kf-setting-row {
@@ -4086,6 +4111,276 @@
      its own compound selector (see root CLAUDE.md's own note on this gotcha). */
   #settingsShowStrategyRow.hidden {
     display: none;
+  }
+
+  /* Enterprise Forms & Workflow — Org Admin field builder (Phase 2). Same "own compound selector per
+     hidden-toggled element" requirement as above. */
+  #formsAdminCreateRow.hidden,
+  #formsAdminEmpty.hidden,
+  #formBuilderFieldsEmpty.hidden,
+  #formFieldRadioOptionsWrap.hidden,
+  #addFormFieldBtn.hidden,
+  #formBuilderSaveBtn.hidden,
+  #formVersionHistoryNewBtn.hidden {
+    display: none;
+  }
+
+  /* Enterprise Forms & Workflow — Action Workflow builder (Phase 4). Same "own compound selector
+     per hidden-toggled element" requirement as above. */
+  #formWorkflowAuthorGatesSection.hidden,
+  #formWorkflowApprovalGatesSection.hidden,
+  #formWorkflowAddStartBtn.hidden,
+  #formWorkflowAddAuthorBtn.hidden,
+  #formWorkflowAddApprovalBtn.hidden,
+  #formWorkflowAddEndBtn.hidden,
+  #formWorkflowModeConnectBtn.hidden,
+  #formWorkflowNodeDeleteBtn.hidden,
+  #formWorkflowNodeSaveBtn.hidden,
+  #formWorkflowEdgeDeleteBtn.hidden,
+  [id^="formWorkflowGateNamedUserSelect-"].hidden,
+  [id^="formWorkflowGateUserTypeSelect-"].hidden {
+    display: none;
+  }
+
+  #formWorkflowNodePopover, #formWorkflowEdgePopover {
+    width: 280px;
+    max-width: 90vw;
+  }
+
+  #formWorkflowAuthorGatesSection label,
+  #formWorkflowApprovalGatesSection label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-wf-gate-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--kf-border);
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .kf-form-wf-gate-empty {
+    font-size: 12px;
+    color: var(--kf-text-faint);
+    margin-bottom: 6px;
+  }
+
+  .kf-form-wf-gate-add-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .kf-form-wf-gate-add-row select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Enterprise Forms & Workflow — member-facing fill-out UI (Phase 5). Same "own compound selector
+     per hidden-toggled element" requirement as above. */
+  #formsFilloutAwaitingSection.hidden,
+  #formsFilloutAvailableEmpty.hidden,
+  #formsFilloutMineEmpty.hidden,
+  #formFilloutDetailMissingWarning.hidden,
+  #formFilloutTrailSection.hidden,
+  #formFilloutCommentField.hidden,
+  #formFilloutSaveDraftBtn.hidden,
+  #formFilloutSubmitBtn.hidden,
+  #formFilloutDeleteDraftBtn.hidden,
+  #formFilloutApproveBtn.hidden,
+  #formFilloutRejectBtn.hidden {
+    display: none;
+  }
+
+  .kf-form-answer-field {
+    margin-bottom: 14px;
+  }
+
+  .kf-form-answer-field > label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .kf-form-answer-required {
+    color: var(--kf-danger);
+  }
+
+  .kf-form-answer-help {
+    font-size: 11px;
+    color: var(--kf-text-faint);
+    margin-bottom: 4px;
+  }
+
+  .kf-form-answer-field input[type="text"],
+  .kf-form-answer-field input[type="number"],
+  .kf-form-answer-field input[type="date"],
+  .kf-form-answer-field input[type="datetime-local"],
+  .kf-form-answer-field textarea,
+  .kf-form-answer-field select {
+    width: 100%;
+  }
+
+  .kf-form-answer-option {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    text-transform: none;
+    margin-bottom: 4px;
+  }
+
+  .kf-form-answer-readonly .kf-form-answer-value {
+    font-size: 13px;
+    padding: 4px 0;
+  }
+
+  .kf-form-answer-empty {
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-answer-missing-warning {
+    background: var(--kf-danger-bg, rgba(222,53,11,0.1));
+    color: var(--kf-danger);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .kf-form-admin-row {
+    padding: 10px 12px;
+    border: 1px solid var(--kf-border);
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  .kf-form-admin-row-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .kf-form-admin-row-name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .kf-form-admin-row-version {
+    font-size: 11px;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-admin-row-desc {
+    font-size: 12px;
+    color: var(--kf-text-faint);
+    margin-top: 4px;
+  }
+
+  .kf-form-admin-row-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .kf-form-status-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+
+  .kf-form-status-draft {
+    background: var(--kf-text-faint);
+    color: var(--kf-surface);
+    opacity: .7;
+  }
+
+  .kf-form-status-published {
+    background: var(--kf-success-bg, #e3fcef);
+    color: var(--kf-success, #00875a);
+  }
+
+  .kf-form-status-archived {
+    background: var(--kf-hover-tint);
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-fields-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 18px 0 10px;
+  }
+
+  .kf-form-fields-header label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: var(--kf-text-secondary);
+  }
+
+  .kf-form-fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .kf-form-field-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--kf-border);
+    border-radius: 6px;
+  }
+
+  .kf-form-field-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .kf-form-field-row-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+  }
+
+  .kf-form-field-row-summary {
+    font-size: 11px;
+    color: var(--kf-text-faint);
+  }
+
+  .kf-form-options-editor {
+    margin: 8px 0;
+  }
+
+  .kf-form-option-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .kf-form-option-input {
+    flex: 1;
   }
 
   /* Decisions */

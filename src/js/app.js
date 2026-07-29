@@ -2,7 +2,7 @@
 
 /* ---- Core ---- */
 import { state, loadDB, saveDB, getOpeningExperience } from './storage.js';
-import { getCurrentProject } from './store.js';
+import { getCurrentProject, findProjectByServerId } from './store.js';
 import { ui, toast, resetFilters, renderThemeToggleIcon, toggleTheme, setThemeDeps, relocateViewButtonsForViewport, toggleSideNav, toggleMobileDrawer, closeMobileDrawer, isMobileDrawerOpen } from './ui.js';
 import { hydrateIcons } from './icons.js';
 import { setOnAuthExpired, setOnMustChangePassword, clearToken, ssoLookupApi } from './api.js';
@@ -25,7 +25,7 @@ import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenef
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
 import { exportProjectJSON, setExportToast } from './features/export.js';
 import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast, refreshProjectFromServer, switchToAiCreatedProject } from './features/migration.js';
-import { connectEventStream, disconnectEventStream } from './features/live-updates.js';
+import { connectEventStream, disconnectEventStream, setLiveUpdatesDeps } from './features/live-updates.js';
 import { initChat, resetChatState, openChatPanel, closeChatPanel, isChatPanelOpen, openChannel } from './features/chat.js';
 import { initChatView, toggleChatPanel, chatBackClicked, updateChatBubbleVisibility, isChatFullscreenOpen, openChatFullscreen, toggleChatFullscreen, closeChatFullscreen } from './views/chat.js';
 import { resetAiAssistantState } from './features/ai-assistant.js';
@@ -63,6 +63,9 @@ import { openHealthOverlay, closeHealthOverlay, isHealthOverlayOpen, cancelHealt
 import { openPortfolioDashboardOverlay, closePortfolioDashboardOverlay, isPortfolioDashboardOverlayOpen, onPortfolioProjectSelectionChanged, onPortfolioTimelineControlsChanged, onPortfolioActivityControlsChanged, toggleProjectFilterPanel, closeProjectFilterPanel, isProjectFilterPanelOpen, onPortfolioProjectSearchInput, onPortfolioTimelineBarPointerDown, closePortfolioProjectDatesModal, isPortfolioProjectDatesModalOpen, clearPortfolioProjectDatesInModal, savePortfolioProjectDatesFromModal } from './modals/portfolio-dashboard.js';
 import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, onPortfolioPlannerBarDblClick, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories, closePortfolioPlannerResourcesModal, isPortfolioPlannerResourcesModalOpen, addPortfolioPlannerResourceFromModal, onPortfolioPlannerResourcesListClick, onPortfolioPlannerResourcesListChange, togglePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerStrategyModal, isPortfolioPlannerStrategyModalOpen, onPortfolioPlannerStrategyListChange } from './modals/portfolio-planner.js';
 import { openStrategyOverlay, closeStrategyOverlay, isStrategyOverlayOpen, setStrategyDashboardMode } from './modals/strategy.js';
+import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow, hideFormsAdminCreateRow, createFormFromAdmin, closeFormFieldBuilder, saveFormBuilder, openFieldEditor, closeFieldEditor, onFormFieldTypeChanged, saveFieldEditor, closeFormVersionHistory, cloneLatestVersion, openFormWorkflowEditorForBuilder, closeFormWorkflowEditorForBuilder } from './modals/forms-admin.js';
+import { setFormWorkflowEditorDeps, setFormWorkflowMode, addFormWorkflowNode, handleFormWorkflowScrollMouseDown, handleFormWorkflowPointerMove, handleFormWorkflowPointerUp, handleFormWorkflowInnerClick, saveFormWorkflowNodePopover, deleteFormWorkflowNodeFromPopover, closeFormWorkflowNodePopover, isFormWorkflowNodePopoverOpen, deleteFormWorkflowEdgeFromPopover, closeFormWorkflowEdgePopover, isFormWorkflowEdgePopoverOpen } from './views/form-workflow-editor.js';
+import { openFormsFilloutOverlay, closeFormsFilloutOverlay, closeFormFilloutDetailOverlay, saveFormFilloutDraft, submitFormFillout, deleteFormFilloutDraft, approveFormFillout, rejectFormFillout, openFormSubmissionDetail } from './modals/forms-fillout.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
 import { openPrinciplesOverlay, closePrinciplesOverlay, isPrinciplesOverlayOpen, showPrinciplesFormView, showPrinciplesListView, renderPrinciplesList, savePrincipleFromModal, deletePrincipleFromModal, switchPrinciplesTab, updatePrincipleShareFromModal } from './modals/principles.js';
 import { openObjectivesOverlay, closeObjectivesOverlay, isObjectivesOverlayOpen, showObjectivesFormView, showObjectivesListView, renderObjectivesList, saveObjectiveFromModal, deleteObjectiveFromModal } from './modals/objectives.js';
@@ -86,6 +89,7 @@ setDepMapDeps({ toast, openTaskModal });
 setOrgChartDeps({ toast });
 setGovMapDeps({ toast });
 setWorkflowEditorDeps({ toast, confirmDialog });
+setFormWorkflowEditorDeps({ toast });
 setTimelineDeps({ toast, openTaskModal, confirmDialog, openReleaseEditor: function(releaseId){
   openReleasesOverlay();
   showReleasesFormView(releaseId);
@@ -122,8 +126,10 @@ setAiAssistantProjectSwitchHook(function(action){
 setAnnouncementDeps({ onUpdate: renderDisruptionBanner });
 setDespatchesDeps({
   onUpdate: function(){ renderDespatchesPanel(); updateDespatchesBadge(); },
-  openChat: function(channelId){ openChatPanel(); openChannel(channelId); }
+  openChat: function(channelId){ openChatPanel(); openChannel(channelId); },
+  openForm: openFormSubmissionFromNotification
 });
+setLiveUpdatesDeps({ openFormSubmission: openFormSubmissionFromNotification });
 setMutationsToast(toast);
 setMigrationToast(toast);
 setExportToast(toast);
@@ -489,6 +495,78 @@ function wireEvents(){
   document.getElementById('strategyModeAggregateBtn').addEventListener('click', function(){ setStrategyDashboardMode('aggregate'); });
   document.getElementById('strategyModeCompareBtn').addEventListener('click', function(){ setStrategyDashboardMode('compare'); });
   document.getElementById('strategyOnAPageBtn').addEventListener('click', openStrategyOnAPageReportOverlay);
+
+  document.getElementById('navFormsBtn').addEventListener('click', openFormsAdminOverlay);
+  document.getElementById('formsAdminClose').addEventListener('click', closeFormsAdminOverlay);
+  document.getElementById('formsAdminOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formsAdminOverlay') closeFormsAdminOverlay();
+  });
+  document.getElementById('newFormBtn').addEventListener('click', showFormsAdminCreateRow);
+  document.getElementById('formsAdminCreateCancelBtn').addEventListener('click', hideFormsAdminCreateRow);
+  document.getElementById('formsAdminCreateSaveBtn').addEventListener('click', createFormFromAdmin);
+
+  document.getElementById('formFieldBuilderClose').addEventListener('click', closeFormFieldBuilder);
+  document.getElementById('formBuilderCancelBtn').addEventListener('click', closeFormFieldBuilder);
+  document.getElementById('formFieldBuilderOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formFieldBuilderOverlay') closeFormFieldBuilder();
+  });
+  document.getElementById('formBuilderSaveBtn').addEventListener('click', saveFormBuilder);
+  document.getElementById('addFormFieldBtn').addEventListener('click', function(){ openFieldEditor(null); });
+
+  document.getElementById('formFieldEditorClose').addEventListener('click', closeFieldEditor);
+  document.getElementById('formFieldEditorCancelBtn').addEventListener('click', closeFieldEditor);
+  document.getElementById('formFieldEditorOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formFieldEditorOverlay') closeFieldEditor();
+  });
+  document.getElementById('formFieldTypeSelect').addEventListener('change', onFormFieldTypeChanged);
+  document.getElementById('formFieldEditorSaveBtn').addEventListener('click', saveFieldEditor);
+
+  document.getElementById('formVersionHistoryClose').addEventListener('click', closeFormVersionHistory);
+  document.getElementById('formVersionHistoryOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formVersionHistoryOverlay') closeFormVersionHistory();
+  });
+  document.getElementById('formVersionHistoryNewBtn').addEventListener('click', cloneLatestVersion);
+
+  document.getElementById('editFormWorkflowBtn').addEventListener('click', openFormWorkflowEditorForBuilder);
+  document.getElementById('formWorkflowEditorClose').addEventListener('click', closeFormWorkflowEditorForBuilder);
+  document.getElementById('formWorkflowEditorOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formWorkflowEditorOverlay') closeFormWorkflowEditorForBuilder();
+  });
+  document.getElementById('formWorkflowModeSelectBtn').addEventListener('click', function(){ setFormWorkflowMode('select'); });
+  document.getElementById('formWorkflowModeConnectBtn').addEventListener('click', function(){ setFormWorkflowMode('connect'); });
+  document.getElementById('formWorkflowAddStartBtn').addEventListener('click', function(){ addFormWorkflowNode('start'); });
+  document.getElementById('formWorkflowAddAuthorBtn').addEventListener('click', function(){ addFormWorkflowNode('author'); });
+  document.getElementById('formWorkflowAddApprovalBtn').addEventListener('click', function(){ addFormWorkflowNode('approval'); });
+  document.getElementById('formWorkflowAddEndBtn').addEventListener('click', function(){ addFormWorkflowNode('end'); });
+  document.getElementById('formWorkflowInner').addEventListener('click', handleFormWorkflowInnerClick);
+  document.getElementById('formWorkflowScroll').addEventListener('mousedown', handleFormWorkflowScrollMouseDown);
+  document.addEventListener('mousemove', handleFormWorkflowPointerMove);
+  document.addEventListener('mouseup', handleFormWorkflowPointerUp);
+  document.getElementById('formWorkflowNodeSaveBtn').addEventListener('click', saveFormWorkflowNodePopover);
+  document.getElementById('formWorkflowNodeDeleteBtn').addEventListener('click', deleteFormWorkflowNodeFromPopover);
+  document.getElementById('formWorkflowNodeCancelBtn').addEventListener('click', closeFormWorkflowNodePopover);
+  document.getElementById('formWorkflowEdgeDeleteBtn').addEventListener('click', deleteFormWorkflowEdgeFromPopover);
+  document.getElementById('formWorkflowEdgeCancelBtn').addEventListener('click', closeFormWorkflowEdgePopover);
+  document.addEventListener('click', function(e){
+    if(isFormWorkflowNodePopoverOpen() && !e.target.closest('#formWorkflowNodePopover') && !e.target.closest('.kf-fwfnode')) closeFormWorkflowNodePopover();
+    if(isFormWorkflowEdgePopoverOpen() && !e.target.closest('#formWorkflowEdgePopover') && !e.target.closest('.kf-wfedge-hit')) closeFormWorkflowEdgePopover();
+  });
+
+  document.getElementById('navFormsFilloutBtn').addEventListener('click', openFormsFilloutOverlay);
+  document.getElementById('formsFilloutClose').addEventListener('click', closeFormsFilloutOverlay);
+  document.getElementById('formsFilloutOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formsFilloutOverlay') closeFormsFilloutOverlay();
+  });
+  document.getElementById('formFilloutDetailClose').addEventListener('click', closeFormFilloutDetailOverlay);
+  document.getElementById('formFilloutDetailCancelBtn').addEventListener('click', closeFormFilloutDetailOverlay);
+  document.getElementById('formFilloutDetailOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'formFilloutDetailOverlay') closeFormFilloutDetailOverlay();
+  });
+  document.getElementById('formFilloutSaveDraftBtn').addEventListener('click', saveFormFilloutDraft);
+  document.getElementById('formFilloutSubmitBtn').addEventListener('click', submitFormFillout);
+  document.getElementById('formFilloutDeleteDraftBtn').addEventListener('click', deleteFormFilloutDraft);
+  document.getElementById('formFilloutApproveBtn').addEventListener('click', approveFormFillout);
+  document.getElementById('formFilloutRejectBtn').addEventListener('click', rejectFormFillout);
   document.getElementById('strategyExportAsBtn').addEventListener('click', function(e){
     e.stopPropagation();
     toggleExportAsPanel('strategyExportAsPanel');
@@ -1606,6 +1684,9 @@ function wireEvents(){
   document.getElementById('settingsShowDashboardsBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('dashboards', e.target.checked);
   });
+  document.getElementById('settingsShowFormsBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('forms', e.target.checked);
+  });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
   document.getElementById('drawerCloseBtn').addEventListener('click', closeMobileDrawer);
@@ -1971,6 +2052,30 @@ function openTaskFromHashIfPresent(){
     renderAll();
   }
   openTaskModal(found.task.id, found.task.columnId);
+}
+
+/* Enterprise Forms & Workflow, Phase 7 — the deep-link target for both the Despatches panel's
+   clickable formSubmission rows and a live SSE toast's "Open" action (features/despatches.js's
+   openForm DI hook, features/live-updates.js's openFormSubmission DI hook — both wired to this same
+   function so the two entry points can never drift apart). Forms have no hashbang/task-key-style
+   deep-link mechanism of their own (a submission's id only means anything within its own server
+   project, unlike a globally-searched task key — see hash-router.js) — this switches the LOCAL
+   project matching the payload's serverProjectId first, same project-switch shape as the
+   projectSelect dropdown's own change handler, then opens the fill-out overlay straight to that
+   submission. */
+function openFormSubmissionFromNotification(serverProjectId, submissionId, mode){
+  var localProject = findProjectByServerId(serverProjectId);
+  if(!localProject){ toast('That project is no longer available.'); return; }
+  if(localProject.id !== state.db.currentProjectId){
+    state.db.currentProjectId = localProject.id;
+    saveDB();
+    resetFilters();
+    resetAiAssistantState();
+    renderAll();
+    checkProjectAlerts();
+  }
+  openFormsFilloutOverlay();
+  openFormSubmissionDetail(submissionId, mode);
 }
 
 /* Handles the ?ssoCode=/?ssoError= this page was reloaded with after a round trip through the

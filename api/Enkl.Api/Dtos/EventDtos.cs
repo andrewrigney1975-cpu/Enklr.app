@@ -25,3 +25,19 @@ public record ChatMessageEventDto(
 /// — Reactions is the message's full, recomputed reaction summary (not a delta), so a recipient just
 /// replaces whatever it had cached for MessageId.</summary>
 public record ChatReactionEventDto(Guid ChannelId, Guid MessageId, List<ChatReactionSummaryDto> Reactions);
+
+/// <summary>Pushed over the SSE stream to a single named user whenever a Form submission's own
+/// workflow advances to an Approval node that gates them BY NAME — see FormSubmissionService's own
+/// notification helper for the deliberately narrow v1 scope (a plain userType gate has no single
+/// "specific person" to target, so it never fires this).</summary>
+public record FormActionRequiredEventDto(
+    Guid ProjectId, Guid SubmissionId, string FormName, DateTime Timestamp);
+
+/// <summary>Pushed over the SSE stream to the ORIGINAL SUBMITTER whenever their submission reaches a
+/// final decision — Decision is "approved" or "rejected". Unlike FormActionRequiredEventDto's
+/// gate-satisfaction-dependent targeting, a decision always has exactly one unambiguous interested
+/// party (the submitter), so there's no "who" resolution needed. Carries FormName alongside Decision
+/// specifically so the toast/despatch reads as "X was approved/rejected" rather than a bare result
+/// with no context about which submission it refers to.</summary>
+public record FormSubmissionDecidedEventDto(
+    Guid ProjectId, Guid SubmissionId, string FormName, string Decision, string ActedByDisplayName, string? Comment, DateTime Timestamp);

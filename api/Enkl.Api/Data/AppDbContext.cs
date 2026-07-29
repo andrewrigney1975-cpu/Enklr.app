@@ -53,6 +53,8 @@ public class AppDbContext : DbContext
     public DbSet<StrategyMetric> StrategyMetrics => Set<StrategyMetric>();
     public DbSet<StrategyMetricEntry> StrategyMetricEntries => Set<StrategyMetricEntry>();
     public DbSet<ProjectPillarFulfilment> ProjectPillarFulfilments => Set<ProjectPillarFulfilment>();
+    public DbSet<Form> Forms => Set<Form>();
+    public DbSet<FormSubmission> FormSubmissions => Set<FormSubmission>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

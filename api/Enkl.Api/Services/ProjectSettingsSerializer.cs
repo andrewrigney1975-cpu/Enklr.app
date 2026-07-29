@@ -59,7 +59,10 @@ public static class ProjectSettingsSerializer
             Strategy: Get("strategy", false),
             // Opt-in, like Strategy: the Self-Service Dashboard module (nav entry, picker, viewer/
             // editor) stays invisible until a Project Admin deliberately turns it on.
-            Dashboards: Get("dashboards", false));
+            Dashboards: Get("dashboards", false),
+            // Opt-in, Org-Admin-authored: Enterprise Forms & Workflow stays invisible until an Org
+            // Admin deliberately turns it on for this project (same shape as Strategy).
+            Forms: Get("forms", false));
 
         doc?.Dispose();
         return result;

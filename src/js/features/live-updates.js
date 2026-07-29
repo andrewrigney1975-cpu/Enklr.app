@@ -21,6 +21,12 @@ var _abortController = null;
 var _reconnectTimer = null;
 var _reconnectDelay = RECONNECT_MIN_DELAY_MS;
 
+var _openFormSubmission = function(){}; // (serverProjectId, submissionId, mode) => void — provided by app.js
+
+export function setLiveUpdatesDeps(deps){
+  if(deps.openFormSubmission) _openFormSubmission = deps.openFormSubmission;
+}
+
 function verbFor(changeType){
   if(changeType === 'created') return 'created';
   if(changeType === 'deleted') return 'deleted';
@@ -52,12 +58,59 @@ function handleTaskChangedEvent(payload){
   }
 }
 
+/* Enterprise Forms & Workflow, Phase 6 — pushed only to a single NAMED approver (see
+   SseBroadcaster.BroadcastFormActionRequired's own doc comment for the deliberately narrow v1
+   scope: a plain user-type gate has no one specific person to target).
+
+   Phase 7 adds click-through: unlike handleTaskChangedEvent's own open-project-only toast action
+   (a live board reload only makes sense for the project already on screen), opening a Form
+   submission is a dedicated overlay, not a board reload — so the "Open" action always works,
+   switching the local project to match the payload's serverProjectId first if it isn't already the
+   current one (findProjectByServerId, via the openFormSubmission DI hook app.js wires here and into
+   despatches.js identically), same as clicking the Despatches-panel row for this entry would do. */
+function handleFormActionRequiredEvent(payload){
+  var message = '"' + payload.formName + '" is awaiting your approval.';
+  pushDespatch({
+    icon: 'ty_document',
+    message: message,
+    formSubmission: {projectId: payload.projectId, submissionId: payload.submissionId, mode: 'approve'}
+  });
+  toastWithAction(message, 'Open', function(){
+    _openFormSubmission(payload.projectId, payload.submissionId, 'approve');
+  });
+}
+
+/* Phase 7/8 — pushed to the ORIGINAL SUBMITTER whenever their submission reaches a FINAL decision
+   (payload.decision is 'approved' or 'rejected'), always and unconditionally — no gate-satisfaction
+   "who" question like the approval-required push above, a decision has exactly one interested
+   party. Approved and rejected share one handler/event (rather than two near-duplicate ones)
+   specifically so the message always names BOTH the form and the result together — "which form,
+   what happened" is the whole point of this notification, never one without the other. mode 'view'
+   matches modals/forms-fillout.js's own doc comment for a submission reached via "a future
+   notification link" — read-only fields + Approval Trail, no actions. */
+function handleFormSubmissionDecidedEvent(payload){
+  var verb = payload.decision === 'approved' ? 'approved' : 'rejected';
+  var message = '"' + payload.formName + '" was ' + verb + ' by ' + (payload.actedByDisplayName || 'someone') +
+    (payload.comment ? ': "' + payload.comment + '"' : '') + '.';
+  pushDespatch({
+    icon: payload.decision === 'approved' ? 'check' : 'ty_document',
+    message: message,
+    formSubmission: {projectId: payload.projectId, submissionId: payload.submissionId, mode: 'view'}
+  });
+  toastWithAction(message, 'Open', function(){
+    _openFormSubmission(payload.projectId, payload.submissionId, 'view');
+  });
+}
+
 function dispatchEvent(eventName, data){
-  if(eventName !== 'task-changed' && eventName !== 'chat-message' && eventName !== 'chat-reaction') return;
+  if(eventName !== 'task-changed' && eventName !== 'chat-message' && eventName !== 'chat-reaction' &&
+     eventName !== 'form-action-required' && eventName !== 'form-submission-decided') return;
   try {
     if(eventName === 'task-changed') handleTaskChangedEvent(JSON.parse(data));
     else if(eventName === 'chat-message') handleChatMessageEvent(JSON.parse(data));
-    else handleChatReactionEvent(JSON.parse(data));
+    else if(eventName === 'chat-reaction') handleChatReactionEvent(JSON.parse(data));
+    else if(eventName === 'form-action-required') handleFormActionRequiredEvent(JSON.parse(data));
+    else handleFormSubmissionDecidedEvent(JSON.parse(data));
   } catch(e){ /* malformed event payload — ignore rather than break the stream */ }
 }
 
