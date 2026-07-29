@@ -8,6 +8,7 @@ import { iconSvg, hydrateIcons } from '../icons.js';
 import { uid } from '../storage.js';
 import { parseFormWorkflow } from '../features/form-workflow-engine.js';
 import { loadFormWorkflowGraph, getFormWorkflowGraph } from '../views/form-workflow-editor.js';
+import { utcISOToLocalDisplayDate } from '../date-utils.js';
 
 /* Enterprise Forms & Workflow — Org-Admin authoring UI. Phase 2 built the field builder; Phase 3
    (this pass) adds versioning on top of the same table/service: #formsAdminOverlay's picker now
@@ -158,7 +159,7 @@ function renderVersionHistoryList(){
       '<div class="kf-form-admin-row-main">' +
         '<span class="kf-form-admin-row-name">v' + v.versionNumber + '</span>' +
         '<span class="kf-form-status-badge kf-form-status-' + v.status + '">' + (STATUS_LABELS[v.status] || v.status) + '</span>' +
-        '<span class="kf-form-admin-row-version">' + (v.publishedAt ? 'Published ' + new Date(v.publishedAt).toLocaleDateString() : 'Created ' + new Date(v.dateCreated).toLocaleDateString()) + '</span>' +
+        '<span class="kf-form-admin-row-version">' + (v.publishedAt ? 'Published ' + utcISOToLocalDisplayDate(v.publishedAt) : 'Created ' + utcISOToLocalDisplayDate(v.dateCreated)) + '</span>' +
       '</div>' +
       '<div class="kf-form-admin-row-actions">' +
         '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-edit-version="' + v.id + '"><span class="kf-icon" data-icon="edit" data-size="13"></span>' + (v.status === 'draft' ? 'Edit' : 'View') + '</button>' +

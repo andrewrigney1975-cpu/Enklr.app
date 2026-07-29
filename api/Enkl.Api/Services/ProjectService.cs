@@ -73,6 +73,15 @@ public class ProjectService
 
         if (project is null) return null;
 
+        var settings = ProjectSettingsSerializer.Parse(project.HeaderButtonVisibilityJson);
+        var orgEnterprise = await GetOrgEnterpriseSettingsAsync(project.OrganisationId);
+        // Forms/PortfolioPlanner are org-WIDE settings (see Organisation.EnterpriseSettingsJson's own
+        // doc comment) — whatever this project's own HeaderButtonVisibilityJson happens to still hold
+        // for these two keys (a pre-migration leftover, or a value a non-Org-Admin tried to sneak
+        // into a settings PUT — see UpdateProjectSettingsAsync) is always overridden here with the
+        // real, org-level value, never trusted from the project's own row.
+        settings = settings with { Forms = orgEnterprise.Forms, PortfolioPlanner = orgEnterprise.PortfolioPlanner };
+
         return new ProjectDetailDto(
             project.Id, project.Name, project.Key, project.OrganisationId,
             project.Members.Select(m => new MemberDto(m.Id, m.UserId, m.User.DisplayName, m.User.EmailAddress, m.Color, m.Role, m.AllocatedFraction, m.ReportsToId, m.IsProjectAdmin, m.User.IsActive)).ToList(),
@@ -94,7 +103,7 @@ public class ProjectService
                 d.Documents.Select(x => x.DocumentId).ToList(), d.Risks.Select(x => x.RiskId).ToList(), d.Principles.Select(x => x.PrincipleId).ToList(), d.Objectives.Select(x => x.ObjectiveId).ToList())).ToList(),
             project.Retrospectives.Select(ToRetrospectiveDto).ToList(),
             project.SavedQueries.OrderBy(q => q.DateCreated).Select(q => new SavedQueryDto(q.Id, q.Name, q.Sql, q.DateCreated, q.ExposeViaApi)).ToList(),
-            ProjectSettingsSerializer.Parse(project.HeaderButtonVisibilityJson),
+            settings,
             ParseWorkflow(project.WorkflowJson),
             project.StartDate, project.EndDate, project.Description);
     }
@@ -305,15 +314,46 @@ public class ProjectService
         return true;
     }
 
-    public async Task<ProjectSettingsDto?> UpdateProjectSettingsAsync(Guid projectId, ProjectSettingsDto settings)
+    /// <summary>
+    /// Forms/PortfolioPlanner inside `settings` are only ever actually applied when the caller is an
+    /// Org Admin (re-validated server-side, never trusted from the client) — this endpoint's own
+    /// [Authorize] policy is ProjectAdmin, not OrgAdmin, since every OTHER field here is a genuine
+    /// per-project setting a plain Project Admin is allowed to change. A non-Org-Admin Project Admin
+    /// including forms:true/portfolioPlanner:true in their payload (e.g. by calling this endpoint
+    /// directly, bypassing the UI's own Enterprise-category admin gate) has those two fields silently
+    /// ignored rather than applied — same "server independently re-derives, never trusts the client's
+    /// claimed value" principle as every cross-scope write elsewhere in this app. The returned DTO's
+    /// Forms/PortfolioPlanner always reflect the REAL, currently-effective org-wide value, whether or
+    /// not this call actually changed it, so a non-Org-Admin caller never sees a misleading echo of
+    /// what they merely attempted to send.
+    /// </summary>
+    public async Task<ProjectSettingsDto?> UpdateProjectSettingsAsync(Guid projectId, ProjectSettingsDto settings, bool callerIsOrgAdmin)
     {
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
         if (project is null) return null;
 
+        if (callerIsOrgAdmin)
+        {
+            var org = await _db.Organisations.FirstOrDefaultAsync(o => o.Id == project.OrganisationId);
+            if (org is not null)
+            {
+                org.EnterpriseSettingsJson = EnterpriseSettingsSerializer.Serialize(new EnterpriseSettingsDto(settings.Forms, settings.PortfolioPlanner));
+            }
+        }
+
         project.HeaderButtonVisibilityJson = ProjectSettingsSerializer.Serialize(settings);
         project.DateLastModified = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return settings;
+
+        var orgEnterprise = await GetOrgEnterpriseSettingsAsync(project.OrganisationId);
+        return settings with { Forms = orgEnterprise.Forms, PortfolioPlanner = orgEnterprise.PortfolioPlanner };
+    }
+
+    private async Task<EnterpriseSettingsDto> GetOrgEnterpriseSettingsAsync(Guid organisationId)
+    {
+        var json = await _db.Organisations.AsNoTracking()
+            .Where(o => o.Id == organisationId).Select(o => o.EnterpriseSettingsJson).FirstOrDefaultAsync();
+        return EnterpriseSettingsSerializer.Parse(json);
     }
 
     /// <summary>

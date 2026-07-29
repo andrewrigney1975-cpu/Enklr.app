@@ -2004,6 +2004,7 @@
   }
 
   .kf-column {
+    position: relative;
     background: var(--kf-column-tint, var(--kf-column-overlay));
     /* Frosted-glass effect over the board's own background — only visually meaningful against a
        gradient or uploaded image (My Preferences), a plain flat surface looks the same blurred or
@@ -2038,6 +2039,23 @@
   .kf-column.kf-dragover-blocked {
     border-color: var(--kf-danger);
     background: var(--kf-danger-hover-bg);
+  }
+
+  /* Sits at the bottom-right corner of a "Blocked" column (Column.isBlocked), watermark-style — a
+     quiet, always-visible reminder that this specific column is the one auto-collecting every
+     dependency-blocked task from elsewhere in the project (see renderColumn's own ghost-card
+     comment), independent of whatever real/ghost cards happen to be scrolled into view. Same grey
+     as .kf-add-task-btn's own text color (var(--kf-text-secondary)) rather than an accent color —
+     a quiet watermark, not an alert. pointer-events:none keeps it from ever intercepting a
+     click/drag meant for the column beneath it. */
+  .kf-column-blocked-wand {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    color: var(--kf-text-secondary);
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 1;
   }
 
   /* Positioned absolutely within .kf-tasks (not a normal-flow sibling

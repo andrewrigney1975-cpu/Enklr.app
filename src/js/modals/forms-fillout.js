@@ -5,6 +5,7 @@ import { formsApi, projectFormsApi } from '../api.js';
 import { confirmDialog } from './confirm.js';
 import { renderAnswerInputHTML, renderAnswerReadOnlyHTML, collectAllAnswers, findMissingRequiredFields } from '../features/form-answers.js';
 import { getCurrentProject } from '../store.js';
+import { utcISOToLocalDisplayDateTime } from '../date-utils.js';
 
 /* Enterprise Forms & Workflow — member-facing fill-out UI (Phase 5). Two overlays:
    #formsFilloutOverlay (picker: Available Forms to start / My Submissions / Awaiting My Action) and
@@ -191,7 +192,8 @@ function renderFilloutDetail(){
   var trail = detail.submission ? parseTrailJson(detail.submission.approvalTrailJson) : [];
   document.getElementById('formFilloutTrailSection').classList.toggle('hidden', trail.length === 0);
   document.getElementById('formFilloutTrailList').innerHTML = trail.map(function(t){
-    return '<div class="kf-form-admin-row-desc">' + escapeHTML(t.action) + ' — ' + escapeHTML(t.timestamp || '') + (t.comment ? ': ' + escapeHTML(t.comment) : '') + '</div>';
+    var when = utcISOToLocalDisplayDateTime(t.timestamp) || t.timestamp || '';
+    return '<div class="kf-form-admin-row-desc">' + escapeHTML(t.action) + ' — ' + escapeHTML(when) + (t.comment ? ': ' + escapeHTML(t.comment) : '') + '</div>';
   }).join('');
 
   document.getElementById('formFilloutSaveDraftBtn').classList.toggle('hidden', !editable);

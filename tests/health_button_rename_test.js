@@ -60,11 +60,12 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   // moved to the top of the Governance category (2026-07-29), ahead of Principles. Forms & Workflow
   // (Enterprise category, Org-Admin-only) landed after that — and the whole Enterprise category was
   // then moved to its own full-width block BELOW .kf-settings-columns (rather than living inside the
-  // left column), so Forms is now last in raw DOM order, after Teams and Committees.
+  // left column), so Forms is now last in raw DOM order, after Teams and Committees. Portfolio
+  // Planner (also Enterprise, also Org-Admin-only) landed right after Forms.
   const settingsRows = Array.from(doc.querySelectorAll('#appSettingsOverlay .kf-setting-row'));
   const rowIds = settingsRows.map(r => r.querySelector('input')).filter(Boolean).map(input => input.id);
   log('App Settings order matches the current header button order (Health Dashboard first, then the rest of App Settings’ own categorized order)',
-      rowIds.join(',') === 'settingsShowHealthBtn,settingsShowDocumentsBtn,settingsShowDashboardsBtn,settingsShowWorkflowBtn,settingsShowTimeTrackingBtn,settingsShowSubTasksBtn,settingsShowChangeAuditingBtn,settingsShowStrategyBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowRetrospectiveBtn,settingsShowTeamsCommitteesBtn,settingsShowFormsBtn',
+      rowIds.join(',') === 'settingsShowHealthBtn,settingsShowDocumentsBtn,settingsShowDashboardsBtn,settingsShowWorkflowBtn,settingsShowTimeTrackingBtn,settingsShowSubTasksBtn,settingsShowChangeAuditingBtn,settingsShowStrategyBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowRetrospectiveBtn,settingsShowTeamsCommitteesBtn,settingsShowFormsBtn,settingsShowPortfolioPlannerBtn',
       rowIds.join(','));
 
   console.log('\nHealth button rename/reposition/icon test complete.');

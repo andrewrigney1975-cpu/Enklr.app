@@ -160,9 +160,10 @@ export function applyHeaderButtonVisibility(){
      the pure Org-Admin permission gate — not itself a new App Setting. */
   document.getElementById('portfolioDashboardBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin() && visibility.health));
 
-  // Portfolio Planner is the same Org-Admin-only, server-authoritative-project gate as Portfolio
-  // Dashboard above — a pure permissions gate, not a per-project App Setting.
-  document.getElementById('navPortfolioPlannerBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin()));
+  // Portfolio Planner — same Org-Admin-only, server-authoritative-project permission gate as
+  // Portfolio Dashboard above, now ALSO opt-in via App Settings > Enterprise (visibility.
+  // portfolioPlanner), same shape as Forms just above it.
+  document.getElementById('navPortfolioPlannerBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin() && visibility.portfolioPlanner));
 
   document.getElementById('orgChartBtn').classList.toggle('kf-vis-hidden', !visibility.teamsCommittees);
   document.getElementById('navOrgChartBtn').classList.toggle('kf-vis-hidden', !visibility.teamsCommittees);
@@ -247,6 +248,7 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowStrategyBtn').checked = visibility.strategy;
   document.getElementById('settingsShowDashboardsBtn').checked = visibility.dashboards;
   document.getElementById('settingsShowFormsBtn').checked = visibility.forms;
+  document.getElementById('settingsShowPortfolioPlannerBtn').checked = visibility.portfolioPlanner;
   // SAML/SCIM configuration is an org-admin-only concern (same gating as the Account menu's own
   // "SSO & Provisioning" link) — shown here purely as a discoverability shortcut into that same
   // modal, not a per-project toggle of its own.
@@ -263,7 +265,26 @@ export function closeAppSettingsOverlay(){
 export function isAppSettingsOverlayOpen(){
   return !document.getElementById('appSettingsOverlay').classList.contains('hidden');
 }
-export async function updateHeaderButtonVisibilitySetting(field, isVisible){
+/* App Settings' checkboxes each fire their own independent 'change' listener straight into this
+   function (app.js), and this whole thing is a read-modify-write of ONE shared
+   project.headerButtonVisibility object: read the current object, flip one field, PUT the WHOLE
+   thing, then refetch. Toggling a second checkbox before the first save's round trip finishes used
+   to read the still-stale pre-refetch visibility object and PUT it back — silently clobbering
+   whichever field the first, still-in-flight save had just changed, once its own PUT resolved out of
+   order. A real bug reported live ("sometimes changes don't persist, takes several clicks"), not
+   hypothetical. Fixed by serializing every call through one promise chain — a call deferred behind
+   an in-flight one only actually runs (and only calls getCurrentProject() to read the base object)
+   once the prior call's own refreshProjectFromServer has landed, so it's always working from the
+   truly-current value, never a stale snapshot. */
+var _headerVisibilitySaveChain = Promise.resolve();
+export function updateHeaderButtonVisibilitySetting(field, isVisible){
+  var next = _headerVisibilitySaveChain.then(function(){
+    return updateHeaderButtonVisibilitySettingNow(field, isVisible);
+  }).catch(function(){ /* already toasted below; swallow here so the chain isn't poisoned for the next queued call */ });
+  _headerVisibilitySaveChain = next;
+  return next;
+}
+async function updateHeaderButtonVisibilitySettingNow(field, isVisible){
   var project = getCurrentProject();
   if(!project) return;
   var visibility = normalizeHeaderButtonVisibility(project.headerButtonVisibility);
@@ -769,6 +790,16 @@ export function renderColumn(project, col){
   section.appendChild(header);
   section.appendChild(tasksWrap);
   section.appendChild(addTaskBtn);
+
+  // Bottom-right AI-style sparkle watermark on a "Blocked" column — see the CSS class's own comment.
+  if(col.isBlocked){
+    var wand = document.createElement('div');
+    wand.className = 'kf-column-blocked-wand';
+    wand.title = 'This column collects every dependency-blocked task from elsewhere in the project';
+    wand.innerHTML = iconHTML('sparkle', 20);
+    section.appendChild(wand);
+  }
+
   return section;
 }
 

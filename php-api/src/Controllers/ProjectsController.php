@@ -76,7 +76,7 @@ final class ProjectsController extends BaseController
 
     public function updateSettings(Request $request, Response $response, array $args): Response
     {
-        $result = $this->service()->updateSettings($args['projectId'], $this->body($request));
+        $result = $this->service()->updateSettings($args['projectId'], $this->body($request), $this->callerIsOrgAdmin($request));
         return $result === null ? $this->notFound($response) : $this->json($response, $result);
     }
 

@@ -13,3 +13,8 @@ public record SetDefaultNewUserPasswordRequest(string Password);
 /// fallback if none is set), same value a brand-new implicitly-created user would get. See
 /// OrganisationService.ResetUserPasswordAsync's own doc comment.</summary>
 public record ResetUserPasswordRequest(string? Password);
+
+/// <summary>The "Enterprise" App Settings toggles that apply org-WIDE rather than per-project — see
+/// Organisation.EnterpriseSettingsJson's own doc comment. Both default false (opt-in), same as their
+/// per-project predecessors.</summary>
+public record EnterpriseSettingsDto(bool Forms, bool PortfolioPlanner);

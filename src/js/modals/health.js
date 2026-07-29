@@ -223,12 +223,18 @@ export function renderHealthDashboard(){
     noteEl.textContent = 'Combines Releases, Tasks, Risks, and Decisions health, equally weighted.';
   }
 
+  // Risks/Decisions gauges only render when their own module is actually switched on for this
+  // project (App Settings) — same visibility source the Risk Matrix section below already gates on;
+  // a project that's turned Risks/Decisions off has nothing real behind that gauge, and showing one
+  // anyway is misleading rather than merely unused chrome. Releases/Tasks have no such opt-out, so
+  // they always render.
+  var visibility = normalizeHeaderButtonVisibility(project.headerButtonVisibility);
   var gaugesRow = document.getElementById('healthGaugesRow');
   gaugesRow.innerHTML =
     buildGaugeBlock(health.releases.pct, 'Releases', 140, true) +
     buildGaugeBlock(health.tasks.pct, 'Tasks', 140, true) +
-    buildGaugeBlock(health.risks.pct, 'Risks', 140, true) +
-    buildGaugeBlock(health.decisions.pct, 'Decisions', 140, true);
+    (visibility.risks ? buildGaugeBlock(health.risks.pct, 'Risks', 140, true) : '') +
+    (visibility.decisions ? buildGaugeBlock(health.decisions.pct, 'Decisions', 140, true) : '');
 
   var burndown = health.burndown;
   var warningEl = document.getElementById('healthBurndownWarning');

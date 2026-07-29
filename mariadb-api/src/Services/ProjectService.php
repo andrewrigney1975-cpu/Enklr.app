@@ -47,6 +47,15 @@ final class ProjectService
             return null;
         }
 
+        // Forms/PortfolioPlanner are org-WIDE settings (see Organisations.EnterpriseSettingsJson's
+        // own migration comment) — whatever this project's own HeaderButtonVisibilityJson happens to
+        // still hold for these two keys is always overridden here with the real, org-level value,
+        // never trusted from the project's own row (see updateSettings's own comment for why).
+        $settings = ProjectSettingsSerializer::parse($project['HeaderButtonVisibilityJson']);
+        $orgEnterprise = $this->getOrgEnterpriseSettings($project['OrganisationId']);
+        $settings['forms'] = $orgEnterprise['forms'];
+        $settings['portfolioPlanner'] = $orgEnterprise['portfolioPlanner'];
+
         return [
             'id' => $project['Id'],
             'name' => $project['Name'],
@@ -65,7 +74,7 @@ final class ProjectService
             'teamsCommittees' => $this->fetchTeamsCommittees($projectId),
             'decisions' => $this->fetchDecisions($projectId),
             'retrospectives' => $this->fetchRetrospectives($projectId),
-            'headerButtonVisibility' => ProjectSettingsSerializer::parse($project['HeaderButtonVisibilityJson']),
+            'headerButtonVisibility' => $settings,
             'workflow' => $project['WorkflowJson'] !== null ? json_decode($project['WorkflowJson']) : null,
             'startDate' => $project['StartDate'],
             'endDate' => $project['EndDate'],
@@ -373,20 +382,61 @@ final class ProjectService
         return $stmt->rowCount() > 0;
     }
 
-    public function updateSettings(string $projectId, array $settings): ?array
+    /**
+     * Forms/PortfolioPlanner inside $settings are only ever actually applied when the caller is an
+     * Org Admin (re-validated server-side, never trusted from the client) — this endpoint's own auth
+     * is ProjectAdmin, not OrgAdmin, since every OTHER field here is a genuine per-project setting a
+     * plain Project Admin is allowed to change. A non-Org-Admin Project Admin including
+     * forms:true/portfolioPlanner:true in their payload (e.g. by calling this endpoint directly,
+     * bypassing the UI's own Enterprise-category admin gate) has those two fields silently ignored
+     * rather than applied — same "server independently re-derives, never trusts the client's claimed
+     * value" principle as every cross-scope write elsewhere in this app. The returned array's
+     * forms/portfolioPlanner always reflect the REAL, currently-effective org-wide value, whether or
+     * not this call actually changed it, so a non-Org-Admin caller never sees a misleading echo of
+     * what they merely attempted to send.
+     */
+    public function updateSettings(string $projectId, array $settings, bool $callerIsOrgAdmin): ?array
     {
-        $stmt = $this->db->prepare('SELECT 1 FROM "Projects" WHERE "Id" = :id');
+        $stmt = $this->db->prepare('SELECT "OrganisationId" FROM "Projects" WHERE "Id" = :id');
         $stmt->execute(['id' => $projectId]);
-        if ($stmt->fetch() === false) {
+        $row = $stmt->fetch();
+        if ($row === false) {
             return null;
         }
+        $organisationId = $row['OrganisationId'];
 
         $parsed = ProjectSettingsSerializer::parse(json_encode($settings));
+
+        if ($callerIsOrgAdmin) {
+            $orgStmt = $this->db->prepare('SELECT "EnterpriseSettingsJson" FROM "Organisations" WHERE "Id" = :id');
+            $orgStmt->execute(['id' => $organisationId]);
+            $orgRow = $orgStmt->fetch();
+            if ($orgRow !== false) {
+                $newOrgJson = EnterpriseSettingsSerializer::serialize([
+                    'forms' => $parsed['forms'], 'portfolioPlanner' => $parsed['portfolioPlanner'],
+                ]);
+                $this->db->prepare('UPDATE "Organisations" SET "EnterpriseSettingsJson" = :json WHERE "Id" = :id')
+                    ->execute(['json' => $newOrgJson, 'id' => $organisationId]);
+            }
+        }
+
         $stmt = $this->db->prepare(
             'UPDATE "Projects" SET "HeaderButtonVisibilityJson" = :json, "DateLastModified" = now() WHERE "Id" = :id'
         );
         $stmt->execute(['json' => ProjectSettingsSerializer::serialize($parsed), 'id' => $projectId]);
+
+        $orgEnterprise = $this->getOrgEnterpriseSettings($organisationId);
+        $parsed['forms'] = $orgEnterprise['forms'];
+        $parsed['portfolioPlanner'] = $orgEnterprise['portfolioPlanner'];
         return $parsed;
+    }
+
+    private function getOrgEnterpriseSettings(string $organisationId): array
+    {
+        $stmt = $this->db->prepare('SELECT "EnterpriseSettingsJson" FROM "Organisations" WHERE "Id" = :id');
+        $stmt->execute(['id' => $organisationId]);
+        $row = $stmt->fetch();
+        return EnterpriseSettingsSerializer::parse($row !== false ? $row['EnterpriseSettingsJson'] : null);
     }
 
     public function updateWorkflow(string $projectId, mixed $workflow): ?array

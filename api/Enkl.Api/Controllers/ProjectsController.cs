@@ -91,7 +91,7 @@ public class ProjectsController : ControllerBase
     [Authorize(Policy = "ProjectAdmin")]
     public async Task<IActionResult> UpdateSettings(Guid projectId, ProjectSettingsDto request)
     {
-        var result = await _projects.UpdateProjectSettingsAsync(projectId, request);
+        var result = await _projects.UpdateProjectSettingsAsync(projectId, request, User.HasClaim("orgAdmin", "true"));
         return result is null ? NotFound() : Ok(result);
     }
 

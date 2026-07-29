@@ -24,4 +24,11 @@ public class Organisation
 
     // 1:1 — may be null until an OrgAdmin first generates a public API key.
     public OrganisationApiKey? ApiKey { get; set; }
+
+    // Opt-in "Enterprise" App Settings that apply org-WIDE rather than per-project (Forms & Workflow,
+    // Portfolio Planner) — unlike every other App Settings toggle, these are set once by an Org Admin
+    // and then apply identically to every project in the organisation. See
+    // EnterpriseSettingsSerializer for the parse/serialize shape and defaults. Null until an Org
+    // Admin first opens App Settings' Enterprise category and toggles one of them.
+    public string? EnterpriseSettingsJson { get; set; }
 }

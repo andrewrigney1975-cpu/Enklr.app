@@ -701,12 +701,25 @@ export function normalizeHeaderButtonVisibility(value){
        to speak of at all. */
     dashboards: v.dashboards === true,
     /* Opt-in, like strategy: Enterprise Forms & Workflow stays invisible until an Org Admin
-       deliberately turns it on for this project (the App Settings checkbox for this one is itself
-       Org-Admin-only — see #appSettingsEnterpriseCategory — unlike Dashboards/Strategy's checkbox,
-       which any Project Admin can toggle). Also requires isServerAuthoritative(project) regardless
-       of this flag (views/board.js's applyHeaderButtonVisibility) — a local-only project has no
-       Org Admin/Forms concept to speak of at all. */
-    forms: v.forms === true
+       deliberately turns it on (the App Settings checkbox for this one is itself Org-Admin-only —
+       see #appSettingsEnterpriseCategory — unlike Dashboards/Strategy's checkbox, which any Project
+       Admin can toggle). UNLIKE every other field on this object, this value is org-WIDE, not
+       per-project — the server always overrides whatever's in a project's own
+       HeaderButtonVisibilityJson with the real Organisations.EnterpriseSettingsJson value on every
+       fetch (see ProjectService.GetProjectDetailAsync's own comment), so toggling it from ANY one
+       project's App Settings turns it on/off for every project in the org at once. This client-side
+       field is still read/written exactly the same way (this is purely a server-side redirection),
+       it just always reflects that shared org value rather than something genuinely local to this
+       project. Also requires isServerAuthoritative(project) regardless of this flag
+       (views/board.js's applyHeaderButtonVisibility) — a local-only project has no
+       Org Admin/Forms/Organisation concept to speak of at all. */
+    forms: v.forms === true,
+    /* Opt-in, org-wide, same shape as Forms directly above (see its own comment for the full
+       explanation of the org-wide redirection) — same "Enterprise" App Settings category, same
+       Org-Admin-only checkbox visibility. Also requires isServerAuthoritative(project) &&
+       isOrgAdmin() regardless of this flag (views/board.js's applyHeaderButtonVisibility) — a
+       local-only project has no Org Admin/portfolio/Organisation concept to speak of at all. */
+    portfolioPlanner: v.portfolioPlanner === true
   };
 }
 

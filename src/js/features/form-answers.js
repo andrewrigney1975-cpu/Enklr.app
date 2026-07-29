@@ -1,5 +1,6 @@
 "use strict";
 import { escapeHTML } from '../views/board.js';
+import { utcISOToLocalDisplayDate, utcISOToLocalDisplayDateTime } from '../date-utils.js';
 
 /* Pure per-field-type helpers for the Enterprise Forms FILL-OUT UI (modals/forms-fillout.js) —
    mirrors features/form-fields.js's role for the builder, but renders an INPUT (or a read-only
@@ -130,6 +131,12 @@ export function renderAnswerReadOnlyHTML(field, value){
     display = escapeHTML(value.map(function(id){ return optionLabel(field, id); }).join(', '));
   } else if(field.type === 'checkboxGroup' || (field.type === 'radio' && field.groupMode !== 'single') || field.type === 'select'){
     display = escapeHTML(optionLabel(field, value));
+  } else if(field.type === 'datetime'){
+    // Rendered in the viewer's own locale (dd/mm/yyyy for an Australian user, etc — see
+    // date-utils.js's own toLocaleDateString(undefined, ...) convention) rather than the raw stored
+    // ISO/date-only string a bare String(value) would otherwise show verbatim.
+    var formatted = field.includesTime ? utcISOToLocalDisplayDateTime(value) : utcISOToLocalDisplayDate(value);
+    display = escapeHTML(formatted || String(value));
   } else {
     display = escapeHTML(String(value));
   }
