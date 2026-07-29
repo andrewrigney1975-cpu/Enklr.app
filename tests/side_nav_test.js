@@ -85,8 +85,8 @@ function ruleFor(text, selector){
     // member-facing fill-out surface) landed right after it.
     log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map, Dashboards',
         viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn,navOrgChartBtn,navGovernanceMapBtn,navDashboardsBtn', viewsOrder.join(','));
-    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Manage Forms, Forms',
-        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navFormsBtn,navFormsFilloutBtn', toolsOrder.join(','));
+    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Manage Forms, Forms, Whiteboard',
+        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navFormsBtn,navFormsFilloutBtn,navWhiteboardBtn', toolsOrder.join(','));
 
     viewsOrder.concat(toolsOrder).forEach(id => {
       const el = doc.getElementById(id);
