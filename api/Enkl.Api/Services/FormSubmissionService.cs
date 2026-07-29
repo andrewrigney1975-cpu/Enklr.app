@@ -396,7 +396,9 @@ public class FormSubmissionService
         _broadcaster.BroadcastFormSubmissionDecided(submission.SubmittedByUserId, payload);
     }
 
-    private static FormSubmissionListItemDto ToListItemDto(FormSubmission s)
+    // internal, not private — reused directly by PortalHomeService.ListMySubmissionsAsync, which
+    // needs a FormGroupId-filtered variant of ListMineAsync that this class doesn't otherwise expose.
+    internal static FormSubmissionListItemDto ToListItemDto(FormSubmission s)
     {
         var node = FindNode(ParseWorkflow(s.FormVersion.WorkflowJson), s.CurrentNodeId);
         return new FormSubmissionListItemDto(

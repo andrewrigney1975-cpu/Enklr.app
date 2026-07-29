@@ -458,7 +458,10 @@ final class FormSubmissionService
         return $name !== false ? (string) $name : 'someone';
     }
 
-    private static function toListItemDto(array $s): array
+    // public, not private — reused directly by PortalHomeService::listMySubmissions, which needs a
+    // FormGroupId-filtered variant of listMine() this class doesn't otherwise expose. Matches the
+    // .NET tier's identical internal-visibility change to FormSubmissionService.ToListItemDto.
+    public static function toListItemDto(array $s): array
     {
         $node = self::findNode(self::parseWorkflow($s['FormWorkflowJson']), $s['CurrentNodeId']);
         return [

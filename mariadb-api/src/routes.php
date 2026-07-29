@@ -29,6 +29,7 @@ use Enkl\Api\Controllers\OrganisationAnnouncementsController;
 use Enkl\Api\Controllers\OrganisationApiKeyController;
 use Enkl\Api\Controllers\PortfolioController;
 use Enkl\Api\Controllers\PortalsController;
+use Enkl\Api\Controllers\PortalHomeController;
 use Enkl\Api\Controllers\PrinciplesController;
 use Enkl\Api\Controllers\ProjectsController;
 use Enkl\Api\Controllers\FormsController;
@@ -275,6 +276,21 @@ function registerRoutes(App $app): void
         $group->put('/{portalId}/qa-entries/{entryId}', [PortalsController::class, 'updateQaEntry']);
         $group->delete('/{portalId}/qa-entries/{entryId}', [PortalsController::class, 'deleteQaEntry']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
+
+    // ---- Organisational Portals: end-user-facing surface, RequireAuthMiddleware only (no
+    // ProjectMemberMiddleware/OrgAdminMiddleware) — a Portal must be reachable by an org user who
+    // belongs to zero projects. See PortalHomeService's own doc comment for the access-check
+    // guarantee every action here relies on. ----
+    $app->group('/api/portals', function ($group) {
+        $group->get('/{slug}', [PortalHomeController::class, 'getBySlug']);
+        $group->get('/{portalId}/forms', [PortalHomeController::class, 'listAvailableForms']);
+        $group->get('/{portalId}/submissions', [PortalHomeController::class, 'listMySubmissions']);
+        $group->get('/{portalId}/qa', [PortalHomeController::class, 'listQa']);
+        $group->post('/{portalId}/submissions', [PortalHomeController::class, 'createSubmission']);
+        $group->put('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'updateSubmission']);
+        $group->delete('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'deleteSubmission']);
+        $group->post('/{portalId}/submissions/{submissionId}/submit', [PortalHomeController::class, 'submitSubmission']);
+    })->add(RequireAuthMiddleware::class);
 
     // ---- Org-Admin-only cross-project Dashboard browsing (Portfolio pattern) ----
     $app->group('/api/organisations/me/dashboards', function ($group) {

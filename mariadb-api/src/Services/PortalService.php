@@ -433,7 +433,8 @@ final class PortalService
         return $stmt->fetch() !== false;
     }
 
-    private static function toDto(array $p): array
+    // public, not private — reused directly by PortalHomeService::getBySlug.
+    public static function toDto(array $p): array
     {
         return [
             'id' => $p['Id'], 'name' => $p['Name'], 'slug' => $p['Slug'], 'description' => $p['Description'],

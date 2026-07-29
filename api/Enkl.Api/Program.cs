@@ -115,6 +115,7 @@ builder.Services.AddScoped<PortfolioCategoryService>();
 builder.Services.AddScoped<PortfolioResourceService>();
 builder.Services.AddScoped<PortalAccessService>();
 builder.Services.AddScoped<PortalService>();
+builder.Services.AddScoped<PortalHomeService>();
 builder.Services.AddScoped<StrategyService>();
 builder.Services.AddScoped<StrategyPillarService>();
 builder.Services.AddScoped<StrategyMetricService>();

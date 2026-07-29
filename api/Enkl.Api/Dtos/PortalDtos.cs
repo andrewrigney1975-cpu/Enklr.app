@@ -20,3 +20,8 @@ public record UpdatePortalTopicRequest(string Title, int Order);
 public record PortalQaEntryDto(Guid Id, Guid? PortalTopicId, string Question, string? Answer, int Order);
 public record CreatePortalQaEntryRequest(string Question, string? Answer, Guid? PortalTopicId, int Order);
 public record UpdatePortalQaEntryRequest(string Question, string? Answer, Guid? PortalTopicId, int Order);
+
+/// <summary>The end-user Portal home page's combined Q&amp;A rail payload — topics + flat entry list
+/// (each carrying its own PortalTopicId, null for ungrouped) rather than a nested shape, so the
+/// frontend can group client-side however its accordion rendering wants to.</summary>
+public record PortalQaDto(List<PortalTopicDto> Topics, List<PortalQaEntryDto> Entries);
