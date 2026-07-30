@@ -71,9 +71,21 @@ function ruleFor(text, selector){
     log('expanded width is a sensible label-width size', expandedWidthRule && /width:\s*220px/.test(expandedWidthRule), expandedWidthRule);
 
     const sections = doc.querySelectorAll('.kf-side-nav-section');
-    log('exactly two sections', sections.length === 2, sections.length);
+    // A third section, "Portals", was added after this list was last updated — dynamic/per-user
+    // (populated client-side from portalHomeApi.listAccessible(), see portal-home.js's
+    // loadAndRenderSideNavPortals), so it's always present in the DOM (querySelectorAll doesn't
+    // care about its own .hidden class) but starts empty/hidden until populated.
+    log('exactly three sections', sections.length === 3, sections.length);
     log('first section is labeled "Views"', sections[0].querySelector('.kf-side-nav-label').textContent.trim() === 'Views');
     log('second section is labeled "Tools"', sections[1].querySelector('.kf-side-nav-label').textContent.trim() === 'Tools');
+    log('third section is labeled "Portals"', sections[2].querySelector('.kf-side-nav-label').textContent.trim() === 'Portals');
+    // The Portals section also holds the static "Forms" fill-out entry (moved out of Tools so it
+    // always renders directly below any accessible Portal icons — board.js's
+    // refreshSideNavPortalsSectionVisibility owns the section's own combined hidden state) — it's
+    // present in the DOM regardless of how many Portals loaded, so the section itself is hidden here
+    // only because neither half has anything to show in this test (no server session at all).
+    log('Portals section starts hidden (no accessible Portals AND Forms not visible in this test)', sections[2].classList.contains('hidden'));
+    log('"Forms" entry lives in the Portals section, not Tools', !!sections[2].querySelector('#navFormsFilloutBtn'));
 
     const viewsOrder = Array.from(sections[0].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
     const toolsOrder = Array.from(sections[1].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
@@ -81,14 +93,17 @@ function ruleFor(text, selector){
     // itself moved to Tools), To-Do/Workflow/Portfolio Planner/Retrospectives/Strategy were all
     // added to Tools since this list was written, and API Endpoints (CLAUDE.md's API Endpoints
     // modal entry) landed between Project Storage and Workflow without this list being updated
-    // for it. Manage Forms (Org-Admin authoring) landed after Strategy; Forms (Phase 5's
-    // member-facing fill-out surface) landed right after it.
+    // for it. Manage Forms (Org-Admin authoring) landed after Strategy. "Portals" (the member-
+    // facing browse entry) and "Forms" (the member-facing fill-out entry) both moved OUT of this
+    // static Tools list once the dynamic "Portals" section took them over — Manage Portals
+    // (Org-Admin authoring) is the only Portals-related entry left here.
     log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map, Dashboards',
         viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn,navOrgChartBtn,navGovernanceMapBtn,navDashboardsBtn', viewsOrder.join(','));
-    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Manage Forms, Forms',
-        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navFormsBtn,navFormsFilloutBtn', toolsOrder.join(','));
+    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Manage Forms, Whiteboard, Manage Portals',
+        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navFormsBtn,navWhiteboardBtn,navPortalsBtn', toolsOrder.join(','));
 
-    viewsOrder.concat(toolsOrder).forEach(id => {
+    const portalsSectionOrder = Array.from(sections[2].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
+    viewsOrder.concat(toolsOrder).concat(portalsSectionOrder).forEach(id => {
       const el = doc.getElementById(id);
       log('"' + id + '" has a non-empty title attribute for its tooltip', !!(el.getAttribute('title') && el.getAttribute('title').trim()));
     });

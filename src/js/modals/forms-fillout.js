@@ -1,9 +1,10 @@
 "use strict";
 import { toast } from '../ui.js';
 import { escapeHTML } from '../views/board.js';
-import { formsApi, projectFormsApi } from '../api.js';
+import { formsApi, projectFormsApi, isOrgAdmin, isProjectAdmin } from '../api.js';
 import { confirmDialog } from './confirm.js';
 import { renderAnswerInputHTML, renderAnswerReadOnlyHTML, collectAllAnswers, findMissingRequiredFields } from '../features/form-answers.js';
+import { canUserStartForm } from '../features/form-workflow-engine.js';
 import { getCurrentProject } from '../store.js';
 import { utcISOToLocalDisplayDateTime } from '../date-utils.js';
 
@@ -70,7 +71,16 @@ function loadAndRenderFilloutPicker(){
     projectFormsApi.listMySubmissions(projectId),
     projectFormsApi.listAwaitingMyAction(projectId)
   ]).then(function(results){
-    publishedForms = results[0] || [];
+    // FormService.ListPublishedAsync itself is deliberately org-wide (its own doc comment: "the
+    // per-project gate is purely the Forms App Setting, not a per-form per-project opt-in") — this
+    // is the actual per-user filter on top of that: only forms whose own workflow Author gates this
+    // specific user actually satisfies, using the identical Start->Author-node walk
+    // FormSubmissionService.SubmitAsync performs server-side, so nothing shown here as "available"
+    // could ever be rejected by the server on submit for a gate reason. A form with no workflow
+    // configured yet, or whose Start doesn't lead to a real Author node, can't be started by anyone
+    // and is filtered out the same way.
+    var actingUser = {isOrgAdmin: isOrgAdmin(), isProjectAdmin: isProjectAdmin(projectId), isProjectMember: true};
+    publishedForms = (results[0] || []).filter(function(f){ return canUserStartForm(f, actingUser); });
     mySubmissions = results[1] || [];
     awaitingMe = results[2] || [];
     renderFilloutPicker();

@@ -75,12 +75,12 @@ public class ProjectService
 
         var settings = ProjectSettingsSerializer.Parse(project.HeaderButtonVisibilityJson);
         var orgEnterprise = await GetOrgEnterpriseSettingsAsync(project.OrganisationId);
-        // Forms/PortfolioPlanner are org-WIDE settings (see Organisation.EnterpriseSettingsJson's own
-        // doc comment) — whatever this project's own HeaderButtonVisibilityJson happens to still hold
-        // for these two keys (a pre-migration leftover, or a value a non-Org-Admin tried to sneak
+        // Forms/PortfolioPlanner/Portals are org-WIDE settings (see Organisation.EnterpriseSettingsJson's
+        // own doc comment) — whatever this project's own HeaderButtonVisibilityJson happens to still
+        // hold for these keys (a pre-migration leftover, or a value a non-Org-Admin tried to sneak
         // into a settings PUT — see UpdateProjectSettingsAsync) is always overridden here with the
         // real, org-level value, never trusted from the project's own row.
-        settings = settings with { Forms = orgEnterprise.Forms, PortfolioPlanner = orgEnterprise.PortfolioPlanner };
+        settings = settings with { Forms = orgEnterprise.Forms, PortfolioPlanner = orgEnterprise.PortfolioPlanner, Portals = orgEnterprise.Portals };
 
         return new ProjectDetailDto(
             project.Id, project.Name, project.Key, project.OrganisationId,
@@ -315,17 +315,17 @@ public class ProjectService
     }
 
     /// <summary>
-    /// Forms/PortfolioPlanner inside `settings` are only ever actually applied when the caller is an
-    /// Org Admin (re-validated server-side, never trusted from the client) — this endpoint's own
+    /// Forms/PortfolioPlanner/Portals inside `settings` are only ever actually applied when the caller
+    /// is an Org Admin (re-validated server-side, never trusted from the client) — this endpoint's own
     /// [Authorize] policy is ProjectAdmin, not OrgAdmin, since every OTHER field here is a genuine
     /// per-project setting a plain Project Admin is allowed to change. A non-Org-Admin Project Admin
-    /// including forms:true/portfolioPlanner:true in their payload (e.g. by calling this endpoint
-    /// directly, bypassing the UI's own Enterprise-category admin gate) has those two fields silently
-    /// ignored rather than applied — same "server independently re-derives, never trusts the client's
-    /// claimed value" principle as every cross-scope write elsewhere in this app. The returned DTO's
-    /// Forms/PortfolioPlanner always reflect the REAL, currently-effective org-wide value, whether or
-    /// not this call actually changed it, so a non-Org-Admin caller never sees a misleading echo of
-    /// what they merely attempted to send.
+    /// including forms:true/portfolioPlanner:true/portals:true in their payload (e.g. by calling this
+    /// endpoint directly, bypassing the UI's own Enterprise-category admin gate) has those fields
+    /// silently ignored rather than applied — same "server independently re-derives, never trusts the
+    /// client's claimed value" principle as every cross-scope write elsewhere in this app. The returned
+    /// DTO's Forms/PortfolioPlanner/Portals always reflect the REAL, currently-effective org-wide
+    /// value, whether or not this call actually changed it, so a non-Org-Admin caller never sees a
+    /// misleading echo of what they merely attempted to send.
     /// </summary>
     public async Task<ProjectSettingsDto?> UpdateProjectSettingsAsync(Guid projectId, ProjectSettingsDto settings, bool callerIsOrgAdmin)
     {
@@ -337,7 +337,7 @@ public class ProjectService
             var org = await _db.Organisations.FirstOrDefaultAsync(o => o.Id == project.OrganisationId);
             if (org is not null)
             {
-                org.EnterpriseSettingsJson = EnterpriseSettingsSerializer.Serialize(new EnterpriseSettingsDto(settings.Forms, settings.PortfolioPlanner));
+                org.EnterpriseSettingsJson = EnterpriseSettingsSerializer.Serialize(new EnterpriseSettingsDto(settings.Forms, settings.PortfolioPlanner, settings.Portals));
             }
         }
 
@@ -346,7 +346,7 @@ public class ProjectService
         await _db.SaveChangesAsync();
 
         var orgEnterprise = await GetOrgEnterpriseSettingsAsync(project.OrganisationId);
-        return settings with { Forms = orgEnterprise.Forms, PortfolioPlanner = orgEnterprise.PortfolioPlanner };
+        return settings with { Forms = orgEnterprise.Forms, PortfolioPlanner = orgEnterprise.PortfolioPlanner, Portals = orgEnterprise.Portals };
     }
 
     private async Task<EnterpriseSettingsDto> GetOrgEnterpriseSettingsAsync(Guid organisationId)

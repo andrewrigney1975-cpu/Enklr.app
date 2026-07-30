@@ -24,6 +24,11 @@ import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenef
 /* ---- Features ---- */
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
 import { wireWhiteboardEvents, openWhiteboardOverlay, openWhiteboardFromHashIfPresent } from './modals/whiteboard.js';
+import {
+  openPortalHomeFromHashIfPresent, closePortalHomeOverlay, loadAndRenderSideNavPortals,
+  closePortalHomeFilloutOverlay, savePortalHomeFilloutDraft, submitPortalHomeFillout, deletePortalHomeFilloutDraft,
+  approvePortalHomeFillout, rejectPortalHomeFillout, onPortalHomeQaSearchInput, clearPortalHomeQaSearch
+} from './modals/portal-home.js';
 import { exportProjectJSON, setExportToast } from './features/export.js';
 import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast, refreshProjectFromServer, switchToAiCreatedProject } from './features/migration.js';
 import { connectEventStream, disconnectEventStream, setLiveUpdatesDeps } from './features/live-updates.js';
@@ -65,6 +70,13 @@ import { openPortfolioDashboardOverlay, closePortfolioDashboardOverlay, isPortfo
 import { openPortfolioPlannerOverlay, closePortfolioPlannerOverlay, isPortfolioPlannerOverlayOpen, onPortfolioPlannerNewCategoryFromInput, onPortfolioPlannerGroupsClick, onPortfolioPlannerGroupsChange, onPortfolioPlannerControlsChanged, onPortfolioPlannerFitToProjectsClick, onPortfolioPlannerBarPointerDown, onPortfolioPlannerBarDblClick, closePortfolioPlannerAddProjectModal, isPortfolioPlannerAddProjectModalOpen, savePortfolioPlannerAddProjectFromModal, closePortfolioPlannerProjectDatesModal, isPortfolioPlannerProjectDatesModalOpen, clearPortfolioPlannerProjectDatesInModal, savePortfolioPlannerProjectDatesFromModal, expandAllPortfolioPlannerCategories, collapseAllPortfolioPlannerCategories, closePortfolioPlannerResourcesModal, isPortfolioPlannerResourcesModalOpen, addPortfolioPlannerResourceFromModal, onPortfolioPlannerResourcesListClick, onPortfolioPlannerResourcesListChange, togglePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerCategoryFilterPanel, closePortfolioPlannerStrategyModal, isPortfolioPlannerStrategyModalOpen, onPortfolioPlannerStrategyListChange } from './modals/portfolio-planner.js';
 import { openStrategyOverlay, closeStrategyOverlay, isStrategyOverlayOpen, setStrategyDashboardMode } from './modals/strategy.js';
 import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow, hideFormsAdminCreateRow, createFormFromAdmin, closeFormFieldBuilder, saveFormBuilder, openFieldEditor, closeFieldEditor, onFormFieldTypeChanged, saveFieldEditor, closeFormVersionHistory, cloneLatestVersion, openFormWorkflowEditorForBuilder, closeFormWorkflowEditorForBuilder } from './modals/forms-admin.js';
+import {
+  openPortalsAdminOverlay, closePortalsAdminOverlay, showPortalsAdminCreateRow, hidePortalsAdminCreateRow, createPortalFromAdmin,
+  openPortalEdit, closePortalEdit, setPortalEditTab, savePortalEditDetails, publishPortalFromEdit, archivePortalFromEdit, deletePortalFromEdit,
+  togglePortalIconGrid,
+  addPortalAccessGrantFromEdit, attachPortalFormFromEdit, addPortalTeamMemberFromEdit,
+  showPortalQaAddTopicRow, hidePortalQaAddTopicRow, savePortalQaTopicFromEdit, showPortalQaAddEntryRow, hidePortalQaAddEntryRow, savePortalQaEntryFromEdit
+} from './modals/portals-admin.js';
 import { setFormWorkflowEditorDeps, setFormWorkflowMode, addFormWorkflowNode, handleFormWorkflowScrollMouseDown, handleFormWorkflowPointerMove, handleFormWorkflowPointerUp, handleFormWorkflowInnerClick, saveFormWorkflowNodePopover, deleteFormWorkflowNodeFromPopover, closeFormWorkflowNodePopover, isFormWorkflowNodePopoverOpen, deleteFormWorkflowEdgeFromPopover, closeFormWorkflowEdgePopover, isFormWorkflowEdgePopoverOpen } from './views/form-workflow-editor.js';
 import { openFormsFilloutOverlay, closeFormsFilloutOverlay, closeFormFilloutDetailOverlay, saveFormFilloutDraft, submitFormFillout, deleteFormFilloutDraft, approveFormFillout, rejectFormFillout, openFormSubmissionDetail } from './modals/forms-fillout.js';
 import { openDecisionsOverlay, closeDecisionsOverlay, isDecisionsOverlayOpen, showDecisionsFormView, showDecisionsListView, renderDecisionsList, saveDecisionFromModal, deleteDecisionFromModal } from './modals/decisions.js';
@@ -541,6 +553,7 @@ function wireEvents(){
   document.getElementById('formWorkflowAddAuthorBtn').addEventListener('click', function(){ addFormWorkflowNode('author'); });
   document.getElementById('formWorkflowAddApprovalBtn').addEventListener('click', function(){ addFormWorkflowNode('approval'); });
   document.getElementById('formWorkflowAddEndBtn').addEventListener('click', function(){ addFormWorkflowNode('end'); });
+  document.getElementById('formWorkflowAddActionBtn').addEventListener('click', function(){ addFormWorkflowNode('action'); });
   document.getElementById('formWorkflowInner').addEventListener('click', handleFormWorkflowInnerClick);
   document.getElementById('formWorkflowScroll').addEventListener('mousedown', handleFormWorkflowScrollMouseDown);
   document.addEventListener('mousemove', handleFormWorkflowPointerMove);
@@ -554,6 +567,50 @@ function wireEvents(){
     if(isFormWorkflowNodePopoverOpen() && !e.target.closest('#formWorkflowNodePopover') && !e.target.closest('.kf-fwfnode')) closeFormWorkflowNodePopover();
     if(isFormWorkflowEdgePopoverOpen() && !e.target.closest('#formWorkflowEdgePopover') && !e.target.closest('.kf-wfedge-hit')) closeFormWorkflowEdgePopover();
   });
+
+  document.getElementById('navPortalsBtn').addEventListener('click', openPortalsAdminOverlay);
+  document.getElementById('portalsAdminClose').addEventListener('click', closePortalsAdminOverlay);
+  document.getElementById('portalsAdminOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'portalsAdminOverlay') closePortalsAdminOverlay();
+  });
+  document.getElementById('newPortalBtn').addEventListener('click', showPortalsAdminCreateRow);
+  document.getElementById('portalsAdminCreateCancelBtn').addEventListener('click', hidePortalsAdminCreateRow);
+  document.getElementById('portalsAdminCreateSaveBtn').addEventListener('click', createPortalFromAdmin);
+
+  document.getElementById('portalEditClose').addEventListener('click', closePortalEdit);
+  document.getElementById('portalEditOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'portalEditOverlay') closePortalEdit();
+  });
+  document.querySelectorAll('.kf-portal-edit-tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ setPortalEditTab(btn.getAttribute('data-portal-tab')); });
+  });
+  document.getElementById('portalEditDetailsSaveBtn').addEventListener('click', savePortalEditDetails);
+  document.getElementById('portalEditIconPickBtn').addEventListener('click', togglePortalIconGrid);
+  document.getElementById('portalEditPublishBtn').addEventListener('click', publishPortalFromEdit);
+  document.getElementById('portalEditArchiveBtn').addEventListener('click', archivePortalFromEdit);
+  document.getElementById('portalEditDeleteBtn').addEventListener('click', deletePortalFromEdit);
+  document.getElementById('portalAccessAddBtn').addEventListener('click', addPortalAccessGrantFromEdit);
+  document.getElementById('portalFormsAttachBtn').addEventListener('click', attachPortalFormFromEdit);
+  document.getElementById('portalTeamAddBtn').addEventListener('click', addPortalTeamMemberFromEdit);
+  document.getElementById('portalQaAddTopicBtn').addEventListener('click', showPortalQaAddTopicRow);
+  document.getElementById('portalQaTopicCancelBtn').addEventListener('click', hidePortalQaAddTopicRow);
+  document.getElementById('portalQaTopicSaveBtn').addEventListener('click', savePortalQaTopicFromEdit);
+  document.getElementById('portalQaAddEntryBtn').addEventListener('click', showPortalQaAddEntryRow);
+  document.getElementById('portalQaEntryCancelBtn').addEventListener('click', hidePortalQaAddEntryRow);
+  document.getElementById('portalQaEntrySaveBtn').addEventListener('click', savePortalQaEntryFromEdit);
+
+  document.getElementById('portalHomeClose').addEventListener('click', closePortalHomeOverlay);
+  document.getElementById('portalHomeFilloutClose').addEventListener('click', closePortalHomeFilloutOverlay);
+  document.getElementById('portalHomeFilloutOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'portalHomeFilloutOverlay') closePortalHomeFilloutOverlay();
+  });
+  document.getElementById('portalHomeFilloutSaveDraftBtn').addEventListener('click', savePortalHomeFilloutDraft);
+  document.getElementById('portalHomeFilloutSubmitBtn').addEventListener('click', submitPortalHomeFillout);
+  document.getElementById('portalHomeFilloutDeleteBtn').addEventListener('click', deletePortalHomeFilloutDraft);
+  document.getElementById('portalHomeFilloutApproveBtn').addEventListener('click', approvePortalHomeFillout);
+  document.getElementById('portalHomeFilloutRejectBtn').addEventListener('click', rejectPortalHomeFillout);
+  document.getElementById('portalHomeQaSearchInput').addEventListener('input', onPortalHomeQaSearchInput);
+  document.getElementById('portalHomeQaSearchClearBtn').addEventListener('click', clearPortalHomeQaSearch);
 
   document.getElementById('navFormsFilloutBtn').addEventListener('click', openFormsFilloutOverlay);
   document.getElementById('formsFilloutClose').addEventListener('click', closeFormsFilloutOverlay);
@@ -1689,9 +1746,22 @@ function wireEvents(){
   });
   document.getElementById('settingsShowFormsBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('forms', e.target.checked);
+    // Portals depends on Forms & Workflow being on (a Portal's whole reason for being is curating
+    // Forms for org users who aren't project members) — turning Forms off here must also turn
+    // Portals off, not just grey out its checkbox, since a Portal left silently on with no Forms
+    // available would be a confusing dead end for whoever it's granted to.
+    var portalsBtn = document.getElementById('settingsShowPortalsBtn');
+    portalsBtn.disabled = !e.target.checked;
+    if(!e.target.checked && portalsBtn.checked){
+      portalsBtn.checked = false;
+      updateHeaderButtonVisibilitySetting('portals', false);
+    }
   });
   document.getElementById('settingsShowPortfolioPlannerBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('portfolioPlanner', e.target.checked);
+  });
+  document.getElementById('settingsShowPortalsBtn').addEventListener('change', function(e){
+    updateHeaderButtonVisibilitySetting('portals', e.target.checked);
   });
 
   document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileDrawer);
@@ -1709,6 +1779,7 @@ function wireEvents(){
   });
   window.addEventListener('hashchange', openTaskFromHashIfPresent);
   window.addEventListener('hashchange', openWhiteboardFromHashIfPresent);
+  window.addEventListener('hashchange', openPortalHomeFromHashIfPresent);
 
   document.getElementById('searchInput').addEventListener('input', function(e){
     ui.searchTerm = e.target.value.trim();
@@ -2204,6 +2275,8 @@ function init(){
     initDespatches();
     openChatFullscreenFromQueryParamIfPresent();
     openWhiteboardFromHashIfPresent();
+    openPortalHomeFromHashIfPresent();
+    loadAndRenderSideNavPortals();
     pullServerProjectsIntoLocal().then(function(count){
       if(count > 0) renderAll();
     });

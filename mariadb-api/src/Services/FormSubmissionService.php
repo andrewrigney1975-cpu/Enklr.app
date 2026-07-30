@@ -175,7 +175,7 @@ final class FormSubmissionService
 
         $nextEdge = self::outgoingEdge($graph, $authorNode['id']);
         $nextNode = $nextEdge !== null ? self::findNode($graph, $nextEdge['toNodeId']) : null;
-        [$status, $currentNodeId] = self::nextNodeState($nextNode);
+        [$status, $currentNodeId, $nextNode] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
 
         $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateSubmitted" = now(), "DateLastModified" = now() WHERE "Id" = :id');
         $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
@@ -241,7 +241,7 @@ final class FormSubmissionService
         } elseif (self::isApprovalComplete($node, $trail)) {
             $edge = self::outgoingEdge($graph, $node['id']);
             $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
-            [$status, $currentNodeId] = self::nextNodeState($nextNode);
+            [$status, $currentNodeId, $nextNode] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
             $notifyNode = $nextNode;
             $notifyIsFreshArrival = true;
         }
@@ -443,6 +443,88 @@ final class FormSubmissionService
         return ['inProgress', $nextNode['id']];
     }
 
+    /** Ported from php-api/src/Services/FormSubmissionService.php. Walks past any consecutive
+     * "action" nodes (each auto-executed the instant the graph transitions into it), appending to
+     * $trail as it goes, before returning the same [status, currentNodeId] shape nextNodeState()
+     * always has, plus the final non-action $nextNode itself. Deliberately NOT wrapped in an explicit
+     * transaction (same reasoning as the Postgres tier — TaskService::create() already wraps itself
+     * in its own transaction, and PDO has no native nested-transaction support on this tier either).
+     * @return array{0: string, 1: ?string, 2: ?array} [status, currentNodeId, finalNode] */
+    private function applyNextNodeActions(array $graph, ?array $nextNode, array &$trail, array $submissionRow): array
+    {
+        while ($nextNode !== null && ($nextNode['type'] ?? null) === 'action') {
+            $this->executeActionNode($nextNode, $trail, $submissionRow);
+            $edge = self::outgoingEdge($graph, $nextNode['id']);
+            $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
+        }
+        [$status, $currentNodeId] = self::nextNodeState($nextNode);
+        return [$status, $currentNodeId, $nextNode];
+    }
+
+    /** The one action type implemented so far: raises a Task in the target Portal's own
+     * auto-provisioned actioner Project. No dialect divergence from the Postgres tier. */
+    private function executeActionNode(array $node, array &$trail, array $submissionRow): void
+    {
+        $actionType = $node['actionType'] ?? null;
+        $config = $node['config'] ?? [];
+        $portalId = $config['portalId'] ?? null;
+        if ($actionType !== 'raiseTaskInPortal' || $portalId === null) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('SELECT "ProjectId" FROM "Portals" WHERE "Id" = :id');
+        $stmt->execute(['id' => $portalId]);
+        $portal = $stmt->fetch();
+        if ($portal === false) {
+            return;
+        }
+
+        $colStmt = $this->db->prepare('SELECT "Id", "Name" FROM "Columns" WHERE "ProjectId" = :pid ORDER BY "Order"');
+        $colStmt->execute(['pid' => $portal['ProjectId']]);
+        $columns = $colStmt->fetchAll();
+        if (count($columns) === 0) {
+            return;
+        }
+        $wantedName = strtolower((string) ($config['priorityColumn'] ?? ''));
+        $column = null;
+        foreach ($columns as $c) {
+            if (strtolower((string) $c['Name']) === $wantedName) {
+                $column = $c;
+                break;
+            }
+        }
+        $column ??= $columns[0];
+
+        $assigneeId = self::resolveActionAssignee($config['assigneeGate'] ?? null, $trail);
+        $title = trim((string) ($config['titleTemplate'] ?? ''));
+        if ($title === '') {
+            $title = ($submissionRow['FormName'] ?? 'Form') . ' — submission review';
+        }
+
+        $task = (new TaskService($this->db))->create($portal['ProjectId'], [
+            'title' => $title, 'columnId' => $column['Id'], 'assigneeId' => $assigneeId, 'priority' => 'medium',
+        ]);
+
+        $trail[] = [
+            'nodeId' => $node['id'], 'actorUserId' => '00000000-0000-0000-0000-000000000000', 'action' => 'raisedTask',
+            'satisfiedGateKeys' => [], 'comment' => $task['key'] ?? null, 'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
+    }
+
+    private static function resolveActionAssignee(?array $gate, array $trail): ?string
+    {
+        if ($gate !== null && ($gate['kind'] ?? null) === 'namedUser' && !empty($gate['value'])) {
+            return (string) $gate['value'];
+        }
+        $lastApproval = null;
+        foreach ($trail as $entry) {
+            if (($entry['action'] ?? null) === 'approved') {
+                $lastApproval = $entry;
+            }
+        }
+        return $lastApproval['actorUserId'] ?? null;
+    }
+
     private function resolveActingUser(string $projectId, string $userId, bool $callerIsOrgAdmin): array
     {
         $stmt = $this->db->prepare('SELECT 1 FROM "ProjectMembers" WHERE "ProjectId" = :pid AND "UserId" = :uid AND "IsProjectAdmin" = true');
@@ -458,7 +540,10 @@ final class FormSubmissionService
         return $name !== false ? (string) $name : 'someone';
     }
 
-    private static function toListItemDto(array $s): array
+    // public, not private — reused directly by PortalHomeService::listMySubmissions, which needs a
+    // FormGroupId-filtered variant of listMine() this class doesn't otherwise expose. Matches the
+    // .NET tier's identical internal-visibility change to FormSubmissionService.ToListItemDto.
+    public static function toListItemDto(array $s): array
     {
         $node = self::findNode(self::parseWorkflow($s['FormWorkflowJson']), $s['CurrentNodeId']);
         return [

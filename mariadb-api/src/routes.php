@@ -28,6 +28,8 @@ use Enkl\Api\Controllers\OrganisationsController;
 use Enkl\Api\Controllers\OrganisationAnnouncementsController;
 use Enkl\Api\Controllers\OrganisationApiKeyController;
 use Enkl\Api\Controllers\PortfolioController;
+use Enkl\Api\Controllers\PortalsController;
+use Enkl\Api\Controllers\PortalHomeController;
 use Enkl\Api\Controllers\PrinciplesController;
 use Enkl\Api\Controllers\ProjectsController;
 use Enkl\Api\Controllers\FormsController;
@@ -246,6 +248,53 @@ function registerRoutes(App $app): void
         // override for the same endpoint.
         $group->put('/projects/{projectId}/strategy-fulfilment/{pillarId}', [StrategyController::class, 'upsertFulfilment']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
+
+    // ---- Organisational Portals (OrgAdmin-only authoring; end-user-facing surface is under
+    // /api/portals below instead, gated by RequireAuthMiddleware only — no ProjectMember
+    // requirement, since a Portal must be reachable by an org user who belongs to zero projects) ----
+    $app->group('/api/organisations/me/portals', function ($group) {
+        $group->get('', [PortalsController::class, 'list']);
+        $group->get('/{portalId}', [PortalsController::class, 'get']);
+        $group->post('', [PortalsController::class, 'create']);
+        $group->put('/{portalId}', [PortalsController::class, 'update']);
+        $group->post('/{portalId}/publish', [PortalsController::class, 'publish']);
+        $group->post('/{portalId}/archive', [PortalsController::class, 'archive']);
+        $group->delete('/{portalId}', [PortalsController::class, 'delete']);
+        $group->get('/{portalId}/access-grants', [PortalsController::class, 'listAccessGrants']);
+        $group->post('/{portalId}/access-grants', [PortalsController::class, 'addAccessGrant']);
+        $group->delete('/{portalId}/access-grants/{grantId}', [PortalsController::class, 'removeAccessGrant']);
+        $group->get('/{portalId}/preview-access', [PortalsController::class, 'previewAccess']);
+        $group->get('/{portalId}/forms', [PortalsController::class, 'listForms']);
+        $group->post('/{portalId}/forms', [PortalsController::class, 'attachForm']);
+        $group->delete('/{portalId}/forms/{portalFormId}', [PortalsController::class, 'detachForm']);
+        $group->get('/{portalId}/topics', [PortalsController::class, 'listTopics']);
+        $group->post('/{portalId}/topics', [PortalsController::class, 'createTopic']);
+        $group->put('/{portalId}/topics/{topicId}', [PortalsController::class, 'updateTopic']);
+        $group->delete('/{portalId}/topics/{topicId}', [PortalsController::class, 'deleteTopic']);
+        $group->get('/{portalId}/qa-entries', [PortalsController::class, 'listQaEntries']);
+        $group->post('/{portalId}/qa-entries', [PortalsController::class, 'createQaEntry']);
+        $group->put('/{portalId}/qa-entries/{entryId}', [PortalsController::class, 'updateQaEntry']);
+        $group->delete('/{portalId}/qa-entries/{entryId}', [PortalsController::class, 'deleteQaEntry']);
+    })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
+
+    // ---- Organisational Portals: end-user-facing surface, RequireAuthMiddleware only (no
+    // ProjectMemberMiddleware/OrgAdminMiddleware) — a Portal must be reachable by an org user who
+    // belongs to zero projects. See PortalHomeService's own doc comment for the access-check
+    // guarantee every action here relies on. ----
+    $app->group('/api/portals', function ($group) {
+        $group->get('', [PortalHomeController::class, 'listAccessible']);
+        $group->get('/{slug}', [PortalHomeController::class, 'getBySlug']);
+        $group->get('/{portalId}/forms', [PortalHomeController::class, 'listAvailableForms']);
+        $group->get('/{portalId}/submissions', [PortalHomeController::class, 'listMySubmissions']);
+        $group->get('/{portalId}/qa', [PortalHomeController::class, 'listQa']);
+        $group->get('/{portalId}/submissions/awaiting-me', [PortalHomeController::class, 'listAwaitingMyAction']);
+        $group->get('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'getSubmission']);
+        $group->post('/{portalId}/submissions', [PortalHomeController::class, 'createSubmission']);
+        $group->put('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'updateSubmission']);
+        $group->delete('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'deleteSubmission']);
+        $group->post('/{portalId}/submissions/{submissionId}/submit', [PortalHomeController::class, 'submitSubmission']);
+        $group->post('/{portalId}/submissions/{submissionId}/approval-action', [PortalHomeController::class, 'actOnApproval']);
+    })->add(RequireAuthMiddleware::class);
 
     // ---- Org-Admin-only cross-project Dashboard browsing (Portfolio pattern) ----
     $app->group('/api/organisations/me/dashboards', function ($group) {

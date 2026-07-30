@@ -903,6 +903,193 @@ namespace Enkl.Api.Data.Migrations
                     b.ToTable("PageLoadTimings");
                 });
 
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.Portal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DateLastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IconName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("draft");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("OrganisationId", "Slug")
+                        .IsUnique();
+
+                    b.ToTable("Portals");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalAccessGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("PortalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Value")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortalId", "Kind", "Value")
+                        .IsUnique();
+
+                    b.ToTable("PortalAccessGrants");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalForm", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FormGroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PortalId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortalId", "FormGroupId")
+                        .IsUnique();
+
+                    b.ToTable("PortalForms");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalQaEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Answer")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DateLastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PortalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PortalTopicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("PortalId");
+
+                    b.HasIndex("PortalTopicId");
+
+                    b.ToTable("PortalQaEntries");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalTopic", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DateLastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PortalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortalId");
+
+                    b.ToTable("PortalTopics");
+                });
+
             modelBuilder.Entity("Enkl.Api.Domain.Entities.PortfolioCategory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2621,6 +2808,90 @@ namespace Enkl.Api.Data.Migrations
                     b.Navigation("Organisation");
                 });
 
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.Portal", b =>
+                {
+                    b.HasOne("Enkl.Api.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Enkl.Api.Domain.Entities.Organisation", "Organisation")
+                        .WithMany()
+                        .HasForeignKey("OrganisationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Enkl.Api.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Organisation");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalAccessGrant", b =>
+                {
+                    b.HasOne("Enkl.Api.Domain.Entities.Portal", "Portal")
+                        .WithMany("AccessGrants")
+                        .HasForeignKey("PortalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Portal");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalForm", b =>
+                {
+                    b.HasOne("Enkl.Api.Domain.Entities.Portal", "Portal")
+                        .WithMany("Forms")
+                        .HasForeignKey("PortalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Portal");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalQaEntry", b =>
+                {
+                    b.HasOne("Enkl.Api.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Enkl.Api.Domain.Entities.Portal", "Portal")
+                        .WithMany("QaEntries")
+                        .HasForeignKey("PortalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Enkl.Api.Domain.Entities.PortalTopic", "PortalTopic")
+                        .WithMany("QaEntries")
+                        .HasForeignKey("PortalTopicId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Portal");
+
+                    b.Navigation("PortalTopic");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalTopic", b =>
+                {
+                    b.HasOne("Enkl.Api.Domain.Entities.Portal", "Portal")
+                        .WithMany("Topics")
+                        .HasForeignKey("PortalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Portal");
+                });
+
             modelBuilder.Entity("Enkl.Api.Domain.Entities.PortfolioCategory", b =>
                 {
                     b.HasOne("Enkl.Api.Domain.Entities.Organisation", "Organisation")
@@ -3278,6 +3549,22 @@ namespace Enkl.Api.Data.Migrations
                     b.Navigation("SsoConfig");
 
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.Portal", b =>
+                {
+                    b.Navigation("AccessGrants");
+
+                    b.Navigation("Forms");
+
+                    b.Navigation("QaEntries");
+
+                    b.Navigation("Topics");
+                });
+
+            modelBuilder.Entity("Enkl.Api.Domain.Entities.PortalTopic", b =>
+                {
+                    b.Navigation("QaEntries");
                 });
 
             modelBuilder.Entity("Enkl.Api.Domain.Entities.Project", b =>

@@ -719,7 +719,13 @@ export function normalizeHeaderButtonVisibility(value){
        Org-Admin-only checkbox visibility. Also requires isServerAuthoritative(project) &&
        isOrgAdmin() regardless of this flag (views/board.js's applyHeaderButtonVisibility) — a
        local-only project has no Org Admin/portfolio/Organisation concept to speak of at all. */
-    portfolioPlanner: v.portfolioPlanner === true
+    portfolioPlanner: v.portfolioPlanner === true,
+    /* Opt-in, org-wide, same shape as Forms/Portfolio Planner directly above (see Forms' own comment
+       for the full explanation of the org-wide redirection) — same "Enterprise" App Settings
+       category, same Org-Admin-only checkbox visibility. Also requires isServerAuthoritative(project)
+       regardless of this flag (views/board.js's applyHeaderButtonVisibility) — a local-only project
+       has no Org Admin/Portal/Organisation concept to speak of at all. */
+    portals: v.portals === true
   };
 }
 

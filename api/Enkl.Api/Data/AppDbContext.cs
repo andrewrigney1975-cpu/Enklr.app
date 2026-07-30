@@ -58,6 +58,11 @@ public class AppDbContext : DbContext
     public DbSet<WhiteboardSession> WhiteboardSessions => Set<WhiteboardSession>();
     public DbSet<WhiteboardParticipant> WhiteboardParticipants => Set<WhiteboardParticipant>();
     public DbSet<WhiteboardElement> WhiteboardElements => Set<WhiteboardElement>();
+    public DbSet<Portal> Portals => Set<Portal>();
+    public DbSet<PortalAccessGrant> PortalAccessGrants => Set<PortalAccessGrant>();
+    public DbSet<PortalForm> PortalForms => Set<PortalForm>();
+    public DbSet<PortalTopic> PortalTopics => Set<PortalTopic>();
+    public DbSet<PortalQaEntry> PortalQaEntries => Set<PortalQaEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

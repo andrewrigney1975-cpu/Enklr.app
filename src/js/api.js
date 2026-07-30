@@ -760,6 +760,127 @@ export var portfolioApi = {
   }
 };
 
+/* Org-Admin authoring of Organisational Portals — route base /api/organisations/me/portals, see
+   PortalsController.cs/.php. Every one of these is OrgAdmin-gated server-side regardless of what
+   this client sends. End-user browsing/filling is portalHomeApi below instead. */
+export var portalsApi = {
+  list: function(){
+    return apiFetch('/organisations/me/portals', {method: 'GET'});
+  },
+  get: function(portalId){
+    return apiFetch('/organisations/me/portals/' + portalId, {method: 'GET'});
+  },
+  create: function(name, slug, description, iconName){
+    return apiFetch('/organisations/me/portals', {method: 'POST', body: JSON.stringify({name: name, slug: slug || null, description: description || null, iconName: iconName || null})});
+  },
+  update: function(portalId, name, slug, description, iconName){
+    return apiFetch('/organisations/me/portals/' + portalId, {method: 'PUT', body: JSON.stringify({name: name, slug: slug || null, description: description || null, iconName: iconName || null})});
+  },
+  publish: function(portalId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/publish', {method: 'POST'});
+  },
+  archive: function(portalId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/archive', {method: 'POST'});
+  },
+  remove: function(portalId){
+    return apiFetch('/organisations/me/portals/' + portalId, {method: 'DELETE'});
+  },
+  listAccessGrants: function(portalId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/access-grants', {method: 'GET'});
+  },
+  addAccessGrant: function(portalId, kind, value){
+    return apiFetch('/organisations/me/portals/' + portalId + '/access-grants', {method: 'POST', body: JSON.stringify({kind: kind, value: value})});
+  },
+  removeAccessGrant: function(portalId, grantId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/access-grants/' + grantId, {method: 'DELETE'});
+  },
+  listForms: function(portalId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/forms', {method: 'GET'});
+  },
+  attachForm: function(portalId, formGroupId, order){
+    return apiFetch('/organisations/me/portals/' + portalId + '/forms', {method: 'POST', body: JSON.stringify({formGroupId: formGroupId, order: order || 0})});
+  },
+  detachForm: function(portalId, portalFormId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/forms/' + portalFormId, {method: 'DELETE'});
+  },
+  listTopics: function(portalId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/topics', {method: 'GET'});
+  },
+  createTopic: function(portalId, title, order){
+    return apiFetch('/organisations/me/portals/' + portalId + '/topics', {method: 'POST', body: JSON.stringify({title: title, order: order || 0})});
+  },
+  updateTopic: function(portalId, topicId, title, order){
+    return apiFetch('/organisations/me/portals/' + portalId + '/topics/' + topicId, {method: 'PUT', body: JSON.stringify({title: title, order: order || 0})});
+  },
+  deleteTopic: function(portalId, topicId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/topics/' + topicId, {method: 'DELETE'});
+  },
+  listQaEntries: function(portalId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/qa-entries', {method: 'GET'});
+  },
+  createQaEntry: function(portalId, question, answer, topicId, order){
+    return apiFetch('/organisations/me/portals/' + portalId + '/qa-entries', {method: 'POST', body: JSON.stringify({question: question, answer: answer || null, portalTopicId: topicId || null, order: order || 0})});
+  },
+  updateQaEntry: function(portalId, entryId, question, answer, topicId, order){
+    return apiFetch('/organisations/me/portals/' + portalId + '/qa-entries/' + entryId, {method: 'PUT', body: JSON.stringify({question: question, answer: answer || null, portalTopicId: topicId || null, order: order || 0})});
+  },
+  deleteQaEntry: function(portalId, entryId){
+    return apiFetch('/organisations/me/portals/' + portalId + '/qa-entries/' + entryId, {method: 'DELETE'});
+  }
+};
+
+/* End-user-facing Organisational Portals — route base /api/portals, see PortalHomeController.cs/
+   .php. [Authorize]-only server-side (no ProjectMember/OrgAdmin policy) — a Portal must be reachable
+   by an org user who belongs to zero projects. A nonexistent/unpublished/ungranted Portal all 404
+   identically, same no-enumeration-oracle stance as everywhere else in this app. */
+export var portalHomeApi = {
+  /* Backs the side nav's "Portals" section — every published Portal in the caller's own org this
+     user actually has access to (server-side re-derived, same PortalAccessService check as every
+     other Portal read). */
+  listAccessible: function(){
+    return apiFetch('/portals', {method: 'GET'});
+  },
+  getBySlug: function(slug){
+    return apiFetch('/portals/' + encodeURIComponent(slug), {method: 'GET'});
+  },
+  listAvailableForms: function(portalId){
+    return apiFetch('/portals/' + portalId + '/forms', {method: 'GET'});
+  },
+  listMySubmissions: function(portalId){
+    return apiFetch('/portals/' + portalId + '/submissions', {method: 'GET'});
+  },
+  /* The list above never carries AnswersJson (FormSubmissionListItemDto is a display-only summary
+     row) — this is what actually reopening a saved Draft with its previous answers bound back in
+     needs. */
+  getSubmission: function(portalId, submissionId){
+    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId, {method: 'GET'});
+  },
+  listQa: function(portalId){
+    return apiFetch('/portals/' + portalId + '/qa', {method: 'GET'});
+  },
+  createSubmission: function(portalId, formVersionId, answersJson){
+    return apiFetch('/portals/' + portalId + '/submissions', {method: 'POST', body: JSON.stringify({formVersionId: formVersionId, answersJson: answersJson || null})});
+  },
+  updateSubmission: function(portalId, submissionId, answersJson){
+    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId, {method: 'PUT', body: JSON.stringify({answersJson: answersJson || null})});
+  },
+  deleteSubmission: function(portalId, submissionId){
+    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId, {method: 'DELETE'});
+  },
+  submitSubmission: function(portalId, submissionId){
+    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId + '/submit', {method: 'POST'});
+  },
+  /* Submissions against this Portal currently awaiting the caller's approval — the Portal-surface
+     counterpart to projectFormsApi.listAwaitingMyAction, needed because a Portal-configured approver
+     is never a ProjectMember of the Portal's actioner Project (deliberately membership-free). */
+  listAwaitingMyAction: function(portalId){
+    return apiFetch('/portals/' + portalId + '/submissions/awaiting-me', {method: 'GET'});
+  },
+  actOnApproval: function(portalId, submissionId, action, comment){
+    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId + '/approval-action', {method: 'POST', body: JSON.stringify({action: action, comment: comment || null})});
+  }
+};
+
 /* Enterprise Strategy Management — Org-Admin-only CRUD for Strategies/Pillars/Enablers/Metrics +
    the fulfilment-matrix read, route base /api/organisations/me/strategy, see StrategyController.cs/
    .php. Every one of these is OrgAdmin-gated server-side regardless of what this client sends.

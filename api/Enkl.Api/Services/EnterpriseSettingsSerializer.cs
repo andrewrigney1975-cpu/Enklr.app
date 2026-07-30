@@ -5,10 +5,10 @@ namespace Enkl.Api.Services;
 
 /// <summary>
 /// Shared camelCase (de)serialization for Organisation.EnterpriseSettingsJson — the small subset of
-/// App Settings' "Enterprise" category that applies org-WIDE (Forms & Workflow, Portfolio Planner)
-/// rather than per-project like every other App Settings toggle. Same shape/convention as
+/// App Settings' "Enterprise" category that applies org-WIDE (Forms & Workflow, Portfolio Planner,
+/// Portals) rather than per-project like every other App Settings toggle. Same shape/convention as
 /// ProjectSettingsSerializer, just a different (organisation-scoped) column and a much smaller field
-/// set. Both fields are opt-in (default false) — a missing/corrupted value must never silently turn
+/// set. Every field is opt-in (default false) — a missing/corrupted value must never silently turn
 /// on a module no Org Admin has ever actually switched on.
 /// </summary>
 public static class EnterpriseSettingsSerializer
@@ -39,7 +39,7 @@ public static class EnterpriseSettingsSerializer
             return false;
         }
 
-        var result = new EnterpriseSettingsDto(Get("forms"), Get("portfolioPlanner"));
+        var result = new EnterpriseSettingsDto(Get("forms"), Get("portfolioPlanner"), Get("portals"));
         doc?.Dispose();
         return result;
     }

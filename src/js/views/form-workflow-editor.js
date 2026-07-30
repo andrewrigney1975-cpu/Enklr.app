@@ -5,7 +5,7 @@ import { uid } from '../storage.js';
 import { roundedOrthogonalPathD, DEPMAP_CORNER_RADIUS } from './dependency-map.js';
 import { pickAttachmentSide, sideMidpoint as ggSideMidpoint, sideNormal, buildOrthogonalPoints, edgeGeometry, computeMultiEdgeOffsets, computeEdgeLaneOverrides } from '../features/graph-geometry.js';
 import { gateKey } from '../features/form-workflow-engine.js';
-import { chatApi } from '../api.js';
+import { chatApi, portalsApi } from '../api.js';
 
 /* =========================================================
    ENTERPRISE FORMS ACTION WORKFLOW — visual builder (Phase 4)
@@ -37,7 +37,12 @@ var NODE_TYPE_META = {
   start:    {label: 'Start',    icon: 'rocket'},
   author:   {label: 'Author',   icon: 'edit'},
   approval: {label: 'Approval', icon: 'check'},
-  end:      {label: 'End',      icon: 'checkSquare'}
+  end:      {label: 'End',      icon: 'checkSquare'},
+  // "Action" nodes auto-execute the instant the graph transitions into them — no gating, no user
+  // action needed (unlike Author/Approval) — see FormSubmissionService.ApplyNextNodeAsync (and its
+  // PHP twins) for the server-side execution this UI just configures. raiseTaskInPortal is the only
+  // actionType implemented so far.
+  action:   {label: 'Action',   icon: 'sparkle'}
 };
 
 var GATE_USER_TYPE_LABELS = {teamMember: 'Team Member', projectAdmin: 'Project Admin', orgAdmin: 'Org Admin'};
@@ -56,7 +61,9 @@ export var formWorkflowEditorState = {
   popoverNodeId: null,
   popoverEdgeId: null,
   orgUsers: [],
-  orgUsersLoaded: false
+  orgUsersLoaded: false,
+  portals: [],
+  portalsLoaded: false
 };
 
 /* Called by modals/forms-admin.js when opening the Workflow sub-editor for the form version
@@ -76,6 +83,15 @@ export function loadFormWorkflowGraph(workflow, readOnly){
       formWorkflowEditorState.orgUsers = users || [];
       formWorkflowEditorState.orgUsersLoaded = true;
     }, function(){ formWorkflowEditorState.orgUsersLoaded = true; });
+  }
+  // Only Org Admins reach this editor at all (Forms authoring is Org-Admin-only), so the same
+  // OrgAdmin-gated /organisations/me/portals listing is always reachable here — no separate
+  // "am I allowed to see this" check needed beyond what already gates the whole Forms Admin modal.
+  if(!formWorkflowEditorState.portalsLoaded){
+    portalsApi.list().then(function(portals){
+      formWorkflowEditorState.portals = portals || [];
+      formWorkflowEditorState.portalsLoaded = true;
+    }, function(){ formWorkflowEditorState.portalsLoaded = true; });
   }
   updateFormWorkflowModeButtons();
   updateFormWorkflowAddButtons();
@@ -123,6 +139,11 @@ function computeFormWorkflowLayout(){
 function gateSummary(node){
   if(node.type === 'author') return (node.authorGates || []).length + ' gate' + ((node.authorGates || []).length === 1 ? '' : 's');
   if(node.type === 'approval') return (node.approverGates || []).length + ' gate' + ((node.approverGates || []).length === 1 ? '' : 's') + ' · ' + (node.approvalMode === 'all' ? 'ALL' : 'ANY');
+  if(node.type === 'action'){
+    var cfg = node.config || {};
+    var portal = formWorkflowEditorState.portals.filter(function(p){ return p.id === cfg.portalId; })[0];
+    return portal ? ('Raise task in ' + portal.name) : 'No Portal selected yet';
+  }
   return '';
 }
 
@@ -197,7 +218,7 @@ export function setFormWorkflowMode(mode){
   updateFormWorkflowModeButtons();
 }
 function updateFormWorkflowAddButtons(){
-  ['formWorkflowAddStartBtn', 'formWorkflowAddAuthorBtn', 'formWorkflowAddApprovalBtn', 'formWorkflowAddEndBtn', 'formWorkflowModeConnectBtn'].forEach(function(id){
+  ['formWorkflowAddStartBtn', 'formWorkflowAddAuthorBtn', 'formWorkflowAddApprovalBtn', 'formWorkflowAddEndBtn', 'formWorkflowAddActionBtn', 'formWorkflowModeConnectBtn'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.classList.toggle('hidden', formWorkflowEditorState.readOnly);
   });
@@ -223,7 +244,9 @@ export function addFormWorkflowNode(type){
     label: (NODE_TYPE_META[type] || NODE_TYPE_META.start).label,
     authorGates: type === 'author' ? [] : undefined,
     approverGates: type === 'approval' ? [] : undefined,
-    approvalMode: type === 'approval' ? 'any' : undefined
+    approvalMode: type === 'approval' ? 'any' : undefined,
+    actionType: type === 'action' ? 'raiseTaskInPortal' : undefined,
+    config: type === 'action' ? {portalId: null, priorityColumn: 'medium', assigneeGate: null, titleTemplate: ''} : undefined
   };
   formWorkflowEditorState.workflow.nodes.push(node);
   renderFormWorkflowEditor();
@@ -406,9 +429,10 @@ export function openFormWorkflowNodePopover(nodeId, clientX, clientY){
   document.getElementById('formWorkflowNodeLabelInput').value = node.label || '';
   document.getElementById('formWorkflowNodeLabelInput').disabled = formWorkflowEditorState.readOnly;
 
-  var isAuthor = node.type === 'author', isApproval = node.type === 'approval';
+  var isAuthor = node.type === 'author', isApproval = node.type === 'approval', isAction = node.type === 'action';
   document.getElementById('formWorkflowAuthorGatesSection').classList.toggle('hidden', !isAuthor);
   document.getElementById('formWorkflowApprovalGatesSection').classList.toggle('hidden', !isApproval);
+  document.getElementById('formWorkflowActionSection').classList.toggle('hidden', !isAction);
 
   if(isAuthor) renderGateEditorSection('author', node.authorGates);
   if(isApproval){
@@ -416,6 +440,7 @@ export function openFormWorkflowNodePopover(nodeId, clientX, clientY){
     document.getElementById('formWorkflowApprovalModeSelect').disabled = formWorkflowEditorState.readOnly;
     renderGateEditorSection('approval', node.approverGates);
   }
+  if(isAction) renderActionSection(node);
 
   document.getElementById('formWorkflowNodeDeleteBtn').classList.toggle('hidden', formWorkflowEditorState.readOnly);
   document.getElementById('formWorkflowNodeSaveBtn').classList.toggle('hidden', formWorkflowEditorState.readOnly);
@@ -472,6 +497,34 @@ function renderGateEditorSection(prefix, gatesArray){
   });
 }
 
+/* Populates the Action section's three selects + title input from node.config every time the
+   popover opens — no persistent listeners to worry about doubling (unlike renderGateEditorSection's
+   add-row), since each select is just read from directly in saveFormWorkflowNodePopover rather than
+   wired with its own change handler. */
+function renderActionSection(node){
+  var cfg = node.config || {};
+  var portalSelect = document.getElementById('formWorkflowActionPortalSelect');
+  portalSelect.innerHTML = '<option value="">Select a Portal…</option>' + formWorkflowEditorState.portals.map(function(p){
+    return '<option value="' + escapeHTML(p.id) + '">' + escapeHTML(p.name) + '</option>';
+  }).join('');
+  portalSelect.value = cfg.portalId || '';
+  portalSelect.disabled = formWorkflowEditorState.readOnly;
+
+  document.getElementById('formWorkflowActionPrioritySelect').value = cfg.priorityColumn || 'medium';
+  document.getElementById('formWorkflowActionPrioritySelect').disabled = formWorkflowEditorState.readOnly;
+
+  var assigneeSelect = document.getElementById('formWorkflowActionAssigneeSelect');
+  var userOptions = formWorkflowEditorState.orgUsers.map(function(u){
+    return '<option value="' + escapeHTML(u.id) + '">' + escapeHTML(u.displayName) + '</option>';
+  }).join('');
+  assigneeSelect.innerHTML = '<option value="">Form\'s approver, if known</option>' + userOptions;
+  assigneeSelect.value = (cfg.assigneeGate && cfg.assigneeGate.kind === 'namedUser') ? cfg.assigneeGate.value : '';
+  assigneeSelect.disabled = formWorkflowEditorState.readOnly;
+
+  document.getElementById('formWorkflowActionTitleInput').value = cfg.titleTemplate || '';
+  document.getElementById('formWorkflowActionTitleInput').disabled = formWorkflowEditorState.readOnly;
+}
+
 export function closeFormWorkflowNodePopover(){
   document.getElementById('formWorkflowNodePopover').classList.add('hidden');
   formWorkflowEditorState.popoverNodeId = null;
@@ -484,6 +537,16 @@ export function saveFormWorkflowNodePopover(){
   if(!node) return;
   node.label = document.getElementById('formWorkflowNodeLabelInput').value.trim() || (NODE_TYPE_META[node.type] || NODE_TYPE_META.start).label;
   if(node.type === 'approval') node.approvalMode = document.getElementById('formWorkflowApprovalModeSelect').value === 'all' ? 'all' : 'any';
+  if(node.type === 'action'){
+    var portalId = document.getElementById('formWorkflowActionPortalSelect').value || null;
+    var assigneeUserId = document.getElementById('formWorkflowActionAssigneeSelect').value;
+    node.config = {
+      portalId: portalId,
+      priorityColumn: document.getElementById('formWorkflowActionPrioritySelect').value,
+      assigneeGate: assigneeUserId ? {kind: 'namedUser', value: assigneeUserId} : null,
+      titleTemplate: document.getElementById('formWorkflowActionTitleInput').value.trim() || null
+    };
+  }
   closeFormWorkflowNodePopover();
   renderFormWorkflowEditor();
 }

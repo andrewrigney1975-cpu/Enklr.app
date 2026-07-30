@@ -27,6 +27,14 @@
     --kf-font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --kf-depnode-opacity: 0.8;
 
+    /* Portal home page's own accent pair (views/portal-home... see modals/portal-home.js) — a warm
+       terracotta distinct from every priority/status color already in use elsewhere, applied only to
+       the Portal's own header band, active-stepper state, and form-tile hover. Deliberately NOT used
+       anywhere else in the app — signals "you're in a different room" for this one end-user surface
+       without touching the board's own color vocabulary. */
+    --kf-portal-accent: #c1622d;
+    --kf-portal-accent-soft: rgba(193, 98, 45, .12);
+
     /* Dashboard Chart widget's categorical palette (features/dashboard-charts.js) — the dataviz
        skill's validated default order/hues, fixed order, never cycled past slot 8 (a 9th category
        folds into "Other" instead). Re-validated against this app's own --kf-surface value (both
@@ -86,6 +94,9 @@
     --kf-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 0 1px rgba(0, 0, 0, .4);
     --kf-shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, .6), 0 0 1px rgba(0, 0, 0, .5);
     --kf-modal-shadow: 0 8px 28px rgba(0, 0, 0, .55);
+
+    --kf-portal-accent: #e08a55;
+    --kf-portal-accent-soft: rgba(224, 138, 85, .16);
 
     --kf-chip-bg: var(--kf-surface);
     --kf-chip-active-bg: var(--kf-blue);
@@ -4156,7 +4167,9 @@
   #formWorkflowNodeSaveBtn.hidden,
   #formWorkflowEdgeDeleteBtn.hidden,
   [id^="formWorkflowGateNamedUserSelect-"].hidden,
-  [id^="formWorkflowGateUserTypeSelect-"].hidden {
+  [id^="formWorkflowGateUserTypeSelect-"].hidden,
+  #formWorkflowActionSection.hidden,
+  #formWorkflowAddActionBtn.hidden {
     display: none;
   }
 
@@ -5967,6 +5980,358 @@
     max-width: 98vw;
     height: 86vh;
     max-height: 86vh;
+  }
+
+  /* True edge-to-edge fullscreen tier — reserved for front-end/end-user-facing surfaces (Portal home
+     pages) that want to feel like their own standalone experience rather than a dialog floating over
+     the board, unlike every other .kf-modal-lg feature (Whiteboard, Forms, Portfolio Planner, ...)
+     which stays a centered-with-backdrop 98vw×86vh dialog. The overlay wrapper needs its own
+     "-full" modifier class (added by whichever markup uses kf-modal-full) to zero out the base
+     .kf-overlay's 20px padding, matching this codebase's "no generic utility class, every component
+     gets its own compound selector" convention — .kf-modal-full alone isn't enough, since the parent
+     .kf-overlay's padding would otherwise leave a 20px backdrop gap around the "fullscreen" modal. */
+  .kf-modal.kf-modal-full {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .kf-overlay.kf-overlay-full {
+    padding: 0;
+  }
+
+  /* ===== Portal home page (end-user Organisational Portals experience, kf-modal-full) =====
+     A deliberately calmer, more spacious register than the board's dense project-management chrome
+     — see PORTALS.md's own design brief. Everything below is scoped under #portalHomeOverlay so it
+     can never leak into any other modal. */
+
+  #portalHomeOverlay .kf-modal-header {
+    background: linear-gradient(180deg, var(--kf-portal-accent-soft), transparent);
+    border-bottom: 1px solid var(--kf-border);
+    align-items: center;
+    /* Overrides the base .kf-modal-header's justify-content:space-between — the close button is
+       pulled out of flow (position:absolute below), leaving just the icon + text as flex children;
+       space-between would push those two apart to the far edges instead of keeping them grouped
+       together at the left, next to each other. */
+    justify-content: flex-start;
+    gap: 16px;
+    padding: 20px 28px 16px;
+  }
+
+  .kf-portal-home-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    /* On top of the header's own 16px icon/text gap — pushes the title+description block further
+       right, away from the icon, per explicit request. */
+    margin-left: 16px;
+  }
+
+  #portalHomeOverlay .kf-modal-header .kf-modal-header-actions {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+  }
+
+  .kf-portal-home-greeting {
+    font-size: 24px;
+    font-weight: 300;
+    /* The app's custom header colour (My Preferences), falling back to the portal accent when no
+       custom colour is set — same --kf-header-bg fallback shape applyHeaderColor's own consumers
+       already use everywhere else, and the same value the large heading icon beside it is coloured
+       with, so the two read as one deliberately-coloured unit. */
+    color: var(--kf-header-bg, var(--kf-portal-accent));
+    line-height: 1.2;
+  }
+
+  .kf-portal-home-desc {
+    font-size: 13px;
+    color: var(--kf-text-secondary);
+    max-width: 640px;
+  }
+
+  /* Wider left/right rails (curated forms list, Q&A rail) than the middle "My requests" pane —
+     requests are a short, scannable list of status steppers that doesn't need much horizontal room,
+     while the form tiles and Q&A entries both benefit from the extra width for their own text. */
+  .kf-portal-home-body {
+    display: grid;
+    grid-template-columns: 340px 1fr 520px;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .kf-portal-home-pane {
+    padding: 20px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .kf-portal-home-pane + .kf-portal-home-pane {
+    border-left: 1px solid var(--kf-border);
+  }
+
+  .kf-portal-home-pane-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--kf-text-faint);
+    margin-bottom: 12px;
+  }
+
+  /* Left pane — Start a request (available forms), plain icon+label list, deliberately NOT numbered
+     — these forms aren't a sequence, so a 01/02/03 marker would encode nothing true about them. */
+  .kf-portal-home-form-tile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--kf-radius);
+    cursor: pointer;
+    color: var(--kf-text);
+    margin-bottom: 4px;
+  }
+  .kf-portal-home-form-tile:hover {
+    background: var(--kf-portal-accent-soft);
+  }
+  .kf-portal-home-form-tile .kf-icon {
+    color: var(--kf-portal-accent);
+    flex-shrink: 0;
+  }
+
+  /* Middle pane — My requests, the signature status-stepper device (Draft -> Submitted -> In review
+     -> Approved), reused nowhere else in the app — see PORTALS.md's design note on why this replaces
+     a plain status badge here specifically: it directly encodes the submission's real state machine. */
+  .kf-portal-request-card {
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .kf-portal-request-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kf-text);
+    margin-bottom: 10px;
+  }
+  .kf-portal-stepper {
+    display: flex;
+    align-items: center;
+  }
+  .kf-portal-stepper-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+  }
+  .kf-portal-stepper-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--kf-border-strong);
+    z-index: 1;
+  }
+  .kf-portal-stepper-step.done .kf-portal-stepper-dot,
+  .kf-portal-stepper-step.current .kf-portal-stepper-dot {
+    background: var(--kf-portal-accent);
+  }
+  .kf-portal-stepper-step.rejected .kf-portal-stepper-dot {
+    background: var(--kf-danger);
+  }
+  .kf-portal-stepper-line {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: var(--kf-border-strong);
+    z-index: 0;
+  }
+  .kf-portal-stepper-step:last-child .kf-portal-stepper-line {
+    display: none;
+  }
+  .kf-portal-stepper-step.done .kf-portal-stepper-line {
+    background: var(--kf-portal-accent);
+  }
+  .kf-portal-stepper-label {
+    font-size: 10px;
+    color: var(--kf-text-faint);
+    margin-top: 5px;
+    text-align: center;
+  }
+  .kf-portal-stepper-step.current .kf-portal-stepper-label {
+    color: var(--kf-portal-accent);
+    font-weight: 600;
+  }
+
+  /* Right pane — Answers (Q&A), a knowledge-base-style expand/collapse accordion per entry, grouped
+     under small-caps topic labels — a real structural label (matches the side-nav "Views"/"Tools"
+     section-label precedent), not decoration. */
+  .kf-portal-qa-search {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 12px;
+  }
+  .kf-portal-qa-topic {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--kf-portal-accent);
+    margin: 16px 0 6px;
+  }
+  .kf-portal-qa-topic:first-child {
+    margin-top: 0;
+  }
+  .kf-portal-qa-entry {
+    border-bottom: 1px solid var(--kf-border);
+  }
+  .kf-portal-qa-question {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 0;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--kf-text);
+  }
+  .kf-portal-qa-question .kf-icon {
+    color: var(--kf-text-faint);
+    flex-shrink: 0;
+    transition: transform .15s;
+  }
+  .kf-portal-qa-entry.expanded .kf-portal-qa-question .kf-icon {
+    transform: rotate(90deg);
+  }
+  .kf-portal-qa-answer {
+    font-size: 12.5px;
+    color: var(--kf-text-secondary);
+    padding: 0 0 12px;
+    white-space: pre-wrap;
+  }
+  .kf-portal-qa-answer.hidden {
+    display: none;
+  }
+
+  @media (max-width: 860px) {
+    .kf-portal-home-body {
+      grid-template-columns: 1fr;
+      overflow-y: auto;
+    }
+    .kf-portal-home-pane + .kf-portal-home-pane {
+      border-left: none;
+      border-top: 1px solid var(--kf-border);
+    }
+  }
+
+  /* Portal icon — the large heading icon on the fullscreen home page, coloured with the app's
+     custom header colour when set (falls back to the portal accent otherwise, same fallback shape
+     applyHeaderColor's own --kf-header-bg/-fg pair already uses everywhere else). */
+  .kf-portal-home-icon-large {
+    color: var(--kf-header-bg, var(--kf-portal-accent));
+    flex-shrink: 0;
+  }
+
+  /* Icon picker (Manage Portals > Details tab) — a plain wrapping grid of icon buttons drawn from
+     the same shared ICON_PATHS library every other icon in the app uses (Team, Health Dashboard,
+     etc. are already in there — no Portal-specific icon set). */
+  .kf-portal-icon-preview {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--kf-radius);
+    background: var(--kf-column-bg);
+    color: var(--kf-text-secondary);
+  }
+
+  .kf-portal-icon-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding: 8px;
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+  }
+
+  .kf-portal-icon-grid button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--kf-radius);
+    background: none;
+    color: var(--kf-text-secondary);
+    cursor: pointer;
+  }
+
+  .kf-portal-icon-grid button:hover {
+    background: var(--kf-hover-tint);
+  }
+
+  .kf-portal-icon-grid button.selected {
+    border-color: var(--kf-portal-accent);
+    color: var(--kf-portal-accent);
+    background: var(--kf-portal-accent-soft);
+  }
+
+  /* Side nav "Portals" section — dynamic, populated per-user from portalHomeApi.listAccessible(),
+     same .kf-side-nav-item shape every other entry uses so it inherits identical spacing/hover/
+     tooltip behavior; only the icon differs per Portal instead of being fixed per feature. */
+  #sideNavPortalsSection.hidden {
+    display: none;
+  }
+
+  /* Organisational Portals — no generic .hidden utility class exists anywhere in this app's CSS
+     (see root CLAUDE.md's own note on this gotcha), so every element toggled hidden here needs its
+     own compound selector, same convention as every other feature's own block of these. This is the
+     exact bug that made every Manage Portals editor tab render simultaneously on open instead of
+     only the active one — the JS state (.classList.toggle('hidden', ...)) was toggling correctly the
+     whole time, nothing in the CSS was ever listening for it. */
+  #portalsAdminEmpty.hidden,
+  #portalsAdminCreateRow.hidden,
+  #portalEditIconGrid.hidden,
+  #portalEditPublishBtn.hidden,
+  #portalEditArchiveBtn.hidden,
+  #portalEditTabDetails.hidden,
+  #portalEditTabAccess.hidden,
+  #portalEditTabForms.hidden,
+  #portalEditTabQa.hidden,
+  #portalEditTabTeam.hidden,
+  #portalAccessEmpty.hidden,
+  #portalFormsEmpty.hidden,
+  #portalQaAddTopicRow.hidden,
+  #portalQaAddEntryRow.hidden,
+  #portalQaEmpty.hidden,
+  #portalTeamEmpty.hidden,
+  #portalHomeFormsEmpty.hidden,
+  #portalHomeRequestsEmpty.hidden,
+  #portalHomeQaEmpty.hidden,
+  #portalHomeQaNoMatches.hidden,
+  #portalHomeFilloutMissingWarning.hidden,
+  #portalHomeFilloutDeleteBtn.hidden,
+  #portalHomeAwaitingSection.hidden,
+  #portalHomeFilloutTrailSection.hidden,
+  #portalHomeFilloutCommentField.hidden,
+  #portalHomeFilloutSaveDraftBtn.hidden,
+  #portalHomeFilloutSubmitBtn.hidden,
+  #portalHomeFilloutApproveBtn.hidden,
+  #portalHomeFilloutRejectBtn.hidden {
+    display: none;
   }
 
   /* The Team modal's member rows (avatar + name + role + allocated-fraction + Admin checkbox +

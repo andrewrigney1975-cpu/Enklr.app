@@ -96,6 +96,26 @@ export function isNodeApprovalComplete(node, trail){
   return entries.length > 0;
 }
 
+/* Whether actingUser could ever START a brand-new submission of this form version at all — distinct
+   from evaluateFormAction('author') below, which checks an EXISTING submission's current node
+   against its own gates and only ever makes sense once a submission already exists (with submission
+   null, evaluateFormAction resolves to the graph's Start node itself, whose type is always 'start',
+   never 'author', so it can never answer "am I allowed to author a NEW one"). Walks Start's own
+   outgoing edge to the Author node the same way FormSubmissionService.SubmitAsync does server-side
+   (and its PHP twins), so this client-side picker filter can never show a form as available that the
+   server would then reject on submit for a gate reason. A form with no workflow configured at all,
+   or whose Start doesn't lead straight to an Author node, can never be authored by anyone — same
+   "unconfigured means unusable, not omitted from validation" stance as the server's own check. */
+export function canUserStartForm(formVersion, actingUser){
+  var workflow = parseFormWorkflow(formVersion ? formVersion.workflowJson : null);
+  var start = findStartNode(workflow);
+  if(!start) return false;
+  var edge = outgoingEdge(workflow, start.id);
+  var authorNode = edge ? findWorkflowNode(workflow, edge.toNodeId) : null;
+  if(!authorNode || authorNode.type !== 'author') return false;
+  return userSatisfiesAnyGate(authorNode.authorGates, actingUser);
+}
+
 /* The single entry point deciding whether actingUser may perform `action` ('author'|'approve'|
    'reject') on a submission RIGHT NOW, given the form version's workflow and the submission's own
    CurrentNodeId. Deny-by-default throughout, same {allowed, message} shape as
@@ -148,14 +168,25 @@ export function buildApprovalTrailEntry(node, actingUser, action, comment){
 export function computeNextNodeId(formVersion, node, action, trail){
   if(action === 'reject') return node.id;
   var workflow = parseFormWorkflow(formVersion ? formVersion.workflowJson : null);
+  var current = null;
   if(node.type === 'author'){
     var edge = outgoingEdge(workflow, node.id);
-    return edge ? edge.toNodeId : node.id;
-  }
-  if(node.type === 'approval'){
+    current = edge ? findWorkflowNode(workflow, edge.toNodeId) : null;
+  } else if(node.type === 'approval'){
     if(!isNodeApprovalComplete(node, trail)) return node.id;
     var edge2 = outgoingEdge(workflow, node.id);
-    return edge2 ? edge2.toNodeId : node.id;
+    current = edge2 ? findWorkflowNode(workflow, edge2.toNodeId) : null;
+  } else {
+    return node.id;
   }
-  return node.id;
+  // Auto-pass-through any consecutive "action" nodes (e.g. "Raise task in Portal") — mirrors the
+  // server's own auto-execution exactly (FormSubmissionService.ApplyNextNodeAsync and its PHP
+  // twins), so CurrentNodeId is never actually set to an action node's id. This module never
+  // raises a task itself (pure, no side effects, per this file's own doc comment) — it only
+  // predicts, for UI purposes, which non-action node the server will actually land on.
+  while(current && current.type === 'action'){
+    var actionEdge = outgoingEdge(workflow, current.id);
+    current = actionEdge ? findWorkflowNode(workflow, actionEdge.toNodeId) : null;
+  }
+  return current ? current.id : node.id;
 }

@@ -66,7 +66,10 @@ public static class ProjectSettingsSerializer
             // Opt-in, same shape as Forms — was previously a pure Org-Admin permission gate with no
             // per-project toggle at all; a missing/corrupted value must fail closed to that same
             // hidden-until-toggled behavior, not silently re-expose the nav entry everywhere.
-            PortfolioPlanner: Get("portfolioPlanner", false));
+            PortfolioPlanner: Get("portfolioPlanner", false),
+            // Opt-in, same shape as Forms/PortfolioPlanner — Organisational Portals stays invisible
+            // until an Org Admin deliberately turns it on for this project.
+            Portals: Get("portals", false));
 
         doc?.Dispose();
         return result;
