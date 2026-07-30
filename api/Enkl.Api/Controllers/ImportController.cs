@@ -35,4 +35,11 @@ public class ImportController : ControllerBase
         var result = await _import.ImportTeamMembersAsync(User.OrgId(), request);
         return Ok(result);
     }
+
+    [HttpPost("teams-committees")]
+    public async Task<IActionResult> ImportTeamsCommittees(ImportRequest request)
+    {
+        var result = await _import.ImportTeamsCommitteesAsync(User.OrgId(), request);
+        return Ok(result);
+    }
 }

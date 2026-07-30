@@ -1,7 +1,7 @@
 "use strict";
 import { getCurrentProject } from '../store.js';
 import { toast } from '../ui.js';
-import { isOrgAdmin, importOrganisationUsersApi, importTeamMembersApi } from '../api.js';
+import { isOrgAdmin, importOrganisationUsersApi, importTeamMembersApi, importTeamsCommitteesApi } from '../api.js';
 import { normalizeHeaderButtonVisibility } from '../storage.js';
 import { IMPORT_ENTITY_ORDER, IMPORT_ENTITY_LABELS, buildSchemaTableHtml, buildCsvTemplate, buildJsonSchema } from '../features/import-schemas.js';
 import { parseImportFile } from '../features/csv-parser.js';
@@ -23,13 +23,13 @@ import { confirmDialog } from './confirm.js';
    through the exact same entity-creation path a commit would use, then always rolls back
    server-side) and Commit (dryRun:false), with a per-row results table (row number, outcome, the
    row's own submitted data, and any error message).
-   Phase 4 (this pass): Team Members backend + wiring, added to WIRED_UP_ENTITIES below — the Import
-   Data tab's UI is otherwise entirely entity-agnostic (file upload/Test Run/Commit/results table
-   all work identically regardless of which entity is selected), so enabling a new entity here is
-   just adding it to WIRED_UP_ENTITIES and to currentEntityImportApi()'s mapping, no new UI needed.
-   Teams & Committees and Portal Q&A still show the Schemas-tab-reference-only "coming soon" note,
-   since their own backend endpoints don't exist yet; showing a real file-upload control that always
-   404s would be worse than an honest placeholder.
+   Phase 4: Team Members backend + wiring. Phase 5 (this pass): Teams & Committees backend + wiring,
+   added to WIRED_UP_ENTITIES below — the Import Data tab's UI is otherwise entirely entity-agnostic
+   (file upload/Test Run/Commit/results table all work identically regardless of which entity is
+   selected), so enabling a new entity here is just adding it to WIRED_UP_ENTITIES and to
+   currentEntityImportApi()'s mapping, no new UI needed. Portal Q&A still shows the Schemas-tab-
+   reference-only "coming soon" note, since its own backend endpoint doesn't exist yet; showing a
+   real file-upload control that always 404s would be worse than an honest placeholder.
 
    Portal Q&A is only ever listed once Portals are actually enabled for the organisation
    (visibility.portals && visibility.forms — the same two-flag chain the Portals toggle itself in
@@ -40,7 +40,7 @@ import { confirmDialog } from './confirm.js';
 // Which entities have a real, wired-up backend endpoint so far — grows one at a time as later
 // phases land. Checked both when populating the entity select's "coming soon" state AND again in
 // runTestRun/runCommit themselves (defense-in-depth, same convention as every other gate here).
-var WIRED_UP_ENTITIES = ['organisationUsers', 'teamMembers'];
+var WIRED_UP_ENTITIES = ['organisationUsers', 'teamMembers', 'teamsCommittees'];
 
 // In-memory state for whatever file is currently loaded — reset by both a new file selection and a
 // change of entity, so a Commit can never fire against rows parsed for a DIFFERENT entity/file than
@@ -136,6 +136,7 @@ function currentEntityImportApi(){
   var entity = document.getElementById('importCentreEntitySelect').value;
   if(entity === 'organisationUsers') return importOrganisationUsersApi;
   if(entity === 'teamMembers') return importTeamMembersApi;
+  if(entity === 'teamsCommittees') return importTeamsCommitteesApi;
   return null;
 }
 

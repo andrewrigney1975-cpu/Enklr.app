@@ -11,8 +11,8 @@ use Throwable;
 
 /**
  * Ported from Services/ImportService.cs. Import Centre's bulk-import execution engine (Phase 2:
- * Organisation Users. Phase 4 (this pass): Team Members. Teams & Committees and Portal Q&A land in
- * later phases, each getting their own method here once built). Deliberately its own new service
+ * Organisation Users. Phase 4: Team Members. Phase 5 (this pass): Teams & Committees. Portal Q&A
+ * lands in a later phase, getting its own method here once built). Deliberately its own new service
  * rather than an extension of MigrationService, which wraps its entire import in ONE all-or-nothing
  * transaction around the whole request — this needs the opposite shape: every row gets its OWN
  * transaction, independent of every other row, so one bad row in a 500-row file doesn't sink the
@@ -34,8 +34,12 @@ use Throwable;
  */
 final class ImportService
 {
-    public function __construct(private readonly PDO $db, private readonly OrganisationService $organisations, private readonly MemberService $members)
-    {
+    public function __construct(
+        private readonly PDO $db,
+        private readonly OrganisationService $organisations,
+        private readonly MemberService $members,
+        private readonly TeamCommitteeService $teamsCommittees
+    ) {
     }
 
     /**
@@ -157,6 +161,104 @@ final class ImportService
                 $isProjectAdmin = $isProjectAdminRaw !== null && (strcasecmp($isProjectAdminRaw, 'true') === 0 || $isProjectAdminRaw === '1');
                 if ($isProjectAdmin) {
                     $this->members->setProjectAdmin($projectId, $created['id'], true);
+                }
+
+                if ($dryRun) {
+                    $this->db->rollBack();
+                } else {
+                    $this->db->commit();
+                }
+                $results[] = ['row' => $rowNumber, 'success' => true, 'message' => null, 'data' => $row];
+                $succeeded++;
+            } catch (Throwable $e) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                $results[] = ['row' => $rowNumber, 'success' => false, 'message' => $e->getMessage(), 'data' => $row];
+                $failed++;
+            }
+        }
+
+        return ['total' => count($rows), 'succeeded' => $succeeded, 'failed' => $failed, 'results' => $results];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array{total: int, succeeded: int, failed: int, results: list<array{row: int, success: bool, message: ?string, data: array<string, mixed>}>}
+     */
+    public function importTeamsCommittees(string $organisationId, array $rows, bool $dryRun): array
+    {
+        $results = [];
+        $succeeded = 0;
+        $failed = 0;
+
+        foreach (array_values($rows) as $index => $row) {
+            $rowNumber = $index + 1;
+            $this->db->beginTransaction();
+            try {
+                $projectKey = $this->requireField($row, 'projectKey');
+                $name = $this->requireField($row, 'name');
+                $type = $this->requireField($row, 'type');
+                $description = $this->optionalField($row, 'description');
+                $parentName = $this->optionalField($row, 'parent');
+                $membersRaw = $this->optionalField($row, 'members');
+
+                if ($type !== 'team' && $type !== 'committee') {
+                    throw new ApiValidationException("\"type\" must be \"team\" or \"committee\", got \"{$type}\".");
+                }
+
+                // Same cross-org re-derivation as importTeamMembers above — never trust the
+                // client-supplied key as-is.
+                $stmt = $this->db->prepare('SELECT "Id" FROM "Projects" WHERE "Key" = :key AND "OrganisationId" = :org');
+                $stmt->execute(['key' => $projectKey, 'org' => $organisationId]);
+                $projectId = $stmt->fetchColumn();
+                if ($projectId === false) {
+                    throw new ApiValidationException("No project with key \"{$projectKey}\" exists in your organisation.");
+                }
+
+                // Resolved by NAME within this same project, then handed to create() as a real id —
+                // deliberately stricter than create()'s own interactive-UI behavior (which silently
+                // drops an unresolvable parentId to null). A free-text CSV/JSON column has no such
+                // guarantee, so an unresolvable parent is a genuine, reportable row error here.
+                $parentId = null;
+                if ($parentName !== null) {
+                    $stmt = $this->db->prepare('SELECT "Id" FROM "TeamsCommittees" WHERE "ProjectId" = :pid AND "Name" = :name');
+                    $stmt->execute(['pid' => $projectId, 'name' => $parentName]);
+                    $parentId = $stmt->fetchColumn();
+                    if ($parentId === false) {
+                        throw new ApiValidationException("\"parent\" \"{$parentName}\" was not found among Teams & Committees in project \"{$projectKey}\".");
+                    }
+                }
+
+                // Semicolon-separated usernames, each resolved to a ProjectMember WITHIN this same
+                // project — same strictness rationale as parent above.
+                $memberIds = null;
+                if ($membersRaw !== null) {
+                    $memberIds = [];
+                    foreach (explode(';', $membersRaw) as $rawUsername) {
+                        $username = trim($rawUsername);
+                        if ($username === '') {
+                            continue;
+                        }
+                        $normalizedUsername = UsernameNormalizer::normalize($username);
+                        $stmt = $this->db->prepare(
+                            'SELECT m."Id" FROM "ProjectMembers" m JOIN "Users" u ON u."Id" = m."UserId" WHERE m."ProjectId" = :pid AND u."NormalizedUsername" = :n'
+                        );
+                        $stmt->execute(['pid' => $projectId, 'n' => $normalizedUsername]);
+                        $memberId = $stmt->fetchColumn();
+                        if ($memberId === false) {
+                            throw new ApiValidationException("\"members\" username \"{$username}\" is not a member of project \"{$projectKey}\".");
+                        }
+                        $memberIds[] = $memberId;
+                    }
+                }
+
+                $created = $this->teamsCommittees->create($projectId, [
+                    'name' => $name, 'description' => $description, 'type' => $type,
+                    'parentId' => $parentId, 'memberIds' => $memberIds ?? [],
+                ]);
+                if ($created === null) {
+                    throw new ApiValidationException('Could not create the team/committee.');
                 }
 
                 if ($dryRun) {

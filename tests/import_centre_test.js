@@ -88,6 +88,10 @@ function openAppSettings(doc){
       total: 1, succeeded: 1, failed: 0,
       results: [{row: 1, success: true, message: null, data: {projectKey: 'DEMO', name: 'New Member'}}]
     };
+    let mockTeamsCommitteesResult = {
+      total: 1, succeeded: 1, failed: 0,
+      results: [{row: 1, success: true, message: null, data: {projectKey: 'DEMO', name: 'New Team', type: 'team'}}]
+    };
 
     const dom = new JSDOM(html, {
       runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
@@ -104,6 +108,10 @@ function openAppSettings(doc){
           if(url === '/api/organisations/me/import/team-members' && options && options.method === 'POST'){
             lastImportRequestBody = JSON.parse(options.body);
             return {ok: true, status: 200, json: async () => mockTeamMembersResult};
+          }
+          if(url === '/api/organisations/me/import/teams-committees' && options && options.method === 'POST'){
+            lastImportRequestBody = JSON.parse(options.body);
+            return {ok: true, status: 200, json: async () => mockTeamsCommitteesResult};
           }
           throw new Error('unhandled fetch in test: ' + url);
         };
@@ -153,14 +161,10 @@ function openAppSettings(doc){
         doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
         !doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
 
-    // Switching to an entity with no backend yet shows the "coming soon" note instead of the upload area.
-    doc.getElementById('importCentreEntitySelect').value = 'teamsCommittees';
-    doc.getElementById('importCentreEntitySelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
-    await wait(10);
-    log('Teams & Committees (not wired up yet) shows the "coming soon" note, hides the upload area',
-        !doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
-        doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
-    log('"coming soon" note mentions the Schemas tab', doc.getElementById('importCentreComingSoonHint').textContent.indexOf('Schemas') !== -1);
+    // Portal Q&A has no backend yet (gated on Portals being enabled, which it isn't in this seed) —
+    // switching straight to it isn't possible via the select here since it's hidden from the
+    // dropdown entirely when Portals is off, so the "coming soon" check happens in block 4 below,
+    // where Portals IS enabled and the option is actually present.
 
     // Team Members (Phase 4) is wired up too — same generic upload area, no "coming soon" note.
     doc.getElementById('importCentreEntitySelect').value = 'teamMembers';
@@ -181,6 +185,25 @@ function openAppSettings(doc){
     log('Team Members Test Run posts to the team-members endpoint, not organisation-users', lastImportUrl === '/api/organisations/me/import/team-members', lastImportUrl);
     log('Team Members Test Run sends the parsed projectKey/name/email row', lastImportRequestBody && lastImportRequestBody.rows[0].projectKey === 'DEMO' && lastImportRequestBody.rows[0].name === 'New Member', JSON.stringify(lastImportRequestBody));
     log('Team Members results render using the same generic results table', doc.querySelectorAll('#importCentreResultsList tbody tr').length === 1);
+
+    // Teams & Committees (Phase 5) is wired up too — same generic upload area, no "coming soon" note.
+    doc.getElementById('importCentreEntitySelect').value = 'teamsCommittees';
+    doc.getElementById('importCentreEntitySelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(10);
+    log('Teams & Committees (wired up in Phase 5) shows the real upload area, not "coming soon"',
+        doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
+        !doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
+
+    // Teams & Committees Test Run posts to its OWN endpoint, not Team Members'.
+    const teamsCommitteesFileInput = doc.getElementById('importCentreFileInput');
+    Object.defineProperty(teamsCommitteesFileInput, 'files', {value: [new FakeFile('projectKey,name,type\r\nDEMO,New Team,team\r\n', 'teams.csv')], configurable: true});
+    teamsCommitteesFileInput.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(30);
+    doc.getElementById('importCentreTestRunBtn').click();
+    await wait(30);
+    log('Teams & Committees Test Run posts to the teams-committees endpoint', lastImportUrl === '/api/organisations/me/import/teams-committees', lastImportUrl);
+    log('Teams & Committees Test Run sends the parsed projectKey/name/type row', lastImportRequestBody && lastImportRequestBody.rows[0].projectKey === 'DEMO' && lastImportRequestBody.rows[0].name === 'New Team' && lastImportRequestBody.rows[0].type === 'team', JSON.stringify(lastImportRequestBody));
+    log('Teams & Committees results render using the same generic results table', doc.querySelectorAll('#importCentreResultsList tbody tr').length === 1);
 
     // Switch back to Organisation Users for the real upload flow below.
     doc.getElementById('importCentreEntitySelect').value = 'organisationUsers';
@@ -336,6 +359,17 @@ function openAppSettings(doc){
     await wait(20);
     doc.getElementById('appSettingsImportCentreBtn').click();
     await wait(20);
+
+    // Portal Q&A (no backend yet) is the only entity still showing the "coming soon" note once
+    // Portals is enabled and its option is actually selectable.
+    doc.getElementById('importCentreEntitySelect').value = 'portalQa';
+    doc.getElementById('importCentreEntitySelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(10);
+    log('Portal Q&A (not wired up yet) shows the "coming soon" note, hides the upload area',
+        !doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
+        doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
+    log('"coming soon" note mentions the Schemas tab', doc.getElementById('importCentreComingSoonHint').textContent.indexOf('Schemas') !== -1);
+
     doc.getElementById('importCentreTabSchemasBtn').click();
     await wait(20);
 

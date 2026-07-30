@@ -9,6 +9,7 @@ use Enkl\Api\Db\Database;
 use Enkl\Api\Services\ImportService;
 use Enkl\Api\Services\MemberService;
 use Enkl\Api\Services\OrganisationService;
+use Enkl\Api\Services\TeamCommitteeService;
 use Enkl\Api\Tests\Support\TestDataHelper;
 use PDO;
 use PHPUnit\Framework\TestCase;
@@ -29,7 +30,7 @@ final class ImportServiceTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         self::$db = Database::connection();
-        self::$import = new ImportService(self::$db, new OrganisationService(self::$db), new MemberService(self::$db));
+        self::$import = new ImportService(self::$db, new OrganisationService(self::$db), new MemberService(self::$db), new TeamCommitteeService(self::$db));
     }
 
     /** @return array<string, string> */
@@ -247,6 +248,165 @@ final class ImportServiceTest extends TestCase
         self::assertSame(1, $result['succeeded']);
         $stmt = self::$db->prepare('SELECT 1 FROM "ProjectMembers" m JOIN "Users" u ON u."Id" = m."UserId" WHERE m."ProjectId" = :pid AND u."DisplayName" = :name');
         $stmt->execute(['pid' => $projectId, 'name' => 'Dry Run Member']);
+        self::assertFalse($stmt->fetch());
+    }
+
+    // ── Teams & Committees (Phase 5) ───────────────────────────────────────────────────────────
+
+    /** @return array<string, string> */
+    private static function teamRow(string $projectKey, string $name, ?array $extra = null): array
+    {
+        $row = ['projectKey' => $projectKey, 'name' => $name, 'type' => 'team'];
+        return $extra !== null ? array_merge($row, $extra) : $row;
+    }
+
+    private static function projectKeyFor(string $projectId): string
+    {
+        $stmt = self::$db->prepare('SELECT "Key" FROM "Projects" WHERE "Id" = :id');
+        $stmt->execute(['id' => $projectId]);
+        return $stmt->fetchColumn();
+    }
+
+    public function testImportTeamsCommitteesCommitValidRowActuallyPersistsIt(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $projectKey = self::projectKeyFor($projectId);
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [
+            self::teamRow($projectKey, 'Imported Team', ['type' => 'committee', 'description' => 'A committee']),
+        ], false);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT "Type", "Description" FROM "TeamsCommittees" WHERE "ProjectId" = :pid AND "Name" = :name');
+        $stmt->execute(['pid' => $projectId, 'name' => 'Imported Team']);
+        $row = $stmt->fetch();
+        self::assertNotFalse($row);
+        self::assertSame('committee', $row['Type']);
+        self::assertSame('A committee', $row['Description']);
+    }
+
+    public function testImportTeamsCommitteesUnknownProjectKeyFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [self::teamRow('NOSUCHKEY', "Someone's Team")], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('No project with key', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamsCommitteesProjectKeyBelongingToAnotherOrgFailsWithTheSameNotFoundMessage(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $otherSeeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('otherOrg'), TestDataHelper::unique('otherAdmin'));
+        $otherProjectId = TestDataHelper::seedProject(self::$db, $otherSeeded['orgId'], TestDataHelper::unique('P'), $otherSeeded['userId']);
+        $otherProjectKey = self::projectKeyFor($otherProjectId);
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [self::teamRow($otherProjectKey, "Someone's Team")], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('No project with key', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamsCommitteesInvalidTypeFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $projectKey = self::projectKeyFor($projectId);
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [
+            self::teamRow($projectKey, 'Bad Type Team', ['type' => 'not-a-real-type']),
+        ], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('"type"', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamsCommitteesParentResolvesToAnAlreadyExistingTeamCommittee(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $projectKey = self::projectKeyFor($projectId);
+        $parent = (new TeamCommitteeService(self::$db))->create($projectId, ['name' => 'Parent Team', 'type' => 'team']);
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [
+            self::teamRow($projectKey, 'Child Team', ['parent' => 'Parent Team']),
+        ], false);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT "ParentId" FROM "TeamsCommittees" WHERE "ProjectId" = :pid AND "Name" = :name');
+        $stmt->execute(['pid' => $projectId, 'name' => 'Child Team']);
+        self::assertSame($parent['id'], $stmt->fetchColumn());
+    }
+
+    public function testImportTeamsCommitteesUnresolvableParentFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $projectKey = self::projectKeyFor($projectId);
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [
+            self::teamRow($projectKey, 'Orphan Team', ['parent' => 'No Such Parent']),
+        ], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('"parent"', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamsCommitteesMembersResolveToExistingProjectMembers(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $projectKey = self::projectKeyFor($projectId);
+        $username = TestDataHelper::unique('member1');
+        $userId = TestDataHelper::seedUserInOrg(self::$db, $seeded['orgId'], $username);
+        $pmId = self::addProjectMember($projectId, $userId);
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [
+            self::teamRow($projectKey, 'Staffed Team', ['members' => $username]),
+        ], false);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT tcm."ProjectMemberId" FROM "TeamCommitteeMember" tcm JOIN "TeamsCommittees" tc ON tc."Id" = tcm."TeamCommitteeId" WHERE tc."ProjectId" = :pid AND tc."Name" = :name');
+        $stmt->execute(['pid' => $projectId, 'name' => 'Staffed Team']);
+        self::assertSame($pmId, $stmt->fetchColumn());
+    }
+
+    private static function addProjectMember(string $projectId, string $userId): string
+    {
+        $id = \Enkl\Api\Support\Uuid::v4();
+        self::$db->prepare('INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color") VALUES (:id, :pid, :uid, :color)')
+            ->execute(['id' => $id, 'pid' => $projectId, 'uid' => $userId, 'color' => '#000000']);
+        return $id;
+    }
+
+    public function testImportTeamsCommitteesUnresolvableMemberUsernameFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $projectKey = self::projectKeyFor($projectId);
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [
+            self::teamRow($projectKey, 'Bad Members Team', ['members' => 'nosuchperson']),
+        ], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('"members"', $result['results'][0]['message']);
+        self::assertStringContainsString('is not a member of project', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamsCommitteesDryRunDoesNotActuallyPersistIt(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $projectKey = self::projectKeyFor($projectId);
+
+        $result = self::$import->importTeamsCommittees($seeded['orgId'], [self::teamRow($projectKey, 'Dry Run Team')], true);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT 1 FROM "TeamsCommittees" WHERE "ProjectId" = :pid AND "Name" = :name');
+        $stmt->execute(['pid' => $projectId, 'name' => 'Dry Run Team']);
         self::assertFalse($stmt->fetch());
     }
 }

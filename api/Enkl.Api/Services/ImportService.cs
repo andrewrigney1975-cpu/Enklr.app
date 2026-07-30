@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Enkl.Api.Services;
 
 /// <summary>
-/// Import Centre's bulk-import execution engine (Phase 2: Organisation Users. Phase 4 (this pass):
-/// Team Members. Teams &amp; Committees and Portal Q&amp;A land in later phases, each getting their own
+/// Import Centre's bulk-import execution engine (Phase 2: Organisation Users. Phase 4: Team Members.
+/// Phase 5 (this pass): Teams &amp; Committees. Portal Q&amp;A lands in a later phase, getting its own
 /// method here once built). Deliberately its own new service rather than an extension of
 /// MigrationService, which wraps its entire import in ONE all-or-nothing transaction around the
 /// whole request (see that service's own doc comment) — this needs the opposite shape: every row
@@ -22,25 +22,27 @@ namespace Enkl.Api.Services;
 /// rows that creation path might itself have written along the way.
 ///
 /// **Cross-row reference gotcha, inherent to per-row-transaction dry runs, not a bug**: Team
-/// Members' optional `reportsTo` column names another row's own username. If that other row appears
-/// EARLIER in the same file and is a brand-new person (not already an existing member before this
-/// import started), a DRY RUN will roll that earlier row back before this row's `reportsTo` lookup
-/// runs — so the lookup correctly reports "not a member of this project" even though the row "looks
-/// like" it should resolve once actually committed. Only a real Commit makes an earlier row's own
-/// creation durable enough for a later row in the same file to reference it. Document this for
-/// anyone confused by a Test Run flagging a reportsTo that a Commit then accepts.
+/// Members' optional `reportsTo` column (and Teams &amp; Committees' `parent`/`members` columns) name
+/// another row's own username/name. If that other row appears EARLIER in the same file and is
+/// brand-new (not already existing before this import started), a DRY RUN will roll that earlier
+/// row back before this row's lookup runs — so the lookup correctly reports "not found" even though
+/// the row "looks like" it should resolve once actually committed. Only a real Commit makes an
+/// earlier row's own creation durable enough for a later row in the same file to reference it.
+/// Document this for anyone confused by a Test Run flagging a reference that a Commit then accepts.
 /// </summary>
 public class ImportService
 {
     private readonly AppDbContext _db;
     private readonly OrganisationService _organisations;
     private readonly MemberService _members;
+    private readonly TeamCommitteeService _teamsCommittees;
 
-    public ImportService(AppDbContext db, OrganisationService organisations, MemberService members)
+    public ImportService(AppDbContext db, OrganisationService organisations, MemberService members, TeamCommitteeService teamsCommittees)
     {
         _db = db;
         _organisations = organisations;
         _members = members;
+        _teamsCommittees = teamsCommittees;
     }
 
     public async Task<ImportResult> ImportOrganisationUsersAsync(Guid organisationId, ImportRequest request)
@@ -155,6 +157,99 @@ public class ImportService
                 {
                     await _members.SetProjectAdminAsync(project.Id, created.Id, true);
                 }
+
+                if (request.DryRun) await transaction.RollbackAsync();
+                else await transaction.CommitAsync();
+
+                results.Add(new ImportRowResult(rowNumber, true, null, row));
+                succeeded++;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                results.Add(new ImportRowResult(rowNumber, false, ex.Message, row));
+                failed++;
+            }
+        }
+
+        return new ImportResult(request.Rows.Count, succeeded, failed, results);
+    }
+
+    public async Task<ImportResult> ImportTeamsCommitteesAsync(Guid organisationId, ImportRequest request)
+    {
+        var results = new List<ImportRowResult>();
+        int succeeded = 0, failed = 0;
+
+        for (int i = 0; i < request.Rows.Count; i++)
+        {
+            var row = request.Rows[i];
+            int rowNumber = i + 1;
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var projectKey = RequireField(row, "projectKey");
+                var name = RequireField(row, "name");
+                var type = RequireField(row, "type");
+                var description = OptionalField(row, "description");
+                var parentName = OptionalField(row, "parent");
+                var membersRaw = OptionalField(row, "members");
+
+                if (type != "team" && type != "committee")
+                {
+                    throw new ApiValidationException($"\"type\" must be \"team\" or \"committee\", got \"{type}\".");
+                }
+
+                // Same cross-org re-derivation as ImportTeamMembersAsync above — never trust the
+                // client-supplied key as-is.
+                var project = await _db.Projects.AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Key == projectKey && p.OrganisationId == organisationId);
+                if (project is null)
+                {
+                    throw new ApiValidationException($"No project with key \"{projectKey}\" exists in your organisation.");
+                }
+
+                // Resolved by NAME within this same project, then handed to CreateAsync as a real id —
+                // deliberately stricter than CreateAsync's own interactive-UI behavior (which silently
+                // drops an unresolvable ParentId to null, since a real dropdown can't offer an invalid
+                // option in the first place). A free-text CSV/JSON column has no such guarantee, so an
+                // unresolvable parent is a genuine, reportable row error here, not something to
+                // quietly drop.
+                Guid? parentId = null;
+                if (parentName != null)
+                {
+                    var parent = await _db.TeamsCommittees.AsNoTracking()
+                        .FirstOrDefaultAsync(t => t.ProjectId == project.Id && t.Name == parentName);
+                    if (parent is null)
+                    {
+                        throw new ApiValidationException($"\"parent\" \"{parentName}\" was not found among Teams & Committees in project \"{projectKey}\".");
+                    }
+                    parentId = parent.Id;
+                }
+
+                // Semicolon-separated usernames, each resolved to a ProjectMember WITHIN this same
+                // project — same strictness rationale as parent above.
+                List<Guid>? memberIds = null;
+                if (membersRaw != null)
+                {
+                    memberIds = new List<Guid>();
+                    foreach (var rawUsername in membersRaw.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var username = rawUsername.Trim();
+                        if (username.Length == 0) continue;
+                        var normalizedUsername = UsernameNormalizer.Normalize(username);
+                        var member = await _db.ProjectMembers.AsNoTracking()
+                            .Include(m => m.User)
+                            .FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.User.NormalizedUsername == normalizedUsername);
+                        if (member is null)
+                        {
+                            throw new ApiValidationException($"\"members\" username \"{username}\" is not a member of project \"{projectKey}\".");
+                        }
+                        memberIds.Add(member.Id);
+                    }
+                }
+
+                var created = await _teamsCommittees.CreateAsync(project.Id, new CreateTeamCommitteeRequest(name, description, type, parentId, memberIds))
+                    ?? throw new ApiValidationException("Could not create the team/committee.");
 
                 if (request.DryRun) await transaction.RollbackAsync();
                 else await transaction.CommitAsync();
