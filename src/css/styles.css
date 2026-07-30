@@ -6306,16 +6306,25 @@
   #portalEditTabAccess.hidden,
   #portalEditTabForms.hidden,
   #portalEditTabQa.hidden,
+  #portalEditTabTeam.hidden,
   #portalAccessEmpty.hidden,
   #portalFormsEmpty.hidden,
   #portalQaAddTopicRow.hidden,
   #portalQaAddEntryRow.hidden,
   #portalQaEmpty.hidden,
+  #portalTeamEmpty.hidden,
   #portalHomeFormsEmpty.hidden,
   #portalHomeRequestsEmpty.hidden,
   #portalHomeQaEmpty.hidden,
   #portalHomeFilloutMissingWarning.hidden,
-  #portalHomeFilloutDeleteBtn.hidden {
+  #portalHomeFilloutDeleteBtn.hidden,
+  #portalHomeAwaitingSection.hidden,
+  #portalHomeFilloutTrailSection.hidden,
+  #portalHomeFilloutCommentField.hidden,
+  #portalHomeFilloutSaveDraftBtn.hidden,
+  #portalHomeFilloutSubmitBtn.hidden,
+  #portalHomeFilloutApproveBtn.hidden,
+  #portalHomeFilloutRejectBtn.hidden {
     display: none;
   }
 

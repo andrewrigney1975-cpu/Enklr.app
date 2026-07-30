@@ -24,6 +24,8 @@ public class PortalHomeController : ControllerBase
         _home = home;
     }
 
+    private bool CallerIsOrgAdmin => User.HasClaim("orgAdmin", "true");
+
     // Backs the side nav's "Portals" section — every published Portal in the caller's own org this
     // user actually has access to. GET, not the same route shape as GetBySlug below (no {slug}
     // segment), so the two never collide.
@@ -61,10 +63,20 @@ public class PortalHomeController : ControllerBase
         return qa is null ? NotFound() : Ok(qa);
     }
 
+    // Literal "awaiting-me" segment, declared before the {submissionId:guid} route below — ASP.NET
+    // routing prefers the more specific literal match regardless of declaration order, but this
+    // mirrors ProjectFormsController's own ordering for readability.
+    [HttpGet("{portalId:guid}/submissions/awaiting-me")]
+    public async Task<IActionResult> ListAwaitingMyAction(Guid portalId)
+    {
+        var submissions = await _home.ListAwaitingMyActionAsync(User.OrgId(), portalId, User.UserId(), CallerIsOrgAdmin);
+        return submissions is null ? NotFound() : Ok(submissions);
+    }
+
     [HttpGet("{portalId:guid}/submissions/{submissionId:guid}")]
     public async Task<IActionResult> GetSubmission(Guid portalId, Guid submissionId)
     {
-        var submission = await _home.GetSubmissionAsync(User.OrgId(), portalId, User.UserId(), submissionId);
+        var submission = await _home.GetSubmissionAsync(User.OrgId(), portalId, User.UserId(), submissionId, CallerIsOrgAdmin);
         return submission is null ? NotFound() : Ok(submission);
     }
 
@@ -93,6 +105,14 @@ public class PortalHomeController : ControllerBase
     public async Task<IActionResult> SubmitSubmission(Guid portalId, Guid submissionId)
     {
         var (ok, error, dto) = await _home.SubmitSubmissionAsync(User.OrgId(), portalId, User.UserId(), submissionId);
+        if (!ok) return error == "not_found" ? NotFound() : BadRequest(new { message = error });
+        return Ok(dto);
+    }
+
+    [HttpPost("{portalId:guid}/submissions/{submissionId:guid}/approval-action")]
+    public async Task<IActionResult> ActOnApproval(Guid portalId, Guid submissionId, FormApprovalActionRequest request)
+    {
+        var (ok, error, dto) = await _home.ActOnApprovalAsync(User.OrgId(), portalId, User.UserId(), submissionId, request.Action, request.Comment, CallerIsOrgAdmin);
         if (!ok) return error == "not_found" ? NotFound() : BadRequest(new { message = error });
         return Ok(dto);
     }

@@ -1,7 +1,7 @@
 "use strict";
 import { toast } from '../ui.js';
 import { escapeHTML } from '../views/board.js';
-import { portalsApi, formsApi, chatApi, getOrgTeamsApi } from '../api.js';
+import { portalsApi, formsApi, chatApi, getOrgTeamsApi, getProjectDetailApi, memberApi } from '../api.js';
 import { confirmDialog } from './confirm.js';
 import { iconSvg, hydrateIcons } from '../icons.js';
 import { ICON_PATHS } from '../config.js';
@@ -110,6 +110,7 @@ export function openPortalEdit(portalId){
       renderPortalFormsTab();
     }, function(){});
     loadAndRenderPortalQaTab();
+    loadAndRenderPortalTeamTab();
   }, function(e){
     _toast('Could not load Portal: ' + (e.message || 'unknown error'));
   });
@@ -143,7 +144,7 @@ export function setPortalEditTab(tab){
   document.querySelectorAll('.kf-portal-edit-tab-btn').forEach(function(btn){
     btn.classList.toggle('active', btn.getAttribute('data-portal-tab') === tab);
   });
-  ['details', 'access', 'forms', 'qa'].forEach(function(t){
+  ['details', 'access', 'forms', 'team', 'qa'].forEach(function(t){
     var el = document.getElementById('portalEditTab' + t.charAt(0).toUpperCase() + t.slice(1));
     if(el) el.classList.toggle('hidden', t !== tab);
   });
@@ -352,6 +353,58 @@ export function attachPortalFormFromEdit(){
     renderPortalFormsTab();
     _toast('Form attached.');
   }, function(e){ _toast('Could not attach form: ' + (e.message || 'unknown error')); });
+}
+
+// ---- Team tab ----
+
+/* The Portal's actioner Project is an ordinary Project underneath — every current Org Admin is
+   auto-added as a Project Admin member of it at creation time (PortalService.CreateAsync), so this
+   is just the same member-management surface every other Project already has (memberApi +
+   getProjectDetailApi), scoped to the Portal's own ProjectId and surfaced right inside the Portal
+   editor so an admin doesn't have to separately go find/open that project on the board. */
+function loadAndRenderPortalTeamTab(){
+  if(!editingPortal) return;
+  getProjectDetailApi(editingPortal.projectId).then(function(project){
+    renderPortalTeamList(project.members || []);
+  }, function(e){ _toast('Could not load the back-office team: ' + (e.message || 'unknown error')); });
+}
+
+function renderPortalTeamList(members){
+  document.getElementById('portalTeamEmpty').classList.toggle('hidden', members.length > 0);
+  var list = document.getElementById('portalTeamList');
+  list.innerHTML = members.map(function(m){
+    return '<div class="kf-form-admin-row" data-member-id="' + m.id + '">' +
+      '<div class="kf-form-admin-row-main">' +
+        '<span class="kf-form-admin-row-name">' + escapeHTML(m.displayName) + (m.isProjectAdmin ? ' (Admin)' : '') + '</span>' +
+        (m.email ? '<span class="kf-form-admin-row-version">' + escapeHTML(m.email) + '</span>' : '') +
+      '</div>' +
+      '<div class="kf-form-admin-row-actions">' +
+        '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-remove-team-member="' + m.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span>Remove</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  list.querySelectorAll('[data-remove-team-member]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      memberApi.remove(editingPortal.projectId, btn.getAttribute('data-remove-team-member')).then(loadAndRenderPortalTeamTab, function(e){ _toast('Could not remove team member: ' + (e.message || 'unknown error')); });
+    });
+  });
+  hydrateIcons(list);
+}
+
+export function addPortalTeamMemberFromEdit(){
+  if(!editingPortal) return;
+  var nameInput = document.getElementById('portalTeamNameInput');
+  var emailInput = document.getElementById('portalTeamEmailInput');
+  var name = nameInput.value.trim();
+  var email = emailInput.value.trim();
+  if(!name){ _toast('Please enter a name.'); return; }
+  if(!email){ _toast('Please enter an email address.'); return; }
+  memberApi.create(editingPortal.projectId, {name: name, email: email}).then(function(){
+    nameInput.value = '';
+    emailInput.value = '';
+    loadAndRenderPortalTeamTab();
+    _toast('Team member added.');
+  }, function(e){ _toast('Could not add team member: ' + (e.message || 'unknown error')); });
 }
 
 // ---- Q&A tab ----

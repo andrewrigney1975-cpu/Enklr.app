@@ -119,12 +119,55 @@ public class PortalHomeService
     /// with no project membership at all, so this method re-derives ownership explicitly: a
     /// submission that exists but was submitted by someone else returns null here, identical to a
     /// nonexistent one, no distinguishable error.</summary>
-    public async Task<FormSubmissionDto?> GetSubmissionAsync(Guid organisationId, Guid portalId, Guid userId, Guid submissionId)
+    public async Task<FormSubmissionDto?> GetSubmissionAsync(Guid organisationId, Guid portalId, Guid userId, Guid submissionId, bool callerIsOrgAdmin)
     {
         var portal = await GetAccessiblePortalAsync(organisationId, portalId, userId);
         if (portal is null) return null;
         var submission = await _submissions.GetAsync(portal.ProjectId, submissionId);
-        return submission is not null && submission.SubmittedByUserId == userId ? submission : null;
+        if (submission is null) return null;
+        if (submission.SubmittedByUserId == userId) return submission;
+
+        // Not the submitter — only visible if the caller is currently a legitimate reviewer for it
+        // (i.e. it's sitting at an Approval node whose gates they satisfy). Reuses
+        // ListAwaitingMyActionAsync's own gate-evaluation rather than re-parsing the workflow graph
+        // here, so there's exactly one place that logic lives. Anyone else gets the same null as a
+        // nonexistent submission — no enumeration oracle. The caller's REAL IsOrgAdmin flag is used
+        // here (unlike SubmitSubmissionAsync's own deliberate always-false) — an orgAdmin-gated
+        // Approval node (the natural gate for the Org Admins auto-added to every actioner Project)
+        // could otherwise never be satisfied by anyone through this surface at all.
+        var awaiting = await _submissions.ListAwaitingMyActionAsync(portal.ProjectId, userId, callerIsOrgAdmin);
+        return awaiting.Any(a => a.Id == submissionId) ? submission : null;
+    }
+
+    /// <summary>Submissions against this Portal's own actioner Project currently awaiting the
+    /// caller's approval — the Portal-surface counterpart to ProjectFormsController's
+    /// "submissions/awaiting-me", needed because a Portal-configured approver is never a
+    /// ProjectMember of the actioner Project (it's deliberately created with zero members) and so
+    /// has no route to that project-scoped endpoint at all. Delegates straight into
+    /// FormSubmissionService's own gate-evaluation logic — a Portal submission is a completely
+    /// ordinary FormSubmission underneath, just reached through a different, membership-free front
+    /// door. Unlike SubmitSubmissionAsync, this uses the caller's REAL IsOrgAdmin flag — an
+    /// orgAdmin-gated Approval node is the natural gate for the Org Admins PortalService.CreateAsync
+    /// auto-adds to every actioner Project, and suppressing it here would make such a node
+    /// unsatisfiable by anyone through this surface.</summary>
+    public async Task<List<FormSubmissionListItemDto>?> ListAwaitingMyActionAsync(Guid organisationId, Guid portalId, Guid userId, bool callerIsOrgAdmin)
+    {
+        var portal = await GetAccessiblePortalAsync(organisationId, portalId, userId);
+        if (portal is null) return null;
+        return await _submissions.ListAwaitingMyActionAsync(portal.ProjectId, userId, callerIsOrgAdmin);
+    }
+
+    /// <summary>Approve/reject a submission sitting at an Approval node in this Portal's actioner
+    /// Project. Unlike SubmitSubmissionAsync (which deliberately always passes false — a Portal end
+    /// user filling out a form is never acting with Org-Admin authority), this uses the caller's REAL
+    /// IsOrgAdmin flag: an orgAdmin-gated Approval node is the natural gate for the Org Admins
+    /// PortalService.CreateAsync auto-adds to every actioner Project, and suppressing it here would
+    /// make such a node unsatisfiable by anyone through this surface.</summary>
+    public async Task<(bool ok, string error, FormSubmissionDto? dto)> ActOnApprovalAsync(Guid organisationId, Guid portalId, Guid userId, Guid submissionId, string action, string? comment, bool callerIsOrgAdmin)
+    {
+        var portal = await GetAccessiblePortalAsync(organisationId, portalId, userId);
+        if (portal is null) return (false, "not_found", null);
+        return await _submissions.ActOnApprovalAsync(portal.ProjectId, userId, callerIsOrgAdmin, submissionId, action, comment);
     }
 
     /// <summary>Delegates into FormSubmissionService.CreateAsync against the Portal's own actioner

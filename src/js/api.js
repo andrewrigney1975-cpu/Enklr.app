@@ -869,6 +869,15 @@ export var portalHomeApi = {
   },
   submitSubmission: function(portalId, submissionId){
     return apiFetch('/portals/' + portalId + '/submissions/' + submissionId + '/submit', {method: 'POST'});
+  },
+  /* Submissions against this Portal currently awaiting the caller's approval — the Portal-surface
+     counterpart to projectFormsApi.listAwaitingMyAction, needed because a Portal-configured approver
+     is never a ProjectMember of the Portal's actioner Project (deliberately membership-free). */
+  listAwaitingMyAction: function(portalId){
+    return apiFetch('/portals/' + portalId + '/submissions/awaiting-me', {method: 'GET'});
+  },
+  actOnApproval: function(portalId, submissionId, action, comment){
+    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId + '/approval-action', {method: 'POST', body: JSON.stringify({action: action, comment: comment || null})});
   }
 };
 

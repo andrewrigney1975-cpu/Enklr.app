@@ -3,9 +3,10 @@ import { toast } from '../ui.js';
 import { escapeHTML, refreshSideNavPortalsSectionVisibility } from '../views/board.js';
 import { portalHomeApi } from '../api.js';
 import { confirmDialog } from './confirm.js';
-import { renderAnswerInputHTML, collectAllAnswers, findMissingRequiredFields } from '../features/form-answers.js';
+import { renderAnswerInputHTML, renderAnswerReadOnlyHTML, collectAllAnswers, findMissingRequiredFields } from '../features/form-answers.js';
 import { setPortalHash, clearPortalHash, parsePortalSlugFromHash } from '../features/hash-router.js';
 import { iconSvg, hydrateIcons } from '../icons.js';
+import { utcISOToLocalDisplayDateTime } from '../date-utils.js';
 
 /* Organisational Portals — the fullscreen, end-user experience (kf-modal-full, see PORTALS.md's own
    design brief for the token system this file's markup/CSS embody). Three panes: Start a request
@@ -20,8 +21,9 @@ var _toast = toast;
 var currentPortal = null; // PortalDto
 var currentForms = [];
 var currentRequests = [];
+var currentAwaiting = [];
 var currentQa = null; // {topics, entries}
-var detail = null; // {mode: 'new'|'draft', form, fields, submissionId, submission}
+var detail = null; // {mode: 'new'|'draft'|'approve', form, fields, submissionId, submission}
 var expandedQaEntryIds = {};
 
 var STEPPER_STEPS = ['Draft', 'Submitted', 'In review', 'Approved'];
@@ -91,6 +93,14 @@ function loadAndRenderPortalHome(){
     currentRequests = subs || [];
     renderPortalHomeRequests();
   }, function(){});
+  // A Portal-configured approver is never a ProjectMember of this Portal's actioner Project (it's
+  // deliberately created membership-free), so they have no way to reach the regular project-scoped
+  // Forms modal's own "awaiting-me" list for a submission that came in through this Portal — this is
+  // the Portal-surface equivalent, same gate-evaluation logic underneath.
+  portalHomeApi.listAwaitingMyAction(portalId).then(function(items){
+    currentAwaiting = items || [];
+    renderPortalHomeAwaiting();
+  }, function(){});
   portalHomeApi.listQa(portalId).then(function(qa){
     currentQa = qa || {topics: [], entries: []};
     renderPortalHomeQa();
@@ -112,6 +122,38 @@ function renderPortalHomeForms(){
     tile.addEventListener('click', function(){ openNewPortalSubmission(tile.getAttribute('data-form-group-id')); });
   });
   hydrateIcons(list);
+}
+
+function renderPortalHomeAwaiting(){
+  var section = document.getElementById('portalHomeAwaitingSection');
+  section.classList.toggle('hidden', currentAwaiting.length === 0);
+  document.getElementById('portalHomeAwaitingList').innerHTML = currentAwaiting.map(function(item){
+    return '<div class="kf-form-admin-row" data-awaiting-id="' + item.id + '">' +
+      '<div class="kf-form-admin-row-main">' +
+        '<span class="kf-form-admin-row-name">' + escapeHTML(item.formName) + '</span>' +
+        '<span class="kf-form-admin-row-version">from ' + escapeHTML(item.submittedByDisplayName) + '</span>' +
+      '</div>' +
+      '<div class="kf-form-admin-row-actions">' +
+        '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-review="' + item.id + '">Review</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  document.querySelectorAll('#portalHomeAwaitingList [data-review]').forEach(function(btn){
+    btn.addEventListener('click', function(){ openPortalApprovalReview(btn.getAttribute('data-review')); });
+  });
+}
+
+/* Opens someone else's in-flight submission for review — PortalHomeService.GetSubmissionAsync only
+   returns it if the caller is currently a legitimate reviewer (same gate check as the awaiting-list
+   itself), so this reuses the exact same fetch as re-opening one's own draft. */
+function openPortalApprovalReview(submissionId){
+  var item = currentAwaiting.filter(function(r){ return r.id === submissionId; })[0];
+  if(!item) return;
+  var f = currentForms.filter(function(x){ return x.formVersionId === item.formVersionId; })[0];
+  portalHomeApi.getSubmission(currentPortal.id, submissionId).then(function(submission){
+    detail = {mode: 'approve', formVersionId: item.formVersionId, formName: item.formName, fields: f ? parseFieldsJson(f.fieldsJson) : [], submissionId: submissionId, submission: submission};
+    renderPortalFilloutDetail();
+  }, function(e){ _toast('Could not load this submission: ' + (e.message || 'unknown error')); });
 }
 
 // ---- Middle pane: my requests, the status-stepper ----
@@ -206,6 +248,11 @@ function parseAnswersJson(json){
   try { var parsed = JSON.parse(json); return parsed && typeof parsed === 'object' ? parsed : {}; }
   catch(e){ return {}; }
 }
+function parseTrailJson(json){
+  if(!json) return [];
+  try { var parsed = JSON.parse(json); return Array.isArray(parsed) ? parsed : []; }
+  catch(e){ return []; }
+}
 
 /* currentForms entries are PortalFormDto — id/formGroupId/formName/formStatus/fieldsJson, the last
    resolved server-side from whichever Form version is currently published for that group (see
@@ -235,13 +282,29 @@ function openExistingPortalSubmission(submissionId){
 }
 
 function renderPortalFilloutDetail(){
+  var editable = detail.mode === 'new' || detail.mode === 'draft';
   document.getElementById('portalHomeFilloutTitle').textContent = detail.formName;
   document.getElementById('portalHomeFilloutMissingWarning').classList.add('hidden');
   var answers = detail.submission ? parseAnswersJson(detail.submission.answersJson) : {};
   document.getElementById('portalHomeFilloutFields').innerHTML = detail.fields.map(function(field){
-    return renderAnswerInputHTML(field, answers[field.id]);
+    return editable ? renderAnswerInputHTML(field, answers[field.id]) : renderAnswerReadOnlyHTML(field, answers[field.id]);
   }).join('');
+
+  var trail = detail.submission ? parseTrailJson(detail.submission.approvalTrailJson) : [];
+  document.getElementById('portalHomeFilloutTrailSection').classList.toggle('hidden', trail.length === 0);
+  document.getElementById('portalHomeFilloutTrailList').innerHTML = trail.map(function(t){
+    var when = utcISOToLocalDisplayDateTime(t.timestamp) || t.timestamp || '';
+    return '<div class="kf-form-admin-row-desc">' + escapeHTML(t.action) + ' — ' + escapeHTML(when) + (t.comment ? ': ' + escapeHTML(t.comment) : '') + '</div>';
+  }).join('');
+
+  document.getElementById('portalHomeFilloutSaveDraftBtn').classList.toggle('hidden', !editable);
+  document.getElementById('portalHomeFilloutSubmitBtn').classList.toggle('hidden', !editable);
   document.getElementById('portalHomeFilloutDeleteBtn').classList.toggle('hidden', detail.mode !== 'draft');
+  document.getElementById('portalHomeFilloutApproveBtn').classList.toggle('hidden', detail.mode !== 'approve');
+  document.getElementById('portalHomeFilloutRejectBtn').classList.toggle('hidden', detail.mode !== 'approve');
+  document.getElementById('portalHomeFilloutCommentField').classList.toggle('hidden', detail.mode !== 'approve');
+  document.getElementById('portalHomeFilloutCommentInput').value = '';
+
   document.getElementById('portalHomeFilloutOverlay').classList.remove('hidden');
 }
 export function closePortalHomeFilloutOverlay(){
@@ -311,3 +374,16 @@ export function deletePortalHomeFilloutDraft(){
     }, function(e){ _toast('Could not delete draft: ' + (e.message || 'unknown error')); });
   });
 }
+
+function actOnPortalApproval(action){
+  var comment = document.getElementById('portalHomeFilloutCommentInput').value.trim();
+  portalHomeApi.actOnApproval(currentPortal.id, detail.submissionId, action, comment || null).then(function(){
+    _toast(action === 'approve' ? 'Approved.' : 'Rejected.');
+    closePortalHomeFilloutOverlay();
+    loadAndRenderPortalHome();
+  }, function(e){
+    _toast('Could not ' + action + ': ' + (e.message || 'unknown error'));
+  });
+}
+export function approvePortalHomeFillout(){ actOnPortalApproval('approve'); }
+export function rejectPortalHomeFillout(){ actOnPortalApproval('reject'); }

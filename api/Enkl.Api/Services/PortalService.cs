@@ -14,6 +14,12 @@ namespace Enkl.Api.Services;
 public class PortalService
 {
     private static readonly string[] PriorityColumnNames = { "Trivial", "Low", "Medium", "High", "Critical" };
+    // Must match MemberService.MemberPalette[0]/ProjectService.FirstMemberColor — same convention,
+    // just applied to every Org Admin at once instead of a single creator.
+    private static readonly string[] MemberPalette =
+    {
+        "#0052CC", "#00875A", "#DE350B", "#5243AA", "#FF8B00", "#0065FF", "#008DA6", "#6B778C"
+    };
 
     private readonly AppDbContext _db;
     private readonly PortfolioService _portfolio;
@@ -66,6 +72,26 @@ public class PortalService
         for (var i = 0; i < PriorityColumnNames.Length; i++)
         {
             _db.Columns.Add(new Column { Id = Guid.NewGuid(), ProjectId = project.Id, Name = PriorityColumnNames[i], Done = false, Order = i });
+        }
+
+        // Every current Org Admin is auto-added as a Project Admin of the actioner Project — it's
+        // membership-free by design (no ordinary org user should have to "join" it just to submit a
+        // form through the Portal), but SOMEONE has to be able to open it, manage which analysts/
+        // consultants can action raised tasks, and review/approve form submissions that land there.
+        // Org Admins are the only role guaranteed to exist and be trustworthy for that at creation
+        // time; a Portal's own Access grants govern who can use the Portal, this governs who can
+        // administer its back-office project.
+        var orgAdmins = await _db.Users.AsNoTracking()
+            .Where(u => u.OrganisationId == organisationId && u.IsOrgAdmin)
+            .Select(u => u.Id)
+            .ToListAsync();
+        for (var i = 0; i < orgAdmins.Count; i++)
+        {
+            _db.ProjectMembers.Add(new ProjectMember
+            {
+                Id = Guid.NewGuid(), ProjectId = project.Id, UserId = orgAdmins[i],
+                Color = MemberPalette[i % MemberPalette.Length], IsProjectAdmin = true
+            });
         }
 
         var now = DateTime.UtcNow;

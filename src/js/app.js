@@ -26,7 +26,8 @@ import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/h
 import { wireWhiteboardEvents, openWhiteboardOverlay, openWhiteboardFromHashIfPresent } from './modals/whiteboard.js';
 import {
   openPortalHomeFromHashIfPresent, closePortalHomeOverlay, loadAndRenderSideNavPortals,
-  closePortalHomeFilloutOverlay, savePortalHomeFilloutDraft, submitPortalHomeFillout, deletePortalHomeFilloutDraft
+  closePortalHomeFilloutOverlay, savePortalHomeFilloutDraft, submitPortalHomeFillout, deletePortalHomeFilloutDraft,
+  approvePortalHomeFillout, rejectPortalHomeFillout
 } from './modals/portal-home.js';
 import { exportProjectJSON, setExportToast } from './features/export.js';
 import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast, refreshProjectFromServer, switchToAiCreatedProject } from './features/migration.js';
@@ -73,7 +74,7 @@ import {
   openPortalsAdminOverlay, closePortalsAdminOverlay, showPortalsAdminCreateRow, hidePortalsAdminCreateRow, createPortalFromAdmin,
   openPortalEdit, closePortalEdit, setPortalEditTab, savePortalEditDetails, publishPortalFromEdit, archivePortalFromEdit, deletePortalFromEdit,
   togglePortalIconGrid,
-  addPortalAccessGrantFromEdit, attachPortalFormFromEdit,
+  addPortalAccessGrantFromEdit, attachPortalFormFromEdit, addPortalTeamMemberFromEdit,
   showPortalQaAddTopicRow, hidePortalQaAddTopicRow, savePortalQaTopicFromEdit, showPortalQaAddEntryRow, hidePortalQaAddEntryRow, savePortalQaEntryFromEdit
 } from './modals/portals-admin.js';
 import { setFormWorkflowEditorDeps, setFormWorkflowMode, addFormWorkflowNode, handleFormWorkflowScrollMouseDown, handleFormWorkflowPointerMove, handleFormWorkflowPointerUp, handleFormWorkflowInnerClick, saveFormWorkflowNodePopover, deleteFormWorkflowNodeFromPopover, closeFormWorkflowNodePopover, isFormWorkflowNodePopoverOpen, deleteFormWorkflowEdgeFromPopover, closeFormWorkflowEdgePopover, isFormWorkflowEdgePopoverOpen } from './views/form-workflow-editor.js';
@@ -590,6 +591,7 @@ function wireEvents(){
   document.getElementById('portalEditDeleteBtn').addEventListener('click', deletePortalFromEdit);
   document.getElementById('portalAccessAddBtn').addEventListener('click', addPortalAccessGrantFromEdit);
   document.getElementById('portalFormsAttachBtn').addEventListener('click', attachPortalFormFromEdit);
+  document.getElementById('portalTeamAddBtn').addEventListener('click', addPortalTeamMemberFromEdit);
   document.getElementById('portalQaAddTopicBtn').addEventListener('click', showPortalQaAddTopicRow);
   document.getElementById('portalQaTopicCancelBtn').addEventListener('click', hidePortalQaAddTopicRow);
   document.getElementById('portalQaTopicSaveBtn').addEventListener('click', savePortalQaTopicFromEdit);
@@ -605,6 +607,8 @@ function wireEvents(){
   document.getElementById('portalHomeFilloutSaveDraftBtn').addEventListener('click', savePortalHomeFilloutDraft);
   document.getElementById('portalHomeFilloutSubmitBtn').addEventListener('click', submitPortalHomeFillout);
   document.getElementById('portalHomeFilloutDeleteBtn').addEventListener('click', deletePortalHomeFilloutDraft);
+  document.getElementById('portalHomeFilloutApproveBtn').addEventListener('click', approvePortalHomeFillout);
+  document.getElementById('portalHomeFilloutRejectBtn').addEventListener('click', rejectPortalHomeFillout);
 
   document.getElementById('navFormsFilloutBtn').addEventListener('click', openFormsFilloutOverlay);
   document.getElementById('formsFilloutClose').addEventListener('click', closeFormsFilloutOverlay);

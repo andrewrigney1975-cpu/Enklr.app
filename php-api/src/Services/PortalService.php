@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Enkl\Api\Services;
 
+use Enkl\Api\Support\MemberPalette;
 use Enkl\Api\Support\Uuid;
 use PDO;
 
@@ -63,6 +64,22 @@ final class PortalService
             );
             foreach (self::PRIORITY_COLUMN_NAMES as $i => $colName) {
                 $colStmt->execute(['id' => Uuid::v4(), 'pid' => $project['id'], 'name' => $colName, 'done' => 0, 'order' => $i]);
+            }
+
+            // Every current Org Admin is auto-added as a Project Admin of the actioner Project — it's
+            // membership-free by design (no ordinary org user should have to "join" it just to submit
+            // a form through the Portal), but SOMEONE has to be able to open it, manage which
+            // analysts/consultants can action raised tasks, and review/approve form submissions that
+            // land there. A Portal's own Access grants govern who can use the Portal; this governs
+            // who can administer its back-office project.
+            $adminStmt = $this->db->prepare('SELECT "Id" FROM "Users" WHERE "OrganisationId" = :orgId AND "IsOrgAdmin" = true');
+            $adminStmt->execute(['orgId' => $organisationId]);
+            $orgAdminIds = array_column($adminStmt->fetchAll(), 'Id');
+            $memberStmt = $this->db->prepare(
+                'INSERT INTO "ProjectMembers" ("Id", "ProjectId", "UserId", "Color", "IsProjectAdmin") VALUES (:id, :pid, :uid, :color, true)'
+            );
+            foreach ($orgAdminIds as $i => $adminUserId) {
+                $memberStmt->execute(['id' => Uuid::v4(), 'pid' => $project['id'], 'uid' => $adminUserId, 'color' => MemberPalette::colorForIndex($i)]);
             }
 
             $portalId = Uuid::v4();

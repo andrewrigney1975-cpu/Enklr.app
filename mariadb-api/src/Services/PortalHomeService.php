@@ -117,14 +117,61 @@ final class PortalHomeService
      * FormSubmissionService::get itself has no ownership check baked in, so this method re-derives
      * ownership explicitly: a submission that exists but was submitted by someone else returns null
      * here, identical to a nonexistent one. */
-    public function getSubmission(string $organisationId, string $portalId, string $userId, string $submissionId): ?array
+    public function getSubmission(string $organisationId, string $portalId, string $userId, string $submissionId, bool $callerIsOrgAdmin): ?array
     {
         $portal = $this->accessiblePortal($organisationId, $portalId, $userId);
         if ($portal === null) {
             return null;
         }
-        $submission = (new FormSubmissionService($this->db))->get($portal['ProjectId'], $submissionId);
-        return $submission !== null && $submission['submittedByUserId'] === $userId ? $submission : null;
+        $submissions = new FormSubmissionService($this->db);
+        $submission = $submissions->get($portal['ProjectId'], $submissionId);
+        if ($submission === null) {
+            return null;
+        }
+        if ($submission['submittedByUserId'] === $userId) {
+            return $submission;
+        }
+
+        // Not the submitter — only visible if the caller is currently a legitimate reviewer for it
+        // (sitting at an Approval node whose gates they satisfy). Reuses listAwaitingMyAction's own
+        // gate-evaluation rather than re-parsing the workflow graph here. Anyone else gets the same
+        // null as a nonexistent submission — no enumeration oracle.
+        $awaiting = $submissions->listAwaitingMyAction($portal['ProjectId'], $userId, $callerIsOrgAdmin);
+        foreach ($awaiting as $a) {
+            if ($a['id'] === $submissionId) {
+                return $submission;
+            }
+        }
+        return null;
+    }
+
+    /** Submissions against this Portal's own actioner Project currently awaiting the caller's
+     * approval — the Portal-surface counterpart to ProjectFormsController's "submissions/awaiting-me",
+     * needed because a Portal-configured approver is never a ProjectMember of the actioner Project
+     * (deliberately created with zero members) and so has no route to that project-scoped endpoint
+     * at all. Delegates straight into FormSubmissionService's own gate-evaluation logic. */
+    public function listAwaitingMyAction(string $organisationId, string $portalId, string $userId, bool $callerIsOrgAdmin): ?array
+    {
+        $portal = $this->accessiblePortal($organisationId, $portalId, $userId);
+        if ($portal === null) {
+            return null;
+        }
+        return (new FormSubmissionService($this->db))->listAwaitingMyAction($portal['ProjectId'], $userId, $callerIsOrgAdmin);
+    }
+
+    /** Approve/reject a submission sitting at an Approval node in this Portal's actioner Project.
+     * callerIsOrgAdmin is always false here for the same reason submitSubmission passes false. */
+    public function actOnApproval(string $organisationId, string $portalId, string $userId, string $submissionId, string $action, ?string $comment, bool $callerIsOrgAdmin): array
+    {
+        $portal = $this->accessiblePortal($organisationId, $portalId, $userId);
+        if ($portal === null) {
+            return ['ok' => false, 'error' => 'not_found', 'dto' => null];
+        }
+        $result = (new FormSubmissionService($this->db))->actOnApproval($portal['ProjectId'], $userId, $callerIsOrgAdmin, $submissionId, $action, $comment);
+        // The controller broadcasts by real ProjectId, not the Portal's own id — see
+        // PortalHomeController::notifyFormAction's own comment for why this has to ride along here.
+        $result['projectId'] = $portal['ProjectId'];
+        return $result;
     }
 
     /** Delegates into FormSubmissionService::create against the Portal's own actioner Project (which
@@ -169,7 +216,9 @@ final class PortalHomeService
         }
         // callerIsOrgAdmin: always false here — a Portal end user submitting a form is never acting
         // with Org-Admin authority through this surface, regardless of their real IsOrgAdmin flag.
-        return (new FormSubmissionService($this->db))->submit($portal['ProjectId'], $userId, false, $submissionId);
+        $result = (new FormSubmissionService($this->db))->submit($portal['ProjectId'], $userId, false, $submissionId);
+        $result['projectId'] = $portal['ProjectId'];
+        return $result;
     }
 
     private function isFormAttached(string $portalId, string $formVersionId): bool

@@ -1694,6 +1694,7 @@
       <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn active" data-portal-tab="details">Details</button>
       <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn" data-portal-tab="access">Access</button>
       <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn" data-portal-tab="forms">Forms</button>
+      <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn" data-portal-tab="team">Team</button>
       <button type="button" class="kf-btn kf-btn-ghost kf-portal-edit-tab-btn" data-portal-tab="qa">Q&amp;A</button>
     </div>
     <div class="kf-modal-body">
@@ -1745,6 +1746,22 @@
         </div>
         <div id="portalFormsList"></div>
         <div class="kf-member-empty hidden" id="portalFormsEmpty">No forms attached yet.</div>
+      </div>
+      <div id="portalEditTabTeam" class="hidden">
+        <p class="kf-legend-item">Back-office team — the analysts/consultants who action tasks raised in this Portal's own project. Every current Org Admin is added here automatically; add others as needed.</p>
+        <div class="kf-field-row">
+          <div class="kf-field">
+            <label for="portalTeamNameInput">Name</label>
+            <input type="text" id="portalTeamNameInput" maxlength="60">
+          </div>
+          <div class="kf-field">
+            <label for="portalTeamEmailInput">Email</label>
+            <input type="email" id="portalTeamEmailInput" maxlength="200">
+          </div>
+          <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="portalTeamAddBtn">Add</button>
+        </div>
+        <div id="portalTeamList"></div>
+        <div class="kf-member-empty hidden" id="portalTeamEmpty">No back-office team members yet.</div>
       </div>
       <div id="portalEditTabQa" class="hidden">
         <div class="kf-field-row">
@@ -1804,6 +1821,10 @@
         <div class="kf-member-empty hidden" id="portalHomeFormsEmpty">No forms available on this Portal yet.</div>
       </div>
       <div class="kf-portal-home-pane">
+        <div id="portalHomeAwaitingSection" class="hidden">
+          <div class="kf-form-fields-header"><label>Awaiting My Action</label></div>
+          <div id="portalHomeAwaitingList" class="kf-releases-list"></div>
+        </div>
         <div class="kf-portal-home-pane-title">My requests</div>
         <div id="portalHomeRequestsList"></div>
         <div class="kf-member-empty hidden" id="portalHomeRequestsEmpty">You haven't submitted anything here yet.</div>
@@ -1827,11 +1848,21 @@
     <div class="kf-modal-body">
       <div id="portalHomeFilloutMissingWarning" class="kf-form-answer-missing-warning hidden"></div>
       <div id="portalHomeFilloutFields"></div>
+      <div id="portalHomeFilloutTrailSection" class="hidden">
+        <div class="kf-form-fields-header"><label>Approval Trail</label></div>
+        <div id="portalHomeFilloutTrailList"></div>
+      </div>
+      <div class="kf-field hidden" id="portalHomeFilloutCommentField">
+        <label for="portalHomeFilloutCommentInput">Comment <span style="font-weight:400;color:var(--kf-text-faint);">(optional)</span></label>
+        <textarea id="portalHomeFilloutCommentInput" rows="2"></textarea>
+      </div>
     </div>
     <div class="kf-modal-footer">
+      <button type="button" class="kf-btn kf-btn-danger hidden" id="portalHomeFilloutRejectBtn">Reject</button>
+      <button type="button" class="kf-btn kf-btn-primary hidden" id="portalHomeFilloutApproveBtn">Approve</button>
       <button type="button" class="kf-btn kf-btn-danger hidden" id="portalHomeFilloutDeleteBtn">Delete Draft</button>
-      <button type="button" class="kf-btn kf-btn-secondary" id="portalHomeFilloutSaveDraftBtn">Save Draft</button>
-      <button type="button" class="kf-btn kf-btn-primary" id="portalHomeFilloutSubmitBtn">Submit</button>
+      <button type="button" class="kf-btn kf-btn-secondary hidden" id="portalHomeFilloutSaveDraftBtn">Save Draft</button>
+      <button type="button" class="kf-btn kf-btn-primary hidden" id="portalHomeFilloutSubmitBtn">Submit</button>
     </div>
   </div>
 </div>
