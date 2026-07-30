@@ -191,9 +191,24 @@ function renderPortalHomeRequests(){
   }).join('');
   list.querySelectorAll('[data-submission-id]').forEach(function(card){
     card.addEventListener('click', function(){
-      if(card.getAttribute('data-status') === 'draft') openExistingPortalSubmission(card.getAttribute('data-submission-id'));
+      var id = card.getAttribute('data-submission-id');
+      if(card.getAttribute('data-status') === 'draft') openExistingPortalSubmission(id);
+      else openPortalSubmissionView(id);
     });
   });
+}
+
+/* Read-only detail for anything past Draft (submitted/in review/approved/rejected) — reuses the
+   same fillout overlay in 'view' mode (renderPortalFilloutDetail's own editable flag already treats
+   any non-new/non-draft mode as read-only, with the Approval Trail shown and no action buttons). */
+function openPortalSubmissionView(submissionId){
+  var item = currentRequests.filter(function(r){ return r.id === submissionId; })[0];
+  if(!item) return;
+  var f = currentForms.filter(function(x){ return x.formVersionId === item.formVersionId; })[0];
+  portalHomeApi.getSubmission(currentPortal.id, submissionId).then(function(submission){
+    detail = {mode: 'view', formVersionId: item.formVersionId, formName: item.formName, fields: f ? parseFieldsJson(f.fieldsJson) : [], submissionId: submissionId, submission: submission};
+    renderPortalFilloutDetail();
+  }, function(e){ _toast('Could not load this submission: ' + (e.message || 'unknown error')); });
 }
 
 // ---- Right pane: Q&A accordion ----
@@ -281,9 +296,14 @@ function openExistingPortalSubmission(submissionId){
   }, function(e){ _toast('Could not load your saved draft: ' + (e.message || 'unknown error')); });
 }
 
+var FILLOUT_STATUS_LABELS = {
+  draft: 'Draft', submitted: 'Submitted', inProgress: 'In Review', approved: 'Approved', rejected: 'Rejected'
+};
+
 function renderPortalFilloutDetail(){
   var editable = detail.mode === 'new' || detail.mode === 'draft';
-  document.getElementById('portalHomeFilloutTitle').textContent = detail.formName;
+  var statusLabel = detail.submission ? (FILLOUT_STATUS_LABELS[detail.submission.status] || detail.submission.status) : null;
+  document.getElementById('portalHomeFilloutTitle').textContent = detail.formName + (statusLabel ? ' — ' + statusLabel : '');
   document.getElementById('portalHomeFilloutMissingWarning').classList.add('hidden');
   var answers = detail.submission ? parseAnswersJson(detail.submission.answersJson) : {};
   document.getElementById('portalHomeFilloutFields').innerHTML = detail.fields.map(function(field){
