@@ -56,6 +56,7 @@ import { openTeamModal, closeTeamModal, addMemberFromModal, wireAddMemberCombobo
 import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal, saveOrgDefaultPasswordFromModal } from './modals/organisation.js';
 import { openAnnouncementsAdminModal, closeAnnouncementsAdminModal, saveAnnouncementFromModal, cancelAnnouncementEdit } from './modals/announcements-admin.js';
 import { openSsoConfigModal, closeSsoConfigModal, saveSsoConfigFromModal, generateScimTokenFromModal } from './modals/sso.js';
+import { openImportCentreModal, closeImportCentreModal, showImportCentreTab, handleImportCentreSchemasClick } from './modals/import-centre.js';
 import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromModal, openTemplatesModal, closeTemplatesModal } from './modals/templates.js';
 import { openTodoOverlay, closeTodoOverlay, isTodoOverlayOpen, addTodoListFromModal } from './modals/todo.js';
 import { openTaskTypesModal, closeTaskTypesModal, addTaskTypeFromModal } from './modals/task-types.js';
@@ -1665,6 +1666,18 @@ function wireEvents(){
     closeAppSettingsOverlay();
     openSsoConfigModal();
   });
+  document.getElementById('appSettingsImportCentreBtn').addEventListener('click', function(){
+    closeAppSettingsOverlay();
+    openImportCentreModal();
+  });
+  document.getElementById('importCentreClose').addEventListener('click', closeImportCentreModal);
+  document.getElementById('importCentreDoneBtn').addEventListener('click', closeImportCentreModal);
+  document.getElementById('importCentreOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'importCentreOverlay') closeImportCentreModal();
+  });
+  document.getElementById('importCentreTabImportBtn').addEventListener('click', function(){ showImportCentreTab('import'); });
+  document.getElementById('importCentreTabSchemasBtn').addEventListener('click', function(){ showImportCentreTab('schemas'); });
+  document.getElementById('importCentreSchemasList').addEventListener('click', handleImportCentreSchemasClick);
   document.getElementById('aboutBtn').addEventListener('click', openAboutModal);
   document.getElementById('aboutModalClose').addEventListener('click', closeAboutModal);
   document.getElementById('aboutUserGuideBtn').addEventListener('click', function(){
@@ -2045,6 +2058,7 @@ function wireEvents(){
     else if(isMyPreferencesModalOpen()) closeMyPreferencesModal();
     else if(isProjectStorageModalOpen()) closeProjectStorageModal();
     else if(!document.getElementById('apiEndpointsOverlay').classList.contains('hidden')) closeApiEndpointsModal();
+    else if(!document.getElementById('importCentreOverlay').classList.contains('hidden')) closeImportCentreModal();
     else if(!document.getElementById('confirmOverlay').classList.contains('hidden')) closeConfirmDialog();
     else if(!document.getElementById('importConflictOverlay').classList.contains('hidden')) closeImportConflictModal();
     else if(!document.getElementById('overdueAlertOverlay').classList.contains('hidden')) closeOverdueAlert();

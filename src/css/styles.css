@@ -5411,6 +5411,71 @@
     white-space: nowrap;
   }
 
+  /* Import Centre — Schemas tab (modals/import-centre.js) */
+  .kf-import-schema-block {
+    margin-bottom: 22px;
+  }
+
+  .kf-import-schema-block:last-child {
+    margin-bottom: 0;
+  }
+
+  .kf-import-schema-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .kf-import-schema-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--kf-text);
+  }
+
+  .kf-import-schema-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .kf-import-schema-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+
+  .kf-import-schema-table th,
+  .kf-import-schema-table td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--kf-border);
+    vertical-align: top;
+  }
+
+  .kf-import-schema-table th {
+    color: var(--kf-text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+
+  .kf-import-required-yes {
+    color: var(--kf-danger);
+    font-weight: 600;
+  }
+
+  .kf-import-required-conditional {
+    color: var(--kf-atrisk-fg);
+    font-weight: 600;
+  }
+
+  .kf-import-required-no {
+    color: var(--kf-text-faint);
+  }
+
   .kf-query-saved-row {
     display: flex;
     align-items: center;

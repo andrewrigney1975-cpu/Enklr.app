@@ -967,6 +967,15 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
 - **SSO & Provisioning** — **What**: configure SAML single sign-on and SCIM-based automatic user
   provisioning. **Who**: larger organisations that already manage identity centrally and want Enklr
   Task to plug into that rather than keep a separate set of credentials.
+- **Import Centre** — **What**: a bulk-import tool for seeding Organisation Users, Team Members, Teams
+  & Committees, or Portal Q&A (once Portals is switched on) from a CSV or JSON file, instead of adding
+  each one by hand. **Who**: Elena, standing up a new organisation's accounts and project teams from a
+  spreadsheet someone already had, rather than clicking "Add" dozens of times. **How**: from App
+  Settings → Enterprise, click **Open Import Centre**. Each entity has its own **Schemas** tab showing
+  exactly which columns are required versus optional, with a downloadable CSV template and JSON
+  schema to start from. **Still being built**: the Schemas tab is fully working now; the actual file
+  upload, Test Run (dry-run validation), and Commit steps are landing in upcoming updates — this
+  entry will grow alongside them.
 - **Manage Templates** — **What**: save a fully set-up project (its columns, task types, workflow) as
   a reusable template, so a new project starts from a sensible default instead of a blank board.
   **Who**: Elena or Priya, the second or third time they catch themselves rebuilding the same column
@@ -1156,6 +1165,7 @@ it" tiers, though who's allowed to *initiate* it differs:
 | Add a new person to the organisation | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
 | Offboard someone who's leaving | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
 | Reset a forgotten or compromised password | [Section 9 — Manage Users](#9-portfolio--organisation-management) |
+| Bulk-load users/team members/teams from a spreadsheet | [Section 9 — Import Centre](#9-portfolio--organisation-management) |
 | Stop rebuilding the same board layout every time | [Section 9 — Manage Templates](#9-portfolio--organisation-management) |
 | Tell the whole organisation something | [Section 9 — Announcements](#9-portfolio--organisation-management) |
 | Warn everyone about planned maintenance or an outage | [Section 9 — Announcements](#9-portfolio--organisation-management) |
@@ -1232,6 +1242,7 @@ isn't present on a fully local project; **Local Only** is the rare feature that 
 | Manage Users (create, deactivate, reset a password) | — | — | ✓ | Cloud Only |
 | SSO & Provisioning (SAML/SCIM configuration) | — | — | ✓ | Cloud Only |
 | Save the current project as a Template | ✓ | ✓ | ✓ | Cloud + Local |
+| Import Centre — view/download entity schemas | — | — | ✓ | Cloud Only |
 | Manage Templates (edit/delete the shared list; pick one for a new project) | — | — | ✓ | Cloud + Local |
 | Announcements & Disruption Notices — write/manage | — | — | ✓ | Cloud Only |
 | Announcements & Disruption Notices — see one when it's posted | ✓ | ✓ | ✓ | Cloud Only |
