@@ -25,7 +25,7 @@ import { setCostBenefitDeps, cbZoomState, openCostBenefitOverlay, closeCostBenef
 import { parseTaskKeyFromHash, findTaskByKey, clearTaskHash } from './features/hash-router.js';
 import { wireWhiteboardEvents, openWhiteboardOverlay, openWhiteboardFromHashIfPresent } from './modals/whiteboard.js';
 import {
-  openPortalHomeFromHashIfPresent, openPortalHomeBySlug, closePortalHomeOverlay,
+  openPortalHomeFromHashIfPresent, closePortalHomeOverlay, loadAndRenderSideNavPortals,
   closePortalHomeFilloutOverlay, savePortalHomeFilloutDraft, submitPortalHomeFillout, deletePortalHomeFilloutDraft
 } from './modals/portal-home.js';
 import { exportProjectJSON, setExportToast } from './features/export.js';
@@ -72,6 +72,7 @@ import { openFormsAdminOverlay, closeFormsAdminOverlay, showFormsAdminCreateRow,
 import {
   openPortalsAdminOverlay, closePortalsAdminOverlay, showPortalsAdminCreateRow, hidePortalsAdminCreateRow, createPortalFromAdmin,
   openPortalEdit, closePortalEdit, setPortalEditTab, savePortalEditDetails, publishPortalFromEdit, archivePortalFromEdit, deletePortalFromEdit,
+  togglePortalIconGrid,
   addPortalAccessGrantFromEdit, attachPortalFormFromEdit,
   showPortalQaAddTopicRow, hidePortalQaAddTopicRow, savePortalQaTopicFromEdit, showPortalQaAddEntryRow, hidePortalQaAddEntryRow, savePortalQaEntryFromEdit
 } from './modals/portals-admin.js';
@@ -567,13 +568,6 @@ function wireEvents(){
   });
 
   document.getElementById('navPortalsBtn').addEventListener('click', openPortalsAdminOverlay);
-  // No "list every Portal I have access to" endpoint exists (Portals are reached via their own
-  // shared #!/portal/<slug> link, same as Whiteboard join codes) — this entry point is a fallback
-  // for a user who knows a Portal's slug but not its full link.
-  document.getElementById('navPortalsBrowseBtn').addEventListener('click', function(){
-    var slug = window.prompt('Enter the Portal\'s slug (from its shared link):');
-    if(slug) openPortalHomeBySlug(slug.trim());
-  });
   document.getElementById('portalsAdminClose').addEventListener('click', closePortalsAdminOverlay);
   document.getElementById('portalsAdminOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'portalsAdminOverlay') closePortalsAdminOverlay();
@@ -590,6 +584,7 @@ function wireEvents(){
     btn.addEventListener('click', function(){ setPortalEditTab(btn.getAttribute('data-portal-tab')); });
   });
   document.getElementById('portalEditDetailsSaveBtn').addEventListener('click', savePortalEditDetails);
+  document.getElementById('portalEditIconPickBtn').addEventListener('click', togglePortalIconGrid);
   document.getElementById('portalEditPublishBtn').addEventListener('click', publishPortalFromEdit);
   document.getElementById('portalEditArchiveBtn').addEventListener('click', archivePortalFromEdit);
   document.getElementById('portalEditDeleteBtn').addEventListener('click', deletePortalFromEdit);
@@ -2265,6 +2260,7 @@ function init(){
     openChatFullscreenFromQueryParamIfPresent();
     openWhiteboardFromHashIfPresent();
     openPortalHomeFromHashIfPresent();
+    loadAndRenderSideNavPortals();
     pullServerProjectsIntoLocal().then(function(count){
       if(count > 0) renderAll();
     });

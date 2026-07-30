@@ -34,6 +34,30 @@ public class PortalHomeService
         return portal is null ? null : ToDto(portal);
     }
 
+    /// <summary>Backs the side nav's "Portals" section — every published Portal in the caller's own
+    /// org that this user actually has access to, checked the same way (PortalAccessService) as
+    /// every other read here. A plain per-candidate loop, not a single set-based query — fine at
+    /// this feature's expected scale (an org's total Portal count), same tolerance this codebase's
+    /// other small-scale in-memory checks already accept (see FormSubmissionService.ListAwaitingMyActionAsync's
+    /// own doc comment for the precedent).</summary>
+    public async Task<List<AccessiblePortalDto>> ListAccessibleAsync(Guid organisationId, Guid userId)
+    {
+        var candidates = await _db.Portals.AsNoTracking()
+            .Where(p => p.OrganisationId == organisationId && p.Status == "published")
+            .OrderBy(p => p.Name)
+            .ToListAsync();
+
+        var result = new List<AccessiblePortalDto>();
+        foreach (var p in candidates)
+        {
+            if (await _access.UserHasPortalAccessAsync(p.Id, userId))
+            {
+                result.Add(new AccessiblePortalDto(p.Id, p.Name, p.Slug, p.IconName));
+            }
+        }
+        return result;
+    }
+
     public async Task<List<PortalFormDto>?> ListAvailableFormsAsync(Guid organisationId, Guid portalId, Guid userId)
     {
         if (await GetAccessiblePortalAsync(organisationId, portalId, userId) is null) return null;
@@ -155,5 +179,5 @@ public class PortalHomeService
         return await _access.UserHasPortalAccessAsync(portal.Id, userId) ? portal : null;
     }
 
-    private static PortalDto ToDto(Portal p) => new(p.Id, p.Name, p.Slug, p.Description, p.Status, p.ProjectId, p.DateCreated, p.DateLastModified, p.PublishedAt);
+    private static PortalDto ToDto(Portal p) => new(p.Id, p.Name, p.Slug, p.Description, p.IconName, p.Status, p.ProjectId, p.DateCreated, p.DateLastModified, p.PublishedAt);
 }

@@ -71,9 +71,15 @@ function ruleFor(text, selector){
     log('expanded width is a sensible label-width size', expandedWidthRule && /width:\s*220px/.test(expandedWidthRule), expandedWidthRule);
 
     const sections = doc.querySelectorAll('.kf-side-nav-section');
-    log('exactly two sections', sections.length === 2, sections.length);
+    // A third section, "Portals", was added after this list was last updated — dynamic/per-user
+    // (populated client-side from portalHomeApi.listAccessible(), see portal-home.js's
+    // loadAndRenderSideNavPortals), so it's always present in the DOM (querySelectorAll doesn't
+    // care about its own .hidden class) but starts empty/hidden until populated.
+    log('exactly three sections', sections.length === 3, sections.length);
     log('first section is labeled "Views"', sections[0].querySelector('.kf-side-nav-label').textContent.trim() === 'Views');
     log('second section is labeled "Tools"', sections[1].querySelector('.kf-side-nav-label').textContent.trim() === 'Tools');
+    log('third section is labeled "Portals"', sections[2].querySelector('.kf-side-nav-label').textContent.trim() === 'Portals');
+    log('Portals section starts hidden (no accessible Portals loaded yet in this test)', sections[2].classList.contains('hidden'));
 
     const viewsOrder = Array.from(sections[0].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
     const toolsOrder = Array.from(sections[1].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
@@ -82,11 +88,13 @@ function ruleFor(text, selector){
     // added to Tools since this list was written, and API Endpoints (CLAUDE.md's API Endpoints
     // modal entry) landed between Project Storage and Workflow without this list being updated
     // for it. Manage Forms (Org-Admin authoring) landed after Strategy; Forms (Phase 5's
-    // member-facing fill-out surface) landed right after it.
+    // member-facing fill-out surface) landed right after it. "Portals" (the member-facing browse
+    // entry) moved OUT of this static Tools list entirely once the dynamic "Portals" section above
+    // replaced it — Manage Portals (Org-Admin authoring) is the only Portals entry left here.
     log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map, Dashboards',
         viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn,navOrgChartBtn,navGovernanceMapBtn,navDashboardsBtn', viewsOrder.join(','));
-    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Manage Forms, Forms, Whiteboard, Manage Portals, Portals',
-        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navFormsBtn,navFormsFilloutBtn,navWhiteboardBtn,navPortalsBtn,navPortalsBrowseBtn', toolsOrder.join(','));
+    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Manage Forms, Forms, Whiteboard, Manage Portals',
+        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navFormsBtn,navFormsFilloutBtn,navWhiteboardBtn,navPortalsBtn', toolsOrder.join(','));
 
     viewsOrder.concat(toolsOrder).forEach(id => {
       const el = doc.getElementById(id);

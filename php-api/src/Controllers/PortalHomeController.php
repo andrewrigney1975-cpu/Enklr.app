@@ -23,6 +23,11 @@ final class PortalHomeController extends BaseController
         return new PortalHomeService(Database::connection());
     }
 
+    public function listAccessible(Request $request, Response $response): Response
+    {
+        return $this->json($response, $this->service()->listAccessible($this->callerOrgId($request), $this->callerUserId($request)));
+    }
+
     public function getBySlug(Request $request, Response $response, array $args): Response
     {
         $portal = $this->service()->getBySlug($this->callerOrgId($request), $args['slug'], $this->callerUserId($request));

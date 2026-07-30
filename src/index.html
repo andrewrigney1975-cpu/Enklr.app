@@ -183,7 +183,13 @@
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navFormsFilloutBtn" title="Forms"><span class="kf-icon" data-icon="formFillOut" data-size="21"></span><span class="kf-side-nav-text">Forms</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navWhiteboardBtn" title="Whiteboard"><span class="kf-icon" data-icon="whiteboard" data-size="21"></span><span class="kf-side-nav-text">Whiteboard</span></button>
         <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navPortalsBtn" title="Manage Portals"><span class="kf-icon" data-icon="sparkle" data-size="21"></span><span class="kf-side-nav-text">Manage Portals</span></button>
-        <button type="button" class="kf-side-nav-item kf-vis-hidden" id="navPortalsBrowseBtn" title="Portals"><span class="kf-icon" data-icon="sparkle" data-size="21"></span><span class="kf-side-nav-text">Portals</span></button>
+      </div>
+      <!-- Dynamic, per-user — one entry per Portal this user actually has access to (see
+           portal-home.js's loadAndRenderSideNavPortals), each with its own Org-Admin-chosen icon.
+           Hidden entirely until populated with at least one accessible Portal. -->
+      <div class="kf-side-nav-section hidden" id="sideNavPortalsSection">
+        <div class="kf-side-nav-label">Portals</div>
+        <div id="sideNavPortalsList"></div>
       </div>
     </nav>
 
@@ -1700,6 +1706,14 @@
           <label for="portalEditDescInput">Description</label>
           <textarea id="portalEditDescInput" rows="3"></textarea>
         </div>
+        <div class="kf-field">
+          <label>Icon — shown large on the Portal's own home page, and next to its entry in the side nav</label>
+          <div class="kf-field-row">
+            <span class="kf-portal-icon-preview" id="portalEditIconPreview"></span>
+            <button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" id="portalEditIconPickBtn">Choose Icon</button>
+          </div>
+          <div id="portalEditIconGrid" class="kf-portal-icon-grid hidden"></div>
+        </div>
         <div class="kf-field-row">
           <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="portalEditDetailsSaveBtn">Save</button>
           <button type="button" class="kf-btn kf-btn-danger kf-btn-sm" id="portalEditDeleteBtn">Delete Portal</button>
@@ -1769,9 +1783,12 @@
 <!-- Portal home page — the end-user, fullscreen Organisational Portals experience -->
 <div class="kf-overlay hidden kf-overlay-full" id="portalHomeOverlay">
   <div class="kf-modal kf-modal-full" role="dialog" aria-modal="true">
-    <div class="kf-modal-header">
-      <h2 class="kf-portal-home-greeting" id="portalHomeGreeting">Welcome</h2>
-      <div class="kf-portal-home-desc" id="portalHomeDesc"></div>
+    <div class="kf-modal-header kf-portal-home-header">
+      <span class="kf-portal-home-icon-large" id="portalHomeIconLarge"></span>
+      <div class="kf-portal-home-header-text">
+        <h2 class="kf-portal-home-greeting" id="portalHomeGreeting">Welcome</h2>
+        <div class="kf-portal-home-desc" id="portalHomeDesc"></div>
+      </div>
       <div class="kf-modal-header-actions">
         <button class="kf-btn kf-btn-ghost" id="portalHomeClose"><span class="kf-icon" data-icon="close" data-size="20"></span></button>
       </div>

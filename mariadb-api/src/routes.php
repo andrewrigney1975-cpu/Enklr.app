@@ -282,6 +282,7 @@ function registerRoutes(App $app): void
     // belongs to zero projects. See PortalHomeService's own doc comment for the access-check
     // guarantee every action here relies on. ----
     $app->group('/api/portals', function ($group) {
+        $group->get('', [PortalHomeController::class, 'listAccessible']);
         $group->get('/{slug}', [PortalHomeController::class, 'getBySlug']);
         $group->get('/{portalId}/forms', [PortalHomeController::class, 'listAvailableForms']);
         $group->get('/{portalId}/submissions', [PortalHomeController::class, 'listMySubmissions']);

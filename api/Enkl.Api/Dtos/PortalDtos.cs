@@ -1,8 +1,12 @@
 namespace Enkl.Api.Dtos;
 
-public record PortalDto(Guid Id, string Name, string Slug, string? Description, string Status, Guid ProjectId, DateTime DateCreated, DateTime DateLastModified, DateTime? PublishedAt);
-public record CreatePortalRequest(string Name, string? Slug, string? Description);
-public record UpdatePortalRequest(string Name, string? Slug, string? Description);
+public record PortalDto(Guid Id, string Name, string Slug, string? Description, string? IconName, string Status, Guid ProjectId, DateTime DateCreated, DateTime DateLastModified, DateTime? PublishedAt);
+public record CreatePortalRequest(string Name, string? Slug, string? Description, string? IconName);
+public record UpdatePortalRequest(string Name, string? Slug, string? Description, string? IconName);
+
+/// <summary>The side nav's "Portals" section entry — just enough to render one icon button and open
+/// it (see PortalHomeService.ListAccessiblePortalsAsync).</summary>
+public record AccessiblePortalDto(Guid Id, string Name, string Slug, string? IconName);
 
 /// <summary>Kind: orgTeam|teamCommittee|namedUser — see PortalAccessGrant's own doc comment.</summary>
 public record PortalAccessGrantDto(Guid Id, string Kind, Guid Value, DateTime DateCreated);

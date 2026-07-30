@@ -770,11 +770,11 @@ export var portalsApi = {
   get: function(portalId){
     return apiFetch('/organisations/me/portals/' + portalId, {method: 'GET'});
   },
-  create: function(name, slug, description){
-    return apiFetch('/organisations/me/portals', {method: 'POST', body: JSON.stringify({name: name, slug: slug || null, description: description || null})});
+  create: function(name, slug, description, iconName){
+    return apiFetch('/organisations/me/portals', {method: 'POST', body: JSON.stringify({name: name, slug: slug || null, description: description || null, iconName: iconName || null})});
   },
-  update: function(portalId, name, slug, description){
-    return apiFetch('/organisations/me/portals/' + portalId, {method: 'PUT', body: JSON.stringify({name: name, slug: slug || null, description: description || null})});
+  update: function(portalId, name, slug, description, iconName){
+    return apiFetch('/organisations/me/portals/' + portalId, {method: 'PUT', body: JSON.stringify({name: name, slug: slug || null, description: description || null, iconName: iconName || null})});
   },
   publish: function(portalId){
     return apiFetch('/organisations/me/portals/' + portalId + '/publish', {method: 'POST'});
@@ -834,6 +834,12 @@ export var portalsApi = {
    by an org user who belongs to zero projects. A nonexistent/unpublished/ungranted Portal all 404
    identically, same no-enumeration-oracle stance as everywhere else in this app. */
 export var portalHomeApi = {
+  /* Backs the side nav's "Portals" section — every published Portal in the caller's own org this
+     user actually has access to (server-side re-derived, same PortalAccessService check as every
+     other Portal read). */
+  listAccessible: function(){
+    return apiFetch('/portals', {method: 'GET'});
+  },
   getBySlug: function(slug){
     return apiFetch('/portals/' + encodeURIComponent(slug), {method: 'GET'});
   },

@@ -207,14 +207,10 @@ export function applyHeaderButtonVisibility(){
 
   /* Manage Portals is Org-Admin-only, same Portfolio-Planner/Manage-Forms-style pure permission
      gate — this is the authoring surface (create/publish Portals, manage access/forms/Q&A), not the
-     end-user browsing surface. */
+     end-user browsing surface. The member-facing entry point isn't a static button at all — see
+     portal-home.js's loadAndRenderSideNavPortals, which populates the dynamic "Portals" side-nav
+     section directly from whichever Portals this user actually has access to. */
   document.getElementById('navPortalsBtn').classList.toggle('kf-vis-hidden', !(isServerAuthoritative(project) && isOrgAdmin() && visibility.portals));
-
-  /* "Portals" (browse) is the member-facing entry point — any org user, same shape as Forms' own
-     fill-out surface. Actual per-Portal access is independently re-derived server-side
-     (PortalAccessService) whenever a specific Portal is opened; this toggle only decides whether the
-     org-wide entry point is worth showing at all. */
-  document.getElementById('navPortalsBrowseBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.portals);
 
   var govMapEnabled = isGovernanceMapEnabled(visibility);
   document.getElementById('governanceMapBtn').classList.toggle('kf-vis-hidden', !govMapEnabled);

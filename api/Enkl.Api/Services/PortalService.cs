@@ -76,6 +76,7 @@ public class PortalService
             Name = name,
             Slug = uniqueSlug,
             Description = request.Description,
+            IconName = request.IconName,
             Status = "draft",
             ProjectId = project.Id,
             CreatedByUserId = callerUserId,
@@ -104,6 +105,7 @@ public class PortalService
 
         portal.Name = name;
         portal.Description = request.Description;
+        portal.IconName = request.IconName;
         portal.DateLastModified = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return ToDto(portal);
@@ -390,5 +392,5 @@ public class PortalService
     private Task<bool> OwnsPortalAsync(Guid organisationId, Guid portalId) =>
         _db.Portals.AsNoTracking().AnyAsync(p => p.Id == portalId && p.OrganisationId == organisationId);
 
-    private static PortalDto ToDto(Portal p) => new(p.Id, p.Name, p.Slug, p.Description, p.Status, p.ProjectId, p.DateCreated, p.DateLastModified, p.PublishedAt);
+    private static PortalDto ToDto(Portal p) => new(p.Id, p.Name, p.Slug, p.Description, p.IconName, p.Status, p.ProjectId, p.DateCreated, p.DateLastModified, p.PublishedAt);
 }

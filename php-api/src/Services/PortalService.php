@@ -67,12 +67,13 @@ final class PortalService
 
             $portalId = Uuid::v4();
             $stmt = $this->db->prepare(<<<SQL
-                INSERT INTO "Portals" ("Id", "OrganisationId", "Name", "Slug", "Description", "Status", "ProjectId", "CreatedByUserId", "DateCreated", "DateLastModified")
-                VALUES (:id, :orgId, :name, :slug, :description, 'draft', :projectId, :createdBy, now(), now())
+                INSERT INTO "Portals" ("Id", "OrganisationId", "Name", "Slug", "Description", "IconName", "Status", "ProjectId", "CreatedByUserId", "DateCreated", "DateLastModified")
+                VALUES (:id, :orgId, :name, :slug, :description, :iconName, 'draft', :projectId, :createdBy, now(), now())
             SQL);
             $stmt->execute([
                 'id' => $portalId, 'orgId' => $organisationId, 'name' => $name, 'slug' => $uniqueSlug,
-                'description' => $request['description'] ?? null, 'projectId' => $project['id'], 'createdBy' => $callerUserId,
+                'description' => $request['description'] ?? null, 'iconName' => $request['iconName'] ?? null,
+                'projectId' => $project['id'], 'createdBy' => $callerUserId,
             ]);
 
             $this->db->commit();
@@ -105,9 +106,9 @@ final class PortalService
         }
 
         $stmt = $this->db->prepare(
-            'UPDATE "Portals" SET "Name" = :name, "Slug" = :slug, "Description" = :description, "DateLastModified" = now() WHERE "Id" = :id'
+            'UPDATE "Portals" SET "Name" = :name, "Slug" = :slug, "Description" = :description, "IconName" = :iconName, "DateLastModified" = now() WHERE "Id" = :id'
         );
-        $stmt->execute(['name' => $name, 'slug' => $slug, 'description' => $request['description'] ?? null, 'id' => $portalId]);
+        $stmt->execute(['name' => $name, 'slug' => $slug, 'description' => $request['description'] ?? null, 'iconName' => $request['iconName'] ?? null, 'id' => $portalId]);
 
         return $this->get($organisationId, $portalId);
     }
@@ -446,8 +447,8 @@ final class PortalService
     {
         return [
             'id' => $p['Id'], 'name' => $p['Name'], 'slug' => $p['Slug'], 'description' => $p['Description'],
-            'status' => $p['Status'], 'projectId' => $p['ProjectId'], 'dateCreated' => $p['DateCreated'],
-            'dateLastModified' => $p['DateLastModified'], 'publishedAt' => $p['PublishedAt'],
+            'iconName' => $p['IconName'], 'status' => $p['Status'], 'projectId' => $p['ProjectId'],
+            'dateCreated' => $p['DateCreated'], 'dateLastModified' => $p['DateLastModified'], 'publishedAt' => $p['PublishedAt'],
         ];
     }
 

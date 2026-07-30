@@ -6008,10 +6008,16 @@
   #portalHomeOverlay .kf-modal-header {
     background: linear-gradient(180deg, var(--kf-portal-accent-soft), transparent);
     border-bottom: 1px solid var(--kf-border);
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+    align-items: center;
+    gap: 16px;
     padding: 20px 28px 16px;
+  }
+
+  .kf-portal-home-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
 
   #portalHomeOverlay .kf-modal-header .kf-modal-header-actions {
@@ -6201,6 +6207,71 @@
       border-left: none;
       border-top: 1px solid var(--kf-border);
     }
+  }
+
+  /* Portal icon — the large heading icon on the fullscreen home page, coloured with the app's
+     custom header colour when set (falls back to the portal accent otherwise, same fallback shape
+     applyHeaderColor's own --kf-header-bg/-fg pair already uses everywhere else). */
+  .kf-portal-home-icon-large {
+    color: var(--kf-header-bg, var(--kf-portal-accent));
+    flex-shrink: 0;
+  }
+
+  /* Icon picker (Manage Portals > Details tab) — a plain wrapping grid of icon buttons drawn from
+     the same shared ICON_PATHS library every other icon in the app uses (Team, Health Dashboard,
+     etc. are already in there — no Portal-specific icon set). */
+  .kf-portal-icon-preview {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--kf-radius);
+    background: var(--kf-column-bg);
+    color: var(--kf-text-secondary);
+  }
+
+  .kf-portal-icon-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding: 8px;
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+  }
+
+  .kf-portal-icon-grid button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--kf-radius);
+    background: none;
+    color: var(--kf-text-secondary);
+    cursor: pointer;
+  }
+
+  .kf-portal-icon-grid button:hover {
+    background: var(--kf-hover-tint);
+  }
+
+  .kf-portal-icon-grid button.selected {
+    border-color: var(--kf-portal-accent);
+    color: var(--kf-portal-accent);
+    background: var(--kf-portal-accent-soft);
+  }
+
+  /* Side nav "Portals" section — dynamic, populated per-user from portalHomeApi.listAccessible(),
+     same .kf-side-nav-item shape every other entry uses so it inherits identical spacing/hover/
+     tooltip behavior; only the icon differs per Portal instead of being fixed per feature. */
+  #sideNavPortalsSection.hidden {
+    display: none;
   }
 
   /* The Team modal's member rows (avatar + name + role + allocated-fraction + Admin checkbox +

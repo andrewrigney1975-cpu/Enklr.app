@@ -3,7 +3,8 @@ import { toast } from '../ui.js';
 import { escapeHTML } from '../views/board.js';
 import { portalsApi, formsApi, chatApi, getOrgTeamsApi } from '../api.js';
 import { confirmDialog } from './confirm.js';
-import { hydrateIcons } from '../icons.js';
+import { iconSvg, hydrateIcons } from '../icons.js';
+import { ICON_PATHS } from '../config.js';
 
 /* Organisational Portals — Org-Admin authoring UI. Two overlays, same shape as Manage Forms
    (modals/forms-admin.js): #portalsAdminOverlay is the plain list/create picker, #portalEditOverlay
@@ -21,6 +22,7 @@ var editingOrgUsers = [];
 var editingOrgTeams = [];
 var editingPublishedForms = []; // org-wide published FormDto list, for the "attach a form" picker
 var editingTopics = [];
+var editingIconName = null;
 
 var STATUS_LABELS = {draft: 'Draft', published: 'Published', archived: 'Archived'};
 
@@ -92,6 +94,8 @@ export function openPortalEdit(portalId){
   portalsApi.get(portalId).then(function(portal){
     editingPortal = portal;
     editingTab = 'details';
+    editingIconName = portal.iconName || null;
+    document.getElementById('portalEditIconGrid').classList.add('hidden');
     document.getElementById('portalEditOverlay').classList.remove('hidden');
     renderPortalEditChrome();
     setPortalEditTab('details');
@@ -123,6 +127,8 @@ function renderPortalEditChrome(){
 
   document.getElementById('portalEditNameInput').value = p.name;
   document.getElementById('portalEditSlugInput').value = p.slug;
+  renderPortalIconPreview();
+  updatePortalIconGridSelection();
   document.getElementById('portalEditDescInput').value = p.description || '';
 }
 
@@ -146,13 +152,46 @@ export function savePortalEditDetails(){
   var slug = document.getElementById('portalEditSlugInput').value.trim();
   var description = document.getElementById('portalEditDescInput').value.trim();
   if(!name){ _toast('Please enter a name.'); return; }
-  portalsApi.update(editingPortal.id, name, slug, description).then(function(portal){
+  portalsApi.update(editingPortal.id, name, slug, description, editingIconName).then(function(portal){
     editingPortal = portal;
     renderPortalEditChrome();
     _toast('Portal saved.');
   }, function(e){
     _toast('Could not save Portal: ' + (e.message || 'unknown error'));
   });
+}
+
+/* Icon picker — a plain grid of every icon in the shared ICON_PATHS library (the same one every
+   other icon in the app draws from; Team, Health Dashboard, etc. are already in there, so no
+   separate Portal-specific icon set is needed). Built once (the option list never changes within a
+   session) and reused across every Portal opened in this editor session. */
+export function togglePortalIconGrid(){
+  var grid = document.getElementById('portalEditIconGrid');
+  var willShow = grid.classList.contains('hidden');
+  grid.classList.toggle('hidden', !willShow);
+  if(willShow && !grid.hasChildNodes()){
+    grid.innerHTML = Object.keys(ICON_PATHS).map(function(name){
+      return '<button type="button" data-icon-name="' + escapeHTML(name) + '" title="' + escapeHTML(name) + '">' + iconSvg(name, 18) + '</button>';
+    }).join('');
+    grid.querySelectorAll('[data-icon-name]').forEach(function(btn){
+      btn.addEventListener('click', function(){ selectPortalIcon(btn.getAttribute('data-icon-name')); });
+    });
+  }
+  updatePortalIconGridSelection();
+}
+function selectPortalIcon(name){
+  editingIconName = name;
+  renderPortalIconPreview();
+  updatePortalIconGridSelection();
+  document.getElementById('portalEditIconGrid').classList.add('hidden');
+}
+function updatePortalIconGridSelection(){
+  document.querySelectorAll('#portalEditIconGrid [data-icon-name]').forEach(function(btn){
+    btn.classList.toggle('selected', btn.getAttribute('data-icon-name') === editingIconName);
+  });
+}
+function renderPortalIconPreview(){
+  document.getElementById('portalEditIconPreview').innerHTML = editingIconName ? iconSvg(editingIconName, 20) : '';
 }
 export function publishPortalFromEdit(){
   if(!editingPortal) return;

@@ -27,6 +27,25 @@ final class PortalHomeService
         return $portal === null ? null : PortalService::toDto($portal);
     }
 
+    /** Backs the side nav's "Portals" section — every published Portal in the caller's own org
+     * that this user actually has access to. A plain per-candidate loop, not a single set-based
+     * query — fine at this feature's expected scale (an org's total Portal count). */
+    public function listAccessible(string $organisationId, string $userId): array
+    {
+        $stmt = $this->db->prepare('SELECT "Id", "Name", "Slug", "IconName" FROM "Portals" WHERE "OrganisationId" = :orgId AND "Status" = \'published\' ORDER BY "Name"');
+        $stmt->execute(['orgId' => $organisationId]);
+        $candidates = $stmt->fetchAll();
+
+        $access = new PortalAccessService($this->db);
+        $result = [];
+        foreach ($candidates as $p) {
+            if ($access->userHasPortalAccess($p['Id'], $userId)) {
+                $result[] = ['id' => $p['Id'], 'name' => $p['Name'], 'slug' => $p['Slug'], 'iconName' => $p['IconName']];
+            }
+        }
+        return $result;
+    }
+
     public function listAvailableForms(string $organisationId, string $portalId, string $userId): ?array
     {
         if ($this->accessiblePortal($organisationId, $portalId, $userId) === null) {

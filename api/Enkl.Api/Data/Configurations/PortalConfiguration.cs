@@ -12,6 +12,7 @@ public class PortalConfiguration : IEntityTypeConfiguration<Portal>
         b.Property(p => p.Name).HasMaxLength(200).IsRequired();
         b.Property(p => p.Slug).HasMaxLength(80).IsRequired();
         b.Property(p => p.Status).HasMaxLength(20).HasDefaultValue("draft");
+        b.Property(p => p.IconName).HasMaxLength(50);
 
         b.HasOne(p => p.Organisation)
             .WithMany()

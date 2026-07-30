@@ -21,6 +21,16 @@ public class Portal
 
     public string? Description { get; set; }
 
+    /// <summary>One of src/js/config.js's ICON_PATHS keys — the same shared icon library every other
+    /// icon in the app draws from (Team, Health Dashboard, etc. are already in there), not a
+    /// Portal-specific set. Plain unconstrained string, server-unvalidated (same "no CHECK
+    /// constraint, app-level interpretation only" convention as every other type/name field in this
+    /// codebase) — an unrecognized/missing name just renders blank client-side (iconSvg's own
+    /// existing fallback for an unknown key), never a server error. Shown at large size in the Portal
+    /// home page's own header, and as the icon for this Portal's entry in the side nav's "Portals"
+    /// section.</summary>
+    public string? IconName { get; set; }
+
     /// <summary>draft|published|archived — plain unconstrained string, same convention as
     /// Form.Status/TaskItem.Priority. Only a "published" Portal is ever resolvable via its slug by an
     /// end user (PortalHomeService); draft/archived are Org-Admin-preview-only.</summary>

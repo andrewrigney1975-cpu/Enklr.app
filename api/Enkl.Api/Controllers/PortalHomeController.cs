@@ -24,6 +24,15 @@ public class PortalHomeController : ControllerBase
         _home = home;
     }
 
+    // Backs the side nav's "Portals" section — every published Portal in the caller's own org this
+    // user actually has access to. GET, not the same route shape as GetBySlug below (no {slug}
+    // segment), so the two never collide.
+    [HttpGet]
+    public async Task<IActionResult> ListAccessible()
+    {
+        return Ok(await _home.ListAccessibleAsync(User.OrgId(), User.UserId()));
+    }
+
     [HttpGet("{slug}")]
     public async Task<IActionResult> GetBySlug(string slug)
     {

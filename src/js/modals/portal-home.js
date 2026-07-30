@@ -33,12 +33,36 @@ export function openPortalHomeBySlug(slug){
     currentPortal = portal;
     setPortalHash(portal.slug);
     document.getElementById('portalHomeOverlay').classList.remove('hidden');
+    document.getElementById('portalHomeIconLarge').innerHTML = portal.iconName ? iconSvg(portal.iconName, 48) : '';
     document.getElementById('portalHomeGreeting').textContent = 'Welcome to the ' + portal.name + ' Portal';
     document.getElementById('portalHomeDesc').textContent = portal.description || '';
     loadAndRenderPortalHome();
   }, function(){
     _toast('That Portal isn\'t available.');
   });
+}
+
+/* Populates the side nav's dynamic "Portals" section — one icon button per published Portal this
+   user actually has access to (server-side re-derived, PortalHomeService.ListAccessibleAsync).
+   Called once at init() (after login), same call-site convention as openWhiteboardFromHashIfPresent/
+   initChat — not re-run on every render, so a Portal published/granted mid-session only appears in
+   the side nav after the next reload. */
+export function loadAndRenderSideNavPortals(){
+  portalHomeApi.listAccessible().then(function(portals){
+    var section = document.getElementById('sideNavPortalsSection');
+    var list = document.getElementById('sideNavPortalsList');
+    portals = portals || [];
+    section.classList.toggle('hidden', portals.length === 0);
+    list.innerHTML = portals.map(function(p){
+      return '<button type="button" class="kf-side-nav-item" data-portal-slug="' + escapeHTML(p.slug) + '" title="' + escapeHTML(p.name) + '">' +
+        (p.iconName ? iconSvg(p.iconName, 21) : iconSvg('sparkle', 21)) +
+        '<span class="kf-side-nav-text">' + escapeHTML(p.name) + '</span>' +
+      '</button>';
+    }).join('');
+    list.querySelectorAll('[data-portal-slug]').forEach(function(btn){
+      btn.addEventListener('click', function(){ openPortalHomeBySlug(btn.getAttribute('data-portal-slug')); });
+    });
+  }, function(){ /* Not server-authoritative / no server session — leave the section hidden. */ });
 }
 export function closePortalHomeOverlay(){
   document.getElementById('portalHomeOverlay').classList.add('hidden');
