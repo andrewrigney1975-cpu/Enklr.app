@@ -218,12 +218,18 @@ function openNewPortalSubmission(formGroupId){
   renderPortalFilloutDetail();
 }
 
+/* The "My requests" list item alone has no AnswersJson (FormSubmissionListItemDto is a display-only
+   summary row) — must re-fetch the full submission via portalHomeApi.getSubmission before rendering,
+   or the form would always render blank on reopen even though the answers are safely persisted
+   server-side (this was a real bug: detail.submission was previously left null here). */
 function openExistingPortalSubmission(submissionId){
   var item = currentRequests.filter(function(r){ return r.id === submissionId; })[0];
   if(!item) return;
   var f = currentForms.filter(function(x){ return x.formVersionId === item.formVersionId; })[0];
-  detail = {mode: 'draft', formVersionId: item.formVersionId, formName: item.formName, fields: f ? parseFieldsJson(f.fieldsJson) : [], submissionId: submissionId, submission: null};
-  renderPortalFilloutDetail();
+  portalHomeApi.getSubmission(currentPortal.id, submissionId).then(function(submission){
+    detail = {mode: 'draft', formVersionId: item.formVersionId, formName: item.formName, fields: f ? parseFieldsJson(f.fieldsJson) : [], submissionId: submissionId, submission: submission};
+    renderPortalFilloutDetail();
+  }, function(e){ _toast('Could not load your saved draft: ' + (e.message || 'unknown error')); });
 }
 
 function renderPortalFilloutDetail(){

@@ -110,6 +110,23 @@ public class PortalHomeService
         return new PortalQaDto(topics, entries);
     }
 
+    /// <summary>Re-fetches ONE of the caller's own submissions with its full AnswersJson — needed to
+    /// actually reopen a saved Draft with its previously-entered answers bound back into the form
+    /// (FormSubmissionListItemDto, what the "My requests" pane's own list already has in hand, never
+    /// carries AnswersJson at all). FormSubmissionService.GetAsync itself has no ownership check
+    /// baked in (the normal ProjectMember-scoped fill-out surface trusts any project member to read
+    /// any submission in their own project) — that trust boundary doesn't apply to a Portal-only user
+    /// with no project membership at all, so this method re-derives ownership explicitly: a
+    /// submission that exists but was submitted by someone else returns null here, identical to a
+    /// nonexistent one, no distinguishable error.</summary>
+    public async Task<FormSubmissionDto?> GetSubmissionAsync(Guid organisationId, Guid portalId, Guid userId, Guid submissionId)
+    {
+        var portal = await GetAccessiblePortalAsync(organisationId, portalId, userId);
+        if (portal is null) return null;
+        var submission = await _submissions.GetAsync(portal.ProjectId, submissionId);
+        return submission is not null && submission.SubmittedByUserId == userId ? submission : null;
+    }
+
     /// <summary>Delegates into FormSubmissionService.CreateAsync against the Portal's own actioner
     /// Project (which FormSubmissionService's methods take as a bare, un-authorized ProjectId — no
     /// ProjectMember policy a Portal-only user would never satisfy) after re-validating both Portal

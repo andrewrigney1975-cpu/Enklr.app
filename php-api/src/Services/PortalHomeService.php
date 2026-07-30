@@ -111,6 +111,24 @@ final class PortalHomeService
         return ['topics' => $topics, 'entries' => $entries];
     }
 
+    /** Re-fetches ONE of the caller's own submissions with its full AnswersJson — needed to actually
+     * reopen a saved Draft with its previously-entered answers bound back into the form (the list
+     * item "My requests" already has in hand never carries AnswersJson at all).
+     * FormSubmissionService::get itself has no ownership check baked in (the normal ProjectMember-
+     * scoped fill-out surface trusts any project member to read any submission in their own
+     * project) — that trust boundary doesn't apply to a Portal-only user with no project membership
+     * at all, so this method re-derives ownership explicitly: a submission that exists but was
+     * submitted by someone else returns null here, identical to a nonexistent one. */
+    public function getSubmission(string $organisationId, string $portalId, string $userId, string $submissionId): ?array
+    {
+        $portal = $this->accessiblePortal($organisationId, $portalId, $userId);
+        if ($portal === null) {
+            return null;
+        }
+        $submission = (new FormSubmissionService($this->db))->get($portal['ProjectId'], $submissionId);
+        return $submission !== null && $submission['submittedByUserId'] === $userId ? $submission : null;
+    }
+
     /** Delegates into FormSubmissionService::create against the Portal's own actioner Project (which
      * takes a bare, un-authorized projectId — no ProjectMember policy a Portal-only user would never
      * satisfy) after re-validating both Portal access AND that the requested form version's

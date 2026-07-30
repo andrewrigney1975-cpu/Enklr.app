@@ -61,6 +61,13 @@ public class PortalHomeController : ControllerBase
         return qa is null ? NotFound() : Ok(qa);
     }
 
+    [HttpGet("{portalId:guid}/submissions/{submissionId:guid}")]
+    public async Task<IActionResult> GetSubmission(Guid portalId, Guid submissionId)
+    {
+        var submission = await _home.GetSubmissionAsync(User.OrgId(), portalId, User.UserId(), submissionId);
+        return submission is null ? NotFound() : Ok(submission);
+    }
+
     [HttpPost("{portalId:guid}/submissions")]
     public async Task<IActionResult> CreateSubmission(Guid portalId, CreateFormSubmissionRequest request)
     {

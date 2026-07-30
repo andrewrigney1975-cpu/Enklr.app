@@ -287,6 +287,7 @@ function registerRoutes(App $app): void
         $group->get('/{portalId}/forms', [PortalHomeController::class, 'listAvailableForms']);
         $group->get('/{portalId}/submissions', [PortalHomeController::class, 'listMySubmissions']);
         $group->get('/{portalId}/qa', [PortalHomeController::class, 'listQa']);
+        $group->get('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'getSubmission']);
         $group->post('/{portalId}/submissions', [PortalHomeController::class, 'createSubmission']);
         $group->put('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'updateSubmission']);
         $group->delete('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'deleteSubmission']);

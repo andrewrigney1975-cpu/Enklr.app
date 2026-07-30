@@ -53,6 +53,12 @@ final class PortalHomeController extends BaseController
         return $qa === null ? $this->notFound($response) : $this->json($response, $qa);
     }
 
+    public function getSubmission(Request $request, Response $response, array $args): Response
+    {
+        $submission = $this->service()->getSubmission($this->callerOrgId($request), $args['portalId'], $this->callerUserId($request), $args['submissionId']);
+        return $submission === null ? $this->notFound($response) : $this->json($response, $submission);
+    }
+
     public function createSubmission(Request $request, Response $response, array $args): Response
     {
         $body = $this->body($request);

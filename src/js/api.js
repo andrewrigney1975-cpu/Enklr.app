@@ -849,6 +849,12 @@ export var portalHomeApi = {
   listMySubmissions: function(portalId){
     return apiFetch('/portals/' + portalId + '/submissions', {method: 'GET'});
   },
+  /* The list above never carries AnswersJson (FormSubmissionListItemDto is a display-only summary
+     row) — this is what actually reopening a saved Draft with its previous answers bound back in
+     needs. */
+  getSubmission: function(portalId, submissionId){
+    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId, {method: 'GET'});
+  },
   listQa: function(portalId){
     return apiFetch('/portals/' + portalId + '/qa', {method: 'GET'});
   },
