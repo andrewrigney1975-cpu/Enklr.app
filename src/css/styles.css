@@ -6011,6 +6011,11 @@
     background: linear-gradient(180deg, var(--kf-portal-accent-soft), transparent);
     border-bottom: 1px solid var(--kf-border);
     align-items: center;
+    /* Overrides the base .kf-modal-header's justify-content:space-between — the close button is
+       pulled out of flow (position:absolute below), leaving just the icon + text as flex children;
+       space-between would push those two apart to the far edges instead of keeping them grouped
+       together at the left, next to each other. */
+    justify-content: flex-start;
     gap: 16px;
     padding: 20px 28px 16px;
   }
@@ -6029,9 +6034,13 @@
   }
 
   .kf-portal-home-greeting {
-    font-size: 30px;
+    font-size: 24px;
     font-weight: 300;
-    color: var(--kf-text);
+    /* The app's custom header colour (My Preferences), falling back to the portal accent when no
+       custom colour is set — same --kf-header-bg fallback shape applyHeaderColor's own consumers
+       already use everywhere else, and the same value the large heading icon beside it is coloured
+       with, so the two read as one deliberately-coloured unit. */
+    color: var(--kf-header-bg, var(--kf-portal-accent));
     line-height: 1.2;
   }
 
@@ -6041,9 +6050,12 @@
     max-width: 640px;
   }
 
+  /* Wider left/right rails (curated forms list, Q&A rail) than the middle "My requests" pane —
+     requests are a short, scannable list of status steppers that doesn't need much horizontal room,
+     while the form tiles and Q&A entries both benefit from the extra width for their own text. */
   .kf-portal-home-body {
     display: grid;
-    grid-template-columns: 260px 1fr 320px;
+    grid-template-columns: 340px 1fr 380px;
     gap: 0;
     flex: 1;
     min-height: 0;
