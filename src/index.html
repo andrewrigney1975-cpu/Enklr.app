@@ -800,10 +800,10 @@
         <button type="button" class="kf-tabbar-btn active" id="importCentreTabImportBtn">Import Data</button>
         <button type="button" class="kf-tabbar-btn" id="importCentreTabSchemasBtn">Schemas</button>
       </div>
-      <div id="importCentreImportView">
+      <div class="kf-import-centre-view" id="importCentreImportView">
         <p class="kf-sso-hint">File upload, Test Run, and Commit are landing in a later phase of this feature. In the meantime, the <strong>Schemas</strong> tab shows exactly which columns each entity needs, with downloadable CSV/JSON templates to start from.</p>
       </div>
-      <div class="kf-field hidden" id="importCentreSchemasView">
+      <div class="kf-import-centre-view kf-field hidden" id="importCentreSchemasView">
         <p class="kf-sso-hint">Every downloadable schema below matches what a real import file for that entity will require — required columns must be present on every row; optional ones can be left blank or omitted.</p>
         <div id="importCentreSchemasList"></div>
       </div>
@@ -2868,46 +2868,50 @@
           <span>Enterprise</span>
         </div>
         <div class="kf-settings-category-body kf-settings-category-body-2col">
-          <div class="kf-setting-row kf-setting-row-static">
-            <span class="kf-icon kf-setting-row-icon" data-icon="lock" data-size="16"></span>
-            <span class="kf-setting-row-text">
-              <span class="kf-setting-row-title">Authentication and Provisioning</span>
-              <span class="kf-setting-row-desc">Available only to Enterprise customers. Enables SAML authentication and SCIM integration, so access and user/group setup can be managed automatically from your enterprise identity platform.</span>
-              <button type="button" class="kf-btn kf-btn-secondary" id="appSettingsSsoConfigBtn" style="margin-top:8px;">Configure SSO &amp; Provisioning</button>
-            </span>
+          <div class="kf-settings-category-col">
+            <div class="kf-setting-row kf-setting-row-static">
+              <span class="kf-icon kf-setting-row-icon" data-icon="lock" data-size="16"></span>
+              <span class="kf-setting-row-text">
+                <span class="kf-setting-row-title">Authentication and Provisioning</span>
+                <span class="kf-setting-row-desc">Available only to Enterprise customers. Enables SAML authentication and SCIM integration, so access and user/group setup can be managed automatically from your enterprise identity platform.</span>
+                <button type="button" class="kf-btn kf-btn-secondary" id="appSettingsSsoConfigBtn" style="margin-top:8px;">Configure SSO &amp; Provisioning</button>
+              </span>
+            </div>
+            <div class="kf-setting-row kf-setting-row-static" id="appSettingsImportCentreRow">
+              <span class="kf-icon kf-setting-row-icon" data-icon="cloudUpload" data-size="16"></span>
+              <span class="kf-setting-row-text">
+                <span class="kf-setting-row-title">Import Centre</span>
+                <span class="kf-setting-row-desc">Bulk-import Organisation Users, Team Members, Teams &amp; Committees, or Portal Q&amp;A from a CSV or JSON file — validate with a Test Run first, then commit. Org Admins only.</span>
+                <button type="button" class="kf-btn kf-btn-secondary" id="appSettingsImportCentreBtn" style="margin-top:8px;">Open Import Centre</button>
+              </span>
+            </div>
           </div>
-          <div class="kf-setting-row kf-setting-row-static" id="appSettingsImportCentreRow">
-            <span class="kf-icon kf-setting-row-icon" data-icon="cloudUpload" data-size="16"></span>
-            <span class="kf-setting-row-text">
-              <span class="kf-setting-row-title">Import Centre</span>
-              <span class="kf-setting-row-desc">Bulk-import Organisation Users, Team Members, Teams &amp; Committees, or Portal Q&amp;A from a CSV or JSON file — validate with a Test Run first, then commit. Org Admins only.</span>
-              <button type="button" class="kf-btn kf-btn-secondary" id="appSettingsImportCentreBtn" style="margin-top:8px;">Open Import Centre</button>
-            </span>
+          <div class="kf-settings-category-col">
+            <label class="kf-setting-row">
+              <input type="checkbox" id="settingsShowPortfolioPlannerBtn">
+              <span class="kf-icon kf-setting-row-icon" data-icon="portfolioPlanner" data-size="16"></span>
+              <span class="kf-setting-row-text">
+                <span class="kf-setting-row-title">Portfolio Planner</span>
+                <span class="kf-setting-row-desc">Sketch out a portfolio of not-yet-real projects, grouped into swimlanes, before they're activated. Org Admins only. Applies to every project in the organisation, not just this one.</span>
+              </span>
+            </label>
+            <label class="kf-setting-row">
+              <input type="checkbox" id="settingsShowFormsBtn">
+              <span class="kf-icon kf-setting-row-icon" data-icon="ty_document" data-size="16"></span>
+              <span class="kf-setting-row-text">
+                <span class="kf-setting-row-title">Forms &amp; Workflow</span>
+                <span class="kf-setting-row-desc">Enterprise forms with typed fields and a versioned approval workflow — who can submit, who must approve. Authored centrally by Org Admins; once switched on, any project member can fill one out. Applies to every project in the organisation, not just this one.</span>
+              </span>
+            </label>
+            <label class="kf-setting-row">
+              <input type="checkbox" id="settingsShowPortalsBtn">
+              <span class="kf-icon kf-setting-row-icon" data-icon="sparkle" data-size="16"></span>
+              <span class="kf-setting-row-text">
+                <span class="kf-setting-row-title">Portals</span>
+                <span class="kf-setting-row-desc">A curated home page for org users who aren't necessarily project members — a place to fill in forms, track submitted requests, and browse answers to common questions. Authored centrally by Org Admins. Applies to every project in the organisation, not just this one.</span>
+              </span>
+            </label>
           </div>
-          <label class="kf-setting-row">
-            <input type="checkbox" id="settingsShowFormsBtn">
-            <span class="kf-icon kf-setting-row-icon" data-icon="ty_document" data-size="16"></span>
-            <span class="kf-setting-row-text">
-              <span class="kf-setting-row-title">Forms &amp; Workflow</span>
-              <span class="kf-setting-row-desc">Enterprise forms with typed fields and a versioned approval workflow — who can submit, who must approve. Authored centrally by Org Admins; once switched on, any project member can fill one out. Applies to every project in the organisation, not just this one.</span>
-            </span>
-          </label>
-          <label class="kf-setting-row">
-            <input type="checkbox" id="settingsShowPortfolioPlannerBtn">
-            <span class="kf-icon kf-setting-row-icon" data-icon="portfolioPlanner" data-size="16"></span>
-            <span class="kf-setting-row-text">
-              <span class="kf-setting-row-title">Portfolio Planner</span>
-              <span class="kf-setting-row-desc">Sketch out a portfolio of not-yet-real projects, grouped into swimlanes, before they're activated. Org Admins only. Applies to every project in the organisation, not just this one.</span>
-            </span>
-          </label>
-          <label class="kf-setting-row">
-            <input type="checkbox" id="settingsShowPortalsBtn">
-            <span class="kf-icon kf-setting-row-icon" data-icon="sparkle" data-size="16"></span>
-            <span class="kf-setting-row-text">
-              <span class="kf-setting-row-title">Portals</span>
-              <span class="kf-setting-row-desc">A curated home page for org users who aren't necessarily project members — a place to fill in forms, track submitted requests, and browse answers to common questions. Authored centrally by Org Admins. Applies to every project in the organisation, not just this one.</span>
-            </span>
-          </label>
         </div>
       </div>
     </div>

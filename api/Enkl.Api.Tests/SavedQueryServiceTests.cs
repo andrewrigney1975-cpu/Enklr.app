@@ -31,7 +31,7 @@ public class SavedQueryServiceTests
         var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
         var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
 
-        var result = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("All tasks", "SELECT * FROM tasks"));
+        var result = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("All tasks", "SELECT * FROM tasks"), false);
 
         Assert.NotNull(result);
         Assert.Equal("All tasks", result!.Name);
@@ -48,7 +48,7 @@ public class SavedQueryServiceTests
         using var scope = _fixture.CreateScope();
         var savedQueries = scope.ServiceProvider.GetRequiredService<SavedQueryService>();
 
-        var result = await savedQueries.CreateAsync(Guid.NewGuid(), new CreateSavedQueryRequest("Name", "SELECT 1"));
+        var result = await savedQueries.CreateAsync(Guid.NewGuid(), new CreateSavedQueryRequest("Name", "SELECT 1"), false);
 
         Assert.Null(result);
     }
@@ -62,9 +62,9 @@ public class SavedQueryServiceTests
 
         var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
         var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
-        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("All tasks", "SELECT * FROM tasks"));
+        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("All tasks", "SELECT * FROM tasks"), false);
 
-        var updated = await savedQueries.UpdateAsync(project.Id, created!.Id, new CreateSavedQueryRequest("All tasks", "SELECT * FROM tasks WHERE priority = 'high'"));
+        var updated = await savedQueries.UpdateAsync(project.Id, created!.Id, new CreateSavedQueryRequest("All tasks", "SELECT * FROM tasks WHERE priority = 'high'"), false);
 
         Assert.NotNull(updated);
         Assert.Equal("All tasks", updated!.Name);
@@ -84,10 +84,10 @@ public class SavedQueryServiceTests
         var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
         var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
         var otherProject = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
-        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("Temp", "SELECT 1"));
+        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("Temp", "SELECT 1"), false);
 
-        Assert.Null(await savedQueries.UpdateAsync(otherProject.Id, created!.Id, new CreateSavedQueryRequest("Temp", "SELECT 2")));
-        Assert.Null(await savedQueries.UpdateAsync(project.Id, Guid.NewGuid(), new CreateSavedQueryRequest("Temp", "SELECT 2")));
+        Assert.Null(await savedQueries.UpdateAsync(otherProject.Id, created!.Id, new CreateSavedQueryRequest("Temp", "SELECT 2"), false));
+        Assert.Null(await savedQueries.UpdateAsync(project.Id, Guid.NewGuid(), new CreateSavedQueryRequest("Temp", "SELECT 2"), false));
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class SavedQueryServiceTests
 
         var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
         var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
-        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("Temp", "SELECT 1"));
+        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("Temp", "SELECT 1"), false);
 
         var deleted = await savedQueries.DeleteAsync(project.Id, created!.Id);
 
@@ -117,7 +117,7 @@ public class SavedQueryServiceTests
         var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("user"));
         var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
         var otherProject = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("PRJ"));
-        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("Temp", "SELECT 1"));
+        var created = await savedQueries.CreateAsync(project.Id, new CreateSavedQueryRequest("Temp", "SELECT 1"), false);
 
         Assert.False(await savedQueries.DeleteAsync(otherProject.Id, created!.Id));
         Assert.False(await savedQueries.DeleteAsync(project.Id, Guid.NewGuid()));

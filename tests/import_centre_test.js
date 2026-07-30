@@ -81,18 +81,35 @@ function openAppSettings(doc){
     log('Org Admin: Enterprise category visible', !doc.getElementById('appSettingsEnterpriseCategory').classList.contains('hidden'));
     log('Import Centre row is present', !!doc.getElementById('appSettingsImportCentreBtn'));
 
+    // Enterprise category's 2-column layout is two explicit .kf-settings-category-col containers
+    // (uneven lengths: left has 2 rows, right has 3), not a single grid over a flat row list — so
+    // column membership is read directly from which wrapper div each row actually lives in.
+    const cols = doc.querySelectorAll('#appSettingsEnterpriseCategory .kf-settings-category-col');
+    const leftColRows = Array.from(cols[0].querySelectorAll('.kf-setting-row')).map(function(r){ return r.querySelector('.kf-setting-row-title').textContent; });
+    const rightColRows = Array.from(cols[1].querySelectorAll('.kf-setting-row')).map(function(r){ return r.querySelector('.kf-setting-row-title').textContent; });
+    log('left column: SSO, Import Centre', JSON.stringify(leftColRows) === JSON.stringify(['Authentication and Provisioning', 'Import Centre']), leftColRows.join(' | '));
+    log('right column: Portfolio Planner, Forms & Workflow, Portals', JSON.stringify(rightColRows) === JSON.stringify(['Portfolio Planner', 'Forms & Workflow', 'Portals']), rightColRows.join(' | '));
+
     doc.getElementById('appSettingsImportCentreBtn').click();
     await wait(20);
     log('clicking Open Import Centre closes App Settings and opens the Import Centre modal',
         doc.getElementById('appSettingsOverlay').classList.contains('hidden') && !doc.getElementById('importCentreOverlay').classList.contains('hidden'));
+    // Checks ACTUAL computed visibility, not just classList state — a bare `.hidden` class does
+    // nothing anywhere in this app's CSS unless a compound selector like `.kf-import-centre-view.
+    // hidden` exists for it (root CLAUDE.md's own documented gotcha); this is exactly the kind of
+    // regression a classList-only assertion would miss, since toggling the class "succeeds" either way.
+    const importDisplay = dom.window.getComputedStyle(doc.getElementById('importCentreImportView')).display;
+    const schemasDisplay = dom.window.getComputedStyle(doc.getElementById('importCentreSchemasView')).display;
     log('modal opens on the Import Data tab by default', doc.getElementById('importCentreTabImportBtn').classList.contains('active') &&
-        !doc.getElementById('importCentreImportView').classList.contains('hidden') && doc.getElementById('importCentreSchemasView').classList.contains('hidden'));
+        importDisplay !== 'none' && schemasDisplay === 'none', `import=${importDisplay} schemas=${schemasDisplay}`);
     log('Import Data tab shows the "coming soon" placeholder text', doc.getElementById('importCentreImportView').textContent.indexOf('later phase') !== -1);
 
     doc.getElementById('importCentreTabSchemasBtn').click();
     await wait(20);
-    log('Schemas tab becomes active and visible', doc.getElementById('importCentreTabSchemasBtn').classList.contains('active') &&
-        !doc.getElementById('importCentreSchemasView').classList.contains('hidden'));
+    const importDisplay2 = dom.window.getComputedStyle(doc.getElementById('importCentreImportView')).display;
+    const schemasDisplay2 = dom.window.getComputedStyle(doc.getElementById('importCentreSchemasView')).display;
+    log('Schemas tab becomes active and actually visible (Import Data actually hidden)', doc.getElementById('importCentreTabSchemasBtn').classList.contains('active') &&
+        schemasDisplay2 !== 'none' && importDisplay2 === 'none', `import=${importDisplay2} schemas=${schemasDisplay2}`);
 
     const blocks = doc.querySelectorAll('#importCentreSchemasList .kf-import-schema-block');
     log('3 schema blocks shown when Portals is not enabled (Organisation Users, Team Members, Teams & Committees)', blocks.length === 3, blocks.length);

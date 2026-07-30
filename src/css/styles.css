@@ -4082,17 +4082,33 @@
   }
 
   /* Overrides the plain flex-column layout above for Enterprise specifically — must come after it
-     in source order to actually win (same specificity, both plain single-class selectors). */
+     in source order to actually win (same specificity, both plain single-class selectors).
+     Two explicit `.kf-settings-category-col` children (each its own flex column) rather than a
+     single CSS Grid over a flat list of rows — the two columns hold a different NUMBER of rows
+     (left: SSO, Import Centre; right: Portfolio Planner, Forms & Workflow, Portals), and a grid's
+     auto-placement (row-major by default, or column-major via grid-auto-flow:column + a fixed row
+     count) only produces the right visual grouping when both columns are the same length; an
+     uneven split like this one needs real, independent column containers instead. Reordering which
+     row belongs to which column is just moving its markup into the other `.kf-settings-category-col`
+     div, and reordering WITHIN a column is moving it up/down inside that same div — both plain DOM
+     order, same as everywhere else in this app. */
   .kf-settings-category-body-2col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
     gap: 4px 24px;
-    align-items: start;
+    align-items: flex-start;
+  }
+
+  .kf-settings-category-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
   }
 
   @media (max-width: 700px) {
     .kf-settings-category-body-2col {
-      grid-template-columns: 1fr;
+      flex-direction: column;
     }
   }
 
@@ -5411,7 +5427,19 @@
     white-space: nowrap;
   }
 
-  /* Import Centre — Schemas tab (modals/import-centre.js) */
+  /* Import Centre — modal body (modals/import-centre.js). #importCentreImportView/
+     #importCentreSchemasView both carry this shared class purely so `.hidden` has somewhere to
+     attach — a bare `.hidden` alone does nothing anywhere in this app's CSS (every toggle needs its
+     own compound selector, see root CLAUDE.md's own note on this exact gotcha), so without this rule
+     both views stayed visible at once regardless of which tab was active. */
+  .kf-import-centre-view.hidden {
+    display: none;
+  }
+
+  /* Schemas tab: every entity's table uses the SAME fixed column widths (not each table auto-sizing
+     to its own content) specifically so the Column/Type/Required?/Notes headers land at the same
+     x-position across every entity block — scanning down the page then reads as one continuous
+     4-column layout rather than several independently-wobbling tables. */
   .kf-import-schema-block {
     margin-bottom: 22px;
   }
@@ -5442,6 +5470,7 @@
 
   .kf-import-schema-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 12.5px;
   }
@@ -5452,7 +5481,13 @@
     padding: 6px 8px;
     border-bottom: 1px solid var(--kf-border);
     vertical-align: top;
+    overflow-wrap: break-word;
   }
+
+  .kf-import-schema-table th:nth-child(1), .kf-import-schema-table td:nth-child(1) { width: 18%; }
+  .kf-import-schema-table th:nth-child(2), .kf-import-schema-table td:nth-child(2) { width: 20%; }
+  .kf-import-schema-table th:nth-child(3), .kf-import-schema-table td:nth-child(3) { width: 14%; }
+  .kf-import-schema-table th:nth-child(4), .kf-import-schema-table td:nth-child(4) { width: 48%; }
 
   .kf-import-schema-table th {
     color: var(--kf-text-secondary);

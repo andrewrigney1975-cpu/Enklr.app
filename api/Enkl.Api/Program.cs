@@ -100,6 +100,7 @@ builder.Services.AddScoped<MigrationOrganisationResolver>();
 builder.Services.AddScoped<MigrationEntityBuilder>();
 builder.Services.AddScoped<MigrationService>();
 builder.Services.AddScoped<OrganisationService>();
+builder.Services.AddScoped<ImportService>();
 builder.Services.AddScoped<ReleaseService>();
 builder.Services.AddScoped<TaskTypeService>();
 builder.Services.AddScoped<PrincipleService>();
