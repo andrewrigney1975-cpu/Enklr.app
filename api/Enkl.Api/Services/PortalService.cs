@@ -172,12 +172,21 @@ public class PortalService
             "namedUser" => await _db.Users.AnyAsync(u => u.Id == request.Value && u.OrganisationId == organisationId),
             "orgTeam" => await _db.OrgTeams.AnyAsync(t => t.Id == request.Value && t.OrganisationId == organisationId),
             "teamCommittee" => await _db.TeamsCommittees.AnyAsync(tc => tc.Id == request.Value && tc.Project.OrganisationId == organisationId),
+            // No specific target to validate — every current and future member of the caller's own
+            // org is the target, by definition. The client-supplied Value is irrelevant/ignored;
+            // Value is instead forced to organisationId itself below so there's exactly one
+            // deterministic row per Portal (the existing PortalId+Kind+Value unique index still
+            // dedupes it) rather than depending on whatever placeholder Guid the client happened to
+            // send.
+            "allOrgMembers" => true,
             _ => false
         };
         if (!targetValid) return null;
 
+        var effectiveValue = request.Kind == "allOrgMembers" ? organisationId : request.Value;
+
         var existing = await _db.PortalAccessGrants
-            .FirstOrDefaultAsync(g => g.PortalId == portalId && g.Kind == request.Kind && g.Value == request.Value);
+            .FirstOrDefaultAsync(g => g.PortalId == portalId && g.Kind == request.Kind && g.Value == effectiveValue);
         if (existing is not null) return new PortalAccessGrantDto(existing.Id, existing.Kind, existing.Value, existing.DateCreated);
 
         var grant = new PortalAccessGrant
@@ -185,7 +194,7 @@ public class PortalService
             Id = Guid.NewGuid(),
             PortalId = portalId,
             Kind = request.Kind,
-            Value = request.Value,
+            Value = effectiveValue,
             DateCreated = DateTime.UtcNow
         };
         _db.PortalAccessGrants.Add(grant);

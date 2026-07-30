@@ -22,11 +22,11 @@ regardless of project membership, via its own human-readable hashbang URL (`#!/p
   auto-provisioned actioner Project, RESTRICT), `CreatedByUserId`, timestamps, `PublishedAt`. Only a
   `published` Portal is ever resolvable by slug to an end user — draft/archived are
   Org-Admin-preview-only.
-- **PortalAccessGrant** — `Id`, `PortalId`, `Kind` (`namedUser`/`orgTeam`/`teamCommittee`), `Value`
-  (the target id). **Closed by default**: a Portal with zero grants is invisible to every org user,
-  matching this codebase's defensive-default convention (root `CLAUDE.md` §1). Mirrors the Form
-  Workflow gate vocabulary (`{kind, value}`) for consistency, in its own table since grants need
-  their own CRUD UI unlike gates edited inline in a workflow graph.
+- **PortalAccessGrant** — `Id`, `PortalId`, `Kind` (`namedUser`/`orgTeam`/`teamCommittee`/
+  `allOrgMembers`), `Value` (the target id). **Closed by default**: a Portal with zero grants is
+  invisible to every org user, matching this codebase's defensive-default convention (root
+  `CLAUDE.md` §1). Mirrors the Form Workflow gate vocabulary (`{kind, value}`) for consistency, in
+  its own table since grants need their own CRUD UI unlike gates edited inline in a workflow graph.
   - `orgTeam` is this feature's stand-in for "business unit" — reuses the existing SCIM-synced
     `OrgTeam` entity directly rather than adding a new attribute to the SCIM User wire shape (no live
     SCIM→Portal sync exists or is needed; a grant just names the `OrgTeam`, and access is checked
@@ -34,6 +34,13 @@ regardless of project membership, via its own human-readable hashbang URL (`#!/p
   - `teamCommittee` reuses the existing per-project `TeamCommittee`/`TeamCommitteeMember` join —
     access is checked live against whether the user is a `ProjectMember` linked into that
     `TeamCommittee`.
+  - `allOrgMembers` has no specific target — `Value` is always forced server-side to the Portal's
+    own `OrganisationId` (never the client-supplied value), so there's exactly one deterministic row
+    per Portal rather than depending on a client-chosen placeholder. `PortalAccessService` re-derives
+    BOTH the Portal's own `OrganisationId` and the checking user's `OrganisationId` and requires them
+    to match — this is the one grant kind where getting that check wrong would turn into "anyone at
+    all," not just "anyone in a foreign org," so it's re-verified on every single access check, never
+    cached or assumed from the JWT alone.
 - **PortalForm** — `Id`, `PortalId`, `FormGroupId` (no FK — `Form` is keyed by `Id`, one row per
   version; resolved at read time to whichever version is currently `published`, same resolution
   `FormService` already does org-wide), `Order`. Curates a subset of the org's published Forms; the

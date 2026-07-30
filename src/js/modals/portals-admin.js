@@ -224,6 +224,7 @@ function portalAccessGrantLabel(g){
     var t = editingOrgTeams.filter(function(x){ return x.id === g.value; })[0];
     return 'OrgTeam: ' + (t ? t.name : g.value);
   }
+  if(g.kind === 'allOrgMembers') return 'All Organisation Members';
   return 'Team/Committee: ' + g.value;
 }
 
@@ -232,15 +233,21 @@ function updatePortalAccessValueOptions(){
   var valueSelect = document.getElementById('portalAccessValueSelect');
   if(kind === 'namedUser'){
     valueSelect.innerHTML = editingOrgUsers.map(function(u){ return '<option value="' + escapeHTML(u.id) + '">' + escapeHTML(u.displayName) + '</option>'; }).join('');
-    valueSelect.setAttribute('data-mode', 'select');
+    valueSelect.disabled = false;
   } else if(kind === 'orgTeam'){
     valueSelect.innerHTML = editingOrgTeams.map(function(t){ return '<option value="' + escapeHTML(t.id) + '">' + escapeHTML(t.name) + '</option>'; }).join('');
-    valueSelect.setAttribute('data-mode', 'select');
+    valueSelect.disabled = false;
+  } else if(kind === 'allOrgMembers'){
+    // No specific target to pick — the server ignores/overrides whatever value this select holds
+    // for this kind (see PortalService.AddAccessGrantAsync's own comment).
+    valueSelect.innerHTML = '<option value="">(applies to everyone in the org)</option>';
+    valueSelect.disabled = true;
   } else {
     // No cross-project Team/Committee listing endpoint exists (each project owns its own) — a raw
     // id is entered directly here (findable from that project's Org Chart URL), rather than
     // building a whole new org-wide listing endpoint for this one, secondary access-grant kind.
     valueSelect.innerHTML = '<option value="">(enter below)</option>';
+    valueSelect.disabled = false;
   }
 }
 
@@ -251,6 +258,10 @@ export function addPortalAccessGrantFromEdit(){
   if(kind === 'teamCommittee' && !value){
     value = window.prompt('Team/Committee id (from that project\'s Org Chart URL):') || '';
   }
+  // allOrgMembers has no target to choose — the portal's own id is sent as a placeholder value
+  // (a real, valid Guid the client already has) purely to satisfy the request shape; the server
+  // ignores it entirely and always stores the caller's OrganisationId instead.
+  if(kind === 'allOrgMembers') value = editingPortal.id;
   if(!value){ _toast('Please choose who to grant access to.'); return; }
   portalsApi.addAccessGrant(editingPortal.id, kind, value).then(function(){
     renderPortalAccessTab();

@@ -173,30 +173,38 @@ final class PortalService
                 'SELECT 1 FROM "TeamsCommittees" tc JOIN "Projects" p ON p."Id" = tc."ProjectId" WHERE tc."Id" = :id AND p."OrganisationId" = :orgId',
                 $value, $organisationId
             ),
+            // No specific target to validate — every current and future member of the caller's own
+            // org is the target, by definition.
+            'allOrgMembers' => true,
             default => false,
         };
         if (!$targetValid) {
             return null;
         }
 
+        // The client-supplied value is irrelevant/ignored for this kind; forced to organisationId
+        // itself so there's exactly one deterministic row per Portal (the existing
+        // PortalId+Kind+Value unique index still dedupes it).
+        $effectiveValue = $kind === 'allOrgMembers' ? $organisationId : $value;
+
         $stmt = $this->db->prepare('SELECT "Id", "DateCreated" FROM "PortalAccessGrants" WHERE "PortalId" = :portalId AND "Kind" = :kind AND "Value" = :value');
-        $stmt->execute(['portalId' => $portalId, 'kind' => $kind, 'value' => $value]);
+        $stmt->execute(['portalId' => $portalId, 'kind' => $kind, 'value' => $effectiveValue]);
         $existing = $stmt->fetch();
         if ($existing !== false) {
-            return ['id' => $existing['Id'], 'kind' => $kind, 'value' => $value, 'dateCreated' => $existing['DateCreated']];
+            return ['id' => $existing['Id'], 'kind' => $kind, 'value' => $effectiveValue, 'dateCreated' => $existing['DateCreated']];
         }
 
         $grantId = Uuid::v4();
         $insert = $this->db->prepare(
             'INSERT INTO "PortalAccessGrants" ("Id", "PortalId", "Kind", "Value", "DateCreated") VALUES (:id, :portalId, :kind, :value, now())'
         );
-        $insert->execute(['id' => $grantId, 'portalId' => $portalId, 'kind' => $kind, 'value' => $value]);
+        $insert->execute(['id' => $grantId, 'portalId' => $portalId, 'kind' => $kind, 'value' => $effectiveValue]);
 
         $dateStmt = $this->db->prepare('SELECT "DateCreated" FROM "PortalAccessGrants" WHERE "Id" = :id');
         $dateStmt->execute(['id' => $grantId]);
         $dateCreated = $dateStmt->fetchColumn();
 
-        return ['id' => $grantId, 'kind' => $kind, 'value' => $value, 'dateCreated' => $dateCreated];
+        return ['id' => $grantId, 'kind' => $kind, 'value' => $effectiveValue, 'dateCreated' => $dateCreated];
     }
 
     public function removeAccessGrant(string $organisationId, string $portalId, string $grantId): bool

@@ -30,6 +30,7 @@ final class PortalAccessService
 
         $orgTeamIds = [];
         $teamCommitteeIds = [];
+        $hasAllOrgMembersGrant = false;
         foreach ($grants as $grant) {
             if ($grant['Kind'] === 'namedUser' && $grant['Value'] === $userId) {
                 return true;
@@ -39,6 +40,25 @@ final class PortalAccessService
             }
             if ($grant['Kind'] === 'teamCommittee') {
                 $teamCommitteeIds[] = $grant['Value'];
+            }
+            if ($grant['Kind'] === 'allOrgMembers') {
+                $hasAllOrgMembersGrant = true;
+            }
+        }
+
+        // Grants every user IN THE SAME ORG as the Portal, never trusting the caller's userId
+        // alone — re-derives both the Portal's own OrganisationId and the caller's OrganisationId
+        // and requires them to match.
+        if ($hasAllOrgMembersGrant) {
+            $stmt = $this->db->prepare(<<<SQL
+                SELECT p."OrganisationId" AS "PortalOrgId", u."OrganisationId" AS "UserOrgId"
+                FROM "Portals" p, "Users" u
+                WHERE p."Id" = :portalId AND u."Id" = :userId
+            SQL);
+            $stmt->execute(['portalId' => $portalId, 'userId' => $userId]);
+            $row = $stmt->fetch();
+            if ($row !== false && $row['PortalOrgId'] === $row['UserOrgId']) {
+                return true;
             }
         }
 

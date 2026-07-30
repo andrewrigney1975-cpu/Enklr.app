@@ -12,13 +12,16 @@ public class PortalAccessGrant
     public Guid PortalId { get; set; }
     public Portal Portal { get; set; } = null!;
 
-    /// <summary>orgTeam|teamCommittee|namedUser — plain unconstrained string, same convention as
-    /// every other status/type field in this codebase.
+    /// <summary>orgTeam|teamCommittee|namedUser|allOrgMembers — plain unconstrained string, same
+    /// convention as every other status/type field in this codebase.
     /// orgTeam: Value = OrgTeam.Id (a SCIM-synced group — this codebase's stand-in for "business
     ///          unit," see PORTALS.md; every OrgTeamMember gets access).
     /// teamCommittee: Value = TeamCommittee.Id (per-project org chart entity; every
     ///          TeamCommitteeMember, resolved through their ProjectMember, gets access).
-    /// namedUser: Value = User.Id directly.</summary>
+    /// namedUser: Value = User.Id directly.
+    /// allOrgMembers: Value = Organisation.Id (forced server-side, never the client's own value) —
+    ///          every current and future user in the Portal's own org gets access, re-derived live
+    ///          on every check (PortalAccessService), not by materializing a row per user.</summary>
     public string Kind { get; set; } = "";
 
     public Guid Value { get; set; }

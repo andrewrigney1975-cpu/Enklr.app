@@ -30,6 +30,19 @@ public class PortalAccessService
 
         if (grants.Any(g => g.Kind == "namedUser" && g.Value == userId)) return true;
 
+        // "allOrgMembers" grants every user IN THE SAME ORG as the Portal, never trusting the
+        // caller's userId alone — re-derives both the Portal's own OrganisationId and the caller's
+        // OrganisationId and requires them to match, so this can never become a de-facto "anyone at
+        // all" grant if this predicate is ever reused for a differently-scoped caller.
+        if (grants.Any(g => g.Kind == "allOrgMembers"))
+        {
+            var portalOrgId = await _db.Portals.AsNoTracking()
+                .Where(p => p.Id == portalId).Select(p => (Guid?)p.OrganisationId).FirstOrDefaultAsync();
+            var userOrgId = await _db.Users.AsNoTracking()
+                .Where(u => u.Id == userId).Select(u => (Guid?)u.OrganisationId).FirstOrDefaultAsync();
+            if (portalOrgId is not null && portalOrgId == userOrgId) return true;
+        }
+
         var orgTeamIds = grants.Where(g => g.Kind == "orgTeam").Select(g => g.Value).ToList();
         if (orgTeamIds.Count > 0)
         {
