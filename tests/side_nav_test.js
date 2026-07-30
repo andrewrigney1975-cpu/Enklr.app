@@ -60,7 +60,7 @@ function ruleFor(text, selector){
 
     const collapsedWidthRule = ruleFor(beforeMedia, '.kf-side-nav');
     const expandedWidthRule = ruleFor(beforeMedia, '.kf-side-nav.expanded');
-    log('collapsed width is a sensible icon-rail size', collapsedWidthRule && /width:\s*56px/.test(collapsedWidthRule), collapsedWidthRule);
+    log('collapsed width is a sensible icon-rail size', collapsedWidthRule && /width:\s*72px/.test(collapsedWidthRule), collapsedWidthRule);
 
     const appHeaderRule = ruleFor(beforeMedia, '.kf-header');
     const navToggleRule = ruleFor(beforeMedia, '.kf-side-nav-toggle');
@@ -93,14 +93,16 @@ function ruleFor(text, selector){
     // itself moved to Tools), To-Do/Workflow/Portfolio Planner/Retrospectives/Strategy were all
     // added to Tools since this list was written, and API Endpoints (CLAUDE.md's API Endpoints
     // modal entry) landed between Project Storage and Workflow without this list being updated
-    // for it. Manage Forms (Org-Admin authoring) landed after Strategy. "Portals" (the member-
-    // facing browse entry) and "Forms" (the member-facing fill-out entry) both moved OUT of this
-    // static Tools list once the dynamic "Portals" section took them over — Manage Portals
-    // (Org-Admin authoring) is the only Portals-related entry left here.
+    // for it. Manage Forms (Org-Admin authoring) landed after Strategy, then Whiteboard was moved
+    // above it (both are Org-Admin-authoring-style entries, but Whiteboard is the older/more-used
+    // feature of the two). "Portals" (the member-facing browse entry) and "Forms" (the member-
+    // facing fill-out entry) both moved OUT of this static Tools list once the dynamic "Portals"
+    // section took them over — Manage Portals (Org-Admin authoring) is the only Portals-related
+    // entry left here.
     log('Views section: List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map, Dashboards',
         viewsOrder.join(',') === 'navTaskListBtn,navTimelineBtn,navDepMapBtn,navCostBenefitBtn,navOrgChartBtn,navGovernanceMapBtn,navDashboardsBtn', viewsOrder.join(','));
-    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Manage Forms, Whiteboard, Manage Portals',
-        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navFormsBtn,navWhiteboardBtn,navPortalsBtn', toolsOrder.join(','));
+    log('Tools section: Bulk Edit, To-Do, Archived, Task Types, Releases, Project Storage, API Endpoints, Workflow, Portfolio Planner, Retrospectives, Strategy, Whiteboard, Manage Forms, Manage Portals',
+        toolsOrder.join(',') === 'navBulkEditBtn,navTodoBtn,navArchivedBtn,navTaskTypesBtn,navReleasesBtn,navProjectStorageBtn,navApiEndpointsBtn,navWorkflowBtn,navPortfolioPlannerBtn,navRetrospectiveBtn,navStrategyBtn,navWhiteboardBtn,navFormsBtn,navPortalsBtn', toolsOrder.join(','));
 
     const portalsSectionOrder = Array.from(sections[2].querySelectorAll('.kf-side-nav-item')).map(b => b.id);
     viewsOrder.concat(toolsOrder).concat(portalsSectionOrder).forEach(id => {

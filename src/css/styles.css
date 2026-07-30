@@ -256,7 +256,7 @@
      even with no scrollbar actually showing. Full-width dividers matter more here than avoiding an
      occasional width shift from a rarely-appearing scrollbar on this narrow, mostly-static list. */
   .kf-side-nav {
-    width: 56px;
+    width: 72px;
     flex-shrink: 0;
     background: var(--kf-surface);
     border-right: 1px solid var(--kf-border);
@@ -795,6 +795,16 @@
     align-items: center;
     gap: 10px;
     padding: 10px 16px;
+    /* Pins this row's total height (border-box, so this already includes the border-bottom above)
+       to exactly match .kf-side-nav-toggle's own 54px, so their two border-bottom lines land on the
+       same device-pixel row instead of drifting apart by a hairline. Without this, the toolbar's
+       height is purely a SUM of its own children's intrinsic sizes (search box, filter chips, ...),
+       each independently rounded to a device pixel — at a fractional devicePixelRatio (e.g. Windows
+       125% scaling) that sum reliably lands a fraction of a CSS pixel short of 54px, rounding down to
+       a visibly different device-pixel row than the side nav's flat, single authored 54px value.
+       min-height (not height) so a narrow viewport that wraps this row onto 2-3 lines (flex-wrap
+       above) still grows taller as needed — this only pins the common single-line case. */
+    min-height: 54px;
     flex-shrink: 0;
     flex-wrap: wrap;
   }

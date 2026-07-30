@@ -1,10 +1,10 @@
 "use strict";
 import { getCurrentProject } from '../store.js';
-import { escapeHTML, canCurrentUserManageProject, applyHeaderButtonVisibility } from '../views/board.js';
+import { escapeHTML, applyHeaderButtonVisibility } from '../views/board.js';
 import { iconSvg } from '../icons.js';
 import { toast } from '../ui.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
-import { savedQueryApi, testSavedQueryApi } from '../api.js';
+import { savedQueryApi, testSavedQueryApi, isOrgAdmin, getApiKeyApi, generateApiKeyApi, revokeApiKeyApi } from '../api.js';
 import { confirmDialog } from './confirm.js';
 import { projectQueryApiUrl } from './project-search.js';
 
@@ -14,6 +14,14 @@ import { projectQueryApiUrl } from './project-search.js';
    the toolbar/nav button that opens this is itself only shown once at least one such query exists
    (applyHeaderButtonVisibility() in views/board.js), so an empty list here shouldn't normally be
    reachable, but renderApiEndpointsList() still handles it defensively.
+
+   Org-Admin-only, tightened from the earlier Project Admin/Org Admin gate — matches "Expose via
+   API" itself (already Org-Admin-only both client- and server-side, see project-search.js/
+   SavedQueryService), and this modal is also where the org's Public Query API key is generated/
+   revoked (moved here from the SSO & Provisioning modal — see the PUBLIC API KEY section below),
+   which was always Org-Admin-only. Checked both at the toolbar/nav button
+   (applyHeaderButtonVisibility()) and again here at modal-open time, same defense-in-depth
+   convention as every other permission gate in this app.
    ========================================================= */
 
 // Which rows have their test-results panel expanded — a Set of saved query ids, same convention as
@@ -22,9 +30,11 @@ import { projectQueryApiUrl } from './project-search.js';
 var expandedTestPanels = new Set();
 
 export function openApiEndpointsModal(){
-  if(!canCurrentUserManageProject()){ toast('Only a Project Administrator or Org Admin can manage API endpoints.'); return; }
+  if(!isOrgAdmin()){ toast('Only an organisation admin can manage API endpoints.'); return; }
   expandedTestPanels = new Set();
+  document.getElementById('apiKeyReveal').classList.add('hidden');
   renderApiEndpointsList();
+  renderApiKeyStatus();
   document.getElementById('apiEndpointsOverlay').classList.remove('hidden');
 }
 
@@ -163,4 +173,53 @@ export function handleApiEndpointsListClick(e){
     else expandedTestPanels.add(id);
     renderApiEndpointsList();
   }
+}
+
+/* =========================================================
+   PUBLIC API KEY (moved here from the SSO & Provisioning modal — this modal is already the
+   Org-Admin-only home for everything Public Query API-related, so the key that authenticates
+   requests against the endpoints listed above belongs alongside them rather than in the separate
+   SSO/SCIM screen. Sits at the bottom of this modal's body, below the current endpoints list.
+   One key per organisation — generating a new one immediately invalidates the last, same as
+   generateScimTokenFromModal's own "reveal once" convention in modals/sso.js. )
+   ========================================================= */
+export function renderApiKeyStatus(){
+  getApiKeyApi().then(function(key){
+    if(!key.hasApiKey){
+      document.getElementById('apiKeyStatus').textContent = 'No API key generated yet.';
+      return;
+    }
+    document.getElementById('apiKeyStatus').textContent = key.enabled
+      ? 'An API key is active' + (key.lastUsedAt ? ' — last used ' + new Date(key.lastUsedAt).toLocaleString() : ' — not used yet') + '.'
+      : 'The API key has been revoked.';
+  }, function(e){
+    toast('Could not load API key status: ' + (e.message || 'unknown error'));
+  });
+}
+
+export function generateApiKeyFromModal(){
+  generateApiKeyApi().then(function(result){
+    document.getElementById('apiKeyOutput').value = result.key;
+    document.getElementById('apiKeyReveal').classList.remove('hidden');
+    toast('New API key generated. Copy it now — it will not be shown again.');
+    renderApiKeyStatus();
+  }, function(e){
+    toast('Could not generate an API key: ' + (e.message || 'unknown error'));
+  });
+}
+
+export function revokeApiKeyFromModal(){
+  confirmDialog(
+    'Revoke the API key?',
+    'Any 3rd-party integration using this key will immediately lose access to your Saved Query API endpoints. This cannot be undone — a new key would need to be generated and distributed again.',
+    function(){
+      revokeApiKeyApi().then(function(){
+        document.getElementById('apiKeyReveal').classList.add('hidden');
+        toast('API key revoked.');
+        renderApiKeyStatus();
+      }, function(e){
+        toast('Could not revoke the API key: ' + (e.message || 'unknown error'));
+      });
+    }
+  );
 }

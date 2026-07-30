@@ -55,7 +55,7 @@ import { openProjectModal, closeProjectModal, saveProjectFromModal, handleProjec
 import { openTeamModal, closeTeamModal, addMemberFromModal, wireAddMemberCombobox } from './modals/team.js';
 import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal, saveOrgDefaultPasswordFromModal } from './modals/organisation.js';
 import { openAnnouncementsAdminModal, closeAnnouncementsAdminModal, saveAnnouncementFromModal, cancelAnnouncementEdit } from './modals/announcements-admin.js';
-import { openSsoConfigModal, closeSsoConfigModal, saveSsoConfigFromModal, generateScimTokenFromModal, generateApiKeyFromModal, revokeApiKeyFromModal } from './modals/sso.js';
+import { openSsoConfigModal, closeSsoConfigModal, saveSsoConfigFromModal, generateScimTokenFromModal } from './modals/sso.js';
 import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromModal, openTemplatesModal, closeTemplatesModal } from './modals/templates.js';
 import { openTodoOverlay, closeTodoOverlay, isTodoOverlayOpen, addTodoListFromModal } from './modals/todo.js';
 import { openTaskTypesModal, closeTaskTypesModal, addTaskTypeFromModal } from './modals/task-types.js';
@@ -87,7 +87,7 @@ import { openReportOverlay, closeReportOverlay, isReportOverlayOpen, printReport
 import { openProjectSearchOverlay, closeProjectSearchOverlay, isProjectSearchOverlayOpen, handleProjectSearchInput, handleProjectSearchResultClick, showProjectSearchSimpleView, showProjectSearchQueryView, toggleProjectQuerySchemaPanel, toggleProjectQuerySavedPanel, handleProjectQuerySavedListClick, handleProjectQuerySaveOrUpdateClick, handleProjectQueryNewClick, hideProjectQuerySaveRow, confirmSaveProjectQuery, showProjectQueryResultsTableView, showProjectQueryResultsJsonView, runProjectQuery, formatProjectQuerySql, exportProjectQueryResultsAsCsv, copyProjectQueryResultsAsJson, copyProjectQueryApiUrl, testProjectQueryApi, exportProjectQueryResultsAsJson, printProjectQueryResults, erdZoomState, setProjectQueryErdZoom, resetProjectQueryErdZoom, zoomProjectQueryErdAtPoint, toggleProjectQueryErdFullscreen, closeProjectQueryErdFullscreen, isProjectQueryErdFullscreenOpen, updateProjectQueryIntellisense, repositionProjectQueryIntellisense, hideProjectQueryIntellisense, isProjectQueryIntellisenseOpen, moveProjectQueryIntellisenseActive, acceptProjectQueryIntellisenseSuggestion, handleProjectQueryIntellisenseClick, handleSchemaErdClick } from './modals/project-search.js';
 import { openAboutModal, closeAboutModal, isAboutModalOpen } from './modals/about.js';
 import { openProjectStorageModal, closeProjectStorageModal, isProjectStorageModalOpen } from './modals/project-storage.js';
-import { openApiEndpointsModal, closeApiEndpointsModal, handleApiEndpointsListClick } from './modals/api-endpoints.js';
+import { openApiEndpointsModal, closeApiEndpointsModal, handleApiEndpointsListClick, generateApiKeyFromModal, revokeApiKeyFromModal } from './modals/api-endpoints.js';
 import { openUfoModal, closeUfoModal, isUfoModalOpen } from './modals/ufo.js';
 import { openOpeningExperienceModal, closeOpeningExperienceModal, isOpeningExperienceModalOpen, chooseOpeningExperience, recordDeviceTypeAndMaybeShowPicker } from './modals/opening-experience.js';
 import { openWelcomeNameModal, isWelcomeNameModalOpen, confirmWelcomeName, skipWelcomeName } from './modals/welcome-name.js';
@@ -315,6 +315,8 @@ function wireEvents(){
     if(e.target.id === 'apiEndpointsOverlay') closeApiEndpointsModal();
   });
   document.getElementById('apiEndpointsList').addEventListener('click', handleApiEndpointsListClick);
+  document.getElementById('generateApiKeyBtn').addEventListener('click', generateApiKeyFromModal);
+  document.getElementById('revokeApiKeyBtn').addEventListener('click', revokeApiKeyFromModal);
   document.getElementById('addReleaseBtn').addEventListener('click', function(){ showReleasesFormView(null); });
   document.getElementById('releaseFormCancelBtn').addEventListener('click', showReleasesListView);
   document.getElementById('releaseFormSaveBtn').addEventListener('click', saveReleaseFromModal);
@@ -1606,8 +1608,6 @@ function wireEvents(){
   });
   document.getElementById('ssoConfigSaveBtn').addEventListener('click', saveSsoConfigFromModal);
   document.getElementById('ssoGenerateScimTokenBtn').addEventListener('click', generateScimTokenFromModal);
-  document.getElementById('ssoGenerateApiKeyBtn').addEventListener('click', generateApiKeyFromModal);
-  document.getElementById('ssoRevokeApiKeyBtn').addEventListener('click', revokeApiKeyFromModal);
 
   document.getElementById('announcementsAdminLink').addEventListener('click', function(e){
     e.preventDefault();

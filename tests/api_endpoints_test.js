@@ -16,7 +16,8 @@ function makeFakeJwt(payload){
    dispatcher keyed on method+path — `queries` is a shared, mutable array the PUT handler mutates and
    every GET-project-detail response reflects afterward, so a Delete's effect is visible on the very
    next refreshProjectFromServer() the same way it would be against a real API. */
-function makeMockFetch(projectId, queries){
+function makeMockFetch(projectId, queries, apiKeyState){
+  apiKeyState = apiKeyState || {hasApiKey: false, enabled: false};
   function projectDetail(){
     return {
       id: projectId, name: 'Server Project', key: 'SRV',
@@ -49,6 +50,19 @@ function makeMockFetch(projectId, queries){
       var body = JSON.parse(options.body);
       target.name = body.name; target.sql = body.sql; target.exposeViaApi = !!body.exposeViaApi;
       return {ok: true, status: 200, json: async () => ({id: target.id, name: target.name, sql: target.sql, dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: target.exposeViaApi})};
+    }
+    if(url === '/api/organisations/me/api-key' && method === 'GET'){
+      return {ok: true, status: 200, json: async () => (apiKeyState.hasApiKey
+        ? {hasApiKey: true, enabled: apiKeyState.enabled, lastUsedAt: null}
+        : {hasApiKey: false, enabled: false, lastUsedAt: null})};
+    }
+    if(url === '/api/organisations/me/api-key' && method === 'POST'){
+      apiKeyState.hasApiKey = true; apiKeyState.enabled = true;
+      return {ok: true, status: 200, json: async () => ({key: 'enkl_pk_test_1234567890'})};
+    }
+    if(url === '/api/organisations/me/api-key' && method === 'DELETE'){
+      apiKeyState.enabled = false;
+      return {ok: true, status: 200, json: async () => ({})};
     }
     return {ok: false, status: 404, json: async () => ({message: 'not found (unhandled mock url in test): ' + method + ' ' + url})};
   };
@@ -96,10 +110,34 @@ function seedDb(projectId){
     });
     await wait(800);
     const doc = dom.window.document;
-    log('plain member, exposed query exists: toolbar button STILL hidden (not Project Admin/Org Admin)', doc.getElementById('apiEndpointsBtn').classList.contains('kf-vis-hidden'));
+    log('plain member, exposed query exists: toolbar button STILL hidden (not Org Admin)', doc.getElementById('apiEndpointsBtn').classList.contains('kf-vis-hidden'));
   }
 
-  // ── 3. Server-authoritative, Project Admin, but ZERO exposed queries: hidden ──
+  // ── 3. Server-authoritative, PROJECT Admin (but not Org Admin), exposed query exists: hidden ──
+  // Tightened gate: this modal (and "Expose via API" itself) is Org-Admin-only now — a plain Project
+  // Admin with no Org Admin rights must not see it, even though they could before this change.
+  {
+    const seed = seedDb(projectId);
+    seed._proj.savedQueries = [{id: 'q1', name: 'Exposed Query', sql: 'SELECT 1 AS one', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: true}];
+    seed.projects[projectId] = seed._proj;
+    seed.projectOrder = [projectId];
+    delete seed._proj;
+    var queries = [{id: 'q1', name: 'Exposed Query', sql: 'SELECT 1 AS one', exposeViaApi: true}];
+
+    const dom = new JSDOM(html, {
+      runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
+      beforeParse(w){
+        w.localStorage.setItem('kanbanflow_v1_db', JSON.stringify(seed));
+        w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'false', projects: JSON.stringify([{ProjectId: projectId, Role: 'member', IsProjectAdmin: true}])}));
+        w.fetch = makeMockFetch(projectId, queries);
+      }
+    });
+    await wait(800);
+    const doc = dom.window.document;
+    log('Project Admin (not Org Admin), exposed query exists: toolbar button STILL hidden', doc.getElementById('apiEndpointsBtn').classList.contains('kf-vis-hidden'));
+  }
+
+  // ── 4. Server-authoritative, Org Admin, but ZERO exposed queries: hidden ──
   {
     const seed = seedDb(projectId);
     seed._proj.savedQueries = [{id: 'q1', name: 'Hidden Query', sql: 'SELECT 1 AS one', dateCreated: '2026-01-01T00:00:00Z', exposeViaApi: false}];
@@ -112,16 +150,16 @@ function seedDb(projectId){
       runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
       beforeParse(w){
         w.localStorage.setItem('kanbanflow_v1_db', JSON.stringify(seed));
-        w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'false', projects: JSON.stringify([{ProjectId: projectId, Role: 'member', IsProjectAdmin: true}])}));
+        w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'true', projects: JSON.stringify([{ProjectId: projectId, Role: 'member', IsProjectAdmin: false}])}));
         w.fetch = makeMockFetch(projectId, queries);
       }
     });
     await wait(800);
     const doc = dom.window.document;
-    log('Project Admin, zero exposed queries: toolbar button hidden', doc.getElementById('apiEndpointsBtn').classList.contains('kf-vis-hidden'));
+    log('Org Admin, zero exposed queries: toolbar button hidden', doc.getElementById('apiEndpointsBtn').classList.contains('kf-vis-hidden'));
   }
 
-  // ── 4. Server-authoritative, Project Admin, one exposed + one non-exposed query: full flow ──
+  // ── 5. Server-authoritative, Org Admin, one exposed + one non-exposed query: full flow ──
   {
     const seed = seedDb(projectId);
     seed._proj.savedQueries = [
@@ -135,25 +173,44 @@ function seedDb(projectId){
       {id: 'q1', name: 'Exposed Query', sql: 'SELECT 1 AS one', exposeViaApi: true},
       {id: 'q2', name: 'Hidden Query', sql: 'SELECT 2 AS two', exposeViaApi: false}
     ];
+    var apiKeyState = {hasApiKey: false, enabled: false};
 
     const dom = new JSDOM(html, {
       runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
       beforeParse(w){
         w.localStorage.setItem('kanbanflow_v1_db', JSON.stringify(seed));
-        w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'false', projects: JSON.stringify([{ProjectId: projectId, Role: 'member', IsProjectAdmin: true}])}));
-        w.fetch = makeMockFetch(projectId, queries);
+        w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'true', projects: JSON.stringify([{ProjectId: projectId, Role: 'member', IsProjectAdmin: false}])}));
+        w.fetch = makeMockFetch(projectId, queries, apiKeyState);
         w.navigator.clipboard = { writeText: function(text){ w.__copiedText = text; return Promise.resolve(); } };
       }
     });
     await wait(800);
     const doc = dom.window.document;
 
-    log('Project Admin, one exposed query: toolbar button visible', !doc.getElementById('apiEndpointsBtn').classList.contains('kf-vis-hidden'));
-    log('Project Admin, one exposed query: nav button visible', !doc.getElementById('navApiEndpointsBtn').classList.contains('kf-vis-hidden'));
+    log('Org Admin, one exposed query: toolbar button visible', !doc.getElementById('apiEndpointsBtn').classList.contains('kf-vis-hidden'));
+    log('Org Admin, one exposed query: nav button visible', !doc.getElementById('navApiEndpointsBtn').classList.contains('kf-vis-hidden'));
 
     doc.getElementById('apiEndpointsBtn').click();
     await wait(50);
     log('modal opens', !doc.getElementById('apiEndpointsOverlay').classList.contains('hidden'));
+
+    // ── Public API key section (moved here from the SSO & Provisioning modal) ──
+    log('API key status loads on open: none generated yet', doc.getElementById('apiKeyStatus').textContent.indexOf('No API key generated yet') !== -1, doc.getElementById('apiKeyStatus').textContent);
+    log('API key reveal box starts hidden', doc.getElementById('apiKeyReveal').classList.contains('hidden'));
+
+    doc.getElementById('generateApiKeyBtn').click();
+    await wait(30);
+    log('generating reveals the raw key', !doc.getElementById('apiKeyReveal').classList.contains('hidden'));
+    log('the raw key is shown in the output field', doc.getElementById('apiKeyOutput').value === 'enkl_pk_test_1234567890');
+    log('status updates to reflect an active key', doc.getElementById('apiKeyStatus').textContent.indexOf('An API key is active') !== -1, doc.getElementById('apiKeyStatus').textContent);
+
+    doc.getElementById('revokeApiKeyBtn').click();
+    await wait(20);
+    log('revoke opens a confirm dialog rather than acting immediately', !doc.getElementById('confirmOverlay').classList.contains('hidden'));
+    doc.getElementById('confirmOkBtn').click();
+    await wait(30);
+    log('confirming revoke hides the reveal box again', doc.getElementById('apiKeyReveal').classList.contains('hidden'));
+    log('status updates to reflect a revoked key', doc.getElementById('apiKeyStatus').textContent.indexOf('has been revoked') !== -1, doc.getElementById('apiKeyStatus').textContent);
 
     const rows = doc.querySelectorAll('#apiEndpointsList .kf-api-endpoint-row');
     log('list shows exactly one row (only the exposed query)', rows.length === 1, rows.length);
