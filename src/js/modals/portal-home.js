@@ -190,14 +190,14 @@ function parseAnswersJson(json){
 function openNewPortalSubmission(formGroupId){
   var f = currentForms.filter(function(x){ return x.formGroupId === formGroupId; })[0];
   if(!f) return;
-  detail = {mode: 'new', formVersionId: null, formName: f.formName, formGroupId: formGroupId, fields: parseFieldsJson(f.fieldsJson), submissionId: null, submission: null};
+  detail = {mode: 'new', formVersionId: f.formVersionId, formName: f.formName, formGroupId: formGroupId, fields: parseFieldsJson(f.fieldsJson), submissionId: null, submission: null};
   renderPortalFilloutDetail();
 }
 
 function openExistingPortalSubmission(submissionId){
   var item = currentRequests.filter(function(r){ return r.id === submissionId; })[0];
-  var f = currentForms.filter(function(x){ return x.formVersionId === item.formVersionId; })[0];
   if(!item) return;
+  var f = currentForms.filter(function(x){ return x.formVersionId === item.formVersionId; })[0];
   detail = {mode: 'draft', formVersionId: item.formVersionId, formName: item.formName, fields: f ? parseFieldsJson(f.fieldsJson) : [], submissionId: submissionId, submission: null};
   renderPortalFilloutDetail();
 }
@@ -217,12 +217,22 @@ export function closePortalHomeFilloutOverlay(){
   detail = null;
 }
 
+/* Mirrors modals/forms-fillout.js's own saveFormFilloutDraft — a brand-new submission
+   (detail.submissionId still null) is created outright; an existing Draft is just updated. */
 export function savePortalHomeFilloutDraft(){
   if(!detail) return;
   var fieldsRoot = document.getElementById('portalHomeFilloutFields');
   var answersJson = JSON.stringify(collectAllAnswers(detail.fields, fieldsRoot));
-  portalHomeApi.updateSubmission(currentPortal.id, detail.submissionId, answersJson).then(function(){
+
+  var request = detail.submissionId
+    ? portalHomeApi.updateSubmission(currentPortal.id, detail.submissionId, answersJson)
+    : portalHomeApi.createSubmission(currentPortal.id, detail.formVersionId, answersJson);
+
+  request.then(function(submission){
     _toast('Draft saved.');
+    detail.submissionId = submission.id;
+    detail.submission = submission;
+    detail.mode = 'draft';
     closePortalHomeFilloutOverlay();
     loadAndRenderPortalHome();
   }, function(e){ _toast('Could not save draft: ' + (e.message || 'unknown error')); });
@@ -239,13 +249,24 @@ export function submitPortalHomeFillout(){
     el.classList.remove('hidden');
     return;
   }
-  portalHomeApi.updateSubmission(currentPortal.id, detail.submissionId, JSON.stringify(answers)).then(function(){
-    return portalHomeApi.submitSubmission(currentPortal.id, detail.submissionId);
-  }).then(function(){
-    _toast('Submitted.');
-    closePortalHomeFilloutOverlay();
-    loadAndRenderPortalHome();
-  }, function(e){ _toast('Could not submit: ' + (e.message || 'unknown error')); });
+  var answersJson = JSON.stringify(answers);
+  var afterSaved = function(submissionId){
+    portalHomeApi.submitSubmission(currentPortal.id, submissionId).then(function(){
+      _toast('Submitted.');
+      closePortalHomeFilloutOverlay();
+      loadAndRenderPortalHome();
+    }, function(e){ _toast('Could not submit: ' + (e.message || 'unknown error')); });
+  };
+
+  if(detail.submissionId){
+    portalHomeApi.updateSubmission(currentPortal.id, detail.submissionId, answersJson).then(function(){
+      afterSaved(detail.submissionId);
+    }, function(e){ _toast('Could not save answers before submitting: ' + (e.message || 'unknown error')); });
+  } else {
+    portalHomeApi.createSubmission(currentPortal.id, detail.formVersionId, answersJson).then(function(submission){
+      afterSaved(submission.id);
+    }, function(e){ _toast('Could not create submission: ' + (e.message || 'unknown error')); });
+  }
 }
 
 export function deletePortalHomeFilloutDraft(){
