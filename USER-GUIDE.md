@@ -39,6 +39,7 @@ because eventually that's exactly what they'll become on a proper help site.
 12. [Reports and exporting](#12-reports-and-exporting)
 13. [Roles and permissions, in plain terms](#13-roles-and-permissions-in-plain-terms)
 14. [Quick reference index](#14-quick-reference-index)
+15. [Appendix: feature access at a glance](#15-appendix-feature-access-at-a-glance)
 
 ---
 
@@ -1166,6 +1167,87 @@ it" tiers, though who's allowed to *initiate* it differs:
 | See a personal feed of my recent activity/mentions/tasks | [Section 11 — Despatches button](#11-data-backup-and-moving-between-tiers) |
 | Hand a stakeholder a document, not a login | [Section 12 — Reports](#12-reports-and-exporting) |
 | Understand what an Org Admin can do that I can't | [Section 13](#13-roles-and-permissions-in-plain-terms) |
+| Check exactly who can access a specific feature, at a glance | [Section 15 — Appendix](#15-appendix-feature-access-at-a-glance) |
+
+---
+
+## 15. Appendix: feature access at a glance
+
+Every feature above, in one table, cross-referenced against [Section 13](#13-roles-and-permissions-in-plain-terms)'s
+three roles and against which of [Section 1](#1-getting-started--where-does-enklr-task-actually-live)'s
+options it needs. Two things worth reading before scanning it:
+
+- **The three role columns describe access on a server-connected project (Option B or C).** A fully
+  local project (Option A) has no accounts and no roles at all — whoever's sitting at the browser can
+  do everything in this table, including rows marked "Project Admin" or "Org Admin" only. Those two
+  columns only start to bite once a project is actually migrated to a server.
+- **Access is cumulative, not exclusive** — a ✓ in the Project Admin column means a Project Admin can
+  do it *in addition to* everything a Team Member can; an Org Admin can do everything both other
+  columns can, everywhere, across every project in the organisation, not just the ones they're a
+  member of.
+
+The **Availability** column tells you which of Enklr Task's three levels (Section 1) a feature exists
+at all: **Cloud + Local** works the same on Option A, B, or C; **Cloud Only** needs a real server and
+an organisation behind it (an account system, other people to collaborate with, or both) and simply
+isn't present on a fully local project; **Local Only** is the rare feature that only makes sense
+*because* a project has no server copy of its own data.
+
+| Feature / function | Team Member | Project Admin | Org Admin | Availability |
+|---|:---:|:---:|:---:|---|
+| **The Board** | | | | |
+| View and move cards, create/edit tasks, sub-tasks, comments | ✓ | ✓ | ✓ | Cloud + Local |
+| Delete another member's comment (your own is always deletable) | — | ✓ | ✓ | Cloud + Local |
+| Add/edit/delete/reorder board columns | — | ✓ | ✓ | Cloud + Local |
+| Add/remove project members, promote/demote a Project Admin | — | ✓ | ✓ | Cloud + Local |
+| Project Settings / App Settings (turn optional modules on/off) | — | ✓ | ✓ | Cloud + Local |
+| Rename a project's key (`MOB` → something else) | — | — | ✓ | Cloud + Local |
+| **Views** ([Section 4](#4-seeing-your-work-differently--the-views)) | | | | |
+| List View, Timeline, Dependency Map, Cost/Benefit Chart, Org Chart, Governance Map | ✓ | ✓ | ✓ | Cloud + Local |
+| **Tools** ([Section 5](#5-tools--everyday-utilities)) | | | | |
+| Bulk Edit, To-Do, Archived, Task Types, Releases, board Workflow editor | ✓ | ✓ | ✓ | Cloud + Local |
+| Release Notes Packager (generate/edit a release's notes) | — | ✓ | ✓ | Cloud Only |
+| Forms & Workflow — fill out and submit a Form, act on an approval step | ✓ | ✓ | ✓ | Cloud Only |
+| Forms & Workflow — Manage Forms (build/edit/publish a form + its workflow) | — | — | ✓ | Cloud Only |
+| Organisational Portals — use a Portal you've been granted access to | ✓* | ✓* | ✓ | Cloud Only |
+| Organisational Portals — Manage Portals (author a Portal, grant access) | — | — | ✓ | Cloud Only |
+| **Governance & knowledge** ([Section 6](#6-governance--knowledge--the-why-not-just-the-what)) | | | | |
+| Principles, Objectives, Documents, Risks, Decisions, Teams & Committees, Retrospectives | ✓ | ✓ | ✓ | Cloud + Local |
+| Health Dashboard (burndown, health %, workload) | ✓ | ✓ | ✓ | Cloud + Local |
+| Strategy (define Pillars/Enablers/Metrics, or even see the side-nav entry) | — | — | ✓ | Cloud Only |
+| **Search & Advanced Query** ([Section 7](#7-search-and-the-advanced-query-workbench)) | | | | |
+| Project Search (the everyday search box) | ✓ | ✓ | ✓ | Cloud + Local |
+| Advanced Query (the SQL workbench) and its Saved Query Library | — | ✓ | ✓ | Cloud + Local |
+| Dashboards — open/use a dashboard someone else built | ✓ | ✓ | ✓ | Cloud Only |
+| Dashboards — create a new dashboard or edit its widgets | — | ✓ | ✓ | Cloud Only |
+| Dashboards — "All Projects" cross-org dashboard browsing | — | — | ✓ | Cloud Only |
+| "Expose via API" (turn a Saved Query into a public endpoint) | — | — | ✓ | Cloud Only |
+| API Endpoints screen + the organisation's Public API key (generate/revoke) | — | — | ✓ | Cloud Only |
+| **Collaboration** ([Section 8](#8-collaboration--chat-and-comments)) | | | | |
+| Chat (channels, DMs, mentions) | ✓ | ✓ | ✓ | Cloud Only |
+| Whiteboard (start/join a real-time drawing session) | ✓ | ✓ | ✓ | Cloud Only |
+| AI Assistant — everyday use (create/edit tasks, ask questions) | ✓ | ✓ | ✓ | Cloud Only |
+| AI Assistant — stand up a whole new project by asking | — | — | ✓ | Cloud Only |
+| **Portfolio & organisation management** ([Section 9](#9-portfolio--organisation-management)) | | | | |
+| Portfolio Dashboard, Portfolio Planner, Strategy fulfilment scoring | — | — | ✓ | Cloud Only |
+| Manage Users (create, deactivate, reset a password) | — | — | ✓ | Cloud Only |
+| SSO & Provisioning (SAML/SCIM configuration) | — | — | ✓ | Cloud Only |
+| Save the current project as a Template | ✓ | ✓ | ✓ | Cloud + Local |
+| Manage Templates (edit/delete the shared list; pick one for a new project) | — | — | ✓ | Cloud + Local |
+| Announcements & Disruption Notices — write/manage | — | — | ✓ | Cloud Only |
+| Announcements & Disruption Notices — see one when it's posted | ✓ | ✓ | ✓ | Cloud Only |
+| **Personalisation** ([Section 10](#10-making-it-yours--personalisation)) | | | | |
+| My Preferences, Theme toggle, Opening Experience | ✓ | ✓ | ✓ | Cloud + Local |
+| **Data, backup, and Despatches** ([Section 11](#11-data-backup-and-moving-between-tiers)) | | | | |
+| Export Project, Import Project, Migrate to Server | ✓ | ✓ | ✓ | Cloud + Local |
+| Storage usage indicator, backup reminders | ✓ | ✓ | ✓ | Local Only |
+| Despatches button (personal activity feed) | ✓ | ✓ | ✓ | Cloud Only |
+| **Reports and exporting** ([Section 12](#12-reports-and-exporting)) | | | | |
+| Entity Reports, Project Management Report, chart exports (SVG/PNG) | ✓ | ✓ | ✓ | Cloud + Local |
+| Strategy on a Page | — | — | ✓ | Cloud Only |
+
+*\* Only once an Org Admin has actually granted that person, their OrgTeam, or "All Organisation
+Members" access to the specific Portal — Portals are closed by default (see
+[Section 5](#5-tools--everyday-utilities)).*
 
 ---
 
