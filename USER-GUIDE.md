@@ -816,7 +816,12 @@ Two more sit alongside these:
   comfortable minority — most people will never open it, and that's fine. But if you've ever wanted
   to ask a question of your project data that no built-in view quite answers ("show me every task
   over budget, grouped by assignee"), this is where you go. Saved queries can also be turned into
-  reusable API endpoints for pulling data into something outside Enklr Task entirely.
+  reusable API endpoints for pulling data into something outside Enklr Task entirely — this "Expose
+  via API" option, and the **API Endpoints** screen it feeds (side nav → Tools, once at least one
+  query is exposed), are Org-Admin-only, since publishing a project's data as a public URL is a
+  bigger call than saving a query for yourself. That same screen is also where an Org Admin
+  generates and revokes the organisation's Public API key, which authenticates every request made
+  against those endpoints — one key per organisation, shown once at generation time.
 - **Dashboards** — **What**: a self-service reporting canvas that turns your Saved Queries into a
   proper visual dashboard, instead of leaving them as raw result tables. A dashboard is a named page
   made of widgets — data tables, gauges, bar gauges, bar/line/pie/donut charts, a Cost/Benefit
