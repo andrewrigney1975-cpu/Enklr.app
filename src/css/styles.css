@@ -6175,6 +6175,7 @@
      section-label precedent), not decoration. */
   .kf-portal-qa-search {
     width: 100%;
+    min-width: 0;
     margin-bottom: 12px;
   }
   .kf-portal-qa-topic {

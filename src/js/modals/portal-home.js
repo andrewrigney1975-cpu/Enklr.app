@@ -41,6 +41,7 @@ export function openPortalHomeBySlug(slug){
     document.getElementById('portalHomeDesc').textContent = portal.description || '';
     qaSearchTerm = '';
     document.getElementById('portalHomeQaSearchInput').value = '';
+    document.getElementById('portalHomeQaSearchClearBtn').classList.add('kf-vis-hidden');
     loadAndRenderPortalHome();
   }, function(){
     _toast('That Portal isn\'t available.');
@@ -223,8 +224,19 @@ function openPortalSubmissionView(submissionId){
    to the normal full list with whatever accordion state the user had before searching (never reset
    by the act of searching itself). */
 export function onPortalHomeQaSearchInput(){
-  qaSearchTerm = document.getElementById('portalHomeQaSearchInput').value.trim().toLowerCase();
+  var input = document.getElementById('portalHomeQaSearchInput');
+  qaSearchTerm = input.value.trim().toLowerCase();
+  document.getElementById('portalHomeQaSearchClearBtn').classList.toggle('kf-vis-hidden', input.value.length === 0);
   renderPortalHomeQa();
+}
+
+export function clearPortalHomeQaSearch(){
+  var input = document.getElementById('portalHomeQaSearchInput');
+  input.value = '';
+  qaSearchTerm = '';
+  document.getElementById('portalHomeQaSearchClearBtn').classList.add('kf-vis-hidden');
+  renderPortalHomeQa();
+  input.focus();
 }
 
 function renderPortalHomeQa(){

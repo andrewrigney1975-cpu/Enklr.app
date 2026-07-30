@@ -1824,7 +1824,13 @@
       </div>
       <div class="kf-portal-home-pane">
         <div class="kf-portal-home-pane-title">Answers</div>
-        <input type="text" id="portalHomeQaSearchInput" class="kf-portal-qa-search" placeholder="Search…">
+        <div class="kf-search kf-portal-qa-search">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="portalHomeQaSearchInput" placeholder="Search…">
+          <button type="button" class="kf-search-clear-btn kf-vis-hidden" id="portalHomeQaSearchClearBtn" aria-label="Clear search">
+            <span class="kf-icon" data-icon="close" data-size="12"></span>
+          </button>
+        </div>
         <div id="portalHomeQaList"></div>
         <div class="kf-member-empty hidden" id="portalHomeQaEmpty">No answers published yet.</div>
         <div class="kf-member-empty hidden" id="portalHomeQaNoMatches">No answers match your search.</div>
