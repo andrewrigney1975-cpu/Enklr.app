@@ -130,6 +130,9 @@ function dragBarByDays(doc, bar, role, days){
 
   doc.getElementById('timelineBtn').click();
   await wait(20);
+  doc.getElementById('timelineScaleSelect').value = 'day';
+  doc.getElementById('timelineScaleSelect').dispatchEvent(new window.Event('change', {bubbles: true}));
+  await wait(20);
 
   // ── Resize-start handle only moves the start date ────────────────────────────────────────────
   dragBarByDays(doc, taskBar(doc, 'Look at Project and App Settings'), 'resize-start', 2);
@@ -143,6 +146,9 @@ function dragBarByDays(doc, bar, role, days){
   }
 
   doc.getElementById('timelineBtn').click();
+  await wait(20);
+  doc.getElementById('timelineScaleSelect').value = 'day';
+  doc.getElementById('timelineScaleSelect').dispatchEvent(new window.Event('change', {bubbles: true}));
   await wait(20);
 
   // ── Resize-end handle only moves the end date ────────────────────────────────────────────────
@@ -162,6 +168,9 @@ function dragBarByDays(doc, bar, role, days){
   // is over half a day-width and must round UP to a full one-day move.
   doc.getElementById('timelineBtn').click();
   await wait(20);
+  doc.getElementById('timelineScaleSelect').value = 'day';
+  doc.getElementById('timelineScaleSelect').dispatchEvent(new window.Event('change', {bubbles: true}));
+  await wait(20);
   {
     var bar = taskBar(doc, 'Look at Project and App Settings');
     fireMouse(bar, 'mousedown', 0);
@@ -177,6 +186,9 @@ function dragBarByDays(doc, bar, role, days){
   }
 
   doc.getElementById('timelineBtn').click();
+  await wait(20);
+  doc.getElementById('timelineScaleSelect').value = 'day';
+  doc.getElementById('timelineScaleSelect').dispatchEvent(new window.Event('change', {bubbles: true}));
   await wait(20);
   {
     var bar = taskBar(doc, 'Look at Project and App Settings');

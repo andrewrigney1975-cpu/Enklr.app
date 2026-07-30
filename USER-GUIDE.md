@@ -871,7 +871,14 @@ Priya, sketching a quick flow with a teammate on a call instead of describing it
 walking through a diagram live with someone in another office. **How**: pick a tool from the toolbar
 along the top — pen (choose a width and any of 16 colours), eraser, text box, five basic shapes
 (rectangle, circle, oval, triangle, diamond — hold the circle tool and it stays a true circle no
-matter how you drag), and a connector line for pointing one thing at another. Down the left side:
+matter how you drag), and a connector line for pointing one thing at another. **Hold Shift while
+drawing a connector** to turn a diagonal drag into a clean right-angle line (a rounded elbow bend,
+same look as the Dependency Map's connectors) instead of a straight diagonal — handy for pointing at
+something without the line cutting across unrelated parts of the sketch; a connector already drawn
+perfectly horizontal or vertical is unaffected either way. **Hold Alt (Option on a Mac) instead** to
+draw the connector as a single smooth curve rather than a straight or right-angled line — useful for
+a softer-looking pointer line, and unlike Shift it curves the connector no matter which direction you
+drag it in. Down the left side:
 **Copy Link** (puts a shareable join link on your clipboard), **Save**, and **Exit**.
 **Save vs. Exit matters**: a whiteboard is scratch space until someone actually clicks Save — closing
 it beforehand (only the person who started it can close it for everyone; anyone else can just leave)

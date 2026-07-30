@@ -1,5 +1,5 @@
 "use strict";
-import { roundedOrthogonalPathD } from '../views/dependency-map.js';
+import { roundedOrthogonalPathD, DEPMAP_CORNER_RADIUS } from '../views/dependency-map.js';
 
 /* Collaborative Whiteboard — the SVG element-building half of the feature (session/API/SSE state
    lives in features/whiteboard.js; modals/whiteboard.js wires the two together plus the toolbar).
@@ -53,7 +53,46 @@ function pointsToPathD(points){
               outright via whiteboardApi.removeElement rather than drawing anything of its own)
    text:      {x, y, text, color}
    shape-*:   {x, y, w, h, color}          (rect/circle/oval/triangle/diamond, x/y/w/h = bounding box)
-   connector: {x1, y1, x2, y2, color} */
+   connector: {x1, y1, x2, y2, color, corner?: {x, y}, curve?: true} — corner is only present when
+              the connector was drawn as a Shift-held right-angle bend (see computeConnectorCorner
+              below); curve is only present when it was drawn as an Alt/Option-held smooth curve (see
+              connectorCurvePathD below) — the two modifiers are mutually exclusive (Alt wins if
+              both are somehow held, see modals/whiteboard.js), and a plain diagonal drag has
+              neither, rendering as a single straight segment, unchanged from before either existed.
+              Both corner and curve are fully recomputable from x1/y1/x2/y2 alone (pure functions of
+              the two endpoints) — corner is still stored explicitly rather than recomputed at
+              render time since it's the more natural place to freeze "which of the two right-angle
+              directions the user actually drew," but curve is intentionally just a boolean, since
+              its control points are always the same deterministic function of the endpoints. */
+
+/* Shift-drawn connectors get a single right-angle bend, same idea as the Task Dependency Connector's
+   own routing (views/board.js) — but here there's no column geometry to route around, just the two
+   endpoints, so the bend always goes through whichever of the two candidate corners
+   ({x2,y1} or {x1,y2}) keeps the LONGER of the two segments first, matching how a quick freehand
+   "mostly horizontal" or "mostly vertical" drag reads to the person drawing it. Returns null for an
+   already-axis-aligned drag (x1===x2 or y1===y2) since there's no diagonal to turn into a bend. */
+export function computeConnectorCorner(x1, y1, x2, y2){
+  if(x1 === x2 || y1 === y2) return null;
+  return Math.abs(x2 - x1) >= Math.abs(y2 - y1) ? {x: x2, y: y1} : {x: x1, y: y2};
+}
+
+/* Alt/Option-drawn connectors get a single smooth cubic-Bezier "S" curve instead of a straight
+   segment or a right-angle bend — unlike the Shift bend, this applies regardless of the drag's
+   orientation (even an already-axis-aligned drag still curves), since it's a deliberately different
+   connector style rather than a routing fix for a diagonal. The two control points sit at the 1/3
+   and 2/3 points along the straight line between the endpoints, each offset perpendicular to it by
+   a fixed fraction of the line's own length (in opposite directions), which is what gives the curve
+   its gentle symmetric "S" shape rather than a lopsided bulge — the same construction used by most
+   diagramming tools' "curved connector" style. */
+export function connectorCurvePathD(x1, y1, x2, y2){
+  var dx = x2 - x1, dy = y2 - y1;
+  var len = Math.hypot(dx, dy) || 1;
+  var nx = -dy / len, ny = dx / len;
+  var offset = len * 0.18;
+  var c1x = x1 + dx / 3 + nx * offset, c1y = y1 + dy / 3 + ny * offset;
+  var c2x = x1 + dx * 2 / 3 - nx * offset, c2y = y1 + dy * 2 / 3 - ny * offset;
+  return 'M ' + x1 + ' ' + y1 + ' C ' + c1x + ' ' + c1y + ' ' + c2x + ' ' + c2y + ' ' + x2 + ' ' + y2;
+}
 
 export function renderElementSvg(element){
   var data;
@@ -68,7 +107,15 @@ export function renderElementSvg(element){
     return '<g ' + groupAttrs + '><text x="' + data.x + '" y="' + data.y + '" fill="' + data.color + '" font-size="18" font-family="inherit">' + escapeXml(data.text) + '</text></g>';
   }
   if(type === 'connector'){
-    var d = roundedOrthogonalPathD([{x: data.x1, y: data.y1}, {x: data.x2, y: data.y2}], 8);
+    var d;
+    if(data.curve){
+      d = connectorCurvePathD(data.x1, data.y1, data.x2, data.y2);
+    } else {
+      var pts = [{x: data.x1, y: data.y1}];
+      if(data.corner) pts.push(data.corner);
+      pts.push({x: data.x2, y: data.y2});
+      d = roundedOrthogonalPathD(pts, DEPMAP_CORNER_RADIUS);
+    }
     return '<g ' + groupAttrs + '><path d="' + d + '" fill="none" stroke="' + data.color + '" stroke-width="2.5" marker-start="url(#kf-wb-dot-start)" marker-end="url(#kf-wb-dot-end)"/></g>';
   }
   if(type === 'shape-rect'){

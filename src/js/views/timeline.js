@@ -95,6 +95,25 @@ export var TIMESCALE_CONFIG = {
   }
 };
 
+var TIMELINE_NAME_COL_WIDTH = 240;
+var TIMELINE_SCALE_ORDER = ['day', 'week', 'fortnight', 'month', 'quarter', 'year'];
+
+/* Picks the finest granularity whose full column count still fits the available track width at
+   that scale's own minWidth — i.e. the most detailed view that doesn't need horizontal scrolling
+   for the data being shown right now. Falls back to the coarsest scale (year) if even that doesn't
+   fit (an overrun task or a very long project), same as the pre-existing manual "just pick year"
+   workaround users had to do by hand. */
+export function computeAutoTimelineScale(range, trackAvailable){
+  if(!range.start || !range.end) return 'week';
+  for(var i = 0; i < TIMELINE_SCALE_ORDER.length; i++){
+    var scale = TIMELINE_SCALE_ORDER[i];
+    var cfg = TIMESCALE_CONFIG[scale];
+    var count = buildTimelineColumns(range.start, range.end, scale, 1).length;
+    if(count * cfg.minWidth <= trackAvailable) return scale;
+  }
+  return 'year';
+}
+
 export function buildTimelineColumns(rangeStart, rangeEnd, granularity, colWidth){
   var cfg = TIMESCALE_CONFIG[granularity] || TIMESCALE_CONFIG.week;
   var columns = [];
@@ -235,7 +254,6 @@ export function expandAllTimelineGroups(){
 export function openTimelineOverlay(){
   var project = getCurrentProject();
   if(!project){ _toast('No project selected.'); return; }
-  document.getElementById('timelineScaleSelect').value = ui.timelineScale;
   updateTimelineArchiveToggleButton();
   // Session-only, reset every time the overlay opens — same convention as Task List's own
   // ui.taskListCollapsedGroups reset in openTaskListOverlay, so a release left collapsed from a
@@ -245,6 +263,15 @@ export function openTimelineOverlay(){
   // collapsed-groups reset above — there's no "resume editing" concept for this overlay.
   resetTimelinePendingChanges();
   document.getElementById('timelineOverlay').classList.remove('hidden');
+  // Auto-pick the scale that best fits what's actually being displayed at load time — the finest
+  // granularity that still shows the whole range without horizontal scrolling — rather than always
+  // reopening at whatever scale (or the 'week' default) was last left selected.
+  var range = computeTimelineRange(project);
+  var scrollEl = document.getElementById('timelineScroll');
+  var availableWidth = scrollEl.clientWidth || 900;
+  var trackAvailable = Math.max(availableWidth - TIMELINE_NAME_COL_WIDTH, 200);
+  ui.timelineScale = computeAutoTimelineScale(range, trackAvailable);
+  document.getElementById('timelineScaleSelect').value = ui.timelineScale;
   renderTimeline();
 }
 export function closeTimelineOverlay(){
@@ -353,7 +380,7 @@ export function renderTimeline(){
 
   var scrollEl = document.getElementById('timelineScroll');
   var availableWidth = scrollEl.clientWidth || 900;
-  var nameColWidth = 240;
+  var nameColWidth = TIMELINE_NAME_COL_WIDTH;
   var trackAvailable = Math.max(availableWidth - nameColWidth, 200);
 
   var cfg = TIMESCALE_CONFIG[ui.timelineScale] || TIMESCALE_CONFIG.week;

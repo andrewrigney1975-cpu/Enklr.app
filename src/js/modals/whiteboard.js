@@ -10,7 +10,8 @@ import {
   leaveWhiteboardSession, saveWhiteboardSession, closeWhiteboardSession, addWhiteboardElement,
   removeWhiteboardElement, whiteboardHasUnsavedChanges, sendWhiteboardCursorMove, onWhiteboardCursorMoved
 } from '../features/whiteboard.js';
-import { clientPointToSvgPoint, renderElementsLayer } from '../features/whiteboard-draw.js';
+import { clientPointToSvgPoint, renderElementsLayer, computeConnectorCorner, connectorCurvePathD } from '../features/whiteboard-draw.js';
+import { roundedOrthogonalPathD, DEPMAP_CORNER_RADIUS } from '../views/dependency-map.js';
 import { getCurrentUserId } from '../api.js';
 import { iconSvg } from '../icons.js';
 
@@ -231,7 +232,7 @@ function handleCanvasPointerMove(e){
 
   if(!_drawing) return;
   if(_drawing.tool === 'pen') _drawing.points.push(pt);
-  else { _drawing.curX = pt.x; _drawing.curY = pt.y; }
+  else { _drawing.curX = pt.x; _drawing.curY = pt.y; _drawing.shiftHeld = e.shiftKey; _drawing.altHeld = e.altKey; }
   renderLivePreview();
 }
 
@@ -248,7 +249,18 @@ function renderLivePreview(){
     var d = _drawing.points.reduce(function(acc, p, i){ return acc + (i === 0 ? 'M ' : ' L ') + p.x + ' ' + p.y; }, '');
     markup = '<path d="' + d + '" fill="none" stroke="' + _penColor + '" stroke-width="' + _penWidth + '" stroke-linecap="round" stroke-linejoin="round"/>';
   } else if(_drawing.tool === 'connector'){
-    markup = '<line x1="' + _drawing.startX + '" y1="' + _drawing.startY + '" x2="' + (_drawing.curX || _drawing.startX) + '" y2="' + (_drawing.curY || _drawing.startY) + '" stroke="' + _penColor + '" stroke-width="2.5" stroke-dasharray="4 3"/>';
+    var endX = _drawing.curX || _drawing.startX, endY = _drawing.curY || _drawing.startY;
+    var previewD;
+    if(_drawing.altHeld){
+      previewD = connectorCurvePathD(_drawing.startX, _drawing.startY, endX, endY);
+    } else {
+      var corner = _drawing.shiftHeld ? computeConnectorCorner(_drawing.startX, _drawing.startY, endX, endY) : null;
+      var pts = [{x: _drawing.startX, y: _drawing.startY}];
+      if(corner) pts.push(corner);
+      pts.push({x: endX, y: endY});
+      previewD = roundedOrthogonalPathD(pts, DEPMAP_CORNER_RADIUS);
+    }
+    markup = '<path d="' + previewD + '" fill="none" stroke="' + _penColor + '" stroke-width="2.5" stroke-dasharray="4 3"/>';
   } else {
     var box = normalizeBox(_drawing.startX, _drawing.startY, _drawing.curX || _drawing.startX, _drawing.curY || _drawing.startY, _drawing.tool === 'circle');
     markup = '<rect x="' + box.x + '" y="' + box.y + '" width="' + box.w + '" height="' + box.h + '" fill="none" stroke="' + _penColor + '" stroke-width="2" stroke-dasharray="4 3"/>';
@@ -273,7 +285,14 @@ function handleCanvasPointerUp(e){
   if(drawing.tool === 'connector'){
     var endX = drawing.curX || drawing.startX, endY = drawing.curY || drawing.startY;
     if(endX !== drawing.startX || endY !== drawing.startY){
-      addWhiteboardElement('connector', JSON.stringify({x1: drawing.startX, y1: drawing.startY, x2: endX, y2: endY, color: _penColor})).then(renderWhiteboardState);
+      var data = {x1: drawing.startX, y1: drawing.startY, x2: endX, y2: endY, color: _penColor};
+      if(drawing.altHeld || e.altKey){
+        data.curve = true;
+      } else {
+        var corner = (drawing.shiftHeld || e.shiftKey) ? computeConnectorCorner(drawing.startX, drawing.startY, endX, endY) : null;
+        if(corner) data.corner = corner;
+      }
+      addWhiteboardElement('connector', JSON.stringify(data)).then(renderWhiteboardState);
     }
     return;
   }

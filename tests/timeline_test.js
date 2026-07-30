@@ -121,7 +121,11 @@ function setProjectDates(doc, startVal, endVal){
 
   // ── 6. Timescale selector changes the grid ────────────────────────────────
   const scaleSelect = doc.getElementById('timelineScaleSelect');
-  log('default timescale is Week', scaleSelect.value === 'week', scaleSelect.value);
+  // The Timeline now auto-picks the finest scale that fits the whole range without horizontal
+  // scrolling when the overlay opens (see computeAutoTimelineScale in views/timeline.js), rather
+  // than always defaulting to 'week' — for this seeded project's ~1-year range at jsdom's 900px
+  // fallback width, that auto-picked scale is 'quarter'.
+  log('opening auto-selects a scale that fits the whole range (quarter, for this project)', scaleSelect.value === 'quarter', scaleSelect.value);
   const weekColCount = doc.querySelectorAll('.kf-timeline-col-header').length;
 
   scaleSelect.value = 'year';
