@@ -694,14 +694,19 @@ drawn.
   sign-off process. Once a form is **published**, any project that's switched this module on gets a
   plain **Forms** entry in its side nav — any member can open it, fill in the fields, save a draft, or
   submit it straight away; whoever's named as an approver finds it waiting under **Awaiting My
-  Action** and approves or rejects it, with an optional comment either way. **Who**: Elena, defining a
-  process once — an onboarding checklist, an expense approval, a change request — so it lives in the
-  app instead of someone's head or a shared spreadsheet; Marcus and Priya, filling one out and getting
-  a clear, final approved-or-rejected answer back rather than chasing someone down over chat.
-  **Versioning**: editing an already-published form doesn't retroactively change anything already in
-  flight — you clone it into a new draft version, edit that, and publish it when it's ready; every
-  existing submission stays tied to whichever version it was actually started against. **Getting
-  notified**: the moment your own submission is finally approved or rejected — not on every
+  Action** and approves or rejects it, with an optional comment either way. The **Forms** entry only
+  ever lists forms you're actually able to start — one whose Author step your role doesn't satisfy
+  simply doesn't appear, so nothing shown there could ever be rejected on submit for a permissions
+  reason. If your organisation also has any [Organisational Portals](#5-tools--everyday-utilities)
+  you've been granted access to, the **Forms** icon in the side nav moves to sit directly beneath
+  them, in that same "Portals" section, rather than having its own separate spot. **Who**: Elena,
+  defining a process once — an onboarding checklist, an expense approval, a change request — so it
+  lives in the app instead of someone's head or a shared spreadsheet; Marcus and Priya, filling one
+  out and getting a clear, final approved-or-rejected answer back rather than chasing someone down
+  over chat. **Versioning**: editing an already-published form doesn't retroactively change anything
+  already in flight — you clone it into a new draft version, edit that, and publish it when it's
+  ready; every existing submission stays tied to whichever version it was actually started against.
+  **Getting notified**: the moment your own submission is finally approved or rejected — not on every
   intermediate step of a multi-person chain, only the decision that actually settles it — you get a
   toast and a Despatches entry (see Section 11) naming both the form and the result, with a one-click
   link straight back into it; an approver gets the same kind of notification the moment a submission
@@ -709,6 +714,42 @@ drawn.
   next to the board), find **Forms & Workflow** under the **Enterprise** category, and switch it on —
   **Manage Forms** (build/edit/publish forms, Org Admins only) and the plain **Forms** entry (every
   member, for filling them out) then both appear in the side nav.
+- **Organisational Portals** — **What**: a curated, full-screen "home page" — a real front door into
+  Enklr Task for people who don't need board access at all, just a governed way to raise a request and
+  track it. Elena builds one (or several — an IT Service Desk portal, an HR portal, whatever your
+  organisation needs a front door for) by opening **Manage Portals**: give it a name and description,
+  pick an icon from the same icon library used everywhere else in the app (the Team icon, the Health
+  Dashboard icon, anything already in use), attach one or more already-published Forms to it, decide
+  who can see it, and publish it. **Closed by default**: a brand-new Portal is invisible to everyone
+  until you explicitly grant access — to a specific person, an OrgTeam (business unit), a Team or
+  Committee, or **All Organisation Members** in one go. **Behind the scenes**: every Portal
+  automatically gets its own dedicated project with five fixed priority columns
+  (Trivial → Low → Medium → High → Critical) — nobody has to join it just to submit a request through
+  the Portal, but every current Org Admin is added to it automatically, and Elena can add specific
+  analysts or consultants to help process what comes in via the **Team** tab in the Portal editor (a
+  simple picker over your existing user list — no separate account setup needed). A Form's approval
+  workflow can include an action that automatically raises a task in that project, in whichever
+  priority column you choose, the moment a submission reaches it — assigned to whoever most recently
+  approved it, if there was an approval step, or left for the back-office team to pick up if not.
+  **What Marcus sees**: once granted access, a Portal appears as its own icon in the side nav's
+  "Portals" section — clicking it opens the full-screen experience, laid out in three panes: **Start a
+  request** (every form attached to this Portal you're able to submit), **My requests** (a visual
+  progress stepper — Draft → Submitted → In Review → Approved/Rejected — for everything you've
+  submitted here; a Draft reopens editable, anything past that opens as a read-only view of what you
+  submitted plus its full Approval Trail), and **Answers** — a searchable, expand/collapse Q&A
+  knowledge base Elena curates for that Portal; type into the search box to filter to matching
+  questions and answers, with every match auto-expanded so you don't need a second click to read it.
+  If Marcus is also a configured approver for one of the Portal's forms, an **Awaiting My Action**
+  section appears above **My requests** with anything waiting on his decision, approved or rejected
+  right there with an optional comment — the same "Awaiting My Action" concept from Forms & Workflow
+  above, just reachable without needing project access. Every Portal also has its own shareable web
+  address (`#!/portal/your-portal-name`), so a link can point straight into it from anywhere. **Who**:
+  Elena, giving the rest of the organisation a governed way to raise IT/HR/Finance-style requests
+  without handing out board access; Marcus, submitting one and getting a clear answer without
+  cornering someone over chat. **How to turn it on**: same **Project Settings → Enterprise** category
+  as Forms & Workflow, right below it — Portals can only be switched on for a project that already has
+  Forms & Workflow enabled (there'd be nothing to attach otherwise), so its checkbox stays disabled
+  until Forms & Workflow is on.
 
 ---
 
@@ -1083,6 +1124,9 @@ it" tiers, though who's allowed to *initiate* it differs:
 | Stop a task moving to Done too early | [Section 5 — Workflow](#5-tools--everyday-utilities) |
 | Set up a form with a required approval process | [Section 5 — Forms & Workflow](#5-tools--everyday-utilities) |
 | Get notified the moment my submission is approved or rejected | [Section 5 — Forms & Workflow](#5-tools--everyday-utilities) |
+| Give people outside the board a governed way to raise a request | [Section 5 — Organisational Portals](#5-tools--everyday-utilities) |
+| Build a self-serve Q&A knowledge base for a request-raising portal | [Section 5 — Organisational Portals](#5-tools--everyday-utilities) |
+| Track the status of a request I submitted, without board access | [Section 5 — Organisational Portals](#5-tools--everyday-utilities) |
 | Draft a changelog from what actually shipped | [Section 5 — Release Notes Packager](#5-tools--everyday-utilities) |
 | Keep a running log of project risk | [Section 6 — Risks](#6-governance--knowledge--the-why-not-just-the-what) |
 | Run a proper end-of-release retro | [Section 6 — Retrospectives](#6-governance--knowledge--the-why-not-just-the-what) |
