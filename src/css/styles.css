@@ -6025,6 +6025,9 @@
     flex-direction: column;
     gap: 2px;
     min-width: 0;
+    /* On top of the header's own 16px icon/text gap — pushes the title+description block further
+       right, away from the icon, per explicit request. */
+    margin-left: 16px;
   }
 
   #portalHomeOverlay .kf-modal-header .kf-modal-header-actions {
