@@ -25,6 +25,7 @@ var currentAwaiting = [];
 var currentQa = null; // {topics, entries}
 var detail = null; // {mode: 'new'|'draft'|'approve', form, fields, submissionId, submission}
 var expandedQaEntryIds = {};
+var qaSearchTerm = '';
 
 var STEPPER_STEPS = ['Draft', 'Submitted', 'In review', 'Approved'];
 
@@ -38,6 +39,8 @@ export function openPortalHomeBySlug(slug){
     document.getElementById('portalHomeIconLarge').innerHTML = portal.iconName ? iconSvg(portal.iconName, 48) : '';
     document.getElementById('portalHomeGreeting').textContent = 'Welcome to the ' + portal.name + ' Portal';
     document.getElementById('portalHomeDesc').textContent = portal.description || '';
+    qaSearchTerm = '';
+    document.getElementById('portalHomeQaSearchInput').value = '';
     loadAndRenderPortalHome();
   }, function(){
     _toast('That Portal isn\'t available.');
@@ -213,9 +216,28 @@ function openPortalSubmissionView(submissionId){
 
 // ---- Right pane: Q&A accordion ----
 
+/* The search box filters entries whose question OR answer contains the term (case-insensitive) and
+   auto-expands every match — a matched entry ignores its own manual expandedQaEntryIds state while a
+   search is active, so results are immediately readable rather than requiring a second click. A
+   topic heading survives only if at least one of its entries still matches; clearing the box reverts
+   to the normal full list with whatever accordion state the user had before searching (never reset
+   by the act of searching itself). */
+export function onPortalHomeQaSearchInput(){
+  qaSearchTerm = document.getElementById('portalHomeQaSearchInput').value.trim().toLowerCase();
+  renderPortalHomeQa();
+}
+
 function renderPortalHomeQa(){
-  var topics = currentQa.topics || [], entries = currentQa.entries || [];
-  document.getElementById('portalHomeQaEmpty').classList.toggle('hidden', entries.length > 0);
+  var topics = currentQa.topics || [], allEntries = currentQa.entries || [];
+  var searching = qaSearchTerm.length > 0;
+  var entries = searching ? allEntries.filter(function(e){
+    return (e.question || '').toLowerCase().indexOf(qaSearchTerm) !== -1 ||
+      (e.answer || '').toLowerCase().indexOf(qaSearchTerm) !== -1;
+  }) : allEntries;
+
+  document.getElementById('portalHomeQaEmpty').classList.toggle('hidden', allEntries.length > 0);
+  document.getElementById('portalHomeQaNoMatches').classList.toggle('hidden', !searching || entries.length > 0);
+
   var topicTitleById = {};
   topics.forEach(function(t){ topicTitleById[t.id] = t.title; });
 
@@ -227,7 +249,7 @@ function renderPortalHomeQa(){
   var list = document.getElementById('portalHomeQaList');
   list.innerHTML = grouped.map(function(g){
     return (g.title ? '<div class="kf-portal-qa-topic">' + escapeHTML(g.title) + '</div>' : '') +
-      g.entries.map(renderPortalQaEntryHTML).join('');
+      g.entries.map(function(e){ return renderPortalQaEntryHTML(e, searching); }).join('');
   }).join('');
 
   list.querySelectorAll('[data-qa-entry-id]').forEach(function(q){
@@ -240,8 +262,8 @@ function renderPortalHomeQa(){
   hydrateIcons(list);
 }
 
-function renderPortalQaEntryHTML(e){
-  var expanded = !!expandedQaEntryIds[e.id];
+function renderPortalQaEntryHTML(e, forceExpanded){
+  var expanded = forceExpanded || !!expandedQaEntryIds[e.id];
   return '<div class="kf-portal-qa-entry' + (expanded ? ' expanded' : '') + '">' +
     '<div class="kf-portal-qa-question" data-qa-entry-id="' + e.id + '">' +
       '<span>' + escapeHTML(e.question) + '</span>' +

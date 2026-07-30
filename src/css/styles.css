@@ -6173,6 +6173,10 @@
   /* Right pane — Answers (Q&A), a knowledge-base-style expand/collapse accordion per entry, grouped
      under small-caps topic labels — a real structural label (matches the side-nav "Views"/"Tools"
      section-label precedent), not decoration. */
+  .kf-portal-qa-search {
+    width: 100%;
+    margin-bottom: 12px;
+  }
   .kf-portal-qa-topic {
     font-size: 11px;
     font-weight: 700;
@@ -6316,6 +6320,7 @@
   #portalHomeFormsEmpty.hidden,
   #portalHomeRequestsEmpty.hidden,
   #portalHomeQaEmpty.hidden,
+  #portalHomeQaNoMatches.hidden,
   #portalHomeFilloutMissingWarning.hidden,
   #portalHomeFilloutDeleteBtn.hidden,
   #portalHomeAwaitingSection.hidden,
