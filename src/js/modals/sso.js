@@ -1,10 +1,9 @@
 "use strict";
 import { toast } from '../ui.js';
 import { escapeHTML, renderBoard, renderAssigneeFilterChips } from '../views/board.js';
-import { getSsoConfigApi, updateSsoConfigApi, generateScimTokenApi, getOrgTeamsApi, applyOrgTeamToProjectApi, isOrgAdmin, getApiKeyApi, generateApiKeyApi, revokeApiKeyApi } from '../api.js';
+import { getSsoConfigApi, updateSsoConfigApi, generateScimTokenApi, getOrgTeamsApi, applyOrgTeamToProjectApi, isOrgAdmin } from '../api.js';
 import { getCurrentProject } from '../store.js';
 import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
-import { confirmDialog } from './confirm.js';
 
 /* Org Admin's SAML SSO + SCIM provisioning configuration screen — separate from
    modals/organisation.js's "Manage Users" (that manages the org's User accounts; this manages how
@@ -13,10 +12,8 @@ import { confirmDialog } from './confirm.js';
 export function openSsoConfigModal(){
   if(!isOrgAdmin()){ toast('Only an organisation admin can manage SSO settings.'); return; }
   document.getElementById('ssoScimTokenReveal').classList.add('hidden');
-  document.getElementById('ssoApiKeyReveal').classList.add('hidden');
   renderSsoConfig();
   renderOrgTeams();
-  renderApiKeyStatus();
   document.getElementById('ssoConfigOverlay').classList.remove('hidden');
 }
 export function closeSsoConfigModal(){
@@ -83,47 +80,6 @@ export function generateScimTokenFromModal(){
   }, function(e){
     toast('Could not generate a SCIM token: ' + (e.message || 'unknown error'));
   });
-}
-
-export function renderApiKeyStatus(){
-  getApiKeyApi().then(function(key){
-    if(!key.hasApiKey){
-      document.getElementById('ssoApiKeyStatus').textContent = 'No API key generated yet.';
-      return;
-    }
-    document.getElementById('ssoApiKeyStatus').textContent = key.enabled
-      ? 'An API key is active' + (key.lastUsedAt ? ' — last used ' + new Date(key.lastUsedAt).toLocaleString() : ' — not used yet') + '.'
-      : 'The API key has been revoked.';
-  }, function(e){
-    toast('Could not load API key status: ' + (e.message || 'unknown error'));
-  });
-}
-
-export function generateApiKeyFromModal(){
-  generateApiKeyApi().then(function(result){
-    document.getElementById('ssoApiKeyOutput').value = result.key;
-    document.getElementById('ssoApiKeyReveal').classList.remove('hidden');
-    toast('New API key generated. Copy it now — it will not be shown again.');
-    renderApiKeyStatus();
-  }, function(e){
-    toast('Could not generate an API key: ' + (e.message || 'unknown error'));
-  });
-}
-
-export function revokeApiKeyFromModal(){
-  confirmDialog(
-    'Revoke the API key?',
-    'Any 3rd-party integration using this key will immediately lose access to your Saved Query API endpoints. This cannot be undone — a new key would need to be generated and distributed again.',
-    function(){
-      revokeApiKeyApi().then(function(){
-        document.getElementById('ssoApiKeyReveal').classList.add('hidden');
-        toast('API key revoked.');
-        renderApiKeyStatus();
-      }, function(e){
-        toast('Could not revoke the API key: ' + (e.message || 'unknown error'));
-      });
-    }
-  );
 }
 
 /* Read-only — SCIM/the IdP owns Org Team membership, this app never creates/edits it directly (see

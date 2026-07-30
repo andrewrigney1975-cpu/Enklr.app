@@ -780,19 +780,6 @@
         <div id="ssoOrgTeamsList" class="kf-member-list"></div>
       </div>
 
-      <div class="kf-field">
-        <label>Public API key</label>
-        <p class="kf-sso-hint">Authenticates 3rd-party requests to any Saved Query with "Expose via API" turned on (Advanced Query tab). One key per organisation — generating a new one immediately invalidates the last.</p>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button class="kf-btn kf-btn-secondary" id="ssoGenerateApiKeyBtn">Generate new API key</button>
-          <button class="kf-btn kf-btn-danger" id="ssoRevokeApiKeyBtn">Revoke</button>
-        </div>
-        <p id="ssoApiKeyStatus" class="kf-sso-hint"></p>
-        <div id="ssoApiKeyReveal" class="kf-sso-token-reveal hidden">
-          <input type="text" id="ssoApiKeyOutput" readonly>
-          <p class="kf-sso-hint kf-sso-warning">Copy this now — it won't be shown again. Generating a new key immediately invalidates this one.</p>
-        </div>
-      </div>
     </div>
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-secondary" id="ssoConfigDoneBtn">Close</button>
@@ -3033,8 +3020,22 @@
       <button class="kf-btn kf-btn-ghost" id="apiEndpointsModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
     </div>
     <div class="kf-modal-body">
-      <p class="kf-sso-hint">Saved queries currently exposed via the Public Query API. Each request needs the organisation's API key — manage that from SSO &amp; Provisioning.</p>
+      <p class="kf-sso-hint">Saved queries currently exposed via the Public Query API. Each request needs the organisation's API key below.</p>
       <div id="apiEndpointsList"></div>
+
+      <div class="kf-field">
+        <label>Public API key</label>
+        <p class="kf-sso-hint">Authenticates 3rd-party requests to any endpoint listed above. One key per organisation — generating a new one immediately invalidates the last.</p>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="kf-btn kf-btn-secondary" id="generateApiKeyBtn">Generate new API key</button>
+          <button class="kf-btn kf-btn-danger" id="revokeApiKeyBtn">Revoke</button>
+        </div>
+        <p id="apiKeyStatus" class="kf-sso-hint"></p>
+        <div id="apiKeyReveal" class="kf-sso-token-reveal hidden">
+          <input type="text" id="apiKeyOutput" readonly>
+          <p class="kf-sso-hint kf-sso-warning">Copy this now — it won't be shown again. Generating a new key immediately invalidates this one.</p>
+        </div>
+      </div>
     </div>
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-secondary" id="apiEndpointsDoneBtn">Close</button>

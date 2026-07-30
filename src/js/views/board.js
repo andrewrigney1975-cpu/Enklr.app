@@ -228,13 +228,15 @@ export function applyHeaderButtonVisibility(){
   document.getElementById('projectStorageBtn').classList.toggle('kf-vis-hidden', !canViewProjectStorage);
   document.getElementById('navProjectStorageBtn').classList.toggle('kf-vis-hidden', !canViewProjectStorage);
 
-  /* API Endpoints (modals/api-endpoints.js) — Project Admin/Org Admin only (canCurrentUserManageProject
-     already folds Org Admin in via isProjectAdmin()'s own bypass), AND only shown once this project
+  /* API Endpoints (modals/api-endpoints.js) — Org-Admin-only (tightened from Project Admin/Org Admin
+     to match "Expose via API" itself, which is already Org-Admin-only both client- and server-side —
+     this modal is where an Org Admin also generates/revokes the org's Public Query API key, so a
+     Project Admin with no Org Admin rights shouldn't see it at all), AND only shown once this project
      actually has at least one saved query with ExposeViaApi=true — no point offering a management
      tool for zero endpoints. Must be recomputed here rather than only at modal-open time since
      ExposeViaApi can flip in the Advanced Query tab without this function otherwise re-running. */
   var hasExposedApiQueries = isServerAuthoritative(project) && (project.savedQueries || []).some(function(q){ return q.exposeViaApi; });
-  var canViewApiEndpoints = canCurrentUserManageProject() && hasExposedApiQueries;
+  var canViewApiEndpoints = isOrgAdmin() && hasExposedApiQueries;
   document.getElementById('apiEndpointsBtn').classList.toggle('kf-vis-hidden', !canViewApiEndpoints);
   document.getElementById('navApiEndpointsBtn').classList.toggle('kf-vis-hidden', !canViewApiEndpoints);
 
