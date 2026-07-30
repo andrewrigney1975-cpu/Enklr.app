@@ -6055,7 +6055,7 @@
      while the form tiles and Q&A entries both benefit from the extra width for their own text. */
   .kf-portal-home-body {
     display: grid;
-    grid-template-columns: 340px 1fr 380px;
+    grid-template-columns: 340px 1fr 520px;
     gap: 0;
     flex: 1;
     min-height: 0;
