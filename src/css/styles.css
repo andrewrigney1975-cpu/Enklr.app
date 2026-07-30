@@ -5517,6 +5517,58 @@
     color: var(--kf-text-faint);
   }
 
+  /* Import Data tab — file upload / Test Run / Commit / results (modals/import-centre.js) */
+  .kf-import-centre-actions {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .kf-import-results-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+
+  .kf-import-results-table th,
+  .kf-import-results-table td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--kf-border);
+    vertical-align: top;
+    overflow-wrap: break-word;
+  }
+
+  .kf-import-results-table th {
+    color: var(--kf-text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+
+  .kf-import-results-table th:nth-child(1), .kf-import-results-table td:nth-child(1) { width: 8%; }
+  .kf-import-results-table th:nth-child(2), .kf-import-results-table td:nth-child(2) { width: 12%; }
+  .kf-import-results-table th:nth-child(3), .kf-import-results-table td:nth-child(3) { width: 40%; }
+  .kf-import-results-table th:nth-child(4), .kf-import-results-table td:nth-child(4) { width: 40%; }
+
+  .kf-import-result-ok {
+    color: var(--kf-good-fg, #216e4e);
+    font-weight: 600;
+  }
+
+  .kf-import-result-fail {
+    color: var(--kf-danger);
+    font-weight: 600;
+  }
+
+  .kf-import-result-data {
+    font-family: monospace;
+    font-size: 11.5px;
+    color: var(--kf-text-secondary);
+  }
+
   .kf-query-saved-row {
     display: flex;
     align-items: center;

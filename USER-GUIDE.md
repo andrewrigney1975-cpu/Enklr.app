@@ -971,11 +971,17 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
   & Committees, or Portal Q&A (once Portals is switched on) from a CSV or JSON file, instead of adding
   each one by hand. **Who**: Elena, standing up a new organisation's accounts and project teams from a
   spreadsheet someone already had, rather than clicking "Add" dozens of times. **How**: from App
-  Settings → Enterprise, click **Open Import Centre**. Each entity has its own **Schemas** tab showing
-  exactly which columns are required versus optional, with a downloadable CSV template and JSON
-  schema to start from. **Still being built**: the Schemas tab is fully working now; the actual file
-  upload, Test Run (dry-run validation), and Commit steps are landing in upcoming updates — this
-  entry will grow alongside them.
+  Settings → Enterprise, click **Open Import Centre**. Each entity has its own entry on the
+  **Schemas** tab showing exactly which columns are required versus optional, with a downloadable CSV
+  template and JSON schema to start from. On the **Import Data** tab, choose an entity, pick a `.csv`
+  or `.json` file (the format is detected automatically), then click **Test Run** — this validates
+  every row for real without actually creating anything, and shows a row-by-row results table (which
+  rows would succeed, which would fail, and why). Once you're happy with the results, **Commit**
+  actually creates them; each row is its own independent action, so a handful of bad rows in an
+  otherwise-good file only fail those rows; everything else still goes through. **Currently
+  available**: Organisation Users. Team Members, Teams & Committees, and Portal Q&A still show a
+  "coming soon" note on the Import Data tab — their Schemas are already documented, but the actual
+  import lands in an upcoming update.
 - **Manage Templates** — **What**: save a fully set-up project (its columns, task types, workflow) as
   a reusable template, so a new project starts from a sensible default instead of a blank board.
   **Who**: Elena or Priya, the second or third time they catch themselves rebuilding the same column
@@ -1243,6 +1249,7 @@ isn't present on a fully local project; **Local Only** is the rare feature that 
 | SSO & Provisioning (SAML/SCIM configuration) | — | — | ✓ | Cloud Only |
 | Save the current project as a Template | ✓ | ✓ | ✓ | Cloud + Local |
 | Import Centre — view/download entity schemas | — | — | ✓ | Cloud Only |
+| Import Centre — bulk-import via Test Run/Commit (Organisation Users so far) | — | — | ✓ | Cloud Only |
 | Manage Templates (edit/delete the shared list; pick one for a new project) | — | — | ✓ | Cloud + Local |
 | Announcements & Disruption Notices — write/manage | — | — | ✓ | Cloud Only |
 | Announcements & Disruption Notices — see one when it's posted | ✓ | ✓ | ✓ | Cloud Only |

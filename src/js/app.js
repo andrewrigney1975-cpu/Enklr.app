@@ -56,7 +56,7 @@ import { openTeamModal, closeTeamModal, addMemberFromModal, wireAddMemberCombobo
 import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal, saveOrgDefaultPasswordFromModal } from './modals/organisation.js';
 import { openAnnouncementsAdminModal, closeAnnouncementsAdminModal, saveAnnouncementFromModal, cancelAnnouncementEdit } from './modals/announcements-admin.js';
 import { openSsoConfigModal, closeSsoConfigModal, saveSsoConfigFromModal, generateScimTokenFromModal } from './modals/sso.js';
-import { openImportCentreModal, closeImportCentreModal, showImportCentreTab, handleImportCentreSchemasClick } from './modals/import-centre.js';
+import { openImportCentreModal, closeImportCentreModal, showImportCentreTab, handleImportCentreSchemasClick, handleImportEntityChange, handleImportCentreFileChange, runImportCentreTestRun, confirmImportCentreCommit } from './modals/import-centre.js';
 import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromModal, openTemplatesModal, closeTemplatesModal } from './modals/templates.js';
 import { openTodoOverlay, closeTodoOverlay, isTodoOverlayOpen, addTodoListFromModal } from './modals/todo.js';
 import { openTaskTypesModal, closeTaskTypesModal, addTaskTypeFromModal } from './modals/task-types.js';
@@ -1678,6 +1678,10 @@ function wireEvents(){
   document.getElementById('importCentreTabImportBtn').addEventListener('click', function(){ showImportCentreTab('import'); });
   document.getElementById('importCentreTabSchemasBtn').addEventListener('click', function(){ showImportCentreTab('schemas'); });
   document.getElementById('importCentreSchemasList').addEventListener('click', handleImportCentreSchemasClick);
+  document.getElementById('importCentreEntitySelect').addEventListener('change', handleImportEntityChange);
+  document.getElementById('importCentreFileInput').addEventListener('change', handleImportCentreFileChange);
+  document.getElementById('importCentreTestRunBtn').addEventListener('click', runImportCentreTestRun);
+  document.getElementById('importCentreCommitBtn').addEventListener('click', confirmImportCentreCommit);
   document.getElementById('aboutBtn').addEventListener('click', openAboutModal);
   document.getElementById('aboutModalClose').addEventListener('click', closeAboutModal);
   document.getElementById('aboutUserGuideBtn').addEventListener('click', function(){

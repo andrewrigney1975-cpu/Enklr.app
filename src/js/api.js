@@ -275,6 +275,10 @@ export function revokeApiKeyApi(){
   return apiFetch('/organisations/me/api-key', {method: 'DELETE'});
 }
 
+export function importOrganisationUsersApi(rows, dryRun){
+  return apiFetch('/organisations/me/import/organisation-users', {method: 'POST', body: JSON.stringify({rows: rows, dryRun: dryRun})});
+}
+
 /* Read-only — SCIM/the IdP owns Org Team membership (see OrgTeam's own server-side doc comment).
    The only mutating action available here is applyOrgTeamToProjectApi below. */
 export function getOrgTeamsApi(){

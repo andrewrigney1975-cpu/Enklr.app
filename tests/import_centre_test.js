@@ -9,6 +9,15 @@ function makeFakeJwt(payload){
   return 'header.' + b64 + '.signature';
 }
 
+// Same fake File/FileReader pattern as app_settings_test.js's own import flow — jsdom's real
+// FileReader doesn't actually read a File's content, so a minimal stand-in is needed.
+class FakeFile { constructor(text, name){ this._text = text; this.name = name; } }
+function installFakeFileReader(window){
+  window.FileReader = class {
+    readAsText(f){ const s = this; setTimeout(() => { s.result = f._text; if(s.onload) s.onload(); }, 0); }
+  };
+}
+
 function seedDb(projectId, headerButtonVisibility){
   var proj = {
     id: projectId, serverProjectId: projectId, name: 'Server Project', key: 'SRV', taskCounter: 1,
@@ -66,11 +75,28 @@ function openAppSettings(doc){
     seed.projectOrder = [projectId];
     delete seed._proj;
 
+    let mockImportResult = {
+      total: 2, succeeded: 1, failed: 1,
+      results: [
+        {row: 1, success: true, message: null, data: {username: 'jdoe', displayName: 'J Doe', password: 'Secret123!', email: 'jdoe@example.com'}},
+        {row: 2, success: false, message: '"password" is required.', data: {username: 'asmith', displayName: 'A Smith', email: 'asmith@example.com'}}
+      ]
+    };
+    let lastImportRequestBody = null;
+
     const dom = new JSDOM(html, {
       runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
       beforeParse(w){
         w.localStorage.setItem('kanbanflow_v1_db', JSON.stringify(seed));
         w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'true', projects: JSON.stringify([{ProjectId: projectId, Role: 'member', IsProjectAdmin: false}])}));
+        installFakeFileReader(w);
+        w.fetch = async function(url, options){
+          if(url === '/api/organisations/me/import/organisation-users' && options && options.method === 'POST'){
+            lastImportRequestBody = JSON.parse(options.body);
+            return {ok: true, status: 200, json: async () => mockImportResult};
+          }
+          throw new Error('unhandled fetch in test: ' + url);
+        };
       }
     });
     await wait(300);
@@ -112,7 +138,91 @@ function openAppSettings(doc){
     const schemasDisplay = dom.window.getComputedStyle(doc.getElementById('importCentreSchemasView')).display;
     log('modal opens on the Import Data tab by default', doc.getElementById('importCentreTabImportBtn').classList.contains('active') &&
         importDisplay !== 'none' && schemasDisplay === 'none', `import=${importDisplay} schemas=${schemasDisplay}`);
-    log('Import Data tab shows the "coming soon" placeholder text', doc.getElementById('importCentreImportView').textContent.indexOf('later phase') !== -1);
+    log('Import Data tab defaults to Organisation Users, with the real upload area visible (not "coming soon")',
+        doc.getElementById('importCentreEntitySelect').value === 'organisationUsers' &&
+        doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
+        !doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
+
+    // Switching to an entity with no backend yet shows the "coming soon" note instead of the upload area.
+    doc.getElementById('importCentreEntitySelect').value = 'teamMembers';
+    doc.getElementById('importCentreEntitySelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(10);
+    log('Team Members (not wired up yet) shows the "coming soon" note, hides the upload area',
+        !doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
+        doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
+    log('"coming soon" note mentions the Schemas tab', doc.getElementById('importCentreComingSoonHint').textContent.indexOf('Schemas') !== -1);
+
+    // Switch back to Organisation Users for the real upload flow below.
+    doc.getElementById('importCentreEntitySelect').value = 'organisationUsers';
+    doc.getElementById('importCentreEntitySelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(10);
+
+    // ── File upload -> Test Run -> Commit, Organisation Users ─────────────────────────────────
+    log('Test Run button starts disabled with nothing uploaded yet', doc.getElementById('importCentreTestRunBtn').disabled);
+    log('Commit button starts disabled', doc.getElementById('importCentreCommitBtn').disabled);
+
+    const csvText = 'username,displayName,password,email\r\njdoe,J Doe,Secret123!,jdoe@example.com\r\nasmith,A Smith,,asmith@example.com\r\n';
+    const fileInput = doc.getElementById('importCentreFileInput');
+    Object.defineProperty(fileInput, 'files', {value: [new FakeFile(csvText, 'users.csv')], configurable: true});
+    fileInput.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(30);
+
+    log('parsing a CSV file reports the row count and detected format', doc.getElementById('importCentreFileStatus').textContent.indexOf('Parsed 2 rows') !== -1 &&
+        doc.getElementById('importCentreFileStatus').textContent.indexOf('CSV') !== -1, doc.getElementById('importCentreFileStatus').textContent);
+    log('Test Run becomes enabled once a file is parsed', !doc.getElementById('importCentreTestRunBtn').disabled);
+    log('Commit stays disabled until a Test Run has actually been run', doc.getElementById('importCentreCommitBtn').disabled);
+
+    doc.getElementById('importCentreTestRunBtn').click();
+    await wait(30);
+
+    log('Test Run sends dryRun:true', lastImportRequestBody && lastImportRequestBody.dryRun === true, JSON.stringify(lastImportRequestBody));
+    log('Test Run sends the 2 parsed rows, matching the CSV content', lastImportRequestBody && lastImportRequestBody.rows.length === 2 &&
+        lastImportRequestBody.rows[0].username === 'jdoe' && lastImportRequestBody.rows[1].username === 'asmith', JSON.stringify(lastImportRequestBody && lastImportRequestBody.rows));
+    log('results panel becomes visible after a Test Run', !doc.getElementById('importCentreResultsWrap').classList.contains('kf-vis-hidden'));
+    log('results summary says "Test Run" and reflects 1 succeeded / 1 failed', doc.getElementById('importCentreResultsSummary').textContent.indexOf('Test Run') !== -1 &&
+        doc.getElementById('importCentreResultsSummary').textContent.indexOf('1 of 2') !== -1 &&
+        doc.getElementById('importCentreResultsSummary').textContent.indexOf('1 failed') !== -1, doc.getElementById('importCentreResultsSummary').textContent);
+
+    const resultRows = doc.querySelectorAll('#importCentreResultsList tbody tr');
+    log('results table has one row per submitted row', resultRows.length === 2, resultRows.length);
+    log('row 1 shows OK', resultRows[0].textContent.indexOf('OK') !== -1);
+    log('row 2 shows Failed with its error message', resultRows[1].textContent.indexOf('Failed') !== -1 && resultRows[1].textContent.indexOf('"password" is required') !== -1, resultRows[1].textContent);
+    log('Commit becomes enabled after a Test Run with at least one succeeding row', !doc.getElementById('importCentreCommitBtn').disabled);
+
+    doc.getElementById('importCentreCommitBtn').click();
+    await wait(20);
+    log('clicking Commit opens a confirm dialog rather than committing immediately', !doc.getElementById('confirmOverlay').classList.contains('hidden'));
+    log('the confirm dialog mentions the row count and the filename', doc.getElementById('confirmMessage').textContent.indexOf('2 rows') !== -1 &&
+        doc.getElementById('confirmMessage').textContent.indexOf('users.csv') !== -1, doc.getElementById('confirmMessage').textContent);
+
+    doc.getElementById('confirmOkBtn').click();
+    await wait(30);
+    log('confirming sends dryRun:false to the same endpoint', lastImportRequestBody && lastImportRequestBody.dryRun === false, JSON.stringify(lastImportRequestBody));
+    log('results summary now says "Committed"', doc.getElementById('importCentreResultsSummary').textContent.indexOf('Committed') !== -1, doc.getElementById('importCentreResultsSummary').textContent);
+
+    // A new file selection resets Test Run/Commit state (can't Commit a row set that was never re-validated).
+    Object.defineProperty(fileInput, 'files', {value: [new FakeFile('username,displayName,password,email\r\nnewrow,New Row,Secret123!,newrow@example.com\r\n', 'more.csv')], configurable: true});
+    fileInput.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(30);
+    log('selecting a new file resets Commit back to disabled until a fresh Test Run', doc.getElementById('importCentreCommitBtn').disabled);
+    log('selecting a new file clears the previous results panel', doc.getElementById('importCentreResultsWrap').classList.contains('kf-vis-hidden'));
+
+    // A .json file (array of row objects) is detected and parsed just as well as CSV.
+    const jsonText = JSON.stringify([
+      {username: 'jsmith', displayName: 'J Smith', password: 'Secret123!', email: 'jsmith@example.com'},
+      {username: 'bwong', displayName: 'B Wong', password: 'Secret123!', email: 'bwong@example.com'},
+      {username: 'ktan', displayName: 'K Tan', password: 'Secret123!', email: 'ktan@example.com'}
+    ]);
+    Object.defineProperty(fileInput, 'files', {value: [new FakeFile(jsonText, 'users.json')], configurable: true});
+    fileInput.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(30);
+    log('a .json file is detected and parsed as JSON, not CSV', doc.getElementById('importCentreFileStatus').textContent.indexOf('Parsed 3 rows') !== -1 &&
+        doc.getElementById('importCentreFileStatus').textContent.indexOf('JSON') !== -1, doc.getElementById('importCentreFileStatus').textContent);
+
+    doc.getElementById('importCentreTestRunBtn').click();
+    await wait(30);
+    log('the JSON rows are sent through exactly like CSV rows', lastImportRequestBody && lastImportRequestBody.rows.length === 3 &&
+        lastImportRequestBody.rows[1].username === 'bwong', JSON.stringify(lastImportRequestBody && lastImportRequestBody.rows));
 
     doc.getElementById('importCentreTabSchemasBtn').click();
     await wait(20);
