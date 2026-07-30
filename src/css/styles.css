@@ -4083,7 +4083,12 @@
 
   /* Overrides the plain flex-column layout above for Enterprise specifically — must come after it
      in source order to actually win (same specificity, both plain single-class selectors).
-     Two explicit `.kf-settings-category-col` children (each its own flex column) rather than a
+     `flex-direction: row` must be set explicitly here — the cascade is per-PROPERTY, not per-rule,
+     so simply not mentioning flex-direction in this override left the base rule's `column` value
+     in effect despite this rule "winning" on every property it DOES set, and both column wrappers
+     below stacked vertically instead of sitting side by side (a real, live-caught bug — screenshot-
+     confirmed everything rendering as one column). Two explicit `.kf-settings-category-col` children
+     (each its own flex column) rather than a
      single CSS Grid over a flat list of rows — the two columns hold a different NUMBER of rows
      (left: SSO, Import Centre; right: Portfolio Planner, Forms & Workflow, Portals), and a grid's
      auto-placement (row-major by default, or column-major via grid-auto-flow:column + a fixed row
@@ -4094,6 +4099,7 @@
      order, same as everywhere else in this app. */
   .kf-settings-category-body-2col {
     display: flex;
+    flex-direction: row;
     gap: 4px 24px;
     align-items: flex-start;
   }

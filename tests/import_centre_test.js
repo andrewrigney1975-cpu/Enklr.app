@@ -90,6 +90,16 @@ function openAppSettings(doc){
     log('left column: SSO, Import Centre', JSON.stringify(leftColRows) === JSON.stringify(['Authentication and Provisioning', 'Import Centre']), leftColRows.join(' | '));
     log('right column: Portfolio Planner, Forms & Workflow, Portals', JSON.stringify(rightColRows) === JSON.stringify(['Portfolio Planner', 'Forms & Workflow', 'Portals']), rightColRows.join(' | '));
 
+    // Real regression: .kf-settings-category-body's base rule sets flex-direction:column, and CSS
+    // cascades per-PROPERTY, not per-rule — .kf-settings-category-body-2col "winning" on the
+    // properties it DOES set doesn't un-set flex-direction unless it's set explicitly too. Without
+    // it, both .kf-settings-category-col wrappers stacked vertically into one visual column instead
+    // of sitting side by side (caught from a live screenshot, not by this suite — worth asserting
+    // the actual computed value so it can't silently regress again).
+    const twoColDisplay = dom.window.getComputedStyle(doc.querySelector('#appSettingsEnterpriseCategory .kf-settings-category-body-2col'));
+    log('Enterprise 2-col container is a row-direction flex container (columns sit side by side)', twoColDisplay.display === 'flex' && twoColDisplay.flexDirection === 'row',
+        `display=${twoColDisplay.display} flexDirection=${twoColDisplay.flexDirection}`);
+
     doc.getElementById('appSettingsImportCentreBtn').click();
     await wait(20);
     log('clicking Open Import Centre closes App Settings and opens the Import Centre modal',
