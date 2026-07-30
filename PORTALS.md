@@ -206,9 +206,39 @@ container), all cleaned up afterward. Verified live, end-to-end:
 
 - No cross-project `TeamCommittee` listing endpoint — the Access tab's `teamCommittee` grant kind
   takes a raw id rather than a picker.
-- No "list every Portal I have access to" endpoint — the Browse nav entry prompts for a slug rather
-  than showing a picker.
-- `contract-tests/scenarios.js` has no Portals scenario yet.
-- Live verification above only exercised the `.NET` tier (the one wired into `docker-compose.yml`) —
-  `php-api`/`mariadb-api` are bare-metal-only deployments per their own `DEPLOYMENT-*.md`; their
-  Portals code is lint-clean and structurally identical but hasn't been live-verified the same way.
+- **Resolved (2026-07-30)**: a "list every Portal I have access to" endpoint now exists
+  (`PortalHomeService.ListAccessibleAsync` / `GET /api/portals`) — added for the side-nav icon
+  feature, backs `loadAndRenderSideNavPortals` in `portal-home.js`. No raw-slug-prompt entry point
+  remains.
+- **Resolved (2026-07-30)**: `contract-tests/scenarios.js` now has a 13-scenario Portals chain
+  (create/publish a Form and a Portal, attach, grant `allOrgMembers` access, publish, then the whole
+  end-user surface — list-accessible, get-by-slug, list-available-forms, create/get/list
+  submissions, `submissions/awaiting-me`, and an unconfigured-workflow submit rejection). Run live
+  across all three tiers simultaneously (throwaway net/php Postgres + MariaDB, `.NET` on host,
+  `php-api`/`mariadb-api` in Docker per their own CLAUDE.md recipes): **23/23 scenarios pass, no
+  drift** — this is the first time `php-api`/`mariadb-api`'s Portals code has been exercised against
+  a real, running instance rather than just lint-checked.
+- A real approval-flow gap was found and fixed the same day (not caught by the original live
+  verification above, since that pass only ever tested a workflow with no Approval node): a Portal
+  submission that reached an Approval node was invisible and unactionable to everyone — the
+  actioner Project is deliberately membership-free, so neither the regular Forms modal nor
+  `PortalHomeController` had any route to it. Fixed across all three tiers:
+  `PortalHomeService`/`PortalHomeController` gained `ListAwaitingMyActionAsync`/`ActOnApprovalAsync`
+  (scoped through Portal access, delegating into the existing `FormSubmissionService` gate logic),
+  `GetSubmissionAsync` now also allows a legitimate reviewer (not just the submitter) to read a
+  submission, and `PortalService.CreateAsync` now auto-adds every current Org Admin as a Project
+  Admin of the new actioner Project (so an `orgAdmin`-gated Approval node is satisfiable and someone
+  can manage the back-office team). Frontend: `portal-home.js` gained an "Awaiting My Action"
+  section + approve/reject review flow, and a read-only detail view for any non-Draft "My requests"
+  card; `portals-admin.js` gained a Team tab (org-user picker, `memberApi.orgCandidates`) for
+  managing the actioner Project's back-office members. Live-verified end-to-end on the `.NET` tier
+  (org-admin-gated Approval node, submit as a non-admin member, approve as the auto-added admin);
+  **not yet covered by an equivalent deep live pass on `php-api`/`mariadb-api`** — the contract-tests
+  chain above proves the HTTP contract shape matches on all three tiers, but doesn't exercise an
+  actual Approval-node transition, since the contract-tests Form is deliberately left with no
+  workflow configured (see its own `portal-submit-unconfigured-workflow` scenario).
+- `php-api`/`mariadb-api` are bare-metal-only deployments per their own `DEPLOYMENT-*.md`, so the
+  richer live-verification pass above (real browser-adjacent curl flows, raise-task-in-Portal
+  workflow action, cross-org isolation checks) still only exists for the `.NET` tier, which is the
+  one wired into `docker-compose.yml`. The contract-tests run narrows this gap for the CRUD/access
+  surface but doesn't replace it for anything workflow-transition-shaped.
