@@ -169,15 +169,39 @@ per editor session via the new `portalsApi.list()`.
   Portal is normally reached via its own shared link (same as a Whiteboard join code); the Browse nav
   entry is a fallback that prompts for a known slug.
 
+## Live verification (2026-07-30, `.NET` tier, real docker-compose stack)
+
+Containers rebuilt/force-recreated on this branch (`docker compose build api web && docker compose
+up -d --force-recreate api web`); `AddPortals` migration applied cleanly against the running dev DB
+(confirmed via `docker compose logs api`). Two throwaway orgs + four users created directly via SQL
+(bcrypt hash generated the standing documented way, via a throwaway `node:20-alpine` + `bcryptjs`
+container), all cleaned up afterward. Verified live, end-to-end:
+
+- Closed-by-default: a Portal with a single `namedUser` grant returns 200 to the granted user, and
+  an **identical 404** to (a) a same-org user with no grant, (b) a different-org user, and (c) a
+  request for a genuinely nonexistent slug — no enumeration oracle between any of the three.
+- Cross-org isolation on the admin surface too: an Org B admin fetching Org A's Portal by id via
+  `PortalsController` also 404s.
+- Portal creation actually provisions its actioner Project with the 5 fixed columns in the correct
+  `Trivial → Low → Medium → High → Critical` order.
+- `PortalFormDto`'s `FieldsJson`/`FormVersionId` (the fix described above) resolve correctly on the
+  wire — confirmed a Portal end user can list an attached form's fields with no `formsApi` access of
+  their own.
+- The full "raise task in Portal" workflow action fired correctly on a real submit: a Form with
+  `start → author → action(raiseTaskInPortal, priorityColumn:"high") → end` produced a real Task
+  (`ITSE-1`) in the Portal's actioner Project's **High** column, unassigned (no approval node
+  configured, so "assigned to the approver if known" correctly fell back to unassigned), with the
+  Approval Trail recording a `raisedTask` entry carrying the new task's key as its comment — and the
+  submission itself landed on `approved`/`n_end` in the same request.
+- "My requests" correctly lists only submissions for forms actually attached to that Portal.
+
 ## Known gaps / deliberately out of scope for this pass
 
 - No cross-project `TeamCommittee` listing endpoint — the Access tab's `teamCommittee` grant kind
   takes a raw id rather than a picker.
 - No "list every Portal I have access to" endpoint — the Browse nav entry prompts for a slug rather
   than showing a picker.
-- Live curl-based cross-org isolation verification (two orgs, confirm a foreign/ungranted Portal
-  404s identically to a nonexistent one) has not yet been run against a live stack — do this before
-  considering the feature verified end-to-end, per root `CLAUDE.md`'s standing "live-verify
-  security-sensitive changes" convention.
 - `contract-tests/scenarios.js` has no Portals scenario yet.
-- Containers have not yet been rebuilt/redeployed for this branch.
+- Live verification above only exercised the `.NET` tier (the one wired into `docker-compose.yml`) —
+  `php-api`/`mariadb-api` are bare-metal-only deployments per their own `DEPLOYMENT-*.md`; their
+  Portals code is lint-clean and structurally identical but hasn't been live-verified the same way.
