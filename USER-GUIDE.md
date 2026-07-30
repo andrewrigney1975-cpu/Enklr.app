@@ -978,10 +978,12 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
   every row for real without actually creating anything, and shows a row-by-row results table (which
   rows would succeed, which would fail, and why). Once you're happy with the results, **Commit**
   actually creates them; each row is its own independent action, so a handful of bad rows in an
-  otherwise-good file only fail those rows; everything else still goes through. **Currently
-  available**: Organisation Users. Team Members, Teams & Committees, and Portal Q&A still show a
-  "coming soon" note on the Import Data tab — their Schemas are already documented, but the actual
-  import lands in an upcoming update.
+  otherwise-good file only fail those rows; everything else still goes through. Team Members rows
+  name their target project by its **key** (so one file can seed several projects at once), and can
+  optionally set a role, an allocated-time percentage, who they report to (by that person's
+  username), and whether they're a Project Admin. **Currently available**: Organisation Users and
+  Team Members. Teams & Committees and Portal Q&A still show a "coming soon" note on the Import Data
+  tab — their Schemas are already documented, but the actual import lands in an upcoming update.
 - **Manage Templates** — **What**: save a fully set-up project (its columns, task types, workflow) as
   a reusable template, so a new project starts from a sensible default instead of a blank board.
   **Who**: Elena or Priya, the second or third time they catch themselves rebuilding the same column
@@ -1249,7 +1251,7 @@ isn't present on a fully local project; **Local Only** is the rare feature that 
 | SSO & Provisioning (SAML/SCIM configuration) | — | — | ✓ | Cloud Only |
 | Save the current project as a Template | ✓ | ✓ | ✓ | Cloud + Local |
 | Import Centre — view/download entity schemas | — | — | ✓ | Cloud Only |
-| Import Centre — bulk-import via Test Run/Commit (Organisation Users so far) | — | — | ✓ | Cloud Only |
+| Import Centre — bulk-import via Test Run/Commit (Organisation Users, Team Members so far) | — | — | ✓ | Cloud Only |
 | Manage Templates (edit/delete the shared list; pick one for a new project) | — | — | ✓ | Cloud + Local |
 | Announcements & Disruption Notices — write/manage | — | — | ✓ | Cloud Only |
 | Announcements & Disruption Notices — see one when it's posted | ✓ | ✓ | ✓ | Cloud Only |

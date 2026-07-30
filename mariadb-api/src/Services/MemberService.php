@@ -67,7 +67,12 @@ final class MemberService
         }
     }
 
-    private function createInTransaction(string $projectId, array $request): ?array
+    /** Public specifically so Services/ImportService.php can call it from WITHIN its own already-open
+     * per-row transaction — PDO has no nested-transaction/savepoint support, so create()'s own
+     * beginTransaction() would throw "There is already an active transaction" if called there
+     * instead. Every other caller should still go through create() above, which owns its own
+     * transaction boundary as before; this method itself has no transaction control of its own. */
+    public function createInTransaction(string $projectId, array $request): ?array
     {
         $stmt = $this->db->prepare('SELECT "OrganisationId" FROM "Projects" WHERE "Id" = :id');
         $stmt->execute(['id' => $projectId]);
@@ -172,7 +177,9 @@ final class MemberService
         }
     }
 
-    private function updateInTransaction(string $projectId, string $memberId, array $request): ?array
+    /** Public for the same reason as createInTransaction above — callable from within
+     * Services/ImportService.php's own already-open per-row transaction. */
+    public function updateInTransaction(string $projectId, string $memberId, array $request): ?array
     {
         $stmt = $this->db->prepare(<<<SQL
             SELECT m.*, u."DisplayName" AS "UserDisplayName", u."EmailAddress" AS "UserEmailAddress", u."IsActive" AS "UserIsActive" FROM "ProjectMembers" m

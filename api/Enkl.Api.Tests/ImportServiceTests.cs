@@ -165,4 +165,165 @@ public class ImportServiceTests
         Assert.False(result.Results[1].Success);
         Assert.Contains("already taken", result.Results[1].Message);
     }
+
+    // ── Team Members (Phase 4) ─────────────────────────────────────────────────────────────────
+
+    private static Dictionary<string, string?> MemberRow(string projectKey, string name, string? email = null, string? role = null, string? allocatedFraction = null, string? reportsTo = null, string? isProjectAdmin = null)
+    {
+        var row = new Dictionary<string, string?> { ["projectKey"] = projectKey, ["name"] = name, ["email"] = email ?? (UsernameNormalizer.Normalize(name) + "@example.com") };
+        if(role != null) row["role"] = role;
+        if(allocatedFraction != null) row["allocatedFraction"] = allocatedFraction;
+        if(reportsTo != null) row["reportsTo"] = reportsTo;
+        if(isProjectAdmin != null) row["isProjectAdmin"] = isProjectAdmin;
+        return row;
+    }
+
+    [Fact]
+    public async Task ImportTeamMembers_Commit_ValidRow_ActuallyAddsTheMember()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("P"), owner);
+
+        var result = await import.ImportTeamMembersAsync(org.Id, new ImportRequest(new() { MemberRow(project.Key, "Imported Member") }, DryRun: false));
+
+        Assert.Equal(1, result.Succeeded);
+        var member = await db.ProjectMembers.AsNoTracking().Include(m => m.User).FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.User.DisplayName == "Imported Member");
+        Assert.NotNull(member);
+    }
+
+    [Fact]
+    public async Task ImportTeamMembers_UnknownProjectKey_FailsThatRow()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, _) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+
+        var result = await import.ImportTeamMembersAsync(org.Id, new ImportRequest(new() { MemberRow("NOSUCHKEY", "Someone") }, DryRun: false));
+
+        Assert.Equal(0, result.Succeeded);
+        Assert.Contains("No project with key", result.Results[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportTeamMembers_ProjectKeyBelongingToAnotherOrg_FailsWithTheSameNotFoundMessage()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var (otherOrg, otherOwner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("otherOrg"), TestDataHelper.Unique("otherAdmin"));
+        var otherOrgProject = await TestDataHelper.SeedProjectAsync(db, otherOrg.Id, TestDataHelper.Unique("P"), otherOwner);
+
+        // Caller is `org`, but the key belongs to `otherOrg` — must fail exactly like a nonexistent
+        // key (no-enumeration-oracle: never let an org admin distinguish "not yours" from "doesn't exist").
+        var result = await import.ImportTeamMembersAsync(org.Id, new ImportRequest(new() { MemberRow(otherOrgProject.Key, "Someone") }, DryRun: false));
+
+        Assert.Equal(0, result.Succeeded);
+        Assert.Contains("No project with key", result.Results[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportTeamMembers_SetsRoleAllocatedFractionAndIsProjectAdmin()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("P"), owner);
+
+        var result = await import.ImportTeamMembersAsync(org.Id, new ImportRequest(new() {
+            MemberRow(project.Key, "Admin Member", role: "Lead", allocatedFraction: "75", isProjectAdmin: "true")
+        }, DryRun: false));
+
+        Assert.Equal(1, result.Succeeded);
+        var member = await db.ProjectMembers.AsNoTracking().Include(m => m.User).FirstAsync(m => m.ProjectId == project.Id && m.User.DisplayName == "Admin Member");
+        Assert.Equal("Lead", member.Role);
+        Assert.Equal(75, member.AllocatedFraction);
+        Assert.True(member.IsProjectAdmin);
+    }
+
+    [Fact]
+    public async Task ImportTeamMembers_ReportsToAnAlreadyExistingMember_ResolvesCorrectly()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("P"), owner);
+        var manager = await TestDataHelper.SeedUserInOrgAsync(db, org.Id, TestDataHelper.Unique("manager"));
+        db.ProjectMembers.Add(new Domain.Entities.ProjectMember { Id = Guid.NewGuid(), ProjectId = project.Id, UserId = manager.Id, Color = "#000000" });
+        await db.SaveChangesAsync();
+
+        var result = await import.ImportTeamMembersAsync(org.Id, new ImportRequest(new() {
+            MemberRow(project.Key, "Reports To Manager", reportsTo: manager.Username)
+        }, DryRun: false));
+
+        Assert.Equal(1, result.Succeeded);
+        var member = await db.ProjectMembers.AsNoTracking().Include(m => m.User).FirstAsync(m => m.ProjectId == project.Id && m.User.DisplayName == "Reports To Manager");
+        var managerMember = await db.ProjectMembers.AsNoTracking().FirstAsync(m => m.ProjectId == project.Id && m.UserId == manager.Id);
+        Assert.Equal(managerMember.Id, member.ReportsToId);
+    }
+
+    [Fact]
+    public async Task ImportTeamMembers_ReportsToAnUnresolvableUsername_FailsThatRowWithAClearMessage()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("P"), owner);
+
+        var result = await import.ImportTeamMembersAsync(org.Id, new ImportRequest(new() {
+            MemberRow(project.Key, "Nobody Manages Me", reportsTo: "nosuchperson")
+        }, DryRun: false));
+
+        Assert.Equal(0, result.Succeeded);
+        Assert.Contains("reportsTo", result.Results[0].Message);
+        Assert.Contains("is not a member of project", result.Results[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportTeamMembers_InvalidAllocatedFraction_FailsThatRowWithAClearMessage()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("P"), owner);
+
+        var result = await import.ImportTeamMembersAsync(org.Id, new ImportRequest(new() {
+            MemberRow(project.Key, "Bad Fraction", allocatedFraction: "not-a-number")
+        }, DryRun: false));
+
+        Assert.Equal(0, result.Succeeded);
+        Assert.Contains("allocatedFraction", result.Results[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportTeamMembers_DryRun_DoesNotActuallyAddTheMember()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var project = await TestDataHelper.SeedProjectAsync(db, org.Id, TestDataHelper.Unique("P"), owner);
+
+        var result = await import.ImportTeamMembersAsync(org.Id, new ImportRequest(new() { MemberRow(project.Key, "Dry Run Member") }, DryRun: true));
+
+        Assert.Equal(1, result.Succeeded);
+        var member = await db.ProjectMembers.AsNoTracking().Include(m => m.User).FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.User.DisplayName == "Dry Run Member");
+        Assert.Null(member);
+    }
 }

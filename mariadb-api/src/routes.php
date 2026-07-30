@@ -154,6 +154,7 @@ function registerRoutes(App $app): void
         $group->post('/api-key', [OrganisationApiKeyController::class, 'generate']);
         $group->delete('/api-key', [OrganisationApiKeyController::class, 'revoke']);
         $group->post('/import/organisation-users', [ImportController::class, 'importOrganisationUsers']);
+        $group->post('/import/team-members', [ImportController::class, 'importTeamMembers']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Chat (org-wide, any authenticated org user — deliberately NO ProjectMemberMiddleware, since

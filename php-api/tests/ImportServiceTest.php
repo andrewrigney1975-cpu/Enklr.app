@@ -7,6 +7,7 @@ namespace Enkl\Api\Tests;
 use Enkl\Api\Auth\UsernameNormalizer;
 use Enkl\Api\Db\Database;
 use Enkl\Api\Services\ImportService;
+use Enkl\Api\Services\MemberService;
 use Enkl\Api\Services\OrganisationService;
 use Enkl\Api\Tests\Support\TestDataHelper;
 use PDO;
@@ -14,8 +15,9 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Ported from Enkl.Api.Tests/ImportServiceTests.cs. Direct-service-call coverage for
- * ImportService::importOrganisationUsers — Import Centre Phase 2's first entity. Focuses on the two
- * things this service adds over plain OrganisationService::createUser: per-row transactional
+ * ImportService::importOrganisationUsers (Phase 2) and ::importTeamMembers (Phase 4). Focuses on
+ * the things these methods add over the plain OrganisationService::createUser / MemberService::
+ * createInTransaction+updateInTransaction+setProjectAdmin they call into: per-row transactional
  * independence (one bad row doesn't sink the others) and dryRun's "runs for real, always rolls
  * back" semantics.
  */
@@ -27,7 +29,7 @@ final class ImportServiceTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         self::$db = Database::connection();
-        self::$import = new ImportService(self::$db, new OrganisationService(self::$db));
+        self::$import = new ImportService(self::$db, new OrganisationService(self::$db), new MemberService(self::$db));
     }
 
     /** @return array<string, string> */
@@ -126,5 +128,125 @@ final class ImportServiceTest extends TestCase
         self::assertTrue($result['results'][0]['success']);
         self::assertFalse($result['results'][1]['success']);
         self::assertStringContainsString('already taken', $result['results'][1]['message']);
+    }
+
+    // ── Team Members (Phase 4) ─────────────────────────────────────────────────────────────────
+
+    /** @return array<string, string> */
+    private static function memberRow(string $projectKey, string $name, ?array $extra = null): array
+    {
+        $row = ['projectKey' => $projectKey, 'name' => $name, 'email' => UsernameNormalizer::normalize($name) . '@example.com'];
+        return $extra !== null ? array_merge($row, $extra) : $row;
+    }
+
+    public function testImportTeamMembersCommitValidRowActuallyAddsTheMember(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $stmt = self::$db->prepare('SELECT "Key" FROM "Projects" WHERE "Id" = :id');
+        $stmt->execute(['id' => $projectId]);
+        $projectKey = $stmt->fetchColumn();
+
+        $result = self::$import->importTeamMembers($seeded['orgId'], [self::memberRow($projectKey, 'Imported Member')], false);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT 1 FROM "ProjectMembers" m JOIN "Users" u ON u."Id" = m."UserId" WHERE m."ProjectId" = :pid AND u."DisplayName" = :name');
+        $stmt->execute(['pid' => $projectId, 'name' => 'Imported Member']);
+        self::assertNotFalse($stmt->fetch());
+    }
+
+    public function testImportTeamMembersUnknownProjectKeyFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+
+        $result = self::$import->importTeamMembers($seeded['orgId'], [self::memberRow('NOSUCHKEY', 'Someone')], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('No project with key', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamMembersProjectKeyBelongingToAnotherOrgFailsWithTheSameNotFoundMessage(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $otherSeeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('otherOrg'), TestDataHelper::unique('otherAdmin'));
+        $otherProjectId = TestDataHelper::seedProject(self::$db, $otherSeeded['orgId'], TestDataHelper::unique('P'), $otherSeeded['userId']);
+        $stmt = self::$db->prepare('SELECT "Key" FROM "Projects" WHERE "Id" = :id');
+        $stmt->execute(['id' => $otherProjectId]);
+        $otherProjectKey = $stmt->fetchColumn();
+
+        $result = self::$import->importTeamMembers($seeded['orgId'], [self::memberRow($otherProjectKey, 'Someone')], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('No project with key', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamMembersSetsRoleAllocatedFractionAndIsProjectAdmin(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $stmt = self::$db->prepare('SELECT "Key" FROM "Projects" WHERE "Id" = :id');
+        $stmt->execute(['id' => $projectId]);
+        $projectKey = $stmt->fetchColumn();
+
+        $result = self::$import->importTeamMembers($seeded['orgId'], [
+            self::memberRow($projectKey, 'Admin Member', ['role' => 'Lead', 'allocatedFraction' => '75', 'isProjectAdmin' => 'true']),
+        ], false);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT m."Role", m."AllocatedFraction", m."IsProjectAdmin" FROM "ProjectMembers" m JOIN "Users" u ON u."Id" = m."UserId" WHERE m."ProjectId" = :pid AND u."DisplayName" = :name');
+        $stmt->execute(['pid' => $projectId, 'name' => 'Admin Member']);
+        $row = $stmt->fetch();
+        self::assertSame('Lead', $row['Role']);
+        self::assertSame(75, (int) $row['AllocatedFraction']);
+        self::assertTrue((bool) $row['IsProjectAdmin']);
+    }
+
+    public function testImportTeamMembersReportsToAnUnresolvableUsernameFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $stmt = self::$db->prepare('SELECT "Key" FROM "Projects" WHERE "Id" = :id');
+        $stmt->execute(['id' => $projectId]);
+        $projectKey = $stmt->fetchColumn();
+
+        $result = self::$import->importTeamMembers($seeded['orgId'], [
+            self::memberRow($projectKey, 'Nobody Manages Me', ['reportsTo' => 'nosuchperson']),
+        ], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('reportsTo', $result['results'][0]['message']);
+        self::assertStringContainsString('is not a member of project', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamMembersInvalidAllocatedFractionFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $stmt = self::$db->prepare('SELECT "Key" FROM "Projects" WHERE "Id" = :id');
+        $stmt->execute(['id' => $projectId]);
+        $projectKey = $stmt->fetchColumn();
+
+        $result = self::$import->importTeamMembers($seeded['orgId'], [
+            self::memberRow($projectKey, 'Bad Fraction', ['allocatedFraction' => 'not-a-number']),
+        ], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('allocatedFraction', $result['results'][0]['message']);
+    }
+
+    public function testImportTeamMembersDryRunDoesNotActuallyAddTheMember(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'), $seeded['userId']);
+        $stmt = self::$db->prepare('SELECT "Key" FROM "Projects" WHERE "Id" = :id');
+        $stmt->execute(['id' => $projectId]);
+        $projectKey = $stmt->fetchColumn();
+
+        $result = self::$import->importTeamMembers($seeded['orgId'], [self::memberRow($projectKey, 'Dry Run Member')], true);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT 1 FROM "ProjectMembers" m JOIN "Users" u ON u."Id" = m."UserId" WHERE m."ProjectId" = :pid AND u."DisplayName" = :name');
+        $stmt->execute(['pid' => $projectId, 'name' => 'Dry Run Member']);
+        self::assertFalse($stmt->fetch());
     }
 }

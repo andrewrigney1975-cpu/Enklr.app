@@ -83,6 +83,11 @@ function openAppSettings(doc){
       ]
     };
     let lastImportRequestBody = null;
+    let lastImportUrl = null;
+    let mockTeamMembersResult = {
+      total: 1, succeeded: 1, failed: 0,
+      results: [{row: 1, success: true, message: null, data: {projectKey: 'DEMO', name: 'New Member'}}]
+    };
 
     const dom = new JSDOM(html, {
       runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
@@ -91,9 +96,14 @@ function openAppSettings(doc){
         w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'true', projects: JSON.stringify([{ProjectId: projectId, Role: 'member', IsProjectAdmin: false}])}));
         installFakeFileReader(w);
         w.fetch = async function(url, options){
+          lastImportUrl = url;
           if(url === '/api/organisations/me/import/organisation-users' && options && options.method === 'POST'){
             lastImportRequestBody = JSON.parse(options.body);
             return {ok: true, status: 200, json: async () => mockImportResult};
+          }
+          if(url === '/api/organisations/me/import/team-members' && options && options.method === 'POST'){
+            lastImportRequestBody = JSON.parse(options.body);
+            return {ok: true, status: 200, json: async () => mockTeamMembersResult};
           }
           throw new Error('unhandled fetch in test: ' + url);
         };
@@ -144,13 +154,33 @@ function openAppSettings(doc){
         !doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
 
     // Switching to an entity with no backend yet shows the "coming soon" note instead of the upload area.
-    doc.getElementById('importCentreEntitySelect').value = 'teamMembers';
+    doc.getElementById('importCentreEntitySelect').value = 'teamsCommittees';
     doc.getElementById('importCentreEntitySelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
     await wait(10);
-    log('Team Members (not wired up yet) shows the "coming soon" note, hides the upload area',
+    log('Teams & Committees (not wired up yet) shows the "coming soon" note, hides the upload area',
         !doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
         doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
     log('"coming soon" note mentions the Schemas tab', doc.getElementById('importCentreComingSoonHint').textContent.indexOf('Schemas') !== -1);
+
+    // Team Members (Phase 4) is wired up too — same generic upload area, no "coming soon" note.
+    doc.getElementById('importCentreEntitySelect').value = 'teamMembers';
+    doc.getElementById('importCentreEntitySelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(10);
+    log('Team Members (wired up in Phase 4) shows the real upload area, not "coming soon"',
+        doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
+        !doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
+
+    // Team Members Test Run posts to its OWN endpoint, not Organisation Users' — a real thing to
+    // get wrong when a new entity is wired up via the same generic upload/Test Run/Commit UI.
+    const teamMembersFileInput = doc.getElementById('importCentreFileInput');
+    Object.defineProperty(teamMembersFileInput, 'files', {value: [new FakeFile('projectKey,name,email\r\nDEMO,New Member,new.member@example.com\r\n', 'members.csv')], configurable: true});
+    teamMembersFileInput.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(30);
+    doc.getElementById('importCentreTestRunBtn').click();
+    await wait(30);
+    log('Team Members Test Run posts to the team-members endpoint, not organisation-users', lastImportUrl === '/api/organisations/me/import/team-members', lastImportUrl);
+    log('Team Members Test Run sends the parsed projectKey/name/email row', lastImportRequestBody && lastImportRequestBody.rows[0].projectKey === 'DEMO' && lastImportRequestBody.rows[0].name === 'New Member', JSON.stringify(lastImportRequestBody));
+    log('Team Members results render using the same generic results table', doc.querySelectorAll('#importCentreResultsList tbody tr').length === 1);
 
     // Switch back to Organisation Users for the real upload flow below.
     doc.getElementById('importCentreEntitySelect').value = 'organisationUsers';
