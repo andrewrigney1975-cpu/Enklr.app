@@ -96,6 +96,26 @@ export function isNodeApprovalComplete(node, trail){
   return entries.length > 0;
 }
 
+/* Whether actingUser could ever START a brand-new submission of this form version at all — distinct
+   from evaluateFormAction('author') below, which checks an EXISTING submission's current node
+   against its own gates and only ever makes sense once a submission already exists (with submission
+   null, evaluateFormAction resolves to the graph's Start node itself, whose type is always 'start',
+   never 'author', so it can never answer "am I allowed to author a NEW one"). Walks Start's own
+   outgoing edge to the Author node the same way FormSubmissionService.SubmitAsync does server-side
+   (and its PHP twins), so this client-side picker filter can never show a form as available that the
+   server would then reject on submit for a gate reason. A form with no workflow configured at all,
+   or whose Start doesn't lead straight to an Author node, can never be authored by anyone — same
+   "unconfigured means unusable, not omitted from validation" stance as the server's own check. */
+export function canUserStartForm(formVersion, actingUser){
+  var workflow = parseFormWorkflow(formVersion ? formVersion.workflowJson : null);
+  var start = findStartNode(workflow);
+  if(!start) return false;
+  var edge = outgoingEdge(workflow, start.id);
+  var authorNode = edge ? findWorkflowNode(workflow, edge.toNodeId) : null;
+  if(!authorNode || authorNode.type !== 'author') return false;
+  return userSatisfiesAnyGate(authorNode.authorGates, actingUser);
+}
+
 /* The single entry point deciding whether actingUser may perform `action` ('author'|'approve'|
    'reject') on a submission RIGHT NOW, given the form version's workflow and the submission's own
    CurrentNodeId. Deny-by-default throughout, same {allowed, message} shape as

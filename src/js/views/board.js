@@ -193,6 +193,7 @@ export function applyHeaderButtonVisibility(){
   /* "Forms" (Phase 5) is the member-facing fill-out surface — every project member, not just Org
      Admins, same as Strategy's own read-only member view. */
   document.getElementById('navFormsFilloutBtn').classList.toggle('kf-vis-hidden', !isServerAuthoritative(project) || !visibility.forms);
+  refreshSideNavPortalsSectionVisibility();
 
   /* Dashboards is server-authoritative-only (Project Admin-managed, backed by real Saved Queries),
      opt-in via App Settings > Governance like Retrospectives/Strategy above — but, unlike Strategy,
@@ -261,7 +262,12 @@ export function openAppSettingsOverlay(){
   document.getElementById('settingsShowDashboardsBtn').checked = visibility.dashboards;
   document.getElementById('settingsShowFormsBtn').checked = visibility.forms;
   document.getElementById('settingsShowPortfolioPlannerBtn').checked = visibility.portfolioPlanner;
-  document.getElementById('settingsShowPortalsBtn').checked = visibility.portals;
+  // Portals depends on Forms & Workflow being on — see the settingsShowFormsBtn change handler
+  // (app.js) for why. Forced unchecked here too (not just disabled) if Forms is off, even if the
+  // stored value happens to still be true from before Forms was last turned off, so the checkbox
+  // never shows a state the Save button couldn't actually produce from a fresh toggle.
+  document.getElementById('settingsShowPortalsBtn').checked = visibility.portals && visibility.forms;
+  document.getElementById('settingsShowPortalsBtn').disabled = !visibility.forms;
   // SAML/SCIM configuration is an org-admin-only concern (same gating as the Account menu's own
   // "SSO & Provisioning" link) — shown here purely as a discoverability shortcut into that same
   // modal, not a per-project toggle of its own.
@@ -453,6 +459,23 @@ function toggleHeaderActionButton(id, visible){
   if(btn) btn.classList.toggle('kf-vis-hidden', !visible);
   var menuLink = document.querySelector('[data-nav-target="' + id + '"]');
   if(menuLink) menuLink.classList.toggle('kf-vis-hidden', !visible);
+}
+
+/* The side nav's dynamic "Portals" section holds both the per-user list of accessible Portal icons
+   (populated async by portal-home.js's loadAndRenderSideNavPortals) AND the static "Forms" fill-out
+   entry (moved here so it always renders directly below any Portals — see index.html's own comment
+   on this section). The section itself must stay hidden unless EITHER is actually showing something,
+   so this is called from both triggers independently: here (applyHeaderButtonVisibility, whenever
+   visibility.forms/isServerAuthoritative changes) and from loadAndRenderSideNavPortals itself
+   (whenever the async accessible-Portals list arrives) — exported so that file can call it too
+   without duplicating this same "is either half visible" check. */
+export function refreshSideNavPortalsSectionVisibility(){
+  var section = document.getElementById('sideNavPortalsSection');
+  var list = document.getElementById('sideNavPortalsList');
+  var formsBtn = document.getElementById('navFormsFilloutBtn');
+  var hasPortals = !!(list && list.children.length > 0);
+  var formsVisible = !!(formsBtn && !formsBtn.classList.contains('kf-vis-hidden'));
+  section.classList.toggle('hidden', !hasPortals && !formsVisible);
 }
 
 function getArchivedTasks(project){

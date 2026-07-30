@@ -1740,6 +1740,16 @@ function wireEvents(){
   });
   document.getElementById('settingsShowFormsBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('forms', e.target.checked);
+    // Portals depends on Forms & Workflow being on (a Portal's whole reason for being is curating
+    // Forms for org users who aren't project members) — turning Forms off here must also turn
+    // Portals off, not just grey out its checkbox, since a Portal left silently on with no Forms
+    // available would be a confusing dead end for whoever it's granted to.
+    var portalsBtn = document.getElementById('settingsShowPortalsBtn');
+    portalsBtn.disabled = !e.target.checked;
+    if(!e.target.checked && portalsBtn.checked){
+      portalsBtn.checked = false;
+      updateHeaderButtonVisibilitySetting('portals', false);
+    }
   });
   document.getElementById('settingsShowPortfolioPlannerBtn').addEventListener('change', function(e){
     updateHeaderButtonVisibilitySetting('portfolioPlanner', e.target.checked);

@@ -1,6 +1,6 @@
 "use strict";
 import { toast } from '../ui.js';
-import { escapeHTML } from '../views/board.js';
+import { escapeHTML, refreshSideNavPortalsSectionVisibility } from '../views/board.js';
 import { portalHomeApi } from '../api.js';
 import { confirmDialog } from './confirm.js';
 import { renderAnswerInputHTML, collectAllAnswers, findMissingRequiredFields } from '../features/form-answers.js';
@@ -49,10 +49,8 @@ export function openPortalHomeBySlug(slug){
    the side nav after the next reload. */
 export function loadAndRenderSideNavPortals(){
   portalHomeApi.listAccessible().then(function(portals){
-    var section = document.getElementById('sideNavPortalsSection');
     var list = document.getElementById('sideNavPortalsList');
     portals = portals || [];
-    section.classList.toggle('hidden', portals.length === 0);
     list.innerHTML = portals.map(function(p){
       return '<button type="button" class="kf-side-nav-item" data-portal-slug="' + escapeHTML(p.slug) + '" title="' + escapeHTML(p.name) + '">' +
         (p.iconName ? iconSvg(p.iconName, 21) : iconSvg('sparkle', 21)) +
@@ -62,7 +60,11 @@ export function loadAndRenderSideNavPortals(){
     list.querySelectorAll('[data-portal-slug]').forEach(function(btn){
       btn.addEventListener('click', function(){ openPortalHomeBySlug(btn.getAttribute('data-portal-slug')); });
     });
-  }, function(){ /* Not server-authoritative / no server session — leave the section hidden. */ });
+    // The section also holds the static "Forms" entry (see index.html's own comment) — its
+    // visibility depends on the Forms App Setting, not this list, so re-check the combined
+    // "show the section at all" state now that the list itself has finished populating.
+    refreshSideNavPortalsSectionVisibility();
+  }, function(){ /* Not server-authoritative / no server session — leave the section as-is. */ });
 }
 export function closePortalHomeOverlay(){
   document.getElementById('portalHomeOverlay').classList.add('hidden');
