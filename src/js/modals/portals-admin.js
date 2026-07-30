@@ -23,6 +23,8 @@ var editingOrgTeams = [];
 var editingPublishedForms = []; // org-wide published FormDto list, for the "attach a form" picker
 var editingTopics = [];
 var editingIconName = null;
+var editingTeamCandidates = []; // org-wide active user roster (memberApi.orgCandidates), for the Team tab's picker
+var editingTeamMemberUserIds = []; // userIds already on the actioner project, to exclude from the picker
 
 var STATUS_LABELS = {draft: 'Draft', published: 'Published', archived: 'Archived'};
 
@@ -361,16 +363,29 @@ export function attachPortalFormFromEdit(){
    auto-added as a Project Admin member of it at creation time (PortalService.CreateAsync), so this
    is just the same member-management surface every other Project already has (memberApi +
    getProjectDetailApi), scoped to the Portal's own ProjectId and surfaced right inside the Portal
-   editor so an admin doesn't have to separately go find/open that project on the board. */
+   editor so an admin doesn't have to separately go find/open that project on the board. The "add"
+   side is a picker over the whole org roster (memberApi.orgCandidates) rather than a name/email
+   form — every candidate is already a real User, so there's nothing to fill in beyond who. */
 function loadAndRenderPortalTeamTab(){
   if(!editingPortal) return;
-  getProjectDetailApi(editingPortal.projectId).then(function(project){
-    renderPortalTeamList(project.members || []);
-  }, function(e){ _toast('Could not load the back-office team: ' + (e.message || 'unknown error')); });
+  memberApi.orgCandidates(editingPortal.projectId).then(function(candidates){
+    editingTeamCandidates = candidates || [];
+    getProjectDetailApi(editingPortal.projectId).then(function(project){
+      renderPortalTeamList(project.members || []);
+    }, function(e){ _toast('Could not load the back-office team: ' + (e.message || 'unknown error')); });
+  }, function(){ editingTeamCandidates = []; });
 }
 
 function renderPortalTeamList(members){
+  editingTeamMemberUserIds = members.map(function(m){ return m.userId; });
   document.getElementById('portalTeamEmpty').classList.toggle('hidden', members.length > 0);
+
+  var picker = document.getElementById('portalTeamUserSelect');
+  var pickable = editingTeamCandidates.filter(function(c){ return editingTeamMemberUserIds.indexOf(c.id) === -1; });
+  picker.innerHTML = pickable.map(function(c){
+    return '<option value="' + escapeHTML(c.id) + '">' + escapeHTML(c.displayName) + '</option>';
+  }).join('');
+
   var list = document.getElementById('portalTeamList');
   list.innerHTML = members.map(function(m){
     return '<div class="kf-form-admin-row" data-member-id="' + m.id + '">' +
@@ -391,17 +406,19 @@ function renderPortalTeamList(members){
   hydrateIcons(list);
 }
 
+/* Adds an existing org user by name only (no email) — MemberService.CreateAsync only requires an
+   email on the "no matching existing user" branch (real account creation); a candidate picked from
+   orgCandidates is by definition an existing User in this org, so sending just their DisplayName
+   resolves through the existing-user-match path, same as modals/team.js's own combobox-driven "Add a
+   team member" flow. */
 export function addPortalTeamMemberFromEdit(){
   if(!editingPortal) return;
-  var nameInput = document.getElementById('portalTeamNameInput');
-  var emailInput = document.getElementById('portalTeamEmailInput');
-  var name = nameInput.value.trim();
-  var email = emailInput.value.trim();
-  if(!name){ _toast('Please enter a name.'); return; }
-  if(!email){ _toast('Please enter an email address.'); return; }
-  memberApi.create(editingPortal.projectId, {name: name, email: email}).then(function(){
-    nameInput.value = '';
-    emailInput.value = '';
+  var picker = document.getElementById('portalTeamUserSelect');
+  var userId = picker.value;
+  if(!userId){ _toast('Please choose a person to add.'); return; }
+  var candidate = editingTeamCandidates.filter(function(c){ return c.id === userId; })[0];
+  if(!candidate) return;
+  memberApi.create(editingPortal.projectId, {name: candidate.displayName}).then(function(){
     loadAndRenderPortalTeamTab();
     _toast('Team member added.');
   }, function(e){ _toast('Could not add team member: ' + (e.message || 'unknown error')); });
