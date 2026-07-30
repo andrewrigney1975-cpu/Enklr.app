@@ -176,4 +176,165 @@ export const scenarios = [
       return { results, exactFields: ['enabled'] };
     },
   },
+
+  // ---- Organisational Portals — the migration-bootstrap user is the new org's first Org Admin
+  // (MigrationEntityBuilder's isFirstAdminOfNewOrg), so it can drive both the OrgAdmin authoring
+  // surface (/api/organisations/me/portals, /api/organisations/me/forms) AND, once granted
+  // allOrgMembers access, the end-user surface (/api/portals) with the same token — no second user
+  // needed for this chain. ----
+
+  {
+    name: 'create-form',
+    async run(ctx) {
+      const results = await requestAllTiers(ctx, (t) =>
+        t.client.post('/api/organisations/me/forms', { name: 'Contract Parity Form', description: null, fieldsJson: null })
+      );
+      for (const tier of ctx.tiers) {
+        if (results[tier].status === 200) {
+          ctx[tier].formId = results[tier].body?.id;
+          ctx[tier].formGroupId = results[tier].body?.formGroupId;
+        }
+      }
+      return { results, exactFields: ['name'] };
+    },
+  },
+
+  {
+    name: 'publish-form',
+    async run(ctx) {
+      const results = await requestAllTiers(ctx, (t) => t.client.post(`/api/organisations/me/forms/${t.formId}/publish`, undefined));
+      return { results, exactFields: ['status'] };
+    },
+  },
+
+  {
+    name: 'create-portal',
+    async run(ctx) {
+      const results = await requestAllTiers(ctx, (t) =>
+        t.client.post('/api/organisations/me/portals', { name: 'Contract Parity Portal', slug: null, description: null, iconName: null })
+      );
+      for (const tier of ctx.tiers) {
+        if (results[tier].status === 200) {
+          ctx[tier].portalId = results[tier].body?.id;
+          ctx[tier].portalSlug = results[tier].body?.slug;
+        }
+      }
+      // status must be "draft" identically on every tier — a Portal is never born published.
+      return { results, exactFields: ['name', 'status'] };
+    },
+  },
+
+  {
+    name: 'attach-form-to-portal',
+    async run(ctx) {
+      // formGroupId is NOT an exactField — it's a server-generated Guid seeded independently per
+      // tier, not a harness-set literal like a task title (shapesMatch already confirms it's present
+      // with the right type on every tier; see scenarios.js's own top-of-file doc comment).
+      const results = await requestAllTiers(ctx, (t) =>
+        t.client.post(`/api/organisations/me/portals/${t.portalId}/forms`, { formGroupId: t.formGroupId, order: 0 })
+      );
+      return { results };
+    },
+  },
+
+  {
+    name: 'grant-portal-access',
+    async run(ctx) {
+      // allOrgMembers ignores the client-supplied Value (PortalService.AddAccessGrantAsync always
+      // forces it to the caller's own OrganisationId) — portalId is sent as a placeholder, same
+      // convention modals/portals-admin.js's own addPortalAccessGrantFromEdit uses.
+      const results = await requestAllTiers(ctx, (t) =>
+        t.client.post(`/api/organisations/me/portals/${t.portalId}/access-grants`, { kind: 'allOrgMembers', value: t.portalId })
+      );
+      return { results, exactFields: ['kind'] };
+    },
+  },
+
+  {
+    name: 'publish-portal',
+    async run(ctx) {
+      const results = await requestAllTiers(ctx, (t) => t.client.post(`/api/organisations/me/portals/${t.portalId}/publish`, undefined));
+      return { results, exactFields: ['status'] };
+    },
+  },
+
+  {
+    name: 'portal-list-accessible',
+    async run(ctx) {
+      // The end-user surface — same bearer token, now reachable via the allOrgMembers grant just
+      // added, re-derived server-side (PortalAccessService), never trusted from a claim.
+      const results = await requestAllTiers(ctx, (t) => t.client.get('/api/portals'));
+      return { results };
+    },
+  },
+
+  {
+    name: 'portal-get-by-slug',
+    async run(ctx) {
+      const results = await requestAllTiers(ctx, (t) => t.client.get(`/api/portals/${t.portalSlug}`));
+      return { results, exactFields: ['name', 'status'] };
+    },
+  },
+
+  {
+    name: 'portal-list-available-forms',
+    async run(ctx) {
+      const results = await requestAllTiers(ctx, (t) => t.client.get(`/api/portals/${t.portalId}/forms`));
+      return { results };
+    },
+  },
+
+  {
+    name: 'portal-create-submission',
+    async run(ctx) {
+      const results = await requestAllTiers(ctx, (t) =>
+        t.client.post(`/api/portals/${t.portalId}/submissions`, { formVersionId: t.formId, answersJson: null })
+      );
+      for (const tier of ctx.tiers) {
+        if (results[tier].status === 200) ctx[tier].submissionId = results[tier].body?.id;
+      }
+      // status must be "draft" identically — no submission is ever born past Draft.
+      return { results, exactFields: ['status'] };
+    },
+  },
+
+  {
+    name: 'portal-get-submission',
+    async run(ctx) {
+      // Re-fetches the caller's own Draft with its full AnswersJson (PortalHomeService.GetSubmissionAsync's
+      // owner branch) — the bug this endpoint was added to fix (draft-reopen data loss).
+      const results = await requestAllTiers(ctx, (t) => t.client.get(`/api/portals/${t.portalId}/submissions/${t.submissionId}`));
+      return { results, exactFields: ['status'] };
+    },
+  },
+
+  {
+    name: 'portal-list-my-submissions',
+    async run(ctx) {
+      const results = await requestAllTiers(ctx, (t) => t.client.get(`/api/portals/${t.portalId}/submissions`));
+      return { results };
+    },
+  },
+
+  {
+    name: 'portal-submissions-awaiting-me',
+    async run(ctx) {
+      // Empty on every tier — this Form has no workflow configured yet, so nothing can ever reach an
+      // Approval node. Added alongside the fix for the bug where a Portal-configured approver had no
+      // route to this list at all (the actioner Project is deliberately membership-free).
+      const results = await requestAllTiers(ctx, (t) => t.client.get(`/api/portals/${t.portalId}/submissions/awaiting-me`));
+      return { results };
+    },
+  },
+
+  {
+    name: 'portal-submit-unconfigured-workflow',
+    async run(ctx) {
+      // This Form's WorkflowJson is still null (never authored one) — every tier's SubmitAsync walks
+      // Start -> Author and finds neither, returning the same 400 or the same 'not_found'-style
+      // handling identically across tiers (confirms error-shape parity, not just the happy path).
+      const results = await requestAllTiers(ctx, (t) => t.client.post(`/api/portals/${t.portalId}/submissions/${t.submissionId}/submit`, undefined));
+      return { results };
+    },
+  },
 ];
