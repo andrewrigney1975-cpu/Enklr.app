@@ -99,13 +99,17 @@ export function openPortalEdit(portalId){
     document.getElementById('portalEditOverlay').classList.remove('hidden');
     renderPortalEditChrome();
     setPortalEditTab('details');
-    // Loaded once per open, reused across all four tabs.
+    // Eagerly loads and renders ALL FOUR tabs' content right away, not just the active one — so
+    // switching tabs is a pure show/hide of already-populated content, never a blank panel waiting
+    // on a request. (Access/Forms need their own picker data — org users/org teams/published forms
+    // — loaded first, since renderPortalAccessTab/renderPortalFormsTab read from them synchronously.)
     chatApi.orgUsers().then(function(users){ editingOrgUsers = users || []; renderPortalAccessTab(); }, function(){});
     getOrgTeamsApi().then(function(teams){ editingOrgTeams = teams || []; renderPortalAccessTab(); }, function(){});
     formsApi.list().then(function(forms){
       editingPublishedForms = (forms || []).filter(function(f){ return f.status === 'published'; });
       renderPortalFormsTab();
     }, function(){});
+    loadAndRenderPortalQaTab();
   }, function(e){
     _toast('Could not load Portal: ' + (e.message || 'unknown error'));
   });
@@ -132,6 +136,8 @@ function renderPortalEditChrome(){
   document.getElementById('portalEditDescInput').value = p.description || '';
 }
 
+/* Pure visibility toggle — every tab's own content is already loaded/rendered eagerly by
+   openPortalEdit (see its own comment), so switching tabs never triggers a fetch. */
 export function setPortalEditTab(tab){
   editingTab = tab;
   document.querySelectorAll('.kf-portal-edit-tab-btn').forEach(function(btn){
@@ -141,9 +147,6 @@ export function setPortalEditTab(tab){
     var el = document.getElementById('portalEditTab' + t.charAt(0).toUpperCase() + t.slice(1));
     if(el) el.classList.toggle('hidden', t !== tab);
   });
-  if(tab === 'access') renderPortalAccessTab();
-  if(tab === 'forms') renderPortalFormsTab();
-  if(tab === 'qa') loadAndRenderPortalQaTab();
 }
 
 export function savePortalEditDetails(){
@@ -227,7 +230,7 @@ export function deletePortalFromEdit(){
 // ---- Access tab ----
 
 function renderPortalAccessTab(){
-  if(!editingPortal || editingTab !== 'access') return;
+  if(!editingPortal) return;
   var kindSelect = document.getElementById('portalAccessKindSelect');
   updatePortalAccessValueOptions();
   kindSelect.onchange = updatePortalAccessValueOptions;
@@ -311,7 +314,7 @@ export function addPortalAccessGrantFromEdit(){
 // ---- Forms tab ----
 
 function renderPortalFormsTab(){
-  if(!editingPortal || editingTab !== 'forms') return;
+  if(!editingPortal) return;
   var attachSelect = document.getElementById('portalFormsAttachSelect');
   var byGroup = {};
   editingPublishedForms.forEach(function(f){ byGroup[f.formGroupId] = f; });
@@ -397,7 +400,7 @@ export function savePortalQaEntryFromEdit(){
 }
 
 function loadAndRenderPortalQaTab(){
-  if(!editingPortal || editingTab !== 'qa') return;
+  if(!editingPortal) return;
   portalsApi.listTopics(editingPortal.id).then(function(topics){
     editingTopics = topics || [];
     portalsApi.listQaEntries(editingPortal.id).then(function(entries){

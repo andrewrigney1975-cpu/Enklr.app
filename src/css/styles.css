@@ -4167,7 +4167,9 @@
   #formWorkflowNodeSaveBtn.hidden,
   #formWorkflowEdgeDeleteBtn.hidden,
   [id^="formWorkflowGateNamedUserSelect-"].hidden,
-  [id^="formWorkflowGateUserTypeSelect-"].hidden {
+  [id^="formWorkflowGateUserTypeSelect-"].hidden,
+  #formWorkflowActionSection.hidden,
+  #formWorkflowAddActionBtn.hidden {
     display: none;
   }
 
@@ -6271,6 +6273,34 @@
      same .kf-side-nav-item shape every other entry uses so it inherits identical spacing/hover/
      tooltip behavior; only the icon differs per Portal instead of being fixed per feature. */
   #sideNavPortalsSection.hidden {
+    display: none;
+  }
+
+  /* Organisational Portals — no generic .hidden utility class exists anywhere in this app's CSS
+     (see root CLAUDE.md's own note on this gotcha), so every element toggled hidden here needs its
+     own compound selector, same convention as every other feature's own block of these. This is the
+     exact bug that made every Manage Portals editor tab render simultaneously on open instead of
+     only the active one — the JS state (.classList.toggle('hidden', ...)) was toggling correctly the
+     whole time, nothing in the CSS was ever listening for it. */
+  #portalsAdminEmpty.hidden,
+  #portalsAdminCreateRow.hidden,
+  #portalEditIconGrid.hidden,
+  #portalEditPublishBtn.hidden,
+  #portalEditArchiveBtn.hidden,
+  #portalEditTabDetails.hidden,
+  #portalEditTabAccess.hidden,
+  #portalEditTabForms.hidden,
+  #portalEditTabQa.hidden,
+  #portalAccessEmpty.hidden,
+  #portalFormsEmpty.hidden,
+  #portalQaAddTopicRow.hidden,
+  #portalQaAddEntryRow.hidden,
+  #portalQaEmpty.hidden,
+  #portalHomeFormsEmpty.hidden,
+  #portalHomeRequestsEmpty.hidden,
+  #portalHomeQaEmpty.hidden,
+  #portalHomeFilloutMissingWarning.hidden,
+  #portalHomeFilloutDeleteBtn.hidden {
     display: none;
   }
 
