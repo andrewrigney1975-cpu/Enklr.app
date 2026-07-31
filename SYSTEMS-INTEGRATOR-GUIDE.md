@@ -41,6 +41,7 @@ this repository already ships.
 15. [Integration checklist (pre-go-live)](#15-integration-checklist-pre-go-live)
 16. [Glossary](#16-glossary)
 17. [References](#17-references)
+18. [Appendix: bulk data import (Import Centre)](#18-appendix-bulk-data-import-import-centre)
 
 ---
 
@@ -778,6 +779,133 @@ this guide should be treated as a derived summary of them rather than a replacem
 8. IETF RFC 7519, *JSON Web Token (JWT)* — <https://datatracker.ietf.org/doc/html/rfc7519>.
 9. OWASP Foundation, *OWASP Secure Headers Project* (reference for the header set discussed in §10) —
    <https://owasp.org/www-project-secure-headers/>.
+
+---
+
+## 18. Appendix: bulk data import (Import Centre)
+
+Import Centre is an Org-Admin-facing bulk data loader, reachable both from the application's own UI
+(App Settings → Enterprise → Import Centre) and directly as a REST API — the same endpoints the UI
+itself calls. This appendix documents the API surface for an integrator scripting a bulk onboarding
+or data-migration job (e.g. seeding an Organisation from a legacy system's export) rather than
+driving the UI by hand.
+
+**Authentication and authorisation**: unlike SCIM (§6), Import Centre has **no separate service-
+account bearer token** — every request authenticates with the same end-user JWT (§7) any other
+authenticated API call uses, and every endpoint is gated `[Authorize(Policy = "OrgAdmin")]`
+(`OrgAdminMiddleware` on both PHP tiers) — the caller must hold a valid session for a user who is
+themselves an Org Admin of the target Organisation. There is no cross-Organisation import: every
+endpoint operates only against the Organisation implied by the caller's own `orgId` JWT claim, and
+every entity reference within a row (a project key, a Portal slug, a username) is independently
+re-validated against that same Organisation server-side before anything is written — a reference
+that resolves in a different Organisation is indistinguishable from one that doesn't exist at all
+(no enumeration oracle), matching this application's cross-tenant isolation stance described in §9.3.
+
+**Endpoints** (all `POST`, all under `/api/organisations/me/import/`):
+
+| Path segment | Entity |
+|---|---|
+| `organisation-users` | Organisation Users |
+| `team-members` | Team Members |
+| `teams-committees` | Teams & Committees |
+| `portal-qa` | Portal Q&A |
+
+**Request body** (identical shape for every endpoint):
+
+```json
+{
+  "rows": [ { "field1": "value1", "field2": "value2" } ],
+  "dryRun": true
+}
+```
+
+`rows` is a flat array of objects, one per record to import — field names match the entity's schema
+table below exactly. `dryRun: true` validates and executes every row for real through the identical
+code path a committed import would use, then unconditionally rolls back the database transaction
+regardless of outcome — so a caller can preflight an entire file's validity (including cross-field
+lookups like an existing project key or Portal slug) without writing anything. `dryRun: false`
+commits.
+
+**Response body** (identical shape for every endpoint):
+
+```json
+{
+  "total": 2,
+  "succeeded": 1,
+  "failed": 1,
+  "results": [
+    {"row": 1, "success": true,  "message": null, "data": { /* the row as submitted */ }},
+    {"row": 2, "success": false, "message": "\"password\" is required.", "data": { /* the row as submitted */ }}
+  ]
+}
+```
+
+**Per-row transactional isolation**: each row in `rows` is executed in its **own** database
+transaction, independent of every other row — a malformed or invalid row never sinks the rest of the
+batch, and `results[]` reports each row's own outcome individually (`row` is the 1-based index into
+the submitted `rows` array, not any generated id). This is a deliberate, different shape from this
+application's `MigrationController` bulk-import endpoint (used for the one-time anonymous-migration
+bootstrap, §4), which wraps its entire request in a single all-or-nothing transaction — Import
+Centre's per-row model is the right fit for an Org Admin knowingly loading a large, possibly-imperfect
+external export and wanting partial success with a precise per-row error report, rather than an
+atomic all-or-nothing bootstrap.
+
+**Cross-row reference caveat under `dryRun`**: because every row gets its own transaction that is
+rolled back immediately when `dryRun` is set, a row that references another row **earlier in the same
+file** by a not-yet-existing identifier (Team Members' `reportsTo`, Teams & Committees' `parent`/
+`members`) will report that reference as unresolvable on a Test Run even though it would resolve
+correctly on a real Commit — the earlier row's own creation is rolled back before the later row's
+lookup runs. This is inherent to the per-row-dry-run design, not a bug; an integrator scripting
+against this API should expect a `dryRun: true` preflight of an interdependent file to under-report
+success relative to what an actual `dryRun: false` commit of the same file will achieve, when rows
+reference each other in-order.
+
+**Entity schemas**: `required` values are `true` (must be present and non-empty), `false` (may be
+omitted), or *conditional* (nullable at the storage layer but effectively mandatory under normal
+operating conditions — noted per-field below).
+
+*Organisation Users* (`organisation-users`):
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `username` | string | Required | Must be unique within the Organisation. |
+| `displayName` | string | Required | |
+| `password` | string | Required | Minimum 8 characters. The new account must change it on first login (`MustChangePassword`, §4). |
+| `email` | string | Conditional | Required unless the account will only ever authenticate via SSO. |
+
+*Team Members* (`team-members`):
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `projectKey` | string | Required | Must match an existing project in the caller's Organisation. |
+| `name` | string | Required | Matched against an existing Organisation User by name/email where possible; a new account is created otherwise. |
+| `email` | string | Optional | Used to find-or-create the underlying Organisation User account. |
+| `role` | string | Optional | Free-text role label. |
+| `allocatedFraction` | integer (0–100) | Optional | Percentage of time allocated to this project. |
+| `reportsTo` | string (username) | Optional | Must reference another Team Member already on the same project — see the cross-row caveat above. |
+| `isProjectAdmin` | boolean | Optional | Defaults to `false`. |
+
+*Teams & Committees* (`teams-committees`):
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `projectKey` | string | Required | Must match an existing project in the caller's Organisation. |
+| `name` | string | Required | |
+| `type` | `"team"` \| `"committee"` | Required | Any other value fails the row explicitly — the interactive UI's own create path silently defaults an invalid type to `"team"`, but this API treats it as a reportable error instead. |
+| `description` | string | Optional | |
+| `parent` | string (name) | Optional | Must reference another Team/Committee already on the same project — see the cross-row caveat above. |
+| `members` | string (semicolon-separated usernames) | Optional | Each must already be a Team Member on the same project — see the cross-row caveat above. |
+
+*Portal Q&A* (`portal-qa`, only meaningful once Organisational Portals is enabled for the
+Organisation):
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `portal` | string (slug or name) | Required | Must match an existing Portal in the caller's Organisation; resolved by slug first, then by name. |
+| `question` | string | Required | |
+| `topic` | string (name) | Optional | Must reference an existing Topic on the same Portal, if given. |
+| `answer` | string (markdown) | Optional | |
+| `order` | integer | Optional | Defaults to appending after this Portal's current highest `order`, so an `order`-less row never collides at `0`. |
 
 ---
 

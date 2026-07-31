@@ -27,6 +27,7 @@ use Enkl\Api\Controllers\OrganisationSsoConfigController;
 use Enkl\Api\Controllers\OrganisationsController;
 use Enkl\Api\Controllers\OrganisationAnnouncementsController;
 use Enkl\Api\Controllers\OrganisationApiKeyController;
+use Enkl\Api\Controllers\ImportController;
 use Enkl\Api\Controllers\PortfolioController;
 use Enkl\Api\Controllers\PortalsController;
 use Enkl\Api\Controllers\PortalHomeController;
@@ -152,6 +153,10 @@ function registerRoutes(App $app): void
         $group->get('/api-key', [OrganisationApiKeyController::class, 'get']);
         $group->post('/api-key', [OrganisationApiKeyController::class, 'generate']);
         $group->delete('/api-key', [OrganisationApiKeyController::class, 'revoke']);
+        $group->post('/import/organisation-users', [ImportController::class, 'importOrganisationUsers']);
+        $group->post('/import/team-members', [ImportController::class, 'importTeamMembers']);
+        $group->post('/import/teams-committees', [ImportController::class, 'importTeamsCommittees']);
+        $group->post('/import/portal-qa', [ImportController::class, 'importPortalQa']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Chat (org-wide, any authenticated org user — deliberately NO ProjectMemberMiddleware, since

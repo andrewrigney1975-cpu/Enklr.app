@@ -31,7 +31,7 @@ final class SavedQueryServiceTest extends TestCase
         $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('user'));
         $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
 
-        $created = self::$savedQueries->create($projectId, ['name' => 'All tasks', 'sql' => 'SELECT * FROM tasks']);
+        $created = self::$savedQueries->create($projectId, ['name' => 'All tasks', 'sql' => 'SELECT * FROM tasks'], false);
         self::assertNotNull($created);
         self::assertSame('All tasks', $created['name']);
         self::assertSame('SELECT * FROM tasks', $created['sql']);
@@ -53,7 +53,7 @@ final class SavedQueryServiceTest extends TestCase
 
     public function testCreateReturnsNullForNonexistentProject(): void
     {
-        $result = self::$savedQueries->create(Uuid::v4(), ['name' => 'Name', 'sql' => 'SELECT 1']);
+        $result = self::$savedQueries->create(Uuid::v4(), ['name' => 'Name', 'sql' => 'SELECT 1'], false);
         self::assertNull($result);
     }
 
@@ -61,9 +61,9 @@ final class SavedQueryServiceTest extends TestCase
     {
         $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('user'));
         $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
-        $created = self::$savedQueries->create($projectId, ['name' => 'All tasks', 'sql' => 'SELECT * FROM tasks']);
+        $created = self::$savedQueries->create($projectId, ['name' => 'All tasks', 'sql' => 'SELECT * FROM tasks'], false);
 
-        $updated = self::$savedQueries->update($projectId, $created['id'], ['name' => 'All tasks', 'sql' => "SELECT * FROM tasks WHERE priority = 'high'"]);
+        $updated = self::$savedQueries->update($projectId, $created['id'], ['name' => 'All tasks', 'sql' => "SELECT * FROM tasks WHERE priority = 'high'"], false);
         self::assertNotNull($updated);
         self::assertSame("SELECT * FROM tasks WHERE priority = 'high'", $updated['sql']);
 
@@ -77,10 +77,10 @@ final class SavedQueryServiceTest extends TestCase
         $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('user'));
         $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
         $otherProjectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
-        $created = self::$savedQueries->create($projectId, ['name' => 'Temp', 'sql' => 'SELECT 1']);
+        $created = self::$savedQueries->create($projectId, ['name' => 'Temp', 'sql' => 'SELECT 1'], false);
 
-        self::assertNull(self::$savedQueries->update($otherProjectId, $created['id'], ['name' => 'Temp', 'sql' => 'SELECT 2']));
-        self::assertNull(self::$savedQueries->update($projectId, Uuid::v4(), ['name' => 'Temp', 'sql' => 'SELECT 2']));
+        self::assertNull(self::$savedQueries->update($otherProjectId, $created['id'], ['name' => 'Temp', 'sql' => 'SELECT 2'], false));
+        self::assertNull(self::$savedQueries->update($projectId, Uuid::v4(), ['name' => 'Temp', 'sql' => 'SELECT 2'], false));
     }
 
     public function testDeleteReturnsFalseForWrongProjectOrMissingId(): void
@@ -88,7 +88,7 @@ final class SavedQueryServiceTest extends TestCase
         $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('user'));
         $projectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
         $otherProjectId = TestDataHelper::seedProject(self::$db, $seeded['orgId'], TestDataHelper::unique('P'));
-        $created = self::$savedQueries->create($projectId, ['name' => 'Temp', 'sql' => 'SELECT 1']);
+        $created = self::$savedQueries->create($projectId, ['name' => 'Temp', 'sql' => 'SELECT 1'], false);
 
         self::assertFalse(self::$savedQueries->delete($otherProjectId, $created['id']));
         self::assertFalse(self::$savedQueries->delete($projectId, Uuid::v4()));
