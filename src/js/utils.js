@@ -376,7 +376,25 @@ export var TASK_TYPE_ICON_LIBRARY = [
   {name: 'ty_negotiate', label: 'Negotiate'},
   {name: 'ty_schedule', label: 'Schedule'},
   {name: 'ty_maintain', label: 'Maintain'},
-  {name: 'ty_coordinate', label: 'Coordinate'}
+  {name: 'ty_coordinate', label: 'Coordinate'},
+  {name: 'ty_invoice', label: 'Invoice'},
+  {name: 'ty_budget', label: 'Budget'},
+  {name: 'ty_expense', label: 'Expense'},
+  {name: 'ty_flight', label: 'Flight'},
+  {name: 'ty_accommodation', label: 'Accommodation'},
+  {name: 'ty_luggage', label: 'Luggage'},
+  {name: 'ty_ticket', label: 'IT Ticket'},
+  {name: 'ty_server', label: 'Server'},
+  {name: 'ty_network', label: 'Network'},
+  {name: 'ty_recruit', label: 'Recruit'},
+  {name: 'ty_onboard', label: 'Onboard'},
+  {name: 'ty_payroll', label: 'Payroll'},
+  {name: 'ty_firstaid', label: 'First Aid'},
+  {name: 'ty_safety', label: 'Safety'},
+  {name: 'ty_hazard', label: 'Hazard'},
+  {name: 'ty_training', label: 'Training'},
+  {name: 'ty_course', label: 'Course'},
+  {name: 'ty_certificate', label: 'Certificate'}
 ];
 
 export function isValidTaskTypeIconName(name){

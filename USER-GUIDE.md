@@ -738,8 +738,10 @@ drawn.
   progress stepper — Draft → Submitted → In Review → Approved/Rejected — for everything you've
   submitted here; a Draft reopens editable, anything past that opens as a read-only view of what you
   submitted plus its full Approval Trail), and **Answers** — a searchable, expand/collapse Q&A
-  knowledge base Elena curates for that Portal; type into the search box to filter to matching
-  questions and answers, with every match auto-expanded so you don't need a second click to read it.
+  knowledge base Elena curates for that Portal (answers support the same rich text — headings, bold/
+  italic, lists, quotes, links — as task descriptions, so a longer answer can be properly formatted
+  rather than one flat block of text); type into the search box to filter to matching questions and
+  answers, with every match auto-expanded so you don't need a second click to read it.
   If Marcus is also a configured approver for one of the Portal's forms, an **Awaiting My Action**
   section appears above **My requests** with anything waiting on his decision, approved or rejected
   right there with an optional comment — the same "Awaiting My Action" concept from Forms & Workflow
@@ -1008,9 +1010,11 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
 ## 10. Making it yours — personalisation
 
 - **My Preferences** — **What**: personal display settings — a board background (colour, gradient, or
-  your own uploaded image), a header colour, and which "opening experience" greets you. **Who**:
-  entirely optional, and entirely yours — these choices are stored locally to your own browser, not
-  shared with teammates.
+  your own uploaded image), a header colour, an avatar photo, and which "opening experience" greets
+  you. **Who**: entirely optional, and entirely yours — these choices are stored locally to your own
+  browser, not shared with teammates. **Avatar**: upload a small photo (max 200KB) to show as a
+  circular avatar in the header, next to the Account menu — like the board background image, it's
+  stored only on this device and never leaves your browser or gets bundled into a project export.
 - **Theme toggle** — light or dark, one click, in the header at all times.
 - **Opening Experience** — **What**: choose what you land on when the app opens (for instance, List
   View instead of the board by default on a phone). Revisitable any time from My Preferences.

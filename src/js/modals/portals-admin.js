@@ -5,6 +5,7 @@ import { portalsApi, formsApi, chatApi, getOrgTeamsApi, getProjectDetailApi, mem
 import { confirmDialog } from './confirm.js';
 import { iconSvg, hydrateIcons } from '../icons.js';
 import { ICON_PATHS } from '../config.js';
+import { createRichTextEditor } from '../rich-text/editor.js';
 
 /* Organisational Portals — Org-Admin authoring UI. Two overlays, same shape as Manage Forms
    (modals/forms-admin.js): #portalsAdminOverlay is the plain list/create picker, #portalEditOverlay
@@ -18,6 +19,16 @@ var _toast = toast;
 var adminPortals = [];
 var editingPortal = null; // the full PortalDto currently open in #portalEditOverlay, or null
 var editingTab = 'details';
+
+// Lazily created on first showPortalQaAddEntryRow() call and reused for the whole app session —
+// same pattern as modals/decisions.js's decisionDescEditor.
+var portalQaAnswerEditor = null;
+function getPortalQaAnswerEditor(){
+  if(!portalQaAnswerEditor){
+    portalQaAnswerEditor = createRichTextEditor(document.getElementById('portalQaEntryAnswerEditor'), document.getElementById('portalQaEntryAnswerToolbar'), { maxLength: 4000 });
+  }
+  return portalQaAnswerEditor;
+}
 var editingOrgUsers = [];
 var editingOrgTeams = [];
 var editingPublishedForms = []; // org-wide published FormDto list, for the "attach a form" picker
@@ -447,7 +458,7 @@ export function savePortalQaTopicFromEdit(){
 export function showPortalQaAddEntryRow(){
   document.getElementById('portalQaAddEntryRow').classList.remove('hidden');
   document.getElementById('portalQaEntryQuestionInput').value = '';
-  document.getElementById('portalQaEntryAnswerInput').value = '';
+  getPortalQaAnswerEditor().setMarkdown('');
   var topicSelect = document.getElementById('portalQaEntryTopicSelect');
   topicSelect.innerHTML = '<option value="">No topic</option>' + editingTopics.map(function(t){
     return '<option value="' + escapeHTML(t.id) + '">' + escapeHTML(t.title) + '</option>';
@@ -460,7 +471,7 @@ export function hidePortalQaAddEntryRow(){
 export function savePortalQaEntryFromEdit(){
   if(!editingPortal) return;
   var question = document.getElementById('portalQaEntryQuestionInput').value.trim();
-  var answer = document.getElementById('portalQaEntryAnswerInput').value.trim();
+  var answer = getPortalQaAnswerEditor().getMarkdown().trim();
   var topicId = document.getElementById('portalQaEntryTopicSelect').value || null;
   if(!question){ _toast('Please enter a question.'); return; }
   portalsApi.createQaEntry(editingPortal.id, question, answer, topicId, 0).then(function(){

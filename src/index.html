@@ -138,6 +138,7 @@
             <a href="#" class="kf-header-more-link kf-vis-hidden" data-nav-target="serverLogoutBtn">Logout</a>
           </div>
         </div>
+        <img id="headerAvatar" alt="Your avatar" title="My Preferences" class="kf-header-avatar kf-vis-hidden">
         <button class="kf-header-btn" id="refreshBtn" title="Refresh" aria-label="Refresh"><span class="kf-icon" data-icon="refresh" data-size="16"></span><span class="kf-appsettings-label">Refresh</span></button>
         <div class="kf-export-as-wrap" id="despatchesWrap">
           <button class="kf-header-btn" id="despatchesBtn" title="Despatches" aria-label="Despatches"><span class="kf-icon" data-icon="megaphone" data-size="16"></span><span class="kf-appsettings-label">Despatches</span><span class="kf-despatch-badge kf-vis-hidden" id="despatchesBadge">0</span></button>
@@ -1816,8 +1817,19 @@
             <input type="text" id="portalQaEntryQuestionInput" maxlength="500">
           </div>
           <div class="kf-field">
-            <label for="portalQaEntryAnswerInput">Answer</label>
-            <textarea id="portalQaEntryAnswerInput" rows="3"></textarea>
+            <label for="portalQaEntryAnswerEditor">Answer</label>
+            <div class="kf-richtext-toolbar" id="portalQaEntryAnswerToolbar">
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h1" title="Heading 1">H1</button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h2" title="Heading 2">H2</button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h3" title="Heading 3">H3</button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="ul" title="Bullet list">&bull;</button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="ol" title="Numbered list">1.</button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="quote" title="Blockquote">&rdquo;</button>
+              <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="link" title="Link"><span class="kf-icon" data-icon="link" data-size="14"></span></button>
+            </div>
+            <div class="kf-richtext-editor" id="portalQaEntryAnswerEditor" contenteditable="true" data-placeholder="Answer..."></div>
           </div>
           <div class="kf-field-row">
             <button type="button" class="kf-btn kf-btn-primary kf-btn-sm" id="portalQaEntrySaveBtn">Save</button>
@@ -2954,6 +2966,16 @@
       <button class="kf-btn kf-btn-ghost" id="myPreferencesModalClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
     </div>
     <div class="kf-modal-body">
+      <div class="kf-field">
+        <label>Avatar</label>
+        <div class="kf-preferences-bg-row">
+          <img id="userAvatarPreviewImg" alt="" class="kf-preferences-avatar-preview kf-vis-hidden">
+          <button type="button" class="kf-btn kf-btn-secondary" id="userAvatarUploadBtn">Upload photo...</button>
+          <button type="button" class="kf-btn kf-btn-ghost kf-vis-hidden" id="userAvatarRemoveBtn">Remove</button>
+        </div>
+        <input type="file" id="userAvatarFileInput" accept="image/*" style="display:none;">
+        <p class="kf-legend-item">Stored on this device only (max 200KB), shown in the header next to the Account menu.</p>
+      </div>
       <div class="kf-field">
         <label for="headerColorInput">App header colour</label>
         <div class="kf-preferences-bg-row">

@@ -7,6 +7,7 @@ import { renderAnswerInputHTML, renderAnswerReadOnlyHTML, collectAllAnswers, fin
 import { setPortalHash, clearPortalHash, parsePortalSlugFromHash } from '../features/hash-router.js';
 import { iconSvg, hydrateIcons } from '../icons.js';
 import { utcISOToLocalDisplayDateTime } from '../date-utils.js';
+import { markdownToHtml } from '../rich-text/markdown.js';
 
 /* Organisational Portals — the fullscreen, end-user experience (kf-modal-full, see PORTALS.md's own
    design brief for the token system this file's markup/CSS embody). Three panes: Start a request
@@ -281,7 +282,7 @@ function renderPortalQaEntryHTML(e, forceExpanded){
       '<span>' + escapeHTML(e.question) + '</span>' +
       iconSvg('chevronRight', 14) +
     '</div>' +
-    '<div class="kf-portal-qa-answer' + (expanded ? '' : ' hidden') + '">' + escapeHTML(e.answer || '') + '</div>' +
+    '<div class="kf-portal-qa-answer' + (expanded ? '' : ' hidden') + '"><div class="kf-richtext-content">' + markdownToHtml(e.answer || '') + '</div></div>' +
   '</div>';
 }
 

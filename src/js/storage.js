@@ -227,6 +227,42 @@ export function clearBoardBackground(){
   }
 }
 
+/* User avatar (My Preferences) — same per-browser-only, base64-data-URL-in-localStorage tier as
+   board background above, deliberately not part of project export/import or any server payload:
+   it's a purely local, per-machine personalization, not project or account data. Stored as a plain
+   string (the data URL itself), not a {type, ...} wrapper like board background, since there's only
+   ever one shape ("an image, or nothing") — no need for board background's own color/gradient/image
+   discriminated-union complexity here. */
+export var USER_AVATAR_STORAGE_KEY = 'kanbanflow_user_avatar';
+
+export function getUserAvatar(){
+  var raw;
+  try{
+    raw = localStorage.getItem(USER_AVATAR_STORAGE_KEY);
+  }catch(e){
+    return null;
+  }
+  return (typeof raw === 'string' && raw.indexOf('data:image/') === 0) ? raw : null;
+}
+
+export function setUserAvatar(dataUrl){
+  try{
+    localStorage.setItem(USER_AVATAR_STORAGE_KEY, dataUrl);
+  }catch(e){
+    console.error('Enkl: failed to save user avatar to localStorage', e);
+    return false;
+  }
+  return true;
+}
+
+export function clearUserAvatar(){
+  try{
+    localStorage.removeItem(USER_AVATAR_STORAGE_KEY);
+  }catch(e){
+    console.error('Enkl: failed to clear user avatar from localStorage', e);
+  }
+}
+
 /* App header colour preference — same per-browser-only tier as board background above. A single
    "#rrggbb" string, not a JSON object, since there's only one field; stored/read raw rather than
    JSON-wrapped for that reason. */

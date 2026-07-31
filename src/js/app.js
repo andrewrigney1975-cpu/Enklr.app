@@ -92,7 +92,7 @@ import { openApiEndpointsModal, closeApiEndpointsModal, handleApiEndpointsListCl
 import { openUfoModal, closeUfoModal, isUfoModalOpen } from './modals/ufo.js';
 import { openOpeningExperienceModal, closeOpeningExperienceModal, isOpeningExperienceModalOpen, chooseOpeningExperience, recordDeviceTypeAndMaybeShowPicker } from './modals/opening-experience.js';
 import { openWelcomeNameModal, isWelcomeNameModalOpen, confirmWelcomeName, skipWelcomeName } from './modals/welcome-name.js';
-import { openMyPreferencesModal, closeMyPreferencesModal, isMyPreferencesModalOpen, applyBoardBackground, applyHeaderColor, onHeaderColorChange, resetHeaderColor, onBoardBackgroundTypeChange, onBoardBackgroundColorChange, onBoardBackgroundGradientChange, onBoardBackgroundDisplayChange, onBoardBackgroundFadedChange, onBoardBackgroundFileChange, removeBoardBackgroundImage, changeDefaultViewFromPreferences } from './modals/my-preferences.js';
+import { openMyPreferencesModal, closeMyPreferencesModal, isMyPreferencesModalOpen, applyBoardBackground, applyHeaderColor, applyUserAvatar, onHeaderColorChange, resetHeaderColor, onBoardBackgroundTypeChange, onBoardBackgroundColorChange, onBoardBackgroundGradientChange, onBoardBackgroundDisplayChange, onBoardBackgroundFadedChange, onBoardBackgroundFileChange, removeBoardBackgroundImage, onUserAvatarFileChange, removeUserAvatar, changeDefaultViewFromPreferences } from './modals/my-preferences.js';
 import { randomise } from './features/randomise.js';
 import { setReleaseCompletionDeps } from './features/release-completion.js';
 
@@ -1587,6 +1587,12 @@ function wireEvents(){
   document.getElementById('boardBackgroundFileInput').addEventListener('change', onBoardBackgroundFileChange);
   document.getElementById('boardBackgroundRemoveImageBtn').addEventListener('click', removeBoardBackgroundImage);
   document.getElementById('myPreferencesChangeDefaultViewBtn').addEventListener('click', changeDefaultViewFromPreferences);
+  document.getElementById('userAvatarUploadBtn').addEventListener('click', function(){
+    document.getElementById('userAvatarFileInput').click();
+  });
+  document.getElementById('userAvatarFileInput').addEventListener('change', onUserAvatarFileChange);
+  document.getElementById('userAvatarRemoveBtn').addEventListener('click', removeUserAvatar);
+  document.getElementById('headerAvatar').addEventListener('click', openMyPreferencesModal);
 
   document.getElementById('manageUsersLink').addEventListener('click', function(e){
     e.preventDefault();
@@ -2279,6 +2285,7 @@ function init(){
   applyFirstRunExperience(justSeeded);
   applyBoardBackground();
   applyHeaderColor();
+  applyUserAvatar();
   reportPageLoadTiming(); // last step of init() — see page-load-telemetry.js for why here specifically
 
   // Reconciles a still-logged-in returning browser the same way the interactive login flow does

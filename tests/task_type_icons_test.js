@@ -37,11 +37,16 @@ function setTaskType(doc, taskTitle, typeName){
   featureRow.querySelector('.kf-tasktype-icon-trigger').click();
   await wait(10);
   const iconOptions = Array.from(featureRow.querySelectorAll('.kf-tasktype-icon-option'));
-  log('icon library has exactly 26 icons (24 activity icons + Feature/Bug)', iconOptions.length === 26, iconOptions.length);
+  log('icon library has exactly 44 icons (24 original activity icons + Feature/Bug + 18 category icons: 3 each for Finance/Travel/IT Service/HR/Health & Safety/Education)', iconOptions.length === 44, iconOptions.length);
   const labels = iconOptions.map(o => o.getAttribute('title'));
   log('library includes "Feature" (sparkle icon)', labels.includes('Feature'), labels.join(','));
   log('library includes "Bug"', labels.includes('Bug'), labels.join(','));
   ['Investigate', 'Document', 'Analyse', 'Procure', 'Audit', 'Report', 'Communicate'].forEach(name => {
+    log('library includes "' + name + '"', labels.includes(name), labels.join(','));
+  });
+  ['Invoice', 'Budget', 'Expense', 'Flight', 'Accommodation', 'Luggage', 'IT Ticket', 'Server',
+   'Network', 'Recruit', 'Onboard', 'Payroll', 'First Aid', 'Safety', 'Hazard', 'Training',
+   'Course', 'Certificate'].forEach(name => {
     log('library includes "' + name + '"', labels.includes(name), labels.join(','));
   });
   featureRow.querySelector('.kf-tasktype-icon-trigger').click();

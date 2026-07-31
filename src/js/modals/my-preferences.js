@@ -1,10 +1,11 @@
 "use strict";
-import { getBoardBackground, setBoardBackground, clearBoardBackground, getHeaderColor, setHeaderColor, clearHeaderColor, getOpeningExperience } from '../storage.js';
+import { getBoardBackground, setBoardBackground, clearBoardBackground, getHeaderColor, setHeaderColor, clearHeaderColor, getOpeningExperience, getUserAvatar, setUserAvatar, clearUserAvatar } from '../storage.js';
 import { toast } from '../ui.js';
 import { contrastTextColor, shadeHexColor } from '../date-utils.js';
 import { openOpeningExperienceModal } from './opening-experience.js';
 
 var MAX_IMAGE_BYTES = 3 * 1024 * 1024; // localStorage is typically 5-10MB total; leave headroom for the rest of state.db.
+var MAX_AVATAR_BYTES = 200 * 1024; // deliberately much tighter than the board-background cap above — an avatar is a small header thumbnail, not a full-viewport image.
 var IMAGE_DISPLAY_SIZE = {fill: 'cover', stretch: '100% 100%', tile: 'auto'};
 var IMAGE_DISPLAY_REPEAT = {fill: 'no-repeat', stretch: 'no-repeat', tile: 'repeat'};
 var DEFAULT_HEADER_COLOR = '#0c2a52'; // matches --kf-navy, the un-customized default
@@ -86,6 +87,25 @@ export function applyBoardBackground(){
   }
 }
 
+/* Applies the persisted avatar to the header — exported so app.js's init() can call it once at
+   startup (alongside applyBoardBackground/applyHeaderColor) and so this modal can update it live
+   the moment a photo is uploaded/removed, without a separate "Save" step. The header element itself
+   (#headerAvatar) sits permanently in the DOM between the Account menu and the Refresh button (see
+   index.html) and is just hidden via kf-vis-hidden when no avatar is set, rather than being
+   created/destroyed — matching every other "optional header element" in this app. */
+export function applyUserAvatar(){
+  var avatar = getUserAvatar();
+  var img = document.getElementById('headerAvatar');
+  if(!img) return;
+  if(avatar){
+    img.src = avatar;
+    img.classList.remove('kf-vis-hidden');
+  } else {
+    img.src = '';
+    img.classList.add('kf-vis-hidden');
+  }
+}
+
 export function openMyPreferencesModal(){
   populateMyPreferencesModal();
   document.getElementById('myPreferencesOverlay').classList.remove('hidden');
@@ -104,6 +124,12 @@ function updateBoardBackgroundFieldVisibility(type){
 }
 
 function populateMyPreferencesModal(){
+  var avatar = getUserAvatar();
+  var avatarPreview = document.getElementById('userAvatarPreviewImg');
+  avatarPreview.src = avatar || '';
+  avatarPreview.classList.toggle('kf-vis-hidden', !avatar);
+  document.getElementById('userAvatarRemoveBtn').classList.toggle('kf-vis-hidden', !avatar);
+
   var headerColor = getHeaderColor();
   document.getElementById('headerColorInput').value = headerColor || DEFAULT_HEADER_COLOR;
   document.getElementById('headerColorResetBtn').classList.toggle('kf-vis-hidden', !headerColor);
@@ -239,6 +265,45 @@ export function removeBoardBackgroundImage(){
   document.getElementById('boardBackgroundFadedCheckbox').checked = false;
   document.getElementById('boardBackgroundFadedCheckbox').disabled = true;
   applyBoardBackground();
+}
+
+export function onUserAvatarFileChange(e){
+  var file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  if(file.type.indexOf('image/') !== 0){
+    toast('Please choose an image file.');
+    return;
+  }
+  if(file.size > MAX_AVATAR_BYTES){
+    toast('That image is too large (max 200KB) — try a smaller file.');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onerror = function(){
+    toast('Could not read that image file.');
+  };
+  reader.onload = function(){
+    if(!setUserAvatar(reader.result)){
+      toast('Could not save that image — it may be too large for local storage.');
+      return;
+    }
+    var avatarPreview = document.getElementById('userAvatarPreviewImg');
+    avatarPreview.src = reader.result;
+    avatarPreview.classList.remove('kf-vis-hidden');
+    document.getElementById('userAvatarRemoveBtn').classList.remove('kf-vis-hidden');
+    applyUserAvatar();
+  };
+  reader.readAsDataURL(file);
+}
+
+export function removeUserAvatar(){
+  clearUserAvatar();
+  var avatarPreview = document.getElementById('userAvatarPreviewImg');
+  avatarPreview.src = '';
+  avatarPreview.classList.add('kf-vis-hidden');
+  document.getElementById('userAvatarRemoveBtn').classList.add('kf-vis-hidden');
+  applyUserAvatar();
 }
 
 export function onHeaderColorChange(){
