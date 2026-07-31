@@ -54,19 +54,20 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   // App Settings was later restructured into categorized ".kf-setting-row" rows — the old
   // ".kf-risk-doc-picker-row" class this looked for doesn't exist anymore. Not every row is a plain
   // checkbox toggle either (e.g. "Authentication and Provisioning" links out to SSO/SAML/SCIM config
-  // instead), so rows with no <input> are filtered out rather than assumed away. The expected order
-  // below was also stale — Time Tracking, Sub-Tasks, Change Auditing, Retrospectives, and Strategy
-  // were added to App Settings since this list was written, without updating it. Strategy was later
-  // moved to the top of the Governance category (2026-07-29), ahead of Principles. Forms & Workflow
-  // (Enterprise category, Org-Admin-only) landed after that — and the whole Enterprise category was
-  // then moved to its own full-width block BELOW .kf-settings-columns (rather than living inside the
-  // left column), so Forms is now last in raw DOM order, after Teams and Committees. Portfolio
-  // Planner (also Enterprise, also Org-Admin-only) landed right after Forms, and Portals (Enterprise,
-  // Org-Admin-only, dependent on Forms being enabled) landed right after Portfolio Planner.
+  // instead, and Import Centre is a plain button), so rows with no <input> are filtered out rather
+  // than assumed away. The expected order below was also stale — Time Tracking, Sub-Tasks, Change
+  // Auditing, Retrospectives, and Strategy were added to App Settings since this list was written,
+  // without updating it. Strategy was later moved to the top of the Governance category
+  // (2026-07-29), ahead of Principles. The Enterprise category (Org-Admin-only) was then moved to
+  // its own full-width block below .kf-settings-columns and split into two explicit side-by-side
+  // columns (2026-07-31, Import Centre's own build): left column = SSO/Import Centre (Import
+  // Centre has no checkbox, so it drops out of this input-only list); right column = Portfolio
+  // Planner, Forms & Workflow, Portals, in that order — so Portfolio Planner now comes immediately
+  // after Teams and Committees, ahead of Forms.
   const settingsRows = Array.from(doc.querySelectorAll('#appSettingsOverlay .kf-setting-row'));
   const rowIds = settingsRows.map(r => r.querySelector('input')).filter(Boolean).map(input => input.id);
   log('App Settings order matches the current header button order (Health Dashboard first, then the rest of App Settings’ own categorized order)',
-      rowIds.join(',') === 'settingsShowHealthBtn,settingsShowDocumentsBtn,settingsShowDashboardsBtn,settingsShowWorkflowBtn,settingsShowTimeTrackingBtn,settingsShowSubTasksBtn,settingsShowChangeAuditingBtn,settingsShowStrategyBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowRetrospectiveBtn,settingsShowTeamsCommitteesBtn,settingsShowFormsBtn,settingsShowPortfolioPlannerBtn,settingsShowPortalsBtn',
+      rowIds.join(',') === 'settingsShowHealthBtn,settingsShowDocumentsBtn,settingsShowDashboardsBtn,settingsShowWorkflowBtn,settingsShowTimeTrackingBtn,settingsShowSubTasksBtn,settingsShowChangeAuditingBtn,settingsShowStrategyBtn,settingsShowPrinciplesBtn,settingsShowObjectivesBtn,settingsShowRisksBtn,settingsShowDecisionsBtn,settingsShowRetrospectiveBtn,settingsShowTeamsCommitteesBtn,settingsShowPortfolioPlannerBtn,settingsShowFormsBtn,settingsShowPortalsBtn',
       rowIds.join(','));
 
   console.log('\nHealth button rename/reposition/icon test complete.');
