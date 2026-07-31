@@ -224,6 +224,18 @@ export function ssoExchangeApi(code){
   return apiFetch('/auth/sso-exchange', {method: 'POST', body: JSON.stringify({code: code})});
 }
 
+/* Server-persisted avatar/header-colour, kept in sync with the localStorage copy (see
+   storage.js's getUserAvatar/getHeaderColor) so a signed-in user's personalization follows them
+   across browsers/devices — see modals/my-preferences.js's syncPreferencesToServer, called after
+   every local change while logged in, and features/migration.js's login/SSO-exchange handling,
+   which pulls these back down from the login response and applies them on this browser too. */
+export function getUserPreferencesApi(){
+  return apiFetch('/users/me/preferences', {method: 'GET'});
+}
+export function saveUserPreferencesApi(avatar, headerColour){
+  return apiFetch('/users/me/preferences', {method: 'PUT', body: JSON.stringify({avatar: avatar, headerColour: headerColour})});
+}
+
 /* Anonymous, unauthenticated real-user-monitoring beacon — see features/page-load-telemetry.js for
    what durationMs measures and why. Works identically whether or not this browser happens to have a
    token attached (TelemetryController never looks at it either way). */

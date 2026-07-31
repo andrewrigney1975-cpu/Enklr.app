@@ -30,4 +30,7 @@ public class User
     public Guid SecurityStamp { get; set; } = Guid.NewGuid();
 
     public List<ProjectMember> ProjectMemberships { get; set; } = new();
+
+    // 1:1 — null until the user first saves an avatar/header colour in My Preferences.
+    public UserPreferences? Preferences { get; set; }
 }

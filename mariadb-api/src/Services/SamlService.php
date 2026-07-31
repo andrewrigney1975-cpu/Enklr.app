@@ -114,8 +114,9 @@ final class SamlService
     {
         $normalizedEmail = EmailAddressNormalizer::normalize($email);
         $stmt = $this->db->prepare(<<<SQL
-            SELECT u.*, o."Name" AS "OrganisationName" FROM "Users" u
+            SELECT u.*, o."Name" AS "OrganisationName", p."Avatar", p."HeaderColour" FROM "Users" u
             JOIN "Organisations" o ON o."Id" = u."OrganisationId"
+            LEFT JOIN "UserPreferences" p ON p."UserId" = u."Id"
             WHERE u."NormalizedEmailAddress" = :n LIMIT 1
         SQL);
         $stmt->execute(['n' => $normalizedEmail]);
@@ -152,6 +153,8 @@ final class SamlService
                 // (0/1), never a native bool the way PDO_PGSQL always does — explicit cast keeps
                 // this real JSON true/false, matching the other two tiers' response shape.
                 'mustChangePassword' => (bool) $user['MustChangePassword'],
+                'avatar' => $user['Avatar'] ?? null,
+                'headerColour' => $user['HeaderColour'] ?? null,
             ],
         ]);
 

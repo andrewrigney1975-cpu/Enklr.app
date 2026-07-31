@@ -54,6 +54,7 @@ use Enkl\Api\Controllers\TeamsCommitteesController;
 use Enkl\Api\Controllers\TelemetryController;
 use Enkl\Api\Controllers\TemplatesController;
 use Enkl\Api\Controllers\ToDoController;
+use Enkl\Api\Controllers\UsersController;
 use Enkl\Api\Controllers\WhiteboardController;
 use Slim\App;
 
@@ -379,6 +380,13 @@ function registerRoutes(App $app): void
         $group->post('/{listId}/items', [ToDoController::class, 'createItem']);
         $group->put('/{listId}/items/{itemId}', [ToDoController::class, 'updateItem']);
         $group->delete('/{listId}/items/{itemId}', [ToDoController::class, 'deleteItem']);
+    })->add(RequireAuthMiddleware::class);
+
+    // ---- User Preferences (per-User, not per-Project/per-Organisation — same "just needs to be
+    // signed in as yourself" gating as /api/todo-lists above, no ProjectMemberMiddleware/OrgAdminMiddleware) ----
+    $app->group('/api/users/me', function ($group) {
+        $group->get('/preferences', [UsersController::class, 'getPreferences']);
+        $group->put('/preferences', [UsersController::class, 'updatePreferences']);
     })->add(RequireAuthMiddleware::class);
 
     // ---- Projects (list/detail/create need only auth; everything under {projectId} needs membership) ----

@@ -2,6 +2,7 @@
 import { state, saveDB, createDefaultProject } from '../storage.js';
 import { buildExportDoc } from './export.js';
 import { migrateProjectApi, loginApi, ssoExchangeApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, updateColumnApi, deleteColumnApi, releaseApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi, getTodoListsApi, createTodoListApi, renameTodoListApi, deleteTodoListApi, createTodoItemApi, updateTodoItemApi, deleteTodoItemApi } from '../api.js';
+import { applyServerUserPreferences } from '../modals/my-preferences.js';
 import { isoToServerDateOnly, serverDateOnlyToIso } from '../date-utils.js';
 import { getReleaseById } from '../utils.js';
 
@@ -70,6 +71,7 @@ export async function loginToServer(username, password){
   try {
     var result = await loginApi(username, password);
     setToken(result.token);
+    applyServerUserPreferences(result.user);
     _toast('Logged in as ' + result.user.displayName + '.');
     return result;
   } catch(e){
@@ -86,6 +88,7 @@ export async function completeSsoLogin(code){
   try {
     var result = await ssoExchangeApi(code);
     setToken(result.token);
+    applyServerUserPreferences(result.user);
     _toast('Logged in as ' + result.user.displayName + '.');
     return result;
   } catch(e){

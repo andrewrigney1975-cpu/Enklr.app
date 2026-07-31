@@ -39,9 +39,10 @@ final class AuthController extends BaseController
 
         $db = Database::connection();
         $stmt = $db->prepare(<<<SQL
-            SELECT u.*, o."Name" AS "OrganisationName", c."RequireSso" FROM "Users" u
+            SELECT u.*, o."Name" AS "OrganisationName", c."RequireSso", p."Avatar", p."HeaderColour" FROM "Users" u
             JOIN "Organisations" o ON o."Id" = u."OrganisationId"
             LEFT JOIN "OrganisationSsoConfigs" c ON c."OrganisationId" = u."OrganisationId"
+            LEFT JOIN "UserPreferences" p ON p."UserId" = u."Id"
             WHERE u."NormalizedUsername" = :n LIMIT 1
         SQL);
         $stmt->execute(['n' => $normalized]);
@@ -84,6 +85,8 @@ final class AuthController extends BaseController
                 // here so this stays real JSON true/false, not 1/0, matching the other two tiers'
                 // response shape exactly (and passing this tier's own AuthTest's strict assertTrue()).
                 'mustChangePassword' => (bool) $user['MustChangePassword'],
+                'avatar' => $user['Avatar'] ?? null,
+                'headerColour' => $user['HeaderColour'] ?? null,
             ],
         ]);
     }
@@ -172,7 +175,7 @@ final class AuthController extends BaseController
         $db->prepare('UPDATE "Users" SET "PasswordHash" = :hash, "MustChangePassword" = false, "SecurityStamp" = :stamp WHERE "Id" = :id')
             ->execute(['hash' => PasswordHasher::hash($newPassword), 'stamp' => Uuid::v4(), 'id' => $userId]);
 
-        $stmt = $db->prepare('SELECT u.*, o."Name" AS "OrganisationName" FROM "Users" u JOIN "Organisations" o ON o."Id" = u."OrganisationId" WHERE u."Id" = :id');
+        $stmt = $db->prepare('SELECT u.*, o."Name" AS "OrganisationName", p."Avatar", p."HeaderColour" FROM "Users" u JOIN "Organisations" o ON o."Id" = u."OrganisationId" LEFT JOIN "UserPreferences" p ON p."UserId" = u."Id" WHERE u."Id" = :id');
         $stmt->execute(['id' => $userId]);
         $user = $stmt->fetch();
 
@@ -194,6 +197,8 @@ final class AuthController extends BaseController
                 // here so this stays real JSON true/false, not 1/0, matching the other two tiers'
                 // response shape exactly (and passing this tier's own AuthTest's strict assertTrue()).
                 'mustChangePassword' => (bool) $user['MustChangePassword'],
+                'avatar' => $user['Avatar'] ?? null,
+                'headerColour' => $user['HeaderColour'] ?? null,
             ],
         ]);
     }

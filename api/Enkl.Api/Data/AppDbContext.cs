@@ -28,6 +28,7 @@ public class AppDbContext : DbContext
     public DbSet<TeamCommittee> TeamsCommittees => Set<TeamCommittee>();
     public DbSet<Decision> Decisions => Set<Decision>();
     public DbSet<OrganisationSsoConfig> OrganisationSsoConfigs => Set<OrganisationSsoConfig>();
+    public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
     public DbSet<OrgTeam> OrgTeams => Set<OrgTeam>();
     public DbSet<Retrospective> Retrospectives => Set<Retrospective>();
     public DbSet<RetrospectiveParticipant> RetrospectiveParticipants => Set<RetrospectiveParticipant>();

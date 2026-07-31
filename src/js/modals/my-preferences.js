@@ -3,6 +3,7 @@ import { getBoardBackground, setBoardBackground, clearBoardBackground, getHeader
 import { toast } from '../ui.js';
 import { contrastTextColor, shadeHexColor } from '../date-utils.js';
 import { openOpeningExperienceModal } from './opening-experience.js';
+import { isLoggedIn, saveUserPreferencesApi } from '../api.js';
 
 var MAX_IMAGE_BYTES = 3 * 1024 * 1024; // localStorage is typically 5-10MB total; leave headroom for the rest of state.db.
 var MAX_AVATAR_BYTES = 200 * 1024; // deliberately much tighter than the board-background cap above — an avatar is a small header thumbnail, not a full-viewport image.
@@ -104,6 +105,32 @@ export function applyUserAvatar(){
     img.src = '';
     img.classList.add('kf-vis-hidden');
   }
+}
+
+/* Server-side avatar/headerColour are a signed-in-only sync layer over the same localStorage keys
+   this whole file otherwise treats as the source of truth — this app is local-first and both
+   settings already work with no login at all (see storage.js). Fire-and-forget, same "must never
+   surface to the user or affect anything else the app does" contract as
+   features/page-load-telemetry.js's reportPageLoadTiming: a save that races a logout, or a flaky
+   connection, should never block/interrupt the (already-applied) local change. */
+export function syncPreferencesToServer(){
+  if(!isLoggedIn()) return;
+  saveUserPreferencesApi(getUserAvatar(), getHeaderColor()).catch(function(){});
+}
+
+/* Called once at login (see features/migration.js's loginToServer/completeSsoLogin) with the
+   user object the login/SSO-exchange response carries, to pull this browser's avatar/headerColour
+   up to date with whatever was last saved from ANY browser/device for this account. Only overwrites
+   a local value when the server actually has one — a user who customized their avatar locally
+   before ever logging in, on an account with no server-side row yet, keeps that local choice rather
+   than having it silently cleared by an empty server response (their next save uploads it, per
+   syncPreferencesToServer above). */
+export function applyServerUserPreferences(user){
+  if(!user) return;
+  if(user.avatar) setUserAvatar(user.avatar);
+  if(user.headerColour) setHeaderColor(user.headerColour);
+  applyUserAvatar();
+  applyHeaderColor();
 }
 
 export function openMyPreferencesModal(){
@@ -293,6 +320,7 @@ export function onUserAvatarFileChange(e){
     avatarPreview.classList.remove('kf-vis-hidden');
     document.getElementById('userAvatarRemoveBtn').classList.remove('kf-vis-hidden');
     applyUserAvatar();
+    syncPreferencesToServer();
   };
   reader.readAsDataURL(file);
 }
@@ -304,12 +332,14 @@ export function removeUserAvatar(){
   avatarPreview.classList.add('kf-vis-hidden');
   document.getElementById('userAvatarRemoveBtn').classList.add('kf-vis-hidden');
   applyUserAvatar();
+  syncPreferencesToServer();
 }
 
 export function onHeaderColorChange(){
   setHeaderColor(document.getElementById('headerColorInput').value);
   document.getElementById('headerColorResetBtn').classList.remove('kf-vis-hidden');
   applyHeaderColor();
+  syncPreferencesToServer();
 }
 
 export function resetHeaderColor(){
@@ -317,6 +347,7 @@ export function resetHeaderColor(){
   document.getElementById('headerColorInput').value = DEFAULT_HEADER_COLOR;
   document.getElementById('headerColorResetBtn').classList.add('kf-vis-hidden');
   applyHeaderColor();
+  syncPreferencesToServer();
 }
 
 export function changeDefaultViewFromPreferences(){

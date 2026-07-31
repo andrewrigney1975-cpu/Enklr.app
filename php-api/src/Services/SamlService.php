@@ -114,8 +114,9 @@ final class SamlService
     {
         $normalizedEmail = EmailAddressNormalizer::normalize($email);
         $stmt = $this->db->prepare(<<<SQL
-            SELECT u.*, o."Name" AS "OrganisationName" FROM "Users" u
+            SELECT u.*, o."Name" AS "OrganisationName", p."Avatar", p."HeaderColour" FROM "Users" u
             JOIN "Organisations" o ON o."Id" = u."OrganisationId"
+            LEFT JOIN "UserPreferences" p ON p."UserId" = u."Id"
             WHERE u."NormalizedEmailAddress" = :n LIMIT 1
         SQL);
         $stmt->execute(['n' => $normalizedEmail]);
@@ -149,6 +150,8 @@ final class SamlService
                 'username' => $user['Username'],
                 'displayName' => $user['DisplayName'],
                 'mustChangePassword' => $user['MustChangePassword'],
+                'avatar' => $user['Avatar'] ?? null,
+                'headerColour' => $user['HeaderColour'] ?? null,
             ],
         ]);
 

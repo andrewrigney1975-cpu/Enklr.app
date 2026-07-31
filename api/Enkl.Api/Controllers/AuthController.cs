@@ -43,6 +43,7 @@ public class AuthController : ControllerBase
     {
         var normalized = UsernameNormalizer.Normalize(request.Username);
         var user = await _db.Users.Include(u => u.Organisation).ThenInclude(o => o.SsoConfig)
+            .Include(u => u.Preferences)
             .FirstOrDefaultAsync(u => u.NormalizedUsername == normalized);
         if (user is null || !user.IsActive)
         {
@@ -70,7 +71,7 @@ public class AuthController : ControllerBase
         var memberships = await _db.ProjectMembers.Where(m => m.UserId == user.Id).ToListAsync();
         var (token, expiresAt) = _jwt.GenerateToken(user, memberships);
 
-        return Ok(new LoginResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword)));
+        return Ok(new LoginResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword, user.Preferences?.Avatar, user.Preferences?.HeaderColour)));
     }
 
     /// <summary>
@@ -124,7 +125,8 @@ public class AuthController : ControllerBase
         }
 
         var userId = User.UserId();
-        var user = await _db.Users.Include(u => u.Organisation).FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await _db.Users.Include(u => u.Organisation).Include(u => u.Preferences)
+            .FirstOrDefaultAsync(u => u.Id == userId);
         if (user is null || user.PasswordHash is null || !PasswordHasher.Verify(request.CurrentPassword, user.PasswordHash))
         {
             return Unauthorized(new { message = "Current password is incorrect." });
@@ -144,6 +146,6 @@ public class AuthController : ControllerBase
         var memberships = await _db.ProjectMembers.Where(m => m.UserId == user.Id).ToListAsync();
         var (token, expiresAt) = _jwt.GenerateToken(user, memberships);
 
-        return Ok(new LoginResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword)));
+        return Ok(new LoginResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword, user.Preferences?.Avatar, user.Preferences?.HeaderColour)));
     }
 }

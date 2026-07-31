@@ -75,7 +75,7 @@ public class SamlService
     public async Task<SamlAcsResult> ProcessAssertionAsync(Guid orgId, OrganisationSsoConfig ssoConfig, string email, string? displayNameHint)
     {
         var normalizedEmail = EmailAddressNormalizer.Normalize(email);
-        var user = await _db.Users.AsNoTracking().Include(u => u.Organisation)
+        var user = await _db.Users.AsNoTracking().Include(u => u.Organisation).Include(u => u.Preferences)
             .FirstOrDefaultAsync(u => u.NormalizedEmailAddress == normalizedEmail);
 
         if (user is not null && user.OrganisationId != orgId)
@@ -93,7 +93,7 @@ public class SamlService
 
         var memberships = await _db.ProjectMembers.AsNoTracking().Where(m => m.UserId == user.Id).ToListAsync();
         var (token, expiresAt) = _jwt.GenerateToken(user, memberships);
-        var response = new SsoExchangeResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword));
+        var response = new SsoExchangeResponse(token, expiresAt, new UserDto(user.Id, user.Username, user.DisplayName, user.MustChangePassword, user.Preferences?.Avatar, user.Preferences?.HeaderColour));
         return new SamlAcsResult(SamlAcsOutcome.Success, _exchange.Issue(JsonSerializer.Serialize(response)));
     }
 
