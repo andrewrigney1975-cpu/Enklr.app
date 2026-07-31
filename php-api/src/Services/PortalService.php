@@ -378,6 +378,21 @@ final class PortalService
         return $stmt->rowCount() > 0;
     }
 
+    /** Ported from PortalService.ReorderTopicAsync. Moves a Topic up/down among all of a Portal's
+     * own topics — see applyReorder()'s own doc comment for the renumber-then-swap self-healing
+     * this relies on. A Topic's own QaEntries are untouched by this — they stay tagged to this topic
+     * via PortalTopicId regardless of the topic's Order, so they visually move WITH their topic for
+     * free once the frontend groups entries under topics in topic-Order sequence. */
+    public function reorderTopic(string $organisationId, string $portalId, string $topicId, string $direction): bool
+    {
+        if (!$this->ownsPortal($organisationId, $portalId)) {
+            return false;
+        }
+        $stmt = $this->db->prepare('SELECT "Id" FROM "PortalTopics" WHERE "PortalId" = :portalId ORDER BY "Order", "DateCreated"');
+        $stmt->execute(['portalId' => $portalId]);
+        return $this->applyReorder(array_column($stmt->fetchAll(), 'Id'), $topicId, $direction, 'PortalTopics');
+    }
+
     public function listQaEntries(string $organisationId, string $portalId): ?array
     {
         if (!$this->ownsPortal($organisationId, $portalId)) {
@@ -410,7 +425,7 @@ final class PortalService
             'id' => $entryId, 'portalId' => $portalId, 'topicId' => $topicId, 'question' => $question,
             'answer' => $answer, 'order' => $order, 'createdBy' => $callerUserId,
         ]);
-        return ['id' => $entryId, 'portalTopicId' => $topicId, 'question' => $question, 'answer' => $answer, 'order' => $order];
+        return ['id' => $entryId, 'portalTopicId' => $topicId, 'question' => $question, 'answer' => $answer, 'order' => $order, 'nps' => 0];
     }
 
     public function updateQaEntry(string $organisationId, string $portalId, string $entryId, array $request): ?array
@@ -434,7 +449,10 @@ final class PortalService
         if ($stmt->rowCount() === 0) {
             return null;
         }
-        return ['id' => $entryId, 'portalTopicId' => $topicId, 'question' => $question, 'answer' => $answer, 'order' => $order];
+        $npsStmt = $this->db->prepare('SELECT "Nps" FROM "PortalQaEntries" WHERE "Id" = :id');
+        $npsStmt->execute(['id' => $entryId]);
+        $nps = (int) $npsStmt->fetchColumn();
+        return ['id' => $entryId, 'portalTopicId' => $topicId, 'question' => $question, 'answer' => $answer, 'order' => $order, 'nps' => $nps];
     }
 
     public function deleteQaEntry(string $organisationId, string $portalId, string $entryId): bool
@@ -445,6 +463,71 @@ final class PortalService
         $stmt = $this->db->prepare('DELETE FROM "PortalQaEntries" WHERE "Id" = :id AND "PortalId" = :portalId');
         $stmt->execute(['id' => $entryId, 'portalId' => $portalId]);
         return $stmt->rowCount() > 0;
+    }
+
+    /** Ported from PortalService.ReorderQaEntryAsync. Moves an entry up/down among its own siblings
+     * only — same PortalTopicId (including the ungrouped/null bucket) — matching how the admin Q&A
+     * tab groups entries under topic headers; an entry never reorders across topics this way (moving
+     * it to a different topic is what updateQaEntry's own portalTopicId field is for). */
+    public function reorderQaEntry(string $organisationId, string $portalId, string $entryId, string $direction): bool
+    {
+        if (!$this->ownsPortal($organisationId, $portalId)) {
+            return false;
+        }
+        $lookup = $this->db->prepare('SELECT "PortalTopicId" FROM "PortalQaEntries" WHERE "Id" = :id AND "PortalId" = :portalId');
+        $lookup->execute(['id' => $entryId, 'portalId' => $portalId]);
+        $row = $lookup->fetch();
+        if ($row === false) {
+            return false;
+        }
+
+        if ($row['PortalTopicId'] === null) {
+            $stmt = $this->db->prepare('SELECT "Id" FROM "PortalQaEntries" WHERE "PortalId" = :portalId AND "PortalTopicId" IS NULL ORDER BY "Order", "DateCreated"');
+            $stmt->execute(['portalId' => $portalId]);
+        } else {
+            $stmt = $this->db->prepare('SELECT "Id" FROM "PortalQaEntries" WHERE "PortalId" = :portalId AND "PortalTopicId" = :topicId ORDER BY "Order", "DateCreated"');
+            $stmt->execute(['portalId' => $portalId, 'topicId' => $row['PortalTopicId']]);
+        }
+        return $this->applyReorder(array_column($stmt->fetchAll(), 'Id'), $entryId, $direction, 'PortalQaEntries');
+    }
+
+    /** Shared swap-with-neighbor logic for both reorder methods above — `$ids` must already be
+     * sorted in the caller's intended current order. Renumbers every row to 0..n-1 first (so
+     * stale/duplicate Order values from before this feature existed self-heal — new topics/entries
+     * are always created with Order=0, see createTopic/createQaEntry above, unchanged by this
+     * feature), then swaps the target with its "up"/"down" neighbor. Returns false without writing
+     * anything if the target isn't in the list or is already at the edge in that direction — the
+     * frontend already disables the button at the edges, so this is just a safety no-op, not a
+     * user-facing error path. `$table` is always one of the two literal strings passed by this
+     * class's own two call sites, never client-supplied — safe to interpolate directly since PDO
+     * can't parameterize identifiers. */
+    private function applyReorder(array $ids, string $targetId, string $direction, string $table): bool
+    {
+        $index = array_search($targetId, $ids, true);
+        if ($index === false) {
+            return false;
+        }
+        $swapIndex = $direction === 'up' ? $index - 1 : $index + 1;
+        if ($swapIndex < 0 || $swapIndex >= count($ids)) {
+            return false;
+        }
+
+        [$ids[$index], $ids[$swapIndex]] = [$ids[$swapIndex], $ids[$index]];
+
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare("UPDATE \"{$table}\" SET \"Order\" = :order, \"DateLastModified\" = now() WHERE \"Id\" = :id");
+            foreach ($ids as $i => $id) {
+                $stmt->execute(['order' => $i, 'id' => $id]);
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+        return true;
     }
 
     private function ownsPortal(string $organisationId, string $portalId): bool
@@ -473,7 +556,7 @@ final class PortalService
     {
         return [
             'id' => $e['Id'], 'portalTopicId' => $e['PortalTopicId'], 'question' => $e['Question'],
-            'answer' => $e['Answer'], 'order' => (int) $e['Order'],
+            'answer' => $e['Answer'], 'order' => (int) $e['Order'], 'nps' => (int) $e['Nps'],
         ];
     }
 }

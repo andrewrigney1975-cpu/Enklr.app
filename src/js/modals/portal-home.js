@@ -26,6 +26,12 @@ var currentAwaiting = [];
 var currentQa = null; // {topics, entries}
 var detail = null; // {mode: 'new'|'draft'|'approve', form, fields, submissionId, submission}
 var expandedQaEntryIds = {};
+/* Session-only — which entries this tab has already voted on, and which way, purely to disable the
+   buttons after one vote and avoid accidental repeat clicks. Not persisted (a page reload lets the
+   user vote again); the server enforces no per-user uniqueness at all (see
+   PortalHomeService.VoteQaEntryNpsAsync's own doc comment — a deliberately simple tally, not a
+   per-user ledger), so this is purely a UI courtesy, not a real restriction. */
+var votedQaEntryIds = {};
 var qaSearchTerm = '';
 var formsSearchTerm = '';
 
@@ -303,17 +309,37 @@ function renderPortalHomeQa(){
       renderPortalHomeQa();
     });
   });
+  list.querySelectorAll('[data-vote-qa-entry]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var id = btn.getAttribute('data-vote-qa-entry');
+      var direction = btn.getAttribute('data-vote-direction');
+      portalHomeApi.voteQaEntryNps(currentPortal.id, id, direction).then(function(){
+        votedQaEntryIds[id] = direction;
+        toast('Thanks for your feedback!');
+        renderPortalHomeQa();
+      }, function(err){ toast('Could not record your feedback: ' + (err.message || 'unknown error')); });
+    });
+  });
   hydrateIcons(list);
 }
 
 function renderPortalQaEntryHTML(e, forceExpanded){
   var expanded = forceExpanded || !!expandedQaEntryIds[e.id];
+  var voted = votedQaEntryIds[e.id]; // undefined | 'up' | 'down'
   return '<div class="kf-portal-qa-entry' + (expanded ? ' expanded' : '') + '">' +
     '<div class="kf-portal-qa-question" data-qa-entry-id="' + e.id + '">' +
       '<span>' + escapeHTML(e.question) + '</span>' +
       iconSvg('chevronRight', 14) +
     '</div>' +
-    '<div class="kf-portal-qa-answer' + (expanded ? '' : ' hidden') + '"><div class="kf-richtext-content">' + markdownToHtml(e.answer || '') + '</div></div>' +
+    '<div class="kf-portal-qa-answer' + (expanded ? '' : ' hidden') + '">' +
+      '<div class="kf-richtext-content">' + markdownToHtml(e.answer || '') + '</div>' +
+      '<div class="kf-portal-qa-feedback">' +
+        '<span>Was this helpful?</span>' +
+        '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm' + (voted === 'up' ? ' kf-portal-qa-voted' : '') + '" data-vote-qa-entry="' + e.id + '" data-vote-direction="up" title="Yes" ' + (voted ? 'disabled' : '') + '>' + iconSvg('thumbsUp', 14) + '</button>' +
+        '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm' + (voted === 'down' ? ' kf-portal-qa-voted' : '') + '" data-vote-qa-entry="' + e.id + '" data-vote-direction="down" title="No" ' + (voted ? 'disabled' : '') + '>' + iconSvg('thumbsDown', 14) + '</button>' +
+      '</div>' +
+    '</div>' +
   '</div>';
 }
 

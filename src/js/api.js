@@ -828,6 +828,11 @@ export var portalsApi = {
   deleteTopic: function(portalId, topicId){
     return apiFetch('/organisations/me/portals/' + portalId + '/topics/' + topicId, {method: 'DELETE'});
   },
+  /* direction: "up" or "down" — see PortalService.ReorderTopicAsync for the swap-with-neighbor
+     semantics (a no-op at either edge, not a client-facing error). */
+  reorderTopic: function(portalId, topicId, direction){
+    return apiFetch('/organisations/me/portals/' + portalId + '/topics/' + topicId + '/reorder', {method: 'POST', body: JSON.stringify({direction: direction})});
+  },
   listQaEntries: function(portalId){
     return apiFetch('/organisations/me/portals/' + portalId + '/qa-entries', {method: 'GET'});
   },
@@ -839,6 +844,11 @@ export var portalsApi = {
   },
   deleteQaEntry: function(portalId, entryId){
     return apiFetch('/organisations/me/portals/' + portalId + '/qa-entries/' + entryId, {method: 'DELETE'});
+  },
+  /* direction: "up" or "down" — entries reorder among their own siblings only (same topic, or the
+     ungrouped bucket), see PortalService.ReorderQaEntryAsync. */
+  reorderQaEntry: function(portalId, entryId, direction){
+    return apiFetch('/organisations/me/portals/' + portalId + '/qa-entries/' + entryId + '/reorder', {method: 'POST', body: JSON.stringify({direction: direction})});
   }
 };
 
@@ -870,6 +880,11 @@ export var portalHomeApi = {
   },
   listQa: function(portalId){
     return apiFetch('/portals/' + portalId + '/qa', {method: 'GET'});
+  },
+  /* direction: "up" (+1) or anything else (-1) — a simple thumbs-up/down tally, no per-user vote
+     tracking (see PortalHomeService.VoteQaEntryNpsAsync). */
+  voteQaEntryNps: function(portalId, entryId, direction){
+    return apiFetch('/portals/' + portalId + '/qa-entries/' + entryId + '/vote', {method: 'POST', body: JSON.stringify({direction: direction})});
   },
   createSubmission: function(portalId, formVersionId, answersJson){
     return apiFetch('/portals/' + portalId + '/submissions', {method: 'POST', body: JSON.stringify({formVersionId: formVersionId, answersJson: answersJson || null})});

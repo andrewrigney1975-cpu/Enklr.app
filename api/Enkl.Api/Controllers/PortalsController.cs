@@ -141,6 +141,13 @@ public class PortalsController : ControllerBase
         return removed ? NoContent() : NotFound();
     }
 
+    [HttpPost("{portalId:guid}/topics/{topicId:guid}/reorder")]
+    public async Task<IActionResult> ReorderTopic(Guid portalId, Guid topicId, ReorderRequest request)
+    {
+        var ok = await _portals.ReorderTopicAsync(User.OrgId(), portalId, topicId, request.Direction);
+        return ok ? NoContent() : NotFound();
+    }
+
     [HttpGet("{portalId:guid}/qa-entries")]
     public async Task<IActionResult> ListQaEntries(Guid portalId)
     {
@@ -167,5 +174,12 @@ public class PortalsController : ControllerBase
     {
         var removed = await _portals.DeleteQaEntryAsync(User.OrgId(), portalId, entryId);
         return removed ? NoContent() : NotFound();
+    }
+
+    [HttpPost("{portalId:guid}/qa-entries/{entryId:guid}/reorder")]
+    public async Task<IActionResult> ReorderQaEntry(Guid portalId, Guid entryId, ReorderRequest request)
+    {
+        var ok = await _portals.ReorderQaEntryAsync(User.OrgId(), portalId, entryId, request.Direction);
+        return ok ? NoContent() : NotFound();
     }
 }

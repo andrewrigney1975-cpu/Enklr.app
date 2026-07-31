@@ -276,10 +276,12 @@ function registerRoutes(App $app): void
         $group->post('/{portalId}/topics', [PortalsController::class, 'createTopic']);
         $group->put('/{portalId}/topics/{topicId}', [PortalsController::class, 'updateTopic']);
         $group->delete('/{portalId}/topics/{topicId}', [PortalsController::class, 'deleteTopic']);
+        $group->post('/{portalId}/topics/{topicId}/reorder', [PortalsController::class, 'reorderTopic']);
         $group->get('/{portalId}/qa-entries', [PortalsController::class, 'listQaEntries']);
         $group->post('/{portalId}/qa-entries', [PortalsController::class, 'createQaEntry']);
         $group->put('/{portalId}/qa-entries/{entryId}', [PortalsController::class, 'updateQaEntry']);
         $group->delete('/{portalId}/qa-entries/{entryId}', [PortalsController::class, 'deleteQaEntry']);
+        $group->post('/{portalId}/qa-entries/{entryId}/reorder', [PortalsController::class, 'reorderQaEntry']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Organisational Portals: end-user-facing surface, RequireAuthMiddleware only (no
@@ -292,6 +294,7 @@ function registerRoutes(App $app): void
         $group->get('/{portalId}/forms', [PortalHomeController::class, 'listAvailableForms']);
         $group->get('/{portalId}/submissions', [PortalHomeController::class, 'listMySubmissions']);
         $group->get('/{portalId}/qa', [PortalHomeController::class, 'listQa']);
+        $group->post('/{portalId}/qa-entries/{entryId}/vote', [PortalHomeController::class, 'voteQaEntryNps']);
         $group->get('/{portalId}/submissions/awaiting-me', [PortalHomeController::class, 'listAwaitingMyAction']);
         $group->get('/{portalId}/submissions/{submissionId}', [PortalHomeController::class, 'getSubmission']);
         $group->post('/{portalId}/submissions', [PortalHomeController::class, 'createSubmission']);

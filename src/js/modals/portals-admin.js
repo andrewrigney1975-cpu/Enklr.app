@@ -555,10 +555,15 @@ function loadAndRenderPortalQaTab(){
 
 function renderPortalQaList(topics, entries){
   document.getElementById('portalQaEmpty').classList.toggle('hidden', entries.length > 0 || topics.length > 0);
-  var topicTitleById = {};
-  topics.forEach(function(t){ topicTitleById[t.id] = t.title; });
 
-  var groups = topics.map(function(t){ return {topic: t, entries: entries.filter(function(e){ return e.portalTopicId === t.id; })}; });
+  // Topics reorder among ALL of a Portal's own topics — isFirst/isLast computed across this whole
+  // list, matching PortalService.ReorderTopicAsync's own scope (never per-group).
+  var groups = topics.map(function(t, i){
+    return {
+      topic: t, isFirst: i === 0, isLast: i === topics.length - 1,
+      entries: entries.filter(function(e){ return e.portalTopicId === t.id; })
+    };
+  });
   var ungrouped = entries.filter(function(e){ return !e.portalTopicId; });
 
   var html = groups.map(renderPortalQaGroupHTML).join('') + (ungrouped.length ? renderPortalQaEntriesHTML(ungrouped) : '');
@@ -585,7 +590,24 @@ function renderPortalQaList(topics, entries){
       portalsApi.deleteTopic(editingPortal.id, btn.getAttribute('data-delete-qa-topic')).then(loadAndRenderPortalQaTab, function(e){ _toast('Could not delete topic: ' + (e.message || 'unknown error')); });
     });
   });
+  list.querySelectorAll('[data-move-qa-topic]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      portalsApi.reorderTopic(editingPortal.id, btn.getAttribute('data-move-qa-topic'), btn.getAttribute('data-move-direction'))
+        .then(loadAndRenderPortalQaTab, function(e){ _toast('Could not reorder topic: ' + (e.message || 'unknown error')); });
+    });
+  });
+  list.querySelectorAll('[data-move-qa-entry]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      portalsApi.reorderQaEntry(editingPortal.id, btn.getAttribute('data-move-qa-entry'), btn.getAttribute('data-move-direction'))
+        .then(loadAndRenderPortalQaTab, function(e){ _toast('Could not reorder entry: ' + (e.message || 'unknown error')); });
+    });
+  });
   hydrateIcons(list);
+}
+
+function renderMoveButtonsHTML(kind, id, isFirst, isLast){
+  return '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-qa-' + kind + '="' + id + '" data-move-direction="up" title="Move up"' + (isFirst ? ' disabled' : '') + '><span class="kf-icon" style="transform:rotate(90deg);">' + iconSvg('chevronLeft', 13) + '</span></button>' +
+    '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm" data-move-qa-' + kind + '="' + id + '" data-move-direction="down" title="Move down"' + (isLast ? ' disabled' : '') + '><span class="kf-icon" style="transform:rotate(-90deg);">' + iconSvg('chevronLeft', 13) + '</span></button>';
 }
 
 function renderPortalQaGroupHTML(group){
@@ -594,19 +616,25 @@ function renderPortalQaGroupHTML(group){
       '<span class="kf-form-admin-row-name">' + escapeHTML(group.topic.title) + '</span>' +
     '</div>' +
     '<div class="kf-form-admin-row-actions">' +
+      renderMoveButtonsHTML('topic', group.topic.id, group.isFirst, group.isLast) +
       '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-edit-qa-topic="' + group.topic.id + '"><span class="kf-icon" data-icon="edit" data-size="13"></span>Edit</button>' +
       '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-delete-qa-topic="' + group.topic.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span></button>' +
     '</div>' +
   '</div>' + renderPortalQaEntriesHTML(group.entries);
 }
 function renderPortalQaEntriesHTML(entries){
-  return entries.map(function(e){
+  // Entries reorder among their own siblings only (same topic, or this ungrouped bucket) — matching
+  // PortalService.ReorderQaEntryAsync's own scope — so isFirst/isLast is computed within just this
+  // one entries array, never across the whole Portal.
+  return entries.map(function(e, i){
     return '<div class="kf-form-admin-row" style="margin-left:14px;">' +
       '<div class="kf-form-admin-row-main">' +
         '<span class="kf-form-admin-row-name">' + escapeHTML(e.question) + '</span>' +
+        '<span class="kf-portal-qa-nps-badge" title="Net votes from end users (thumbs up minus thumbs down)">NPS ' + e.nps + '</span>' +
       '</div>' +
       (e.answer ? '<div class="kf-form-admin-row-desc">' + escapeHTML(e.answer) + '</div>' : '') +
       '<div class="kf-form-admin-row-actions">' +
+        renderMoveButtonsHTML('entry', e.id, i === 0, i === entries.length - 1) +
         '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-edit-qa-entry="' + e.id + '"><span class="kf-icon" data-icon="edit" data-size="13"></span>Edit</button>' +
         '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-delete-qa-entry="' + e.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span>Remove</button>' +
       '</div>' +

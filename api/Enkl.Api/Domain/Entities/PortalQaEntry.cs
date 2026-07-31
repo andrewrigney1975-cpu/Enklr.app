@@ -18,6 +18,10 @@ public class PortalQaEntry
     public string? Answer { get; set; }
     public int Order { get; set; }
 
+    /// <summary>Simple thumbs-up/down tally — end users vote via PortalHomeController, unrestricted
+    /// (no per-user vote tracking, no floor/ceiling), each vote just applies a +1/-1 delta.</summary>
+    public int Nps { get; set; }
+
     public Guid? CreatedByUserId { get; set; }
     public User? CreatedByUser { get; set; }
     public DateTime DateCreated { get; set; }

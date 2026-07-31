@@ -90,6 +90,7 @@ public class PortalQaEntryConfiguration : IEntityTypeConfiguration<PortalQaEntry
     {
         b.HasKey(e => e.Id);
         b.Property(e => e.Question).HasMaxLength(500).IsRequired();
+        b.Property(e => e.Nps).HasDefaultValue(0);
 
         b.HasOne(e => e.Portal)
             .WithMany(p => p.QaEntries)

@@ -105,10 +105,26 @@ final class PortalHomeService
         $entryStmt->execute(['portalId' => $portalId]);
         $entries = array_map(static fn(array $e): array => [
             'id' => $e['Id'], 'portalTopicId' => $e['PortalTopicId'], 'question' => $e['Question'],
-            'answer' => $e['Answer'], 'order' => (int) $e['Order'],
+            'answer' => $e['Answer'], 'order' => (int) $e['Order'], 'nps' => (int) $e['Nps'],
         ], $entryStmt->fetchAll());
 
         return ['topics' => $topics, 'entries' => $entries];
+    }
+
+    /** Ported from PortalHomeService.VoteQaEntryNpsAsync. End-user thumbs-up/down voting — "up" is
+     * +1, anything else is -1, no floor/ceiling, no per-user vote tracking (a simple tally, not a
+     * persistent per-user ledger, per this feature's own deliberately minimal spec). Gated the same
+     * way every other read/write here is: the Portal must be published AND the caller must actually
+     * have an access grant for it. */
+    public function voteQaEntryNps(string $organisationId, string $portalId, string $entryId, string $direction, string $userId): bool
+    {
+        if ($this->accessiblePortal($organisationId, $portalId, $userId) === null) {
+            return false;
+        }
+        $delta = $direction === 'up' ? 1 : -1;
+        $stmt = $this->db->prepare('UPDATE "PortalQaEntries" SET "Nps" = "Nps" + :delta WHERE "Id" = :id AND "PortalId" = :portalId');
+        $stmt->execute(['delta' => $delta, 'id' => $entryId, 'portalId' => $portalId]);
+        return $stmt->rowCount() > 0;
     }
 
     /** Re-fetches ONE of the caller's own submissions with its full AnswersJson — needed to actually

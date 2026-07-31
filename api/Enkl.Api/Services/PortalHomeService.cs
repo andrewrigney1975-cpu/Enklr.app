@@ -105,9 +105,24 @@ public class PortalHomeService
         var entries = await _db.PortalQaEntries.AsNoTracking()
             .Where(e => e.PortalId == portalId)
             .OrderBy(e => e.Order)
-            .Select(e => new PortalQaEntryDto(e.Id, e.PortalTopicId, e.Question, e.Answer, e.Order))
+            .Select(e => new PortalQaEntryDto(e.Id, e.PortalTopicId, e.Question, e.Answer, e.Order, e.Nps))
             .ToListAsync();
         return new PortalQaDto(topics, entries);
+    }
+
+    /// <summary>End-user thumbs-up/down voting on a Q&amp;A entry — "up" is +1, anything else is -1, no
+    /// floor/ceiling, no per-user vote tracking (a simple tally, not a persistent per-user ledger, per
+    /// this feature's own deliberately minimal spec). Gated the same way every other read/write here
+    /// is: the Portal must be published AND the caller must actually have an access grant for it —
+    /// re-derived fresh, never trusted from a client-supplied claim.</summary>
+    public async Task<bool> VoteQaEntryNpsAsync(Guid organisationId, Guid portalId, Guid entryId, string direction, Guid userId)
+    {
+        if (await GetAccessiblePortalAsync(organisationId, portalId, userId) is null) return false;
+        var entry = await _db.PortalQaEntries.FirstOrDefaultAsync(e => e.Id == entryId && e.PortalId == portalId);
+        if (entry is null) return false;
+        entry.Nps += direction == "up" ? 1 : -1;
+        await _db.SaveChangesAsync();
+        return true;
     }
 
     /// <summary>Re-fetches ONE of the caller's own submissions with its full AnswersJson — needed to

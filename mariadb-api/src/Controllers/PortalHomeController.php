@@ -54,6 +54,13 @@ final class PortalHomeController extends BaseController
         return $qa === null ? $this->notFound($response) : $this->json($response, $qa);
     }
 
+    public function voteQaEntryNps(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $ok = $this->service()->voteQaEntryNps($this->callerOrgId($request), $args['portalId'], $args['entryId'], (string) ($body['direction'] ?? ''), $this->callerUserId($request));
+        return $ok ? $this->noContent($response) : $this->notFound($response);
+    }
+
     public function getSubmission(Request $request, Response $response, array $args): Response
     {
         $submission = $this->service()->getSubmission($this->callerOrgId($request), $args['portalId'], $this->callerUserId($request), $args['submissionId'], $this->callerIsOrgAdmin($request));

@@ -363,7 +363,7 @@ public class PortalService
             .Where(e => e.PortalId == portalId)
             .OrderBy(e => e.Order)
             .ToListAsync();
-        return entries.Select(e => new PortalQaEntryDto(e.Id, e.PortalTopicId, e.Question, e.Answer, e.Order)).ToList();
+        return entries.Select(ToQaEntryDto).ToList();
     }
 
     public async Task<PortalQaEntryDto?> CreateQaEntryAsync(Guid organisationId, Guid portalId, Guid callerUserId, CreatePortalQaEntryRequest request)
@@ -383,7 +383,7 @@ public class PortalService
         };
         _db.PortalQaEntries.Add(entry);
         await _db.SaveChangesAsync();
-        return new PortalQaEntryDto(entry.Id, entry.PortalTopicId, entry.Question, entry.Answer, entry.Order);
+        return ToQaEntryDto(entry);
     }
 
     public async Task<PortalQaEntryDto?> UpdateQaEntryAsync(Guid organisationId, Guid portalId, Guid entryId, UpdatePortalQaEntryRequest request)
@@ -402,7 +402,7 @@ public class PortalService
         entry.Order = request.Order;
         entry.DateLastModified = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return new PortalQaEntryDto(entry.Id, entry.PortalTopicId, entry.Question, entry.Answer, entry.Order);
+        return ToQaEntryDto(entry);
     }
 
     public async Task<bool> DeleteQaEntryAsync(Guid organisationId, Guid portalId, Guid entryId)
@@ -415,8 +415,71 @@ public class PortalService
         return true;
     }
 
+    /// <summary>Moves a Topic up/down among all of a Portal's own topics. Renumbers every sibling to
+    /// a clean 0..n-1 sequence (ordered by current Order then DateCreated as a stable tiebreaker)
+    /// before swapping the target with its neighbor — new topics/entries are always created with
+    /// Order=0 (see CreateTopicAsync/CreateQaEntryAsync above, unchanged by this feature), so a plain
+    /// swap of raw Order values would silently no-op the first time two siblings share a value. This
+    /// self-heals that every time, regardless of how the data got here. Returns false for "doesn't
+    /// belong to caller's org", "topic not found", or "already at that edge" alike — the frontend
+    /// already disables the button at the edges, so this is just a safety no-op, not a user-facing
+    /// error path. A Topic's own QaEntries are untouched by this — they stay tagged to this topic via
+    /// PortalTopicId regardless of the topic's Order, so they visually move WITH their topic for free
+    /// once the frontend groups entries under topics in topic-Order sequence.</summary>
+    public async Task<bool> ReorderTopicAsync(Guid organisationId, Guid portalId, Guid topicId, string direction)
+    {
+        if (!await OwnsPortalAsync(organisationId, portalId)) return false;
+        var topics = await _db.PortalTopics
+            .Where(t => t.PortalId == portalId)
+            .OrderBy(t => t.Order).ThenBy(t => t.DateCreated)
+            .ToListAsync();
+        return await ApplyReorder(topics, t => t.Id, topicId, direction, (t, order) => t.Order = order);
+    }
+
+    /// <summary>Moves a Q&amp;A entry up/down among its own siblings only — same PortalTopicId
+    /// (including the ungrouped/null bucket) — matching how the admin Q&amp;A tab groups entries under
+    /// topic headers; an entry never reorders across topics this way (moving it to a different topic
+    /// is what Update's own PortalTopicId field is for). Same renumber-then-swap self-healing as
+    /// ReorderTopicAsync above, and the same "false at either edge" no-op semantics.</summary>
+    public async Task<bool> ReorderQaEntryAsync(Guid organisationId, Guid portalId, Guid entryId, string direction)
+    {
+        if (!await OwnsPortalAsync(organisationId, portalId)) return false;
+        var entry = await _db.PortalQaEntries.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == entryId && e.PortalId == portalId);
+        if (entry is null) return false;
+
+        var siblings = await _db.PortalQaEntries
+            .Where(e => e.PortalId == portalId && e.PortalTopicId == entry.PortalTopicId)
+            .OrderBy(e => e.Order).ThenBy(e => e.DateCreated)
+            .ToListAsync();
+        return await ApplyReorder(siblings, e => e.Id, entryId, direction, (e, order) => e.Order = order);
+    }
+
+    /// <summary>Shared swap-with-neighbor logic for both Reorder methods above — `items` must already
+    /// be sorted in the caller's intended current order. Renumbers every item to 0..n-1 first (so
+    /// stale/duplicate Order values from before this feature existed self-heal), then swaps the
+    /// target with its "up"/"down" neighbor. Returns false without saving anything if the target
+    /// isn't found or is already at the edge in that direction.</summary>
+    private async Task<bool> ApplyReorder<T>(List<T> items, Func<T, Guid> getId, Guid targetId, string direction, Action<T, int> setOrder)
+    {
+        var index = items.FindIndex(i => getId(i) == targetId);
+        if (index == -1) return false;
+
+        var swapIndex = direction == "up" ? index - 1 : index + 1;
+        if (swapIndex < 0 || swapIndex >= items.Count) return false;
+
+        for (var i = 0; i < items.Count; i++) setOrder(items[i], i);
+        (items[index], items[swapIndex]) = (items[swapIndex], items[index]);
+        setOrder(items[swapIndex], swapIndex);
+        setOrder(items[index], index);
+
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     private Task<bool> OwnsPortalAsync(Guid organisationId, Guid portalId) =>
         _db.Portals.AsNoTracking().AnyAsync(p => p.Id == portalId && p.OrganisationId == organisationId);
 
     private static PortalDto ToDto(Portal p) => new(p.Id, p.Name, p.Slug, p.Description, p.IconName, p.Status, p.ProjectId, p.DateCreated, p.DateLastModified, p.PublishedAt);
+    private static PortalQaEntryDto ToQaEntryDto(PortalQaEntry e) => new(e.Id, e.PortalTopicId, e.Question, e.Answer, e.Order, e.Nps);
 }

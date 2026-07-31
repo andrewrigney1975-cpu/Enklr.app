@@ -63,6 +63,13 @@ public class PortalHomeController : ControllerBase
         return qa is null ? NotFound() : Ok(qa);
     }
 
+    [HttpPost("{portalId:guid}/qa-entries/{entryId:guid}/vote")]
+    public async Task<IActionResult> VoteQaEntryNps(Guid portalId, Guid entryId, VoteQaEntryNpsRequest request)
+    {
+        var ok = await _home.VoteQaEntryNpsAsync(User.OrgId(), portalId, entryId, request.Direction, User.UserId());
+        return ok ? NoContent() : NotFound();
+    }
+
     // Literal "awaiting-me" segment, declared before the {submissionId:guid} route below — ASP.NET
     // routing prefers the more specific literal match regardless of declaration order, but this
     // mirrors ProjectFormsController's own ordering for readability.

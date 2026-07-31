@@ -25,9 +25,19 @@ public record PortalTopicDto(Guid Id, string Title, int Order);
 public record CreatePortalTopicRequest(string Title, int Order);
 public record UpdatePortalTopicRequest(string Title, int Order);
 
-public record PortalQaEntryDto(Guid Id, Guid? PortalTopicId, string Question, string? Answer, int Order);
+public record PortalQaEntryDto(Guid Id, Guid? PortalTopicId, string Question, string? Answer, int Order, int Nps);
 public record CreatePortalQaEntryRequest(string Question, string? Answer, Guid? PortalTopicId, int Order);
 public record UpdatePortalQaEntryRequest(string Question, string? Answer, Guid? PortalTopicId, int Order);
+
+/// <summary>"up" increments a PortalQaEntry's Nps by 1, "down" decrements it by 1 — no other values
+/// accepted (ReorderDirection is reused for the same up/down vocabulary, see below).</summary>
+public record VoteQaEntryNpsRequest(string Direction);
+
+/// <summary>Shared by both Reorder endpoints (topics and entries) — "up" swaps with the previous
+/// sibling in Order, "down" swaps with the next. Scoped: topics reorder among all of a Portal's own
+/// topics; entries reorder among their own siblings only (same PortalTopicId, including the
+/// ungrouped/null bucket) — see PortalService.ReorderQaEntryAsync's own doc comment for why.</summary>
+public record ReorderRequest(string Direction);
 
 /// <summary>The end-user Portal home page's combined Q&amp;A rail payload — topics + flat entry list
 /// (each carrying its own PortalTopicId, null for ungrouped) rather than a nested shape, so the

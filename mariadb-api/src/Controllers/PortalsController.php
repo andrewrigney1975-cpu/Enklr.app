@@ -138,6 +138,13 @@ final class PortalsController extends BaseController
         return $removed ? $this->noContent($response) : $this->notFound($response);
     }
 
+    public function reorderTopic(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $ok = $this->service()->reorderTopic($this->callerOrgId($request), $args['portalId'], $args['topicId'], (string) ($body['direction'] ?? ''));
+        return $ok ? $this->noContent($response) : $this->notFound($response);
+    }
+
     public function listQaEntries(Request $request, Response $response, array $args): Response
     {
         $entries = $this->service()->listQaEntries($this->callerOrgId($request), $args['portalId']);
@@ -162,5 +169,12 @@ final class PortalsController extends BaseController
     {
         $removed = $this->service()->deleteQaEntry($this->callerOrgId($request), $args['portalId'], $args['entryId']);
         return $removed ? $this->noContent($response) : $this->notFound($response);
+    }
+
+    public function reorderQaEntry(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $ok = $this->service()->reorderQaEntry($this->callerOrgId($request), $args['portalId'], $args['entryId'], (string) ($body['direction'] ?? ''));
+        return $ok ? $this->noContent($response) : $this->notFound($response);
     }
 }
