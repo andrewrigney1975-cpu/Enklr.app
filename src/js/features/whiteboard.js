@@ -76,6 +76,14 @@ export async function addWhiteboardElement(elementType, elementJson){
   return element;
 }
 
+export async function updateWhiteboardElement(elementId, elementJson){
+  if(!_session) return null;
+  var element = await whiteboardApi.updateElement(_session.id, elementId, elementJson);
+  var idx = _session.elements.findIndex(function(e){ return e.id === elementId; });
+  if(idx !== -1) _session.elements[idx] = element;
+  return element;
+}
+
 export async function removeWhiteboardElement(elementId){
   if(!_session) return;
   await whiteboardApi.removeElement(_session.id, elementId);
@@ -112,6 +120,9 @@ export function handleWhiteboardElementEvent(payload){
   if(payload.changeType === 'added'){
     var already = _session.elements.some(function(e){ return e.id === payload.element.id; });
     if(!already) _session.elements.push(payload.element);
+  } else if(payload.changeType === 'updated'){
+    var idx = _session.elements.findIndex(function(e){ return e.id === payload.element.id; });
+    if(idx !== -1) _session.elements[idx] = payload.element;
   } else if(payload.changeType === 'removed'){
     _session.elements = _session.elements.filter(function(e){ return e.id !== payload.element.id; });
   }

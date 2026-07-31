@@ -62,6 +62,16 @@ public class WhiteboardController : ControllerBase
         return Ok(result.Value.Element);
     }
 
+    [HttpPatch("{id:guid}/elements/{elementId:guid}")]
+    public async Task<IActionResult> UpdateElement(Guid id, Guid elementId, UpdateWhiteboardElementRequest request)
+    {
+        var result = await _whiteboard.UpdateElementAsync(User.OrgId(), User.UserId(), id, elementId, request);
+        if (result is null) return NotFound();
+
+        BroadcastElementChange(id, result.Value.Element, result.Value.ParticipantUserIds, "updated");
+        return Ok(result.Value.Element);
+    }
+
     [HttpDelete("{id:guid}/elements/{elementId:guid}")]
     public async Task<IActionResult> RemoveElement(Guid id, Guid elementId)
     {

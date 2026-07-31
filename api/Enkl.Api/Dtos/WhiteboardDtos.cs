@@ -17,15 +17,17 @@ public record JoinWhiteboardSessionRequest(string JoinCode);
 
 public record AddWhiteboardElementRequest(string ElementType, string ElementJson);
 
+public record UpdateWhiteboardElementRequest(string ElementJson);
+
 public record WhiteboardCursorMoveRequest(double X, double Y);
 
 /// <summary>Pushed over the SSE stream whenever a participant joins or leaves a whiteboard session —
 /// ChangeType is "joined" | "left", same convention as TaskChangedEventDto's ChangeType.</summary>
 public record WhiteboardParticipantEventDto(Guid SessionId, Guid UserId, string DisplayName, string ChangeType);
 
-/// <summary>Pushed over the SSE stream whenever an element is added to or removed from a whiteboard
-/// session. ChangeType is "added" | "removed" — on "removed", Element carries only Id (the rest of
-/// the payload is unused by the frontend for that case).</summary>
+/// <summary>Pushed over the SSE stream whenever an element is added to, updated (moved), or removed
+/// from a whiteboard session. ChangeType is "added" | "updated" | "removed" — on "removed", Element
+/// carries only Id (the rest of the payload is unused by the frontend for that case).</summary>
 public record WhiteboardElementEventDto(Guid SessionId, WhiteboardElementDto Element, string ChangeType);
 
 /// <summary>Pushed over the SSE stream to every participant when the host closes the session — no

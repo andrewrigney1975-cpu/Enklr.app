@@ -216,6 +216,46 @@ final class WhiteboardService
         ];
     }
 
+    /** Move/resize (or any other in-place edit) of an existing element — same
+     * currently-present-participant gate as addElement. The new elementJson fully replaces the old
+     * one; the server never interprets it (same "opaque JSON blob" convention as addElement).
+     *
+     * @return array{element: array, participantUserIds: string[]}|null Null if the caller isn't a
+     *   current participant of an open session in their own org, or the element doesn't belong to
+     *   this session.
+     */
+    public function updateElement(string $organisationId, string $callerUserId, string $sessionId, string $elementId, string $elementJson): ?array
+    {
+        if (!$this->isCurrentParticipantOfOpenSession($organisationId, $callerUserId, $sessionId)) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE "WhiteboardElements" SET "ElementJson" = :json WHERE "Id" = :eid AND "SessionId" = :sid AND "DeletedAt" IS NULL'
+        );
+        $stmt->execute(['json' => $elementJson, 'eid' => $elementId, 'sid' => $sessionId]);
+        if ($stmt->rowCount() === 0) {
+            return null;
+        }
+
+        $elementStmt = $this->db->prepare(
+            'SELECT "Id", "ElementType", "ElementJson", "CreatedByUserId", "CreatedAt" FROM "WhiteboardElements" WHERE "Id" = :eid'
+        );
+        $elementStmt->execute(['eid' => $elementId]);
+        $element = $elementStmt->fetch();
+
+        $participantsStmt = $this->db->prepare('SELECT "UserId" FROM "WhiteboardParticipants" WHERE "SessionId" = :sid AND "LeftAt" IS NULL');
+        $participantsStmt->execute(['sid' => $sessionId]);
+
+        return [
+            'element' => [
+                'id' => $element['Id'], 'elementType' => $element['ElementType'], 'elementJson' => $element['ElementJson'],
+                'createdByUserId' => $element['CreatedByUserId'], 'createdAt' => $element['CreatedAt'],
+            ],
+            'participantUserIds' => array_column($participantsStmt->fetchAll(), 'UserId'),
+        ];
+    }
+
     /** Soft-delete (eraser) — same currently-present-participant gate as addElement.
      *
      * @return string[]|null Every currently-present participant's user id (including the caller —

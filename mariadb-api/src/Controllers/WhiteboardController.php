@@ -60,6 +60,21 @@ final class WhiteboardController extends BaseController
         return $this->json($response, $result['element']);
     }
 
+    public function updateElement(Request $request, Response $response, array $args): Response
+    {
+        $body = $this->body($request);
+        $result = $this->service()->updateElement(
+            $this->callerOrgId($request), $this->callerUserId($request), $args['id'], $args['elementId'],
+            (string) ($body['elementJson'] ?? '')
+        );
+        if ($result === null) {
+            return $this->notFound($response);
+        }
+
+        $this->broadcastElement($request, $args['id'], $result['element'], $result['participantUserIds'], 'updated');
+        return $this->json($response, $result['element']);
+    }
+
     public function removeElement(Request $request, Response $response, array $args): Response
     {
         $otherParticipantUserIds = $this->service()->removeElement(

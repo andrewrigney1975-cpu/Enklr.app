@@ -998,6 +998,11 @@
       <div class="kf-modal-header-actions" id="whiteboardToolbar">
         <div class="kf-wb-tool-stack">
           <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="select" id="wbToolSelect" title="Select — click a shape to select it, drag to move"><span class="kf-icon" data-icon="cursorArrow" data-size="16"></span></button>
+          </div>
+        </div>
+        <div class="kf-wb-tool-stack">
+          <div class="kf-wb-tool-row">
             <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="curve" id="wbToolCurve" title="Smooth Curve — click to place points, Space to finish, click near the start point to close &amp; fill"><span class="kf-icon" data-icon="curve" data-size="16"></span></button>
           </div>
           <div class="kf-wb-tool-row">
@@ -1113,6 +1118,7 @@
           <rect id="wbGridPage" class="kf-wb-grid-overlay hidden" x="0" y="0" width="1600" height="900" fill="var(--kf-surface-sunken, #f4f5f7)" stroke="var(--kf-border)" stroke-width="2"/>
           <rect id="wbGridOverlay" class="kf-wb-grid-overlay hidden" x="0" y="0" width="1600" height="900" fill="url(#wbGridPattern)"/>
           <g id="wbElementsLayer"></g>
+          <g id="wbSelectionLayer" pointer-events="none"></g>
         </svg>
         <div class="kf-wb-cursors" id="wbCursorsLayer"></div>
       </div>

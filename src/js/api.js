@@ -1097,6 +1097,9 @@ export var whiteboardApi = {
   addElement: function(sessionId, elementType, elementJson){
     return apiFetch('/whiteboard/sessions/' + sessionId + '/elements', {method: 'POST', body: JSON.stringify({elementType: elementType, elementJson: elementJson})});
   },
+  updateElement: function(sessionId, elementId, elementJson){
+    return apiFetch('/whiteboard/sessions/' + sessionId + '/elements/' + elementId, {method: 'PATCH', body: JSON.stringify({elementJson: elementJson})});
+  },
   removeElement: function(sessionId, elementId){
     return apiFetch('/whiteboard/sessions/' + sessionId + '/elements/' + elementId, {method: 'DELETE'});
   },

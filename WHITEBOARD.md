@@ -44,8 +44,12 @@ policy) — mirrors `ChatController`'s org-wide, no-extra-policy shape:
   oracle). Creates/reactivates the caller's participant row; returns full current state (elements +
   roster) so a join/rejoin always renders the live board immediately.
 - `GET /api/whiteboard/sessions/{id}` — resync (used after an SSE reconnect).
-- `POST /api/whiteboard/sessions/{id}/elements` / `DELETE .../elements/{elementId}` — add / soft-
-  delete (eraser). Caller must be a currently-present participant of an **open** session.
+- `POST /api/whiteboard/sessions/{id}/elements` / `PATCH .../elements/{elementId}` /
+  `DELETE .../elements/{elementId}` — add / update (move) / soft-delete (eraser). Caller must be a
+  currently-present participant of an **open** session. `PATCH` takes `{elementJson}` and fully
+  replaces the stored blob — same "server never interprets it" convention as `POST`'s own
+  `elementJson`; the frontend computes the new (moved) JSON client-side via
+  `whiteboard-draw.js`'s `translateElementData` before sending it.
 - `POST /api/whiteboard/sessions/{id}/leave` — participant leaves; session keeps running.
 - `POST /api/whiteboard/sessions/{id}/save` — host-only, flips `IsSaved`.
 - `POST /api/whiteboard/sessions/{id}/close` — host-only, ends the session for everyone.
@@ -59,6 +63,9 @@ Five new SSE event names on each tier's existing broadcast mechanism (`.NET`'s i
 `whiteboard-participant-changed`, `whiteboard-element-changed`, `whiteboard-session-closed`, and
 (`.NET`/`php-api` only) `whiteboard-cursor-moved`. `src/js/features/live-updates.js`'s
 `dispatchEvent` routes all of them to handlers in `src/js/features/whiteboard.js`.
+`whiteboard-element-changed`'s own `changeType` is `"added" | "updated" | "removed"` — `"updated"`
+(the Select tool's move) reuses the exact same event shape as `"added"`, just with the element's new
+`elementJson`; no new event name was needed for it.
 
 **MariaDB tier deliberately has no live cursor sharing** — a documented trade-off, not a bug (see
 `mariadb-api/CLAUDE.md` §4.10). That tier's whole SSE stream is a 2-second poll of the `Events`
@@ -90,6 +97,30 @@ org-wide feature, not a project one (unlike Forms' `findProjectByServerId` dance
   match the workflow-designer/dependency-graph connector look — just fed a straight 2-point path
   (start/end of the user's drag) rather than dependency-map's own multi-column routing, since a
   whiteboard connector runs between two freely-placed points, not fixed board columns.
+  `translateElementData(type, data, dx, dy)` is the one place that knows how to shift each
+  element type's own elementJson shape by an (dx, dy) offset (pen/curve points, text x/y, connector
+  x1/y1/x2/y2 + optional corner, shape-* x/y) — the Select tool's move handling is the only caller.
+
+### Select tool (move shapes)
+
+`wbToolSelect` (`data-tool="select"`, reuses the `cursorArrow` icon already built for the remote-
+cursor overlay) in `modals/whiteboard.js`: click an element to select it (dashed outline drawn into
+`#wbSelectionLayer`, a plain sibling `<g>` after `#wbElementsLayer` in the canvas SVG); drag a
+selected element to move it. The outline is sized from the selected element's own live
+`getBBox()` rather than a per-type analytic bounding-box calculation — simpler, and the only way to
+get an accurate box for `text` (whose rendered width isn't otherwise knowable without a DOM
+measurement). During the drag, both the element's own `<g>` and the selection outline get a plain
+SVG `transform="translate(dx,dy)"` for live feedback (`getBBox()` reports an element's bounds in its
+own local space, unaffected by its own `transform` — that's what makes reusing the pre-drag bbox for
+the outline correct throughout the drag); the real `elementJson` mutation only happens once, on
+pointerup, via `translateElementData` + `whiteboardApi.updateElement` (`PATCH .../elements/{id}`),
+broadcasting `whiteboard-element-changed` with `changeType: "updated"` to every other participant —
+`handleWhiteboardElementEvent` in `features/whiteboard.js` replaces the element in place by id, same
+shape as the existing `"added"`/`"removed"` handling. Selection state (`_selectedElementId`) is
+local/session-only, same as Grid/Snap — never broadcast, never persisted; it's cleared automatically
+whenever the selected element no longer exists in the live DOM (removed locally, erased/moved-away
+by another participant, or a session/project switch triggers a full re-render) since
+`renderSelectionOutline` just no-ops when the element's `<g>` isn't found.
 - `src/js/modals/whiteboard.js` — the modal: entry view (Start/Join) + canvas view (header toolbar +
   left rail — the first modal in this app with rail-based controls rather than header-row-only,
   per explicit design request), participant list, drawing-tool pointer handlers, remote-cursor

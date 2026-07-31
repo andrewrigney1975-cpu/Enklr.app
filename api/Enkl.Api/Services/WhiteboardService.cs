@@ -214,6 +214,35 @@ public class WhiteboardService
         return (dto, participantUserIds);
     }
 
+    /// <summary>Move/resize (or any other in-place edit) of an existing element — same
+    /// currently-present-participant gate as AddElementAsync. The new ElementJson fully replaces the
+    /// old one; the server never interprets it (same "opaque JSON blob" convention as AddElementAsync).
+    /// Returns null if the caller isn't a current participant of an open session in their own org, or
+    /// the element doesn't belong to this session.</summary>
+    public async Task<(WhiteboardElementDto Element, List<Guid> ParticipantUserIds)?> UpdateElementAsync(
+        Guid organisationId, Guid callerUserId, Guid sessionId, Guid elementId, UpdateWhiteboardElementRequest request)
+    {
+        var isCurrentParticipant = await _db.WhiteboardParticipants.AsNoTracking()
+            .AnyAsync(p => p.SessionId == sessionId && p.UserId == callerUserId && p.LeftAt == null
+                && p.Session.OrganisationId == organisationId && p.Session.Status == "open");
+        if (!isCurrentParticipant) return null;
+
+        var element = await _db.WhiteboardElements
+            .FirstOrDefaultAsync(e => e.Id == elementId && e.SessionId == sessionId && e.DeletedAt == null);
+        if (element is null) return null;
+
+        element.ElementJson = request.ElementJson;
+        await _db.SaveChangesAsync();
+
+        var participantUserIds = await _db.WhiteboardParticipants.AsNoTracking()
+            .Where(p => p.SessionId == sessionId && p.LeftAt == null)
+            .Select(p => p.UserId)
+            .ToListAsync();
+
+        var dto = new WhiteboardElementDto(element.Id, element.ElementType, element.ElementJson, element.CreatedByUserId, element.CreatedAt);
+        return (dto, participantUserIds);
+    }
+
     /// <summary>Soft-delete (eraser) — same currently-present-participant gate as AddElementAsync.
     /// Returns every currently-present participant's user id (including the caller — see
     /// AddElementAsync's own doc comment for why) for broadcast, or null if the caller isn't a

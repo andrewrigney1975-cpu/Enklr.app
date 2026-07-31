@@ -152,6 +152,29 @@ export function connectorCurvePathD(x1, y1, x2, y2){
   return 'M ' + x1 + ' ' + y1 + ' C ' + c1x + ' ' + c1y + ' ' + c2x + ' ' + c2y + ' ' + x2 + ' ' + y2;
 }
 
+/* Applies a (dx, dy) translation to an element's own elementJson data, per-type — used by the
+   "select" tool's move handling (modals/whiteboard.js) to compute the new elementJson sent to
+   whiteboardApi.updateElement after a drag. Returns a new object; never mutates `data`. Connector's
+   `corner` (if present) is translated too, since it's stored as an absolute point rather than
+   recomputed from x1/y1/x2/y2 (see this file's own elementJson shape doc comment). */
+export function translateElementData(type, data, dx, dy){
+  if(type === 'pen' || type === 'curve'){
+    return Object.assign({}, data, {points: data.points.map(function(p){ return {x: p.x + dx, y: p.y + dy}; })});
+  }
+  if(type === 'text'){
+    return Object.assign({}, data, {x: data.x + dx, y: data.y + dy});
+  }
+  if(type === 'connector'){
+    var moved = Object.assign({}, data, {x1: data.x1 + dx, y1: data.y1 + dy, x2: data.x2 + dx, y2: data.y2 + dy});
+    if(data.corner) moved.corner = {x: data.corner.x + dx, y: data.corner.y + dy};
+    return moved;
+  }
+  if(type.indexOf('shape-') === 0){
+    return Object.assign({}, data, {x: data.x + dx, y: data.y + dy});
+  }
+  return data;
+}
+
 export function renderElementSvg(element){
   var data;
   try { data = JSON.parse(element.elementJson); } catch(e){ return ''; }

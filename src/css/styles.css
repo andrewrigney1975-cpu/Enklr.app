@@ -7052,6 +7052,18 @@
     cursor: crosshair;
   }
 
+  .kf-wb-canvas.kf-wb-canvas-select {
+    cursor: default;
+  }
+
+  .kf-wb-selection-rect {
+    fill: none;
+    stroke: var(--kf-accent, #2684ff);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 3;
+    pointer-events: none;
+  }
+
   .kf-wb-cursors {
     position: absolute;
     inset: 0;
