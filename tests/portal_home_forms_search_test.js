@@ -61,6 +61,12 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   searchInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
   await wait(10);
   log('a search with no matches shows the "no matches" empty state, not the "no forms" one', !doc.getElementById('portalHomeFormsNoMatches').classList.contains('hidden') && doc.getElementById('portalHomeFormsEmpty').classList.contains('hidden'));
+  // Checks ACTUAL computed visibility, not just classList state — a bare `.hidden` class does
+  // nothing anywhere in this app's CSS unless a matching compound selector (e.g.
+  // `#portalHomeFormsNoMatches.hidden`) exists for it (root CLAUDE.md's own documented gotcha).
+  // This is exactly the regression a classList-only assertion would miss.
+  const noMatchesDisplay = dom.window.getComputedStyle(doc.getElementById('portalHomeFormsNoMatches')).display;
+  log('the "no matches" message is actually rendered (real .hidden CSS backing, not just class state)', noMatchesDisplay !== 'none', noMatchesDisplay);
   log('zero tiles render for a non-matching search', doc.querySelectorAll('#portalHomeFormsList [data-form-group-id]').length === 0);
 
   clearBtn.click();
