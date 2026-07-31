@@ -494,4 +494,176 @@ public class ImportServiceTests
         var tc = await db.TeamsCommittees.AsNoTracking().FirstOrDefaultAsync(t => t.ProjectId == project.Id && t.Name == "Dry Run Team");
         Assert.Null(tc);
     }
+
+    // ── Portal Q&A (Phase 6) ───────────────────────────────────────────────────────────────────
+
+    private static Dictionary<string, string?> QaRow(string portalRef, string question, string? topic = null, string? answer = null, string? order = null)
+    {
+        var row = new Dictionary<string, string?> { ["portal"] = portalRef, ["question"] = question };
+        if (topic != null) row["topic"] = topic;
+        if (answer != null) row["answer"] = answer;
+        if (order != null) row["order"] = order;
+        return row;
+    }
+
+    private static async Task<Domain.Entities.Portal> SeedPortalAsync(IServiceProvider services, Guid orgId, Guid callerUserId, string name)
+    {
+        var portals = services.GetRequiredService<PortalService>();
+        var dto = await portals.CreateAsync(orgId, callerUserId, new CreatePortalRequest(name, null, null, null));
+        var db = services.GetRequiredService<AppDbContext>();
+        return await db.Portals.AsNoTracking().FirstAsync(p => p.Id == dto.Id);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_Commit_ValidRow_ActuallyPersistsIt()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var portal = await SeedPortalAsync(scope.ServiceProvider, org.Id, owner.Id, "Imported Portal");
+
+        var result = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(portal.Slug, "How do I reset my password?", answer: "Use the link on the sign-in page.") }, DryRun: false));
+
+        Assert.Equal(1, result.Succeeded);
+        var entry = await db.PortalQaEntries.AsNoTracking().FirstOrDefaultAsync(e => e.PortalId == portal.Id && e.Question == "How do I reset my password?");
+        Assert.NotNull(entry);
+        Assert.Equal("Use the link on the sign-in page.", entry!.Answer);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_ResolvesPortalByNameToo_NotJustSlug()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var portal = await SeedPortalAsync(scope.ServiceProvider, org.Id, owner.Id, "Named Portal " + TestDataHelper.Unique("N"));
+
+        var result = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(portal.Name, "Resolved by name?") }, DryRun: false));
+
+        Assert.Equal(1, result.Succeeded);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_UnknownPortalReference_FailsThatRow()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+
+        var result = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow("no-such-portal", "Anyone?") }, DryRun: false));
+
+        Assert.Equal(0, result.Succeeded);
+        Assert.Contains("No Portal with slug or name", result.Results[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_PortalBelongingToAnotherOrg_FailsWithTheSameNotFoundMessage()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var (otherOrg, otherOwner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("otherOrg"), TestDataHelper.Unique("otherAdmin"));
+        var otherPortal = await SeedPortalAsync(scope.ServiceProvider, otherOrg.Id, otherOwner.Id, "Other Org Portal");
+
+        var result = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(otherPortal.Slug, "Anyone?") }, DryRun: false));
+
+        Assert.Equal(0, result.Succeeded);
+        Assert.Contains("No Portal with slug or name", result.Results[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_TopicResolvesToAnAlreadyExistingTopic()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var portal = await SeedPortalAsync(scope.ServiceProvider, org.Id, owner.Id, "Topic Portal");
+        var portals = scope.ServiceProvider.GetRequiredService<PortalService>();
+        var topicDto = await portals.CreateTopicAsync(org.Id, portal.Id, new CreatePortalTopicRequest("Billing", 0));
+
+        var result = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(portal.Slug, "How do I update my card?", topic: "Billing") }, DryRun: false));
+
+        Assert.Equal(1, result.Succeeded);
+        var entry = await db.PortalQaEntries.AsNoTracking().FirstAsync(e => e.PortalId == portal.Id && e.Question == "How do I update my card?");
+        Assert.Equal(topicDto!.Id, entry.PortalTopicId);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_UnresolvableTopic_FailsThatRowWithAClearMessage()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var portal = await SeedPortalAsync(scope.ServiceProvider, org.Id, owner.Id, "No Topic Portal");
+
+        var result = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(portal.Slug, "Untethered question", topic: "No Such Topic") }, DryRun: false));
+
+        Assert.Equal(0, result.Succeeded);
+        Assert.Contains("\"topic\"", result.Results[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_InvalidOrder_FailsThatRowWithAClearMessage()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var portal = await SeedPortalAsync(scope.ServiceProvider, org.Id, owner.Id, "Bad Order Portal");
+
+        var result = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(portal.Slug, "Bad order question", order: "not-a-number") }, DryRun: false));
+
+        Assert.Equal(0, result.Succeeded);
+        Assert.Contains("\"order\"", result.Results[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_OmittedOrder_AppendsAtTheEnd()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var portal = await SeedPortalAsync(scope.ServiceProvider, org.Id, owner.Id, "Ordered Portal");
+
+        var result1 = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(portal.Slug, "First question") }, DryRun: false));
+        var result2 = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(portal.Slug, "Second question") }, DryRun: false));
+
+        Assert.Equal(1, result1.Succeeded);
+        Assert.Equal(1, result2.Succeeded);
+        var first = await db.PortalQaEntries.AsNoTracking().FirstAsync(e => e.PortalId == portal.Id && e.Question == "First question");
+        var second = await db.PortalQaEntries.AsNoTracking().FirstAsync(e => e.PortalId == portal.Id && e.Question == "Second question");
+        Assert.True(second.Order > first.Order);
+    }
+
+    [Fact]
+    public async Task ImportPortalQa_DryRun_DoesNotActuallyPersistIt()
+    {
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<ImportService>();
+
+        var (org, owner) = await TestDataHelper.SeedOrgAndUserAsync(db, TestDataHelper.Unique("org"), TestDataHelper.Unique("admin"));
+        var portal = await SeedPortalAsync(scope.ServiceProvider, org.Id, owner.Id, "Dry Run Portal");
+
+        var result = await import.ImportPortalQaAsync(org.Id, owner.Id, new ImportRequest(new() { QaRow(portal.Slug, "Dry run question") }, DryRun: true));
+
+        Assert.Equal(1, result.Succeeded);
+        var entry = await db.PortalQaEntries.AsNoTracking().FirstOrDefaultAsync(e => e.PortalId == portal.Id && e.Question == "Dry run question");
+        Assert.Null(entry);
+    }
 }

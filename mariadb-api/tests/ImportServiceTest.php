@@ -9,6 +9,7 @@ use Enkl\Api\Db\Database;
 use Enkl\Api\Services\ImportService;
 use Enkl\Api\Services\MemberService;
 use Enkl\Api\Services\OrganisationService;
+use Enkl\Api\Services\PortalService;
 use Enkl\Api\Services\TeamCommitteeService;
 use Enkl\Api\Tests\Support\TestDataHelper;
 use PDO;
@@ -30,7 +31,7 @@ final class ImportServiceTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         self::$db = Database::connection();
-        self::$import = new ImportService(self::$db, new OrganisationService(self::$db), new MemberService(self::$db), new TeamCommitteeService(self::$db));
+        self::$import = new ImportService(self::$db, new OrganisationService(self::$db), new MemberService(self::$db), new TeamCommitteeService(self::$db), new PortalService(self::$db));
     }
 
     /** @return array<string, string> */
@@ -407,6 +408,142 @@ final class ImportServiceTest extends TestCase
         self::assertSame(1, $result['succeeded']);
         $stmt = self::$db->prepare('SELECT 1 FROM "TeamsCommittees" WHERE "ProjectId" = :pid AND "Name" = :name');
         $stmt->execute(['pid' => $projectId, 'name' => 'Dry Run Team']);
+        self::assertFalse($stmt->fetch());
+    }
+
+    // ── Portal Q&A (Phase 6) ───────────────────────────────────────────────────────────────────
+
+    /** @return array<string, string> */
+    private static function qaRow(string $portalRef, string $question, ?array $extra = null): array
+    {
+        $row = ['portal' => $portalRef, 'question' => $question];
+        return $extra !== null ? array_merge($row, $extra) : $row;
+    }
+
+    /** @return array{id: string, name: string, slug: string} */
+    private static function seedPortal(string $organisationId, string $userId, string $name): array
+    {
+        $portals = new PortalService(self::$db);
+        return $portals->create($organisationId, $userId, ['name' => $name]);
+    }
+
+    public function testImportPortalQaCommitValidRowActuallyPersistsIt(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $portal = self::seedPortal($seeded['orgId'], $seeded['userId'], 'Imported Portal');
+
+        $result = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [
+            self::qaRow($portal['slug'], 'How do I reset my password?', ['answer' => 'Use the link on the sign-in page.']),
+        ], false);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT "Answer" FROM "PortalQaEntries" WHERE "PortalId" = :pid AND "Question" = :q');
+        $stmt->execute(['pid' => $portal['id'], 'q' => 'How do I reset my password?']);
+        self::assertSame('Use the link on the sign-in page.', $stmt->fetchColumn());
+    }
+
+    public function testImportPortalQaResolvesPortalByNameToo(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $portal = self::seedPortal($seeded['orgId'], $seeded['userId'], 'Named Portal ' . TestDataHelper::unique('N'));
+
+        $result = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [self::qaRow($portal['name'], 'Resolved by name?')], false);
+
+        self::assertSame(1, $result['succeeded']);
+    }
+
+    public function testImportPortalQaUnknownPortalReferenceFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+
+        $result = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [self::qaRow('no-such-portal', 'Anyone?')], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('No Portal with slug or name', $result['results'][0]['message']);
+    }
+
+    public function testImportPortalQaPortalBelongingToAnotherOrgFailsWithTheSameNotFoundMessage(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $otherSeeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('otherOrg'), TestDataHelper::unique('otherAdmin'));
+        $otherPortal = self::seedPortal($otherSeeded['orgId'], $otherSeeded['userId'], 'Other Org Portal');
+
+        $result = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [self::qaRow($otherPortal['slug'], 'Anyone?')], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('No Portal with slug or name', $result['results'][0]['message']);
+    }
+
+    public function testImportPortalQaTopicResolvesToAnAlreadyExistingTopic(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $portal = self::seedPortal($seeded['orgId'], $seeded['userId'], 'Topic Portal');
+        $topic = (new PortalService(self::$db))->createTopic($seeded['orgId'], $portal['id'], ['title' => 'Billing', 'order' => 0]);
+
+        $result = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [
+            self::qaRow($portal['slug'], 'How do I update my card?', ['topic' => 'Billing']),
+        ], false);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT "PortalTopicId" FROM "PortalQaEntries" WHERE "PortalId" = :pid AND "Question" = :q');
+        $stmt->execute(['pid' => $portal['id'], 'q' => 'How do I update my card?']);
+        self::assertSame($topic['id'], $stmt->fetchColumn());
+    }
+
+    public function testImportPortalQaUnresolvableTopicFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $portal = self::seedPortal($seeded['orgId'], $seeded['userId'], 'No Topic Portal');
+
+        $result = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [
+            self::qaRow($portal['slug'], 'Untethered question', ['topic' => 'No Such Topic']),
+        ], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('"topic"', $result['results'][0]['message']);
+    }
+
+    public function testImportPortalQaInvalidOrderFailsThatRow(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $portal = self::seedPortal($seeded['orgId'], $seeded['userId'], 'Bad Order Portal');
+
+        $result = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [
+            self::qaRow($portal['slug'], 'Bad order question', ['order' => 'not-a-number']),
+        ], false);
+
+        self::assertSame(0, $result['succeeded']);
+        self::assertStringContainsString('"order"', $result['results'][0]['message']);
+    }
+
+    public function testImportPortalQaOmittedOrderAppendsAtTheEnd(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $portal = self::seedPortal($seeded['orgId'], $seeded['userId'], 'Ordered Portal');
+
+        $result1 = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [self::qaRow($portal['slug'], 'First question')], false);
+        $result2 = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [self::qaRow($portal['slug'], 'Second question')], false);
+
+        self::assertSame(1, $result1['succeeded']);
+        self::assertSame(1, $result2['succeeded']);
+        $stmt = self::$db->prepare('SELECT "Order" FROM "PortalQaEntries" WHERE "PortalId" = :pid AND "Question" = :q');
+        $stmt->execute(['pid' => $portal['id'], 'q' => 'First question']);
+        $firstOrder = (int) $stmt->fetchColumn();
+        $stmt->execute(['pid' => $portal['id'], 'q' => 'Second question']);
+        $secondOrder = (int) $stmt->fetchColumn();
+        self::assertGreaterThan($firstOrder, $secondOrder);
+    }
+
+    public function testImportPortalQaDryRunDoesNotActuallyPersistIt(): void
+    {
+        $seeded = TestDataHelper::seedOrgAndUser(self::$db, TestDataHelper::unique('org'), TestDataHelper::unique('admin'));
+        $portal = self::seedPortal($seeded['orgId'], $seeded['userId'], 'Dry Run Portal');
+
+        $result = self::$import->importPortalQa($seeded['orgId'], $seeded['userId'], [self::qaRow($portal['slug'], 'Dry run question')], true);
+
+        self::assertSame(1, $result['succeeded']);
+        $stmt = self::$db->prepare('SELECT 1 FROM "PortalQaEntries" WHERE "PortalId" = :pid AND "Question" = :q');
+        $stmt->execute(['pid' => $portal['id'], 'q' => 'Dry run question']);
         self::assertFalse($stmt->fetch());
     }
 }

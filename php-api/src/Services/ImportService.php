@@ -11,8 +11,8 @@ use Throwable;
 
 /**
  * Ported from Services/ImportService.cs. Import Centre's bulk-import execution engine (Phase 2:
- * Organisation Users. Phase 4: Team Members. Phase 5 (this pass): Teams & Committees. Portal Q&A
- * lands in a later phase, getting its own method here once built). Deliberately its own new service
+ * Organisation Users. Phase 4: Team Members. Phase 5: Teams & Committees. Phase 6 (this pass):
+ * Portal Q&A). Deliberately its own new service
  * rather than an extension of MigrationService, which wraps its entire import in ONE all-or-nothing
  * transaction around the whole request — this needs the opposite shape: every row gets its OWN
  * transaction, independent of every other row, so one bad row in a 500-row file doesn't sink the
@@ -38,7 +38,8 @@ final class ImportService
         private readonly PDO $db,
         private readonly OrganisationService $organisations,
         private readonly MemberService $members,
-        private readonly TeamCommitteeService $teamsCommittees
+        private readonly TeamCommitteeService $teamsCommittees,
+        private readonly PortalService $portals
     ) {
     }
 
@@ -259,6 +260,89 @@ final class ImportService
                 ]);
                 if ($created === null) {
                     throw new ApiValidationException('Could not create the team/committee.');
+                }
+
+                if ($dryRun) {
+                    $this->db->rollBack();
+                } else {
+                    $this->db->commit();
+                }
+                $results[] = ['row' => $rowNumber, 'success' => true, 'message' => null, 'data' => $row];
+                $succeeded++;
+            } catch (Throwable $e) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                $results[] = ['row' => $rowNumber, 'success' => false, 'message' => $e->getMessage(), 'data' => $row];
+                $failed++;
+            }
+        }
+
+        return ['total' => count($rows), 'succeeded' => $succeeded, 'failed' => $failed, 'results' => $results];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array{total: int, succeeded: int, failed: int, results: list<array{row: int, success: bool, message: ?string, data: array<string, mixed>}>}
+     */
+    public function importPortalQa(string $organisationId, string $callerUserId, array $rows, bool $dryRun): array
+    {
+        $results = [];
+        $succeeded = 0;
+        $failed = 0;
+
+        foreach (array_values($rows) as $index => $row) {
+            $rowNumber = $index + 1;
+            $this->db->beginTransaction();
+            try {
+                $portalRef = $this->requireField($row, 'portal');
+                $question = $this->requireField($row, 'question');
+                $topicName = $this->optionalField($row, 'topic');
+                $answer = $this->optionalField($row, 'answer');
+                $orderRaw = $this->optionalField($row, 'order');
+
+                // Re-derived server-side against the CALLER'S OWN org — matched by slug OR name,
+                // same cross-org-isolation rationale as projectKey above, applied to a Portal
+                // reference instead.
+                $stmt = $this->db->prepare('SELECT "Id" FROM "Portals" WHERE "OrganisationId" = :org AND ("Slug" = :ref OR "Name" = :ref2)');
+                $stmt->execute(['org' => $organisationId, 'ref' => $portalRef, 'ref2' => $portalRef]);
+                $portalId = $stmt->fetchColumn();
+                if ($portalId === false) {
+                    throw new ApiValidationException("No Portal with slug or name \"{$portalRef}\" exists in your organisation.");
+                }
+
+                // Resolved by NAME within this same Portal, then handed to createQaEntry() as a real
+                // id — a free-text CSV/JSON column has no dropdown-style guarantee of validity, so an
+                // unresolvable topic is a genuine, reportable row error.
+                $topicId = null;
+                if ($topicName !== null) {
+                    $stmt = $this->db->prepare('SELECT "Id" FROM "PortalTopics" WHERE "PortalId" = :pid AND "Title" = :title');
+                    $stmt->execute(['pid' => $portalId, 'title' => $topicName]);
+                    $topicId = $stmt->fetchColumn();
+                    if ($topicId === false) {
+                        throw new ApiValidationException("\"topic\" \"{$topicName}\" was not found on Portal \"{$portalRef}\".");
+                    }
+                }
+
+                if ($orderRaw !== null) {
+                    if (!is_numeric($orderRaw) || (string) (int) $orderRaw !== $orderRaw) {
+                        throw new ApiValidationException("\"order\" must be a whole number, got \"{$orderRaw}\".");
+                    }
+                    $order = (int) $orderRaw;
+                } else {
+                    // "Defaults to appending at the end" — one past whatever's currently the highest
+                    // Order among this Portal's existing entries (0 if there are none yet).
+                    $stmt = $this->db->prepare('SELECT MAX("Order") FROM "PortalQaEntries" WHERE "PortalId" = :pid');
+                    $stmt->execute(['pid' => $portalId]);
+                    $maxOrder = $stmt->fetchColumn();
+                    $order = ($maxOrder === null || $maxOrder === false) ? 0 : ((int) $maxOrder + 1);
+                }
+
+                $created = $this->portals->createQaEntry($organisationId, $portalId, $callerUserId, [
+                    'question' => $question, 'answer' => $answer, 'portalTopicId' => $topicId, 'order' => $order,
+                ]);
+                if ($created === null) {
+                    throw new ApiValidationException('Could not create the Portal Q&A entry.');
                 }
 
                 if ($dryRun) {

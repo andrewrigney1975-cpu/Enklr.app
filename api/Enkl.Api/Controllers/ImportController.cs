@@ -42,4 +42,11 @@ public class ImportController : ControllerBase
         var result = await _import.ImportTeamsCommitteesAsync(User.OrgId(), request);
         return Ok(result);
     }
+
+    [HttpPost("portal-qa")]
+    public async Task<IActionResult> ImportPortalQa(ImportRequest request)
+    {
+        var result = await _import.ImportPortalQaAsync(User.OrgId(), User.UserId(), request);
+        return Ok(result);
+    }
 }

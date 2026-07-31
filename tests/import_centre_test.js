@@ -92,6 +92,10 @@ function openAppSettings(doc){
       total: 1, succeeded: 1, failed: 0,
       results: [{row: 1, success: true, message: null, data: {projectKey: 'DEMO', name: 'New Team', type: 'team'}}]
     };
+    let mockPortalQaResult = {
+      total: 1, succeeded: 1, failed: 0,
+      results: [{row: 1, success: true, message: null, data: {portal: 'demo-portal', question: 'New question?'}}]
+    };
 
     const dom = new JSDOM(html, {
       runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
@@ -112,6 +116,10 @@ function openAppSettings(doc){
           if(url === '/api/organisations/me/import/teams-committees' && options && options.method === 'POST'){
             lastImportRequestBody = JSON.parse(options.body);
             return {ok: true, status: 200, json: async () => mockTeamsCommitteesResult};
+          }
+          if(url === '/api/organisations/me/import/portal-qa' && options && options.method === 'POST'){
+            lastImportRequestBody = JSON.parse(options.body);
+            return {ok: true, status: 200, json: async () => mockPortalQaResult};
           }
           throw new Error('unhandled fetch in test: ' + url);
         };
@@ -161,10 +169,9 @@ function openAppSettings(doc){
         doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
         !doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
 
-    // Portal Q&A has no backend yet (gated on Portals being enabled, which it isn't in this seed) —
-    // switching straight to it isn't possible via the select here since it's hidden from the
-    // dropdown entirely when Portals is off, so the "coming soon" check happens in block 4 below,
-    // where Portals IS enabled and the option is actually present.
+    // Portal Q&A isn't selectable here at all (gated on Portals being enabled, which it isn't in
+    // this seed) — its own "wired up, real upload area" check happens in block 4 below, where
+    // Portals IS enabled and the option is actually present in the dropdown.
 
     // Team Members (Phase 4) is wired up too — same generic upload area, no "coming soon" note.
     doc.getElementById('importCentreEntitySelect').value = 'teamMembers';
@@ -345,11 +352,27 @@ function openAppSettings(doc){
     seed.projectOrder = [projectId];
     delete seed._proj;
 
+    let lastPortalQaUrl = null;
+    let lastPortalQaBody = null;
+    const mockPortalQaResult2 = {
+      total: 1, succeeded: 1, failed: 0,
+      results: [{row: 1, success: true, message: null, data: {portal: 'demo-portal', question: 'New question?'}}]
+    };
+
     const dom = new JSDOM(html, {
       runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/', pretendToBeVisual: true,
       beforeParse(w){
         w.localStorage.setItem('kanbanflow_v1_db', JSON.stringify(seed));
         w.localStorage.setItem('kanbanflow_server_jwt', makeFakeJwt({orgAdmin: 'true', projects: JSON.stringify([{ProjectId: projectId, Role: 'member', IsProjectAdmin: false}])}));
+        installFakeFileReader(w);
+        w.fetch = async function(url, options){
+          if(url === '/api/organisations/me/import/portal-qa' && options && options.method === 'POST'){
+            lastPortalQaUrl = url;
+            lastPortalQaBody = JSON.parse(options.body);
+            return {ok: true, status: 200, json: async () => mockPortalQaResult2};
+          }
+          throw new Error('unhandled fetch in test: ' + url);
+        };
       }
     });
     await wait(300);
@@ -360,15 +383,24 @@ function openAppSettings(doc){
     doc.getElementById('appSettingsImportCentreBtn').click();
     await wait(20);
 
-    // Portal Q&A (no backend yet) is the only entity still showing the "coming soon" note once
-    // Portals is enabled and its option is actually selectable.
+    // Portal Q&A (Phase 6) is wired up too, once Portals is enabled and its option is selectable —
+    // same real upload area, no "coming soon" note, and Test Run posts to its own endpoint.
     doc.getElementById('importCentreEntitySelect').value = 'portalQa';
     doc.getElementById('importCentreEntitySelect').dispatchEvent(new dom.window.Event('change', {bubbles: true}));
     await wait(10);
-    log('Portal Q&A (not wired up yet) shows the "coming soon" note, hides the upload area',
-        !doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
-        doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
-    log('"coming soon" note mentions the Schemas tab', doc.getElementById('importCentreComingSoonHint').textContent.indexOf('Schemas') !== -1);
+    log('Portal Q&A (wired up in Phase 6) shows the real upload area, not "coming soon"',
+        doc.getElementById('importCentreComingSoonHint').classList.contains('kf-vis-hidden') &&
+        !doc.getElementById('importCentreUploadArea').classList.contains('kf-vis-hidden'));
+
+    const portalQaFileInput = doc.getElementById('importCentreFileInput');
+    Object.defineProperty(portalQaFileInput, 'files', {value: [new FakeFile('portal,question\r\ndemo-portal,New question?\r\n', 'qa.csv')], configurable: true});
+    portalQaFileInput.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+    await wait(30);
+    doc.getElementById('importCentreTestRunBtn').click();
+    await wait(30);
+    log('Portal Q&A Test Run posts to the portal-qa endpoint', lastPortalQaUrl === '/api/organisations/me/import/portal-qa', lastPortalQaUrl);
+    log('Portal Q&A Test Run sends the parsed portal/question row', lastPortalQaBody && lastPortalQaBody.rows[0].portal === 'demo-portal' && lastPortalQaBody.rows[0].question === 'New question?', JSON.stringify(lastPortalQaBody));
+    log('Portal Q&A results render using the same generic results table', doc.querySelectorAll('#importCentreResultsList tbody tr').length === 1);
 
     doc.getElementById('importCentreTabSchemasBtn').click();
     await wait(20);

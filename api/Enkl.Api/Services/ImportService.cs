@@ -8,8 +8,8 @@ namespace Enkl.Api.Services;
 
 /// <summary>
 /// Import Centre's bulk-import execution engine (Phase 2: Organisation Users. Phase 4: Team Members.
-/// Phase 5 (this pass): Teams &amp; Committees. Portal Q&amp;A lands in a later phase, getting its own
-/// method here once built). Deliberately its own new service rather than an extension of
+/// Phase 5: Teams &amp; Committees. Phase 6 (this pass): Portal Q&amp;A). Deliberately its own new service
+/// rather than an extension of
 /// MigrationService, which wraps its entire import in ONE all-or-nothing transaction around the
 /// whole request (see that service's own doc comment) — this needs the opposite shape: every row
 /// gets its OWN transaction, independent of every other row, so one bad row in a 500-row file
@@ -36,13 +36,15 @@ public class ImportService
     private readonly OrganisationService _organisations;
     private readonly MemberService _members;
     private readonly TeamCommitteeService _teamsCommittees;
+    private readonly PortalService _portals;
 
-    public ImportService(AppDbContext db, OrganisationService organisations, MemberService members, TeamCommitteeService teamsCommittees)
+    public ImportService(AppDbContext db, OrganisationService organisations, MemberService members, TeamCommitteeService teamsCommittees, PortalService portals)
     {
         _db = db;
         _organisations = organisations;
         _members = members;
         _teamsCommittees = teamsCommittees;
+        _portals = portals;
     }
 
     public async Task<ImportResult> ImportOrganisationUsersAsync(Guid organisationId, ImportRequest request)
@@ -250,6 +252,87 @@ public class ImportService
 
                 var created = await _teamsCommittees.CreateAsync(project.Id, new CreateTeamCommitteeRequest(name, description, type, parentId, memberIds))
                     ?? throw new ApiValidationException("Could not create the team/committee.");
+
+                if (request.DryRun) await transaction.RollbackAsync();
+                else await transaction.CommitAsync();
+
+                results.Add(new ImportRowResult(rowNumber, true, null, row));
+                succeeded++;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                results.Add(new ImportRowResult(rowNumber, false, ex.Message, row));
+                failed++;
+            }
+        }
+
+        return new ImportResult(request.Rows.Count, succeeded, failed, results);
+    }
+
+    public async Task<ImportResult> ImportPortalQaAsync(Guid organisationId, Guid callerUserId, ImportRequest request)
+    {
+        var results = new List<ImportRowResult>();
+        int succeeded = 0, failed = 0;
+
+        for (int i = 0; i < request.Rows.Count; i++)
+        {
+            var row = request.Rows[i];
+            int rowNumber = i + 1;
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var portalRef = RequireField(row, "portal");
+                var question = RequireField(row, "question");
+                var topicName = OptionalField(row, "topic");
+                var answer = OptionalField(row, "answer");
+                var orderRaw = OptionalField(row, "order");
+
+                // Re-derived server-side against the CALLER'S OWN org — matched by slug OR name,
+                // same cross-org-isolation rationale as projectKey above, applied to a Portal
+                // reference instead.
+                var portal = await _db.Portals.AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.OrganisationId == organisationId && (p.Slug == portalRef || p.Name == portalRef));
+                if (portal is null)
+                {
+                    throw new ApiValidationException($"No Portal with slug or name \"{portalRef}\" exists in your organisation.");
+                }
+
+                // Resolved by NAME within this same Portal, then handed to CreateQaEntryAsync as a
+                // real id — a free-text CSV/JSON column has no dropdown-style guarantee of validity,
+                // so an unresolvable topic is a genuine, reportable row error, not something to
+                // silently leave the entry ungrouped.
+                Guid? topicId = null;
+                if (topicName != null)
+                {
+                    var topic = await _db.PortalTopics.AsNoTracking()
+                        .FirstOrDefaultAsync(t => t.PortalId == portal.Id && t.Title == topicName);
+                    if (topic is null)
+                    {
+                        throw new ApiValidationException($"\"topic\" \"{topicName}\" was not found on Portal \"{portalRef}\".");
+                    }
+                    topicId = topic.Id;
+                }
+
+                int order;
+                if (orderRaw != null)
+                {
+                    if (!int.TryParse(orderRaw, out order))
+                    {
+                        throw new ApiValidationException($"\"order\" must be a whole number, got \"{orderRaw}\".");
+                    }
+                }
+                else
+                {
+                    // "Defaults to appending at the end" — one past whatever's currently the highest
+                    // Order among this Portal's existing entries (0 if there are none yet).
+                    var maxOrder = await _db.PortalQaEntries.Where(e => e.PortalId == portal.Id)
+                        .Select(e => (int?)e.Order).MaxAsync();
+                    order = (maxOrder ?? -1) + 1;
+                }
+
+                var created = await _portals.CreateQaEntryAsync(organisationId, portal.Id, callerUserId, new CreatePortalQaEntryRequest(question, answer, topicId, order))
+                    ?? throw new ApiValidationException("Could not create the Portal Q&A entry.");
 
                 if (request.DryRun) await transaction.RollbackAsync();
                 else await transaction.CommitAsync();

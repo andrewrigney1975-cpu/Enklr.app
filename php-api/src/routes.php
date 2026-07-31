@@ -156,6 +156,7 @@ function registerRoutes(App $app): void
         $group->post('/import/organisation-users', [ImportController::class, 'importOrganisationUsers']);
         $group->post('/import/team-members', [ImportController::class, 'importTeamMembers']);
         $group->post('/import/teams-committees', [ImportController::class, 'importTeamsCommittees']);
+        $group->post('/import/portal-qa', [ImportController::class, 'importPortalQa']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Chat (org-wide, any authenticated org user — deliberately NO ProjectMemberMiddleware, since

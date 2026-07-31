@@ -983,10 +983,10 @@ only appears for an **Org Admin** — this is Elena's territory, not Marcus's.
   several projects at once). A Team Member row can optionally set a role, an allocated-time
   percentage, who they report to (by that person's username), and whether they're a Project Admin. A
   Teams & Committees row sets a name and type (team or committee), and can optionally name a parent
-  team/committee and a semicolon-separated list of member usernames to staff it with. **Currently
-  available**: Organisation Users, Team Members, and Teams & Committees. Portal Q&A still shows a
-  "coming soon" note on the Import Data tab — its Schema is already documented, but the actual import
-  lands in an upcoming update.
+  team/committee and a semicolon-separated list of member usernames to staff it with. A Portal Q&A
+  row names its target Portal (by slug or by name) and a question, and can optionally name a topic to
+  group it under, an answer, and a display order (rows without an order are appended to the end).
+  **Currently available**: Organisation Users, Team Members, Teams & Committees, and Portal Q&A.
 - **Manage Templates** — **What**: save a fully set-up project (its columns, task types, workflow) as
   a reusable template, so a new project starts from a sensible default instead of a blank board.
   **Who**: Elena or Priya, the second or third time they catch themselves rebuilding the same column
@@ -1254,7 +1254,7 @@ isn't present on a fully local project; **Local Only** is the rare feature that 
 | SSO & Provisioning (SAML/SCIM configuration) | — | — | ✓ | Cloud Only |
 | Save the current project as a Template | ✓ | ✓ | ✓ | Cloud + Local |
 | Import Centre — view/download entity schemas | — | — | ✓ | Cloud Only |
-| Import Centre — bulk-import via Test Run/Commit (Organisation Users, Team Members, Teams & Committees so far) | — | — | ✓ | Cloud Only |
+| Import Centre — bulk-import via Test Run/Commit (Organisation Users, Team Members, Teams & Committees, Portal Q&A) | — | — | ✓ | Cloud Only |
 | Manage Templates (edit/delete the shared list; pick one for a new project) | — | — | ✓ | Cloud + Local |
 | Announcements & Disruption Notices — write/manage | — | — | ✓ | Cloud Only |
 | Announcements & Disruption Notices — see one when it's posted | ✓ | ✓ | ✓ | Cloud Only |
