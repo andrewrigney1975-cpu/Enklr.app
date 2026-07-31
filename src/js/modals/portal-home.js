@@ -294,7 +294,7 @@ function renderPortalHomeQa(){
   var grouped = topics.map(function(t){ return {title: t.title, entries: entries.filter(function(e){ return e.portalTopicId === t.id; })}; })
     .filter(function(g){ return g.entries.length > 0; });
   var ungrouped = entries.filter(function(e){ return !e.portalTopicId; });
-  if(ungrouped.length > 0) grouped.push({title: null, entries: ungrouped});
+  if(ungrouped.length > 0) grouped.push({title: 'Other Articles', entries: ungrouped});
 
   var list = document.getElementById('portalHomeQaList');
   list.innerHTML = grouped.map(function(g){

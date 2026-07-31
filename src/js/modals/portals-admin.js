@@ -6,6 +6,7 @@ import { confirmDialog } from './confirm.js';
 import { iconSvg, hydrateIcons } from '../icons.js';
 import { ICON_PATHS } from '../config.js';
 import { createRichTextEditor } from '../rich-text/editor.js';
+import { markdownToHtml } from '../rich-text/markdown.js';
 
 /* Organisational Portals — Org-Admin authoring UI. Two overlays, same shape as Manage Forms
    (modals/forms-admin.js): #portalsAdminOverlay is the plain list/create picker, #portalEditOverlay
@@ -42,6 +43,25 @@ var editingTeamMemberUserIds = []; // userIds already on the actioner project, t
 
 var STATUS_LABELS = {draft: 'Draft', published: 'Published', archived: 'Archived'};
 
+/* Positive (>0) / Neutral (==0) / Negative (<0) categorization of an Nps average or single value —
+   shared by the portal list's per-portal average, the Q&A tab's per-topic average, and each
+   individual post's own pill. Purely a client-side display categorization — the server only ever
+   stores/returns the raw integer tally (PortalQaEntry.Nps), never a category. */
+function npsCategory(value){
+  if(value > 0) return {label: 'Positive', cls: 'positive'};
+  if(value < 0) return {label: 'Negative', cls: 'negative'};
+  return {label: 'Neutral', cls: 'neutral'};
+}
+function renderNpsPillHTML(value){
+  var cat = npsCategory(value);
+  return '<span class="kf-nps-pill kf-nps-pill-' + cat.cls + '">' + cat.label + '</span>';
+}
+function averageNps(entries){
+  if(!entries || entries.length === 0) return 0;
+  var sum = entries.reduce(function(acc, e){ return acc + (e.nps || 0); }, 0);
+  return sum / entries.length;
+}
+
 // ---- Picker ----
 
 export function openPortalsAdminOverlay(){
@@ -53,10 +73,20 @@ export function closePortalsAdminOverlay(){
   document.getElementById('portalsAdminOverlay').classList.add('hidden');
 }
 
+var adminPortalAvgNps = {}; // portalId -> average Nps across all its own Q&A entries
+
 function loadAndRenderPortalsAdminList(){
   portalsApi.list().then(function(portals){
     adminPortals = portals;
-    renderPortalsAdminList();
+    // One extra round trip per Portal (fine at this feature's expected scale — an org's total
+    // Portal count — same tolerance this codebase already accepts elsewhere, e.g.
+    // PortalHomeService.ListAccessibleAsync's own per-candidate loop) to compute each Portal's own
+    // average Nps for the list's pill; nothing here is persisted, purely a client-side rollup.
+    Promise.all(portals.map(function(p){ return portalsApi.listQaEntries(p.id).catch(function(){ return []; }); })).then(function(entryLists){
+      adminPortalAvgNps = {};
+      portals.forEach(function(p, i){ adminPortalAvgNps[p.id] = averageNps(entryLists[i]); });
+      renderPortalsAdminList();
+    });
   }, function(e){
     _toast('Could not load Portals: ' + (e.message || 'unknown error'));
   });
@@ -70,6 +100,7 @@ function renderPortalsAdminList(){
       '<div class="kf-form-admin-row-main">' +
         '<span class="kf-form-admin-row-name">' + escapeHTML(p.name) + '</span>' +
         '<span class="kf-form-status-badge kf-form-status-' + p.status + '">' + (STATUS_LABELS[p.status] || p.status) + '</span>' +
+        renderNpsPillHTML(adminPortalAvgNps[p.id] || 0) +
         '<span class="kf-form-admin-row-version">#!/portal/' + escapeHTML(p.slug) + '</span>' +
       '</div>' +
       (p.description ? '<div class="kf-form-admin-row-desc">' + escapeHTML(p.description) + '</div>' : '') +
@@ -566,7 +597,7 @@ function renderPortalQaList(topics, entries){
   });
   var ungrouped = entries.filter(function(e){ return !e.portalTopicId; });
 
-  var html = groups.map(renderPortalQaGroupHTML).join('') + (ungrouped.length ? renderPortalQaEntriesHTML(ungrouped) : '');
+  var html = groups.map(renderPortalQaGroupHTML).join('') + (ungrouped.length ? renderPortalQaNoTopicHeaderHTML() + renderPortalQaEntriesHTML(ungrouped) : '');
   var list = document.getElementById('portalQaList');
   list.innerHTML = html;
 
@@ -614,6 +645,7 @@ function renderPortalQaGroupHTML(group){
   return '<div class="kf-form-admin-row" style="background:var(--kf-surface-alt);">' +
     '<div class="kf-form-admin-row-main">' +
       '<span class="kf-form-admin-row-name">' + escapeHTML(group.topic.title) + '</span>' +
+      renderNpsPillHTML(averageNps(group.entries)) +
     '</div>' +
     '<div class="kf-form-admin-row-actions">' +
       renderMoveButtonsHTML('topic', group.topic.id, group.isFirst, group.isLast) +
@@ -621,6 +653,17 @@ function renderPortalQaGroupHTML(group){
       '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-delete-qa-topic="' + group.topic.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span></button>' +
     '</div>' +
   '</div>' + renderPortalQaEntriesHTML(group.entries);
+}
+
+/* Not a real PortalTopic — just a visual sub-heading grouping entries with no PortalTopicId, same
+   row-band look as a real topic's own header (renderPortalQaGroupHTML) but with no edit/delete/
+   reorder actions, since there's no topic entity underneath it to act on. */
+function renderPortalQaNoTopicHeaderHTML(){
+  return '<div class="kf-form-admin-row" style="background:var(--kf-surface-alt);">' +
+    '<div class="kf-form-admin-row-main">' +
+      '<span class="kf-form-admin-row-name">No Topic Assigned</span>' +
+    '</div>' +
+  '</div>';
 }
 function renderPortalQaEntriesHTML(entries){
   // Entries reorder among their own siblings only (same topic, or this ungrouped bucket) — matching
@@ -630,9 +673,10 @@ function renderPortalQaEntriesHTML(entries){
     return '<div class="kf-form-admin-row" style="margin-left:14px;">' +
       '<div class="kf-form-admin-row-main">' +
         '<span class="kf-form-admin-row-name">' + escapeHTML(e.question) + '</span>' +
-        '<span class="kf-portal-qa-nps-badge" title="Net votes from end users (thumbs up minus thumbs down)">NPS ' + e.nps + '</span>' +
+        renderNpsPillHTML(e.nps) +
+        '<span class="kf-portal-qa-nps-badge" title="Net votes from end users (thumbs up minus thumbs down)">' + e.nps + '</span>' +
       '</div>' +
-      (e.answer ? '<div class="kf-form-admin-row-desc">' + escapeHTML(e.answer) + '</div>' : '') +
+      (e.answer ? '<div class="kf-form-admin-row-desc kf-richtext-content">' + markdownToHtml(e.answer) + '</div>' : '') +
       '<div class="kf-form-admin-row-actions">' +
         renderMoveButtonsHTML('entry', e.id, i === 0, i === entries.length - 1) +
         '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-edit-qa-entry="' + e.id + '"><span class="kf-icon" data-icon="edit" data-size="13"></span>Edit</button>' +

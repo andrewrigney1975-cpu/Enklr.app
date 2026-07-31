@@ -4369,6 +4369,30 @@
     padding: 2px 8px;
   }
 
+  /* Positive/Neutral/Negative categorization of an average (or single) Nps value — same visual
+     shape as .kf-form-status-badge, its own class since the color mapping (3-way, keyed by sign)
+     is unrelated to a Portal/Form's draft/published/archived status. */
+  .kf-nps-pill {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+  .kf-nps-pill-positive {
+    background: var(--kf-success-bg, #e3fcef);
+    color: var(--kf-success, #00875a);
+  }
+  .kf-nps-pill-neutral {
+    background: #fffae6;
+    color: #974f0c;
+  }
+  .kf-nps-pill-negative {
+    background: var(--kf-danger-hover-bg);
+    color: var(--kf-danger);
+  }
+
   .kf-form-admin-row-desc {
     font-size: 12px;
     color: var(--kf-text-faint);
@@ -6552,6 +6576,16 @@
      which other .kf-modal-md modals still use at their original width. */
   #teamOverlay .kf-modal {
     width: 680px;
+  }
+
+  /* Portal Q&A tab: topic/post rows drop the shared .kf-form-admin-row border (scoped to just this
+     list — other .kf-form-admin-row users like Manage Forms keep it), and the list gets some
+     breathing room below the Add Topic/Add Q&A Entry buttons above it. */
+  #portalQaList {
+    margin-top: 16px;
+  }
+  #portalQaList .kf-form-admin-row {
+    border: none;
   }
 
   /* Each API Endpoints row packs a Test button + URL text + Copy button + Delete button on one line
