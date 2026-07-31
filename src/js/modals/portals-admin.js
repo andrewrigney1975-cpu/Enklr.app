@@ -33,6 +33,8 @@ var editingOrgUsers = [];
 var editingOrgTeams = [];
 var editingPublishedForms = []; // org-wide published FormDto list, for the "attach a form" picker
 var editingTopics = [];
+var editingQaEntries = []; // all Q&A entries currently loaded for the Q&A tab, for editingQaEntryId lookup
+var editingQaEntryId = null; // id of the entry currently loaded into #portalQaAddEntryRow for editing, or null when adding a new one
 var editingIconName = null;
 var editingTeamCandidates = []; // org-wide active user roster (memberApi.orgCandidates), for the Team tab's picker
 var editingTeamMemberUserIds = []; // userIds already on the actioner project, to exclude from the picker
@@ -455,17 +457,40 @@ export function savePortalQaTopicFromEdit(){
   }, function(e){ _toast('Could not add topic: ' + (e.message || 'unknown error')); });
 }
 
-export function showPortalQaAddEntryRow(){
-  document.getElementById('portalQaAddEntryRow').classList.remove('hidden');
-  document.getElementById('portalQaEntryQuestionInput').value = '';
-  getPortalQaAnswerEditor().setMarkdown('');
+function populatePortalQaTopicSelect(selectedTopicId){
   var topicSelect = document.getElementById('portalQaEntryTopicSelect');
   topicSelect.innerHTML = '<option value="">No topic</option>' + editingTopics.map(function(t){
     return '<option value="' + escapeHTML(t.id) + '">' + escapeHTML(t.title) + '</option>';
   }).join('');
+  topicSelect.value = selectedTopicId || '';
+}
+
+export function showPortalQaAddEntryRow(){
+  editingQaEntryId = null;
+  document.getElementById('portalQaAddEntryRow').classList.remove('hidden');
+  document.getElementById('portalQaEntryQuestionInput').value = '';
+  getPortalQaAnswerEditor().setMarkdown('');
+  populatePortalQaTopicSelect(null);
+  document.getElementById('portalQaEntrySaveBtn').textContent = 'Save';
+  document.getElementById('portalQaEntryQuestionInput').focus();
+}
+/* Reuses the exact same add row/form as showPortalQaAddEntryRow above, just pre-filled from an
+   existing entry and switched into "Update" mode — same "one form, Save vs Update depending on
+   whether something's currently loaded" convention as modals/project-search.js's Saved Query
+   Save/Update button. */
+export function showPortalQaEditEntryRow(entryId){
+  var entry = editingQaEntries.filter(function(e){ return e.id === entryId; })[0];
+  if(!entry) return;
+  editingQaEntryId = entryId;
+  document.getElementById('portalQaAddEntryRow').classList.remove('hidden');
+  document.getElementById('portalQaEntryQuestionInput').value = entry.question;
+  getPortalQaAnswerEditor().setMarkdown(entry.answer || '');
+  populatePortalQaTopicSelect(entry.portalTopicId);
+  document.getElementById('portalQaEntrySaveBtn').textContent = 'Update';
   document.getElementById('portalQaEntryQuestionInput').focus();
 }
 export function hidePortalQaAddEntryRow(){
+  editingQaEntryId = null;
   document.getElementById('portalQaAddEntryRow').classList.add('hidden');
 }
 export function savePortalQaEntryFromEdit(){
@@ -474,10 +499,20 @@ export function savePortalQaEntryFromEdit(){
   var answer = getPortalQaAnswerEditor().getMarkdown().trim();
   var topicId = document.getElementById('portalQaEntryTopicSelect').value || null;
   if(!question){ _toast('Please enter a question.'); return; }
-  portalsApi.createQaEntry(editingPortal.id, question, answer, topicId, 0).then(function(){
-    hidePortalQaAddEntryRow();
-    loadAndRenderPortalQaTab();
-  }, function(e){ _toast('Could not add Q&A entry: ' + (e.message || 'unknown error')); });
+
+  if(editingQaEntryId){
+    var existing = editingQaEntries.filter(function(e){ return e.id === editingQaEntryId; })[0];
+    var order = existing ? existing.order : 0;
+    portalsApi.updateQaEntry(editingPortal.id, editingQaEntryId, question, answer, topicId, order).then(function(){
+      hidePortalQaAddEntryRow();
+      loadAndRenderPortalQaTab();
+    }, function(e){ _toast('Could not update Q&A entry: ' + (e.message || 'unknown error')); });
+  } else {
+    portalsApi.createQaEntry(editingPortal.id, question, answer, topicId, 0).then(function(){
+      hidePortalQaAddEntryRow();
+      loadAndRenderPortalQaTab();
+    }, function(e){ _toast('Could not add Q&A entry: ' + (e.message || 'unknown error')); });
+  }
 }
 
 function loadAndRenderPortalQaTab(){
@@ -485,7 +520,8 @@ function loadAndRenderPortalQaTab(){
   portalsApi.listTopics(editingPortal.id).then(function(topics){
     editingTopics = topics || [];
     portalsApi.listQaEntries(editingPortal.id).then(function(entries){
-      renderPortalQaList(topics, entries || []);
+      editingQaEntries = entries || [];
+      renderPortalQaList(topics, editingQaEntries);
     }, function(e){ _toast('Could not load Q&A entries: ' + (e.message || 'unknown error')); });
   }, function(e){ _toast('Could not load topics: ' + (e.message || 'unknown error')); });
 }
@@ -502,6 +538,11 @@ function renderPortalQaList(topics, entries){
   var list = document.getElementById('portalQaList');
   list.innerHTML = html;
 
+  list.querySelectorAll('[data-edit-qa-entry]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      showPortalQaEditEntryRow(btn.getAttribute('data-edit-qa-entry'));
+    });
+  });
   list.querySelectorAll('[data-delete-qa-entry]').forEach(function(btn){
     btn.addEventListener('click', function(){
       portalsApi.deleteQaEntry(editingPortal.id, btn.getAttribute('data-delete-qa-entry')).then(loadAndRenderPortalQaTab, function(e){ _toast('Could not delete entry: ' + (e.message || 'unknown error')); });
@@ -533,6 +574,7 @@ function renderPortalQaEntriesHTML(entries){
       '</div>' +
       (e.answer ? '<div class="kf-form-admin-row-desc">' + escapeHTML(e.answer) + '</div>' : '') +
       '<div class="kf-form-admin-row-actions">' +
+        '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-edit-qa-entry="' + e.id + '"><span class="kf-icon" data-icon="edit" data-size="13"></span>Edit</button>' +
         '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-delete-qa-entry="' + e.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span>Remove</button>' +
       '</div>' +
     '</div>';

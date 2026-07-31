@@ -27,7 +27,8 @@ import { wireWhiteboardEvents, openWhiteboardOverlay, openWhiteboardFromHashIfPr
 import {
   openPortalHomeFromHashIfPresent, closePortalHomeOverlay, loadAndRenderSideNavPortals,
   closePortalHomeFilloutOverlay, savePortalHomeFilloutDraft, submitPortalHomeFillout, deletePortalHomeFilloutDraft,
-  approvePortalHomeFillout, rejectPortalHomeFillout, onPortalHomeQaSearchInput, clearPortalHomeQaSearch
+  approvePortalHomeFillout, rejectPortalHomeFillout, onPortalHomeQaSearchInput, clearPortalHomeQaSearch,
+  onPortalHomeFormsSearchInput, clearPortalHomeFormsSearch
 } from './modals/portal-home.js';
 import { exportProjectJSON, setExportToast } from './features/export.js';
 import { migrateProjectToServer, loginToServer, completeSsoLogin, changePasswordOnServer, isServerLoggedIn, isServerAuthoritative, pullServerProjectsIntoLocal, deleteProjectOnServer, setMigrationToast, refreshProjectFromServer, switchToAiCreatedProject } from './features/migration.js';
@@ -614,6 +615,8 @@ function wireEvents(){
   document.getElementById('portalHomeFilloutRejectBtn').addEventListener('click', rejectPortalHomeFillout);
   document.getElementById('portalHomeQaSearchInput').addEventListener('input', onPortalHomeQaSearchInput);
   document.getElementById('portalHomeQaSearchClearBtn').addEventListener('click', clearPortalHomeQaSearch);
+  document.getElementById('portalHomeFormsSearchInput').addEventListener('input', onPortalHomeFormsSearchInput);
+  document.getElementById('portalHomeFormsSearchClearBtn').addEventListener('click', clearPortalHomeFormsSearch);
 
   document.getElementById('navFormsFilloutBtn').addEventListener('click', openFormsFilloutOverlay);
   document.getElementById('formsFilloutClose').addEventListener('click', closeFormsFilloutOverlay);

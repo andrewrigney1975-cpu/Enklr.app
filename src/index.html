@@ -1859,8 +1859,16 @@
     <div class="kf-portal-home-body">
       <div class="kf-portal-home-pane">
         <div class="kf-portal-home-pane-title">Start a request</div>
+        <div class="kf-search kf-portal-forms-search">
+          <span class="kf-icon" data-icon="search" data-size="14"></span>
+          <input type="text" id="portalHomeFormsSearchInput" placeholder="Search…">
+          <button type="button" class="kf-search-clear-btn kf-vis-hidden" id="portalHomeFormsSearchClearBtn" aria-label="Clear search">
+            <span class="kf-icon" data-icon="close" data-size="12"></span>
+          </button>
+        </div>
         <div id="portalHomeFormsList"></div>
         <div class="kf-member-empty hidden" id="portalHomeFormsEmpty">No forms available on this Portal yet.</div>
+        <div class="kf-member-empty hidden" id="portalHomeFormsNoMatches">No forms match your search.</div>
       </div>
       <div class="kf-portal-home-pane">
         <div id="portalHomeAwaitingSection" class="hidden">

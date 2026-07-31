@@ -27,6 +27,7 @@ var currentQa = null; // {topics, entries}
 var detail = null; // {mode: 'new'|'draft'|'approve', form, fields, submissionId, submission}
 var expandedQaEntryIds = {};
 var qaSearchTerm = '';
+var formsSearchTerm = '';
 
 var STEPPER_STEPS = ['Draft', 'Submitted', 'In review', 'Approved'];
 
@@ -43,6 +44,9 @@ export function openPortalHomeBySlug(slug){
     qaSearchTerm = '';
     document.getElementById('portalHomeQaSearchInput').value = '';
     document.getElementById('portalHomeQaSearchClearBtn').classList.add('kf-vis-hidden');
+    formsSearchTerm = '';
+    document.getElementById('portalHomeFormsSearchInput').value = '';
+    document.getElementById('portalHomeFormsSearchClearBtn').classList.add('kf-vis-hidden');
     loadAndRenderPortalHome();
   }, function(){
     _toast('That Portal isn\'t available.');
@@ -114,10 +118,37 @@ function loadAndRenderPortalHome(){
 
 // ---- Left pane: available forms ----
 
+/* Same case-insensitive substring filter as the Answers (Q&A) pane's own onPortalHomeQaSearchInput/
+   clearPortalHomeQaSearch/renderPortalHomeQa, applied to the form's own name instead of a question/
+   answer pair — kept as separate functions/state (formsSearchTerm, not qaSearchTerm) since the two
+   panes filter independent lists that happen to share a search-box UI pattern, not a shared list. */
+export function onPortalHomeFormsSearchInput(){
+  var input = document.getElementById('portalHomeFormsSearchInput');
+  formsSearchTerm = input.value.trim().toLowerCase();
+  document.getElementById('portalHomeFormsSearchClearBtn').classList.toggle('kf-vis-hidden', input.value.length === 0);
+  renderPortalHomeForms();
+}
+
+export function clearPortalHomeFormsSearch(){
+  var input = document.getElementById('portalHomeFormsSearchInput');
+  input.value = '';
+  formsSearchTerm = '';
+  document.getElementById('portalHomeFormsSearchClearBtn').classList.add('kf-vis-hidden');
+  renderPortalHomeForms();
+  input.focus();
+}
+
 function renderPortalHomeForms(){
+  var searching = formsSearchTerm.length > 0;
+  var forms = searching ? currentForms.filter(function(f){
+    return (f.formName || '').toLowerCase().indexOf(formsSearchTerm) !== -1;
+  }) : currentForms;
+
   document.getElementById('portalHomeFormsEmpty').classList.toggle('hidden', currentForms.length > 0);
+  document.getElementById('portalHomeFormsNoMatches').classList.toggle('hidden', !searching || forms.length > 0);
+
   var list = document.getElementById('portalHomeFormsList');
-  list.innerHTML = currentForms.map(function(f){
+  list.innerHTML = forms.map(function(f){
     return '<div class="kf-portal-home-form-tile" data-form-group-id="' + f.formGroupId + '">' +
       iconSvg('formFillOut', 18) +
       '<span>' + escapeHTML(f.formName || 'Untitled form') + '</span>' +

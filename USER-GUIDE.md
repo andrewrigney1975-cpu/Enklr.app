@@ -728,13 +728,19 @@ drawn.
   (Trivial → Low → Medium → High → Critical) — nobody has to join it just to submit a request through
   the Portal, but every current Org Admin is added to it automatically, and Elena can add specific
   analysts or consultants to help process what comes in via the **Team** tab in the Portal editor (a
-  simple picker over your existing user list — no separate account setup needed). A Form's approval
+  simple picker over your existing user list — no separate account setup needed). The **Q&A** tab is
+  where Elena builds the Answers knowledge base end users see (below) — add Topics to group related
+  questions, add entries under a Topic or leave them ungrouped, and edit any existing entry at any
+  time (question, rich-text answer, and which Topic it belongs to, including moving it to a different
+  Topic or ungrouping it) via its own **Edit** button. A Form's approval
   workflow can include an action that automatically raises a task in that project, in whichever
   priority column you choose, the moment a submission reaches it — assigned to whoever most recently
   approved it, if there was an approval step, or left for the back-office team to pick up if not.
   **What Marcus sees**: once granted access, a Portal appears as its own icon in the side nav's
   "Portals" section — clicking it opens the full-screen experience, laid out in three panes: **Start a
-  request** (every form attached to this Portal you're able to submit), **My requests** (a visual
+  request** (every form attached to this Portal you're able to submit — a search box above the list
+  filters to matching form names, the same search-box style as the Answers pane's own, for a Portal
+  with a lot of forms attached), **My requests** (a visual
   progress stepper — Draft → Submitted → In Review → Approved/Rejected — for everything you've
   submitted here; a Draft reopens editable, anything past that opens as a read-only view of what you
   submitted plus its full Approval Trail), and **Answers** — a searchable, expand/collapse Q&A
