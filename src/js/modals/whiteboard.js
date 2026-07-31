@@ -1,6 +1,6 @@
 "use strict";
 import { toast } from '../ui.js';
-import { WHITEBOARD_PALETTE, WHITEBOARD_DEFAULT_PEN_COLOR, WHITEBOARD_DEFAULT_PEN_WIDTH, WHITEBOARD_DEFAULT_PEN_OPACITY, WHITEBOARD_ERASER_WIDTH, WHITEBOARD_CURSOR_THROTTLE_MS } from '../config.js';
+import { WHITEBOARD_PALETTE, WHITEBOARD_DEFAULT_PEN_COLOR, WHITEBOARD_DEFAULT_PEN_WIDTH, WHITEBOARD_DEFAULT_PEN_OPACITY, WHITEBOARD_ERASER_WIDTH, WHITEBOARD_CURSOR_THROTTLE_MS, WHITEBOARD_GRID_SIZE } from '../config.js';
 import { escapeHTML } from '../utils.js';
 import { confirmDialog } from './confirm.js';
 import { exportSvgElementAsSvgFile } from '../features/svg-export.js';
@@ -33,6 +33,11 @@ var _drawing = null; // in-progress pen/shape/connector drag state
    handleCurveClick reflects actual visual closeness on screen regardless of how the fixed
    1600x900 viewBox happens to be scaled at the moment. */
 var _curveDrawing = null;
+/* Grid/Snap are purely local view/input preferences — never serialized into an element, never
+   broadcast, never exported. Session-only (reset on reopen), same precedent as
+   views/board.js's ui.showTaskConnectors. */
+var _showGrid = false;
+var _snapToGrid = false;
 var _cursorEls = {}; // userId -> DOM element, for the remote-cursor overlay
 var _lastCursorSentAt = 0;
 var _wired = false;
@@ -59,6 +64,53 @@ function showCanvasView(){
   document.getElementById('wbCanvasView').classList.remove('hidden');
   document.getElementById('whiteboardToolbar').classList.remove('kf-vis-hidden');
   renderWhiteboardState();
+  sizeWhiteboardModalToCanvas();
+}
+
+/* Shrinks the whiteboard modal's own size to match its fixed-16:9 canvas instead of always
+   stretching to the shared .kf-modal-lg 98vw x 86vh, so a window whose aspect ratio doesn't match
+   16:9 doesn't leave a dead gutter beside the canvas. A pure-CSS `width: fit-content` was tried
+   first and reverted — combined with .kf-wb-canvas-wrap's own `aspect-ratio`, it created a circular
+   sizing dependency that collapsed the modal to the toolbar's shrink-to-fit minimum instead of its
+   real full-row width, leaving the canvas overflowing past the modal's own edge.
+
+   This does the same calculation explicitly, "contain"-style (same idea as CSS object-fit:contain
+   — fit within both bounds, shrink whichever dimension the aspect ratio doesn't otherwise satisfy):
+   1. First try sizing from the available HEIGHT (86vh minus the header's own rendered height) —
+      canvas width = that height x 16/9, modal width = canvas width + rail width.
+   2. If that width would exceed the available window width (98vw), the height-first candidate
+      doesn't fit — recompute from the available WIDTH instead (canvas width = 98vw minus rail
+      width), and set the modal's height explicitly (canvas width x 9/16, plus header height) rather
+      than leaving it at the CSS default 86vh, so the canvas shrinks to match on ITS short axis too.
+      Without this branch, a narrow-enough window still tried to force a too-wide canvas via
+      aspect-ratio and it visibly overflowed past the modal's right edge — the bug this fixes.
+   3. Either way, floor the final width at the header's own `scrollWidth` (its natural full,
+      unwrapped row width) so the toolbar can never be squeezed narrower than it needs. */
+function sizeWhiteboardModalToCanvas(){
+  var modal = document.querySelector('.kf-whiteboard-modal');
+  var header = modal ? modal.querySelector('.kf-modal-header') : null;
+  var rail = document.getElementById('wbRail');
+  if(!modal || !header || !rail) return;
+
+  var maxModalHeight = window.innerHeight * 0.86;
+  var maxModalWidth = window.innerWidth * 0.98;
+  var headerHeight = header.getBoundingClientRect().height;
+  var railWidth = rail.getBoundingClientRect().width;
+  var minWidth = header.scrollWidth;
+
+  var canvasAreaHeight = Math.max(maxModalHeight - headerHeight, 0);
+  var modalWidth = canvasAreaHeight * (16 / 9) + railWidth;
+
+  if(modalWidth <= maxModalWidth){
+    modal.style.height = ''; // fits the default 86vh — no override needed
+  } else {
+    var canvasWidth = Math.max(maxModalWidth - railWidth, 0);
+    var canvasHeight = canvasWidth * (9 / 16);
+    modalWidth = maxModalWidth;
+    modal.style.height = (canvasHeight + headerHeight) + 'px';
+  }
+
+  modal.style.width = Math.max(modalWidth, minWidth) + 'px';
 }
 
 /* Closing the modal itself (the X button / outside click) is NOT the same as leaving/closing the
@@ -267,9 +319,24 @@ function elementAtPoint(clientX, clientY){
   return null;
 }
 
+function snapCoord(v){
+  return Math.round(v / WHITEBOARD_GRID_SIZE) * WHITEBOARD_GRID_SIZE;
+}
+
+/* Single choke point for "where is the pointer, in canvas coordinates" — applies Snap to Grid
+   (when on) to every tool except Pen, whose whole point is a smooth freehand stroke that would
+   otherwise stair-step on every sampled pointermove. Curve, shapes, connector, and text all read
+   their points through here, so snapping applies to all of them with no per-tool changes. Purely
+   a local input-time rounding step — never sent to or interpreted by the server. */
+function getCanvasPoint(e, canvas){
+  var pt = clientPointToSvgPoint(canvas, e.clientX, e.clientY);
+  if(_snapToGrid && _tool !== 'pen') return {x: snapCoord(pt.x), y: snapCoord(pt.y)};
+  return pt;
+}
+
 function handleCanvasPointerDown(e){
   var canvas = document.getElementById('wbCanvas');
-  var pt = clientPointToSvgPoint(canvas, e.clientX, e.clientY);
+  var pt = getCanvasPoint(e, canvas);
 
   if(_tool === 'eraser'){
     var elementId = elementAtPoint(e.clientX, e.clientY);
@@ -358,7 +425,7 @@ function finishCurve(closed, shiftHeld){
 
 function handleCanvasPointerMove(e){
   var canvas = document.getElementById('wbCanvas');
-  var pt = clientPointToSvgPoint(canvas, e.clientX, e.clientY);
+  var pt = getCanvasPoint(e, canvas);
 
   var now = Date.now();
   if(now - _lastCursorSentAt >= WHITEBOARD_CURSOR_THROTTLE_MS){
@@ -520,6 +587,21 @@ export function wireWhiteboardEvents(){
   });
   selectTool('pen');
 
+  document.getElementById('wbGridToggleBtn').addEventListener('click', function(){
+    _showGrid = !_showGrid;
+    document.getElementById('wbGridToggleBtn').classList.toggle('kf-wb-toggle-active', _showGrid);
+    /* Two stacked rects share this toggle: #wbGridPage (a solid bordered "page" background) and
+       #wbGridOverlay (the gridline pattern on top of it) — the fixed 1600x900 SVG viewBox gets
+       letterboxed inside a wider modal (preserveAspectRatio="xMinYMin meet"), so without the solid
+       page rect the gridlines would just stop partway across the modal with no visual explanation,
+       reading as a rendering bug rather than "this is the edge of the canvas." */
+    document.querySelectorAll('.kf-wb-grid-overlay').forEach(function(el){ el.classList.toggle('hidden', !_showGrid); });
+  });
+  document.getElementById('wbSnapToggleBtn').addEventListener('click', function(){
+    _snapToGrid = !_snapToGrid;
+    document.getElementById('wbSnapToggleBtn').classList.toggle('kf-wb-toggle-active', _snapToGrid);
+  });
+
   document.getElementById('whiteboardClose').addEventListener('click', closeWhiteboardOverlay);
   document.getElementById('whiteboardOverlay').addEventListener('mousedown', function(e){
     if(e.target.id === 'whiteboardOverlay') closeWhiteboardOverlay();
@@ -530,6 +612,14 @@ export function wireWhiteboardEvents(){
   document.getElementById('wbSaveBtn').addEventListener('click', handleSave);
   document.getElementById('wbExitBtn').addEventListener('click', handleExitOrCloseClicked);
   document.getElementById('wbClearAllBtn').addEventListener('click', handleClearAllClicked);
+
+  // Keeps the modal's width matched to the canvas's fixed 16:9 aspect ratio as the browser window
+  // is resized — only recomputed while the whiteboard is actually open, canvas view visible.
+  window.addEventListener('resize', function(){
+    if(isWhiteboardOpen() && !document.getElementById('wbCanvasView').classList.contains('hidden')){
+      sizeWhiteboardModalToCanvas();
+    }
+  });
 
   document.getElementById('wbExportAsBtn').addEventListener('click', function(e){
     e.stopPropagation();

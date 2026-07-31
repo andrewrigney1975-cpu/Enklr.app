@@ -8,7 +8,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-export var APP_VERSION = '4.227.20260731.1851';
+export var APP_VERSION = '4.235.20260731.2001';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -168,6 +168,9 @@ export var ICON_PATHS = {
   /* Whiteboard's "curve" tool: click a series of points, connected as a smooth spline — the two
      filled dots at the ends hint at "click to place vertices" versus the plain freehand `pen`. */
   curve:       '<path d="M4 18c3-11 7-11 8-5s5 6 8-5"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/><circle cx="20" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
+  /* Whiteboard's "Snap to Grid" toggle — the `grid` icon above with a filled center dot standing
+     in for "things click into place here". */
+  snapGrid:    '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18M12 3v18"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/>',
   connector:   '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h6a4 4 0 0 1 4 4v4"/>',
   cursorArrow: '<path d="M5 3l14 8-6 2-2 6Z"/>'
 };
@@ -251,6 +254,11 @@ export var WHITEBOARD_DEFAULT_PEN_COLOR = '#000000';
 export var WHITEBOARD_DEFAULT_PEN_WIDTH = 3;
 export var WHITEBOARD_DEFAULT_PEN_OPACITY = 1;
 export var WHITEBOARD_ERASER_WIDTH = 20;
+/* Snap-to-Grid cell size (SVG-space units, same 1600x900 viewBox every other whiteboard coordinate
+   uses) — divides evenly into both dimensions (80x45 cells). Purely a local input-time rounding
+   step (modals/whiteboard.js's snapCoord/getCanvasPoint); never sent to or interpreted by the
+   server. */
+export var WHITEBOARD_GRID_SIZE = 20;
 /* Throttle for outgoing cursor-position broadcasts — a whole-pointermove-per-broadcast stream
    would be excessive load for a signal that's purely visual; see CLAUDE.md's cursor-sync note. */
 export var WHITEBOARD_CURSOR_THROTTLE_MS = 120;

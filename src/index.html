@@ -1036,6 +1036,14 @@
             <button type="button" class="kf-btn kf-btn-ghost" id="wbClearAllBtn" title="Clear All — erases everything on this whiteboard"><span class="kf-icon" data-icon="trash" data-size="16"></span></button>
           </div>
         </div>
+        <div class="kf-wb-tool-stack">
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-toggle" id="wbGridToggleBtn" title="Show Grid — a local view aid only, never shared with other participants"><span class="kf-icon" data-icon="grid" data-size="16"></span></button>
+          </div>
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-toggle" id="wbSnapToggleBtn" title="Snap to Grid — a local drawing aid only, doesn't affect what's shared"><span class="kf-icon" data-icon="snapGrid" data-size="16"></span></button>
+          </div>
+        </div>
         <div class="kf-header-divider-light"></div>
         <div class="kf-wb-slider-stack">
           <div class="kf-wb-slider-group">
@@ -1097,7 +1105,13 @@
           <defs>
             <marker id="kf-wb-dot-start" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="var(--kf-surface)" stroke="#5243aa" stroke-width="1.6"/></marker>
             <marker id="kf-wb-dot-end" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><circle cx="5" cy="5" r="3" fill="#5243aa"/></marker>
+            <pattern id="wbGridPattern" width="20" height="20" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="20" y2="0" stroke="var(--kf-text-secondary)" stroke-width="1" stroke-opacity="0.3"/>
+              <line x1="0" y1="0" x2="0" y2="20" stroke="var(--kf-text-secondary)" stroke-width="1" stroke-opacity="0.3"/>
+            </pattern>
           </defs>
+          <rect id="wbGridPage" class="kf-wb-grid-overlay hidden" x="0" y="0" width="1600" height="900" fill="var(--kf-surface-sunken, #f4f5f7)" stroke="var(--kf-border)" stroke-width="2"/>
+          <rect id="wbGridOverlay" class="kf-wb-grid-overlay hidden" x="0" y="0" width="1600" height="900" fill="url(#wbGridPattern)"/>
           <g id="wbElementsLayer"></g>
         </svg>
         <div class="kf-wb-cursors" id="wbCursorsLayer"></div>

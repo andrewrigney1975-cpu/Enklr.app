@@ -6967,8 +6967,25 @@
     background: var(--kf-text-secondary);
   }
 
+  /* NOTE: the modal's own width is NOT set here — `width: fit-content` was tried and reverted
+     (`aspect-ratio` on .kf-wb-canvas-wrap below + a fit-content ancestor created a circular sizing
+     dependency that real browsers resolved by collapsing to the toolbar header's shrink-to-fit
+     minimum instead of its actual full-row width, leaving the canvas overflowing past the modal's
+     own right edge). `sizeWhiteboardModalToCanvas()` in modals/whiteboard.js sets `.kf-whiteboard-
+     modal`'s width via an explicit inline style instead — a one-shot JS measurement (available
+     height → canvas width → + rail width, floored at the toolbar's own natural full-row width so it
+     never wraps) is deterministic where the pure-CSS attempt wasn't. Falls back to the shared
+     .kf-modal-lg 98vw rule until that JS runs.
+
+     Sized to exactly match the SVG's own fixed 16:9 (1600x900) viewBox rather than stretching to
+     fill whatever horizontal space a flex:1 row-item would otherwise grab — `aspect-ratio` derives
+     the width from the height the flex row already gives this element (via the default
+     align-items:stretch), so preserveAspectRatio="xMinYMin meet" on #wbCanvas always scales evenly
+     into it with zero leftover margin on either axis. */
   .kf-wb-canvas-wrap {
-    flex: 1;
+    flex: none;
+    height: 100%;
+    aspect-ratio: 16 / 9;
     position: relative;
     overflow: auto;
     background: var(--kf-surface-sunken, #f4f5f7);
@@ -7005,9 +7022,14 @@
     white-space: nowrap;
   }
 
-  .kf-wb-tool.kf-wb-tool-active {
+  .kf-wb-tool.kf-wb-tool-active,
+  .kf-wb-toggle.kf-wb-toggle-active {
     background: var(--kf-accent-subtle, rgba(38, 132, 255, 0.15));
     color: var(--kf-accent, #2684ff);
+  }
+
+  .kf-wb-grid-overlay.hidden {
+    display: none;
   }
 
   /* Generic 2-row toolbar grouping — originally built for the outline/filled shape tool pairs,
