@@ -7010,11 +7010,56 @@
     color: var(--kf-accent, #2684ff);
   }
 
+  /* Generic 2-row toolbar grouping — originally built for the outline/filled shape tool pairs,
+     now reused for any other pair that wants the same "related tool stacked directly below" shape
+     (Curve/Pen, Text/Connector, Eraser/Clear All). */
+  .kf-wb-tool-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .kf-wb-tool-row {
+    display: flex;
+    gap: 4px;
+  }
+
+  .kf-wb-slider-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .kf-wb-slider-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .kf-wb-slider-group label {
+    font-size: 11px;
+    color: var(--kf-text-secondary);
+    white-space: nowrap;
+    width: 42px;
+    flex: none;
+  }
+
+  .kf-wb-indicator {
+    flex: none;
+  }
+
+  .kf-wb-indicator-max {
+    fill: none;
+    stroke: var(--kf-border);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+  }
+
   .kf-wb-palette {
     display: flex;
     flex-wrap: wrap;
     gap: 3px;
-    max-width: 92px;
+    width: 149px;
   }
 
   .kf-wb-swatch {

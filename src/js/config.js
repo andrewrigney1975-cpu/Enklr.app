@@ -8,7 +8,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-export var APP_VERSION = '4.220.20260731.1433';
+export var APP_VERSION = '4.227.20260731.1851';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor
@@ -157,6 +157,17 @@ export var ICON_PATHS = {
   shapeOval:   '<ellipse cx="12" cy="12" rx="9" ry="6.5"/>',
   shapeTriangle: '<path d="M12 4 21 20H3Z"/>',
   shapeDiamond: '<path d="M12 3 21 12 12 21 3 12Z"/>',
+  /* Filled variants (2nd toolbar row for the same 5 shape tools) — the shared iconSvg() wrapper
+     sets fill="none" on the <svg> itself, so each of these overrides fill/stroke inline to render
+     as a solid currentColor silhouette instead of just an outline. */
+  shapeRectFilled:   '<rect x="4" y="6" width="16" height="12" rx="1" fill="currentColor" stroke="none"/>',
+  shapeCircleFilled: '<circle cx="12" cy="12" r="8.5" fill="currentColor" stroke="none"/>',
+  shapeOvalFilled:   '<ellipse cx="12" cy="12" rx="9" ry="6.5" fill="currentColor" stroke="none"/>',
+  shapeTriangleFilled: '<path d="M12 4 21 20H3Z" fill="currentColor" stroke="none"/>',
+  shapeDiamondFilled: '<path d="M12 3 21 12 12 21 3 12Z" fill="currentColor" stroke="none"/>',
+  /* Whiteboard's "curve" tool: click a series of points, connected as a smooth spline — the two
+     filled dots at the ends hint at "click to place vertices" versus the plain freehand `pen`. */
+  curve:       '<path d="M4 18c3-11 7-11 8-5s5 6 8-5"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/><circle cx="20" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
   connector:   '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h6a4 4 0 0 1 4 4v4"/>',
   cursorArrow: '<path d="M5 3l14 8-6 2-2 6Z"/>'
 };
@@ -238,6 +249,7 @@ export var WHITEBOARD_PALETTE = [
 ];
 export var WHITEBOARD_DEFAULT_PEN_COLOR = '#000000';
 export var WHITEBOARD_DEFAULT_PEN_WIDTH = 3;
+export var WHITEBOARD_DEFAULT_PEN_OPACITY = 1;
 export var WHITEBOARD_ERASER_WIDTH = 20;
 /* Throttle for outgoing cursor-position broadcasts — a whole-pointermove-per-broadcast stream
    would be excessive load for a signal that's purely visual; see CLAUDE.md's cursor-sync note. */

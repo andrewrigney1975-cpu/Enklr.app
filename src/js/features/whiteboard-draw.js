@@ -39,6 +39,20 @@ function escapeXml(text){
     .replace(/"/g, '&quot;');
 }
 
+function shapeFillAttrs(data){
+  if(!data.filled) return 'fill="none"';
+  var opacity = data.opacity === undefined ? 1 : data.opacity;
+  return 'fill="' + data.color + '" fill-opacity="' + opacity + '"';
+}
+
+/* A filled shape drawn with Shift held skips the outline entirely (`noStroke: true`) — fill only,
+   no opaque border. Only ever set alongside `filled: true`; an outline-only shape always has its
+   normal solid stroke, same as before this existed. */
+function shapeStrokeAttrs(data, width){
+  if(data.noStroke) return '';
+  return 'stroke="' + data.color + '" stroke-width="' + width + '"';
+}
+
 function pointsToPathD(points){
   if(!points || points.length === 0) return '';
   var d = 'M ' + points[0].x + ' ' + points[0].y;
@@ -46,13 +60,57 @@ function pointsToPathD(points){
   return d;
 }
 
+/* Catmull-Rom-to-cubic-Bezier smoothing through an ordered list of click-placed points (the
+   "curve" tool's whole reason for existing over the freehand "pen" tool — a handful of clicked
+   vertices instead of every raw pointermove sample). Standard 1/6-tension conversion: each
+   segment's two control points are derived from its own endpoints plus one neighbor point on
+   either side, clamped to the endpoint itself at the ends of an open curve (no wraparound) rather
+   than reaching past the first/last vertex. `closed` only appends the SVG 'Z' close command — the
+   curve tool always stores an explicit vertex coincident with the first point when the user closes
+   the shape (see modals/whiteboard.js's 10px-proximity snap), so the path already loops back on
+   its own; no wraparound-neighbor smoothing is needed to make that join look right. */
+export function smoothPathD(points, closed){
+  if(!points || points.length === 0) return '';
+  if(points.length === 1) return 'M ' + points[0].x + ' ' + points[0].y;
+  if(points.length === 2){
+    var d2 = 'M ' + points[0].x + ' ' + points[0].y + ' L ' + points[1].x + ' ' + points[1].y;
+    return closed ? d2 + ' Z' : d2;
+  }
+  var d = 'M ' + points[0].x + ' ' + points[0].y;
+  for(var i = 0; i < points.length - 1; i++){
+    var p0 = points[i === 0 ? 0 : i - 1];
+    var p1 = points[i];
+    var p2 = points[i + 1];
+    var p3 = points[i + 2 < points.length ? i + 2 : points.length - 1];
+    var c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    var c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ' C ' + c1x + ' ' + c1y + ' ' + c2x + ' ' + c2y + ' ' + p2.x + ' ' + p2.y;
+  }
+  if(closed) d += ' Z';
+  return d;
+}
+
 /* elementJson shapes, one per ElementType (kept intentionally simple/flat — no nested class
    hierarchy, matching this app's "opaque JSON blob" convention elsewhere):
-   pen:       {points:[{x,y}...], color, width}
+   pen:       {points:[{x,y}...], color, width, opacity?} — opacity is a 0-1 fraction; missing on
+              elements drawn before the opacity slider existed, treated as fully opaque (1)
    eraser:    (never stored — see modals/whiteboard.js's eraser handling: it removes elements
               outright via whiteboardApi.removeElement rather than drawing anything of its own)
    text:      {x, y, text, color}
-   shape-*:   {x, y, w, h, color}          (rect/circle/oval/triangle/diamond, x/y/w/h = bounding box)
+   shape-*:   {x, y, w, h, color, filled?, opacity?, noStroke?} (rect/circle/oval/triangle/diamond,
+              x/y/w/h = bounding box; filled/opacity are only present for the toolbar's 2nd-row
+              "filled" shape tools — an outline-only shape has neither and renders fill="none" same
+              as before either existed; noStroke is only present on a filled shape drawn with Shift
+              held, dropping the outline entirely — fill only)
+   curve:     {points:[{x,y}...], color, width, closed?, filled?, opacity?, noStroke?} — the
+              click-to-place-vertices smooth-curve tool (modals/whiteboard.js's `_curveDrawing`).
+              An open curve (ended with Space) always renders at opacity 1 regardless of the
+              toolbar's Opacity slider — that slider only ever applies to a *closed* curve's fill,
+              same "opacity is a fill property, not a stroke property" rule the filled shape tools
+              already follow. `closed` is set when the user clicked back within 10px of the first
+              vertex (see the same file's proximity snap) — the stored point list already has an
+              explicit last vertex coincident with the first in that case, so smoothPathD's own
+              'Z' is just a formality, not what actually closes the visible gap.
    connector: {x1, y1, x2, y2, color, corner?: {x, y}, curve?: true} — corner is only present when
               the connector was drawn as a Shift-held right-angle bend (see computeConnectorCorner
               below); curve is only present when it was drawn as an Alt/Option-held smooth curve (see
@@ -101,7 +159,8 @@ export function renderElementSvg(element){
   var groupAttrs = 'data-element-id="' + element.id + '" class="kf-wb-element"';
 
   if(type === 'pen'){
-    return '<g ' + groupAttrs + '><path d="' + pointsToPathD(data.points) + '" fill="none" stroke="' + data.color + '" stroke-width="' + data.width + '" stroke-linecap="round" stroke-linejoin="round"/></g>';
+    var opacity = data.opacity === undefined ? 1 : data.opacity;
+    return '<g ' + groupAttrs + '><path d="' + pointsToPathD(data.points) + '" fill="none" stroke="' + data.color + '" stroke-width="' + data.width + '" stroke-opacity="' + opacity + '" stroke-linecap="round" stroke-linejoin="round"/></g>';
   }
   if(type === 'text'){
     return '<g ' + groupAttrs + '><text x="' + data.x + '" y="' + data.y + '" fill="' + data.color + '" font-size="18" font-family="inherit">' + escapeXml(data.text) + '</text></g>';
@@ -119,20 +178,29 @@ export function renderElementSvg(element){
     return '<g ' + groupAttrs + '><path d="' + d + '" fill="none" stroke="' + data.color + '" stroke-width="2.5" marker-start="url(#kf-wb-dot-start)" marker-end="url(#kf-wb-dot-end)"/></g>';
   }
   if(type === 'shape-rect'){
-    return '<g ' + groupAttrs + '><rect x="' + data.x + '" y="' + data.y + '" width="' + data.w + '" height="' + data.h + '" fill="none" stroke="' + data.color + '" stroke-width="2.5"/></g>';
+    return '<g ' + groupAttrs + '><rect x="' + data.x + '" y="' + data.y + '" width="' + data.w + '" height="' + data.h + '" ' + shapeFillAttrs(data) + ' ' + shapeStrokeAttrs(data, 2.5) + '/></g>';
   }
   if(type === 'shape-circle' || type === 'shape-oval'){
     var rx = data.w / 2, ry = data.h / 2;
-    return '<g ' + groupAttrs + '><ellipse cx="' + (data.x + rx) + '" cy="' + (data.y + ry) + '" rx="' + Math.abs(rx) + '" ry="' + Math.abs(ry) + '" fill="none" stroke="' + data.color + '" stroke-width="2.5"/></g>';
+    return '<g ' + groupAttrs + '><ellipse cx="' + (data.x + rx) + '" cy="' + (data.y + ry) + '" rx="' + Math.abs(rx) + '" ry="' + Math.abs(ry) + '" ' + shapeFillAttrs(data) + ' ' + shapeStrokeAttrs(data, 2.5) + '/></g>';
   }
   if(type === 'shape-triangle'){
     var p = data.x + ',' + (data.y + data.h) + ' ' + (data.x + data.w / 2) + ',' + data.y + ' ' + (data.x + data.w) + ',' + (data.y + data.h);
-    return '<g ' + groupAttrs + '><polygon points="' + p + '" fill="none" stroke="' + data.color + '" stroke-width="2.5"/></g>';
+    return '<g ' + groupAttrs + '><polygon points="' + p + '" ' + shapeFillAttrs(data) + ' ' + shapeStrokeAttrs(data, 2.5) + '/></g>';
   }
   if(type === 'shape-diamond'){
     var cx = data.x + data.w / 2, cy = data.y + data.h / 2;
     var pd = cx + ',' + data.y + ' ' + (data.x + data.w) + ',' + cy + ' ' + cx + ',' + (data.y + data.h) + ' ' + data.x + ',' + cy;
-    return '<g ' + groupAttrs + '><polygon points="' + pd + '" fill="none" stroke="' + data.color + '" stroke-width="2.5"/></g>';
+    return '<g ' + groupAttrs + '><polygon points="' + pd + '" ' + shapeFillAttrs(data) + ' ' + shapeStrokeAttrs(data, 2.5) + '/></g>';
+  }
+  if(type === 'curve'){
+    var curveD = smoothPathD(data.points, !!data.closed);
+    var width = data.width || 3;
+    if(data.closed){
+      return '<g ' + groupAttrs + '><path d="' + curveD + '" ' + shapeFillAttrs(data) + ' ' + shapeStrokeAttrs(data, width) + ' stroke-linecap="round" stroke-linejoin="round"/></g>';
+    }
+    var curveOpacity = data.opacity === undefined ? 1 : data.opacity;
+    return '<g ' + groupAttrs + '><path d="' + curveD + '" fill="none" stroke="' + data.color + '" stroke-width="' + width + '" stroke-opacity="' + curveOpacity + '" stroke-linecap="round" stroke-linejoin="round"/></g>';
   }
   return '';
 }

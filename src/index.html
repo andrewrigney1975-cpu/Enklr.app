@@ -996,17 +996,65 @@
     <div class="kf-modal-header">
       <h2 id="whiteboardTitle">Whiteboard</h2>
       <div class="kf-modal-header-actions" id="whiteboardToolbar">
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="pen" id="wbToolPen" title="Pen"><span class="kf-icon" data-icon="pen" data-size="16"></span></button>
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="eraser" id="wbToolEraser" title="Eraser"><span class="kf-icon" data-icon="eraser" data-size="16"></span></button>
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="text" id="wbToolText" title="Text Box"><span class="kf-icon" data-icon="textBox" data-size="16"></span></button>
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="rect" id="wbToolRect" title="Rectangle"><span class="kf-icon" data-icon="shapeRect" data-size="16"></span></button>
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="circle" id="wbToolCircle" title="Circle"><span class="kf-icon" data-icon="shapeCircle" data-size="16"></span></button>
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="oval" id="wbToolOval" title="Oval"><span class="kf-icon" data-icon="shapeOval" data-size="16"></span></button>
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="triangle" id="wbToolTriangle" title="Triangle"><span class="kf-icon" data-icon="shapeTriangle" data-size="16"></span></button>
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="diamond" id="wbToolDiamond" title="Diamond"><span class="kf-icon" data-icon="shapeDiamond" data-size="16"></span></button>
-        <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="connector" id="wbToolConnector" title="Connector Line"><span class="kf-icon" data-icon="connector" data-size="16"></span></button>
+        <div class="kf-wb-tool-stack">
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="curve" id="wbToolCurve" title="Smooth Curve — click to place points, Space to finish, click near the start point to close &amp; fill"><span class="kf-icon" data-icon="curve" data-size="16"></span></button>
+          </div>
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="pen" id="wbToolPen" title="Pen"><span class="kf-icon" data-icon="pen" data-size="16"></span></button>
+          </div>
+        </div>
+        <div class="kf-wb-tool-stack">
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="text" id="wbToolText" title="Text Box"><span class="kf-icon" data-icon="textBox" data-size="16"></span></button>
+          </div>
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="connector" id="wbToolConnector" title="Connector Line"><span class="kf-icon" data-icon="connector" data-size="16"></span></button>
+          </div>
+        </div>
+        <div class="kf-wb-tool-stack">
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="rect" id="wbToolRect" title="Rectangle"><span class="kf-icon" data-icon="shapeRect" data-size="16"></span></button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="circle" id="wbToolCircle" title="Circle"><span class="kf-icon" data-icon="shapeCircle" data-size="16"></span></button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="oval" id="wbToolOval" title="Oval"><span class="kf-icon" data-icon="shapeOval" data-size="16"></span></button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="triangle" id="wbToolTriangle" title="Triangle"><span class="kf-icon" data-icon="shapeTriangle" data-size="16"></span></button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="diamond" id="wbToolDiamond" title="Diamond"><span class="kf-icon" data-icon="shapeDiamond" data-size="16"></span></button>
+          </div>
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="rect-filled" id="wbToolRectFilled" title="Filled Rectangle"><span class="kf-icon" data-icon="shapeRectFilled" data-size="16"></span></button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="circle-filled" id="wbToolCircleFilled" title="Filled Circle"><span class="kf-icon" data-icon="shapeCircleFilled" data-size="16"></span></button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="oval-filled" id="wbToolOvalFilled" title="Filled Oval"><span class="kf-icon" data-icon="shapeOvalFilled" data-size="16"></span></button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="triangle-filled" id="wbToolTriangleFilled" title="Filled Triangle"><span class="kf-icon" data-icon="shapeTriangleFilled" data-size="16"></span></button>
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="diamond-filled" id="wbToolDiamondFilled" title="Filled Diamond"><span class="kf-icon" data-icon="shapeDiamondFilled" data-size="16"></span></button>
+          </div>
+        </div>
+        <div class="kf-wb-tool-stack">
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost kf-wb-tool" data-tool="eraser" id="wbToolEraser" title="Eraser"><span class="kf-icon" data-icon="eraser" data-size="16"></span></button>
+          </div>
+          <div class="kf-wb-tool-row">
+            <button type="button" class="kf-btn kf-btn-ghost" id="wbClearAllBtn" title="Clear All — erases everything on this whiteboard"><span class="kf-icon" data-icon="trash" data-size="16"></span></button>
+          </div>
+        </div>
         <div class="kf-header-divider-light"></div>
-        <input type="range" id="wbPenWidth" min="1" max="20" value="3" title="Pen width">
+        <div class="kf-wb-slider-stack">
+          <div class="kf-wb-slider-group">
+            <label for="wbPenWidth">Size</label>
+            <input type="range" id="wbPenWidth" min="1" max="20" value="3" title="Pen width">
+            <svg class="kf-wb-indicator" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <circle class="kf-wb-indicator-max" cx="12" cy="12" r="10"/>
+              <circle id="wbPenWidthDot" cx="12" cy="12" r="1.5" fill="#000000"/>
+            </svg>
+          </div>
+          <div class="kf-wb-slider-group">
+            <label for="wbPenOpacity">Opacity</label>
+            <input type="range" id="wbPenOpacity" min="1" max="100" value="100" title="Opacity">
+            <svg class="kf-wb-indicator" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <circle class="kf-wb-indicator-max" cx="12" cy="12" r="10"/>
+              <circle id="wbPenOpacityDot" cx="12" cy="12" r="10" fill="#000000" fill-opacity="1"/>
+            </svg>
+          </div>
+        </div>
         <div class="kf-header-divider-light"></div>
         <div class="kf-wb-palette" id="wbPalette"></div>
         <div class="kf-header-divider-light"></div>
