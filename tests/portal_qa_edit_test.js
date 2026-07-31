@@ -31,6 +31,8 @@ function makeFakeJwt(payload){
 
   var lastUpdateUrl = null;
   var lastUpdateBody = null;
+  var lastTopicUpdateUrl = null;
+  var lastTopicUpdateBody = null;
 
   function ok(body){ return {ok: true, status: 200, json: async () => body}; }
 
@@ -50,6 +52,12 @@ function makeFakeJwt(payload){
           lastUpdateBody = JSON.parse(options.body);
           entries = [Object.assign({}, entries[0], {question: lastUpdateBody.question, answer: lastUpdateBody.answer, portalTopicId: lastUpdateBody.portalTopicId})];
           return ok(entries[0]);
+        }
+        if(url === '/api/organisations/me/portals/portal1/topics/topicBilling' && method === 'PUT'){
+          lastTopicUpdateUrl = url;
+          lastTopicUpdateBody = JSON.parse(options.body);
+          topics = topics.map(function(t){ return t.id === 'topicBilling' ? Object.assign({}, t, {title: lastTopicUpdateBody.title}) : t; });
+          return ok(topics[0]);
         }
         // Catch-all for org users/org teams/published forms/back-office team list — not under test here.
         return ok([]);
@@ -102,6 +110,34 @@ function makeFakeJwt(payload){
   log('starting a fresh Add resets the question field', doc.getElementById('portalQaEntryQuestionInput').value === '');
   log('starting a fresh Add resets the Save button label back to "Save"', doc.getElementById('portalQaEntrySaveBtn').textContent === 'Save');
   log('starting a fresh Add resets the topic select to "No topic"', doc.getElementById('portalQaEntryTopicSelect').value === '');
+  doc.getElementById('portalQaEntryCancelBtn').click();
+  await wait(10);
+
+  // ---- Topic editing ----
+  const topicEditBtn = doc.querySelector('[data-edit-qa-topic="topicBilling"]');
+  log('an Edit button exists on the Topic group row', !!topicEditBtn);
+  topicEditBtn.click();
+  await wait(10);
+
+  log('the topic add/edit row becomes visible', !doc.getElementById('portalQaAddTopicRow').classList.contains('hidden'));
+  log('topic title input is pre-filled from the existing topic', doc.getElementById('portalQaTopicTitleInput').value === 'Billing', doc.getElementById('portalQaTopicTitleInput').value);
+  log('topic Save button reads "Update" while editing', doc.getElementById('portalQaTopicSaveBtn').textContent === 'Update');
+
+  doc.getElementById('portalQaTopicTitleInput').value = 'Billing & Payments';
+  doc.getElementById('portalQaTopicSaveBtn').click();
+  await wait(30);
+
+  log('saving a topic edit calls the update endpoint (PUT), not create (POST)', lastTopicUpdateUrl === '/api/organisations/me/portals/portal1/topics/topicBilling', lastTopicUpdateUrl);
+  log('the topic update request carries the edited title', lastTopicUpdateBody && lastTopicUpdateBody.title === 'Billing & Payments', JSON.stringify(lastTopicUpdateBody));
+  log('the topic update request preserves the topic’s existing order', lastTopicUpdateBody && lastTopicUpdateBody.order === 0, JSON.stringify(lastTopicUpdateBody));
+  log('the topic add/edit row closes after a successful update', doc.getElementById('portalQaAddTopicRow').classList.contains('hidden'));
+  log('the list re-renders showing the renamed topic', doc.getElementById('portalQaList').textContent.indexOf('Billing & Payments') !== -1, doc.getElementById('portalQaList').textContent);
+
+  // Starting a fresh "Add Topic" afterward must NOT still be in edit mode for the old topic.
+  doc.getElementById('portalQaAddTopicBtn').click();
+  await wait(10);
+  log('starting a fresh Add Topic resets the title field', doc.getElementById('portalQaTopicTitleInput').value === '');
+  log('starting a fresh Add Topic resets the Save button label back to "Save"', doc.getElementById('portalQaTopicSaveBtn').textContent === 'Save');
 
   console.log('\nPortal Q&A edit test complete.');
   process.exit(0);

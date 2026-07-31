@@ -730,9 +730,10 @@ drawn.
   analysts or consultants to help process what comes in via the **Team** tab in the Portal editor (a
   simple picker over your existing user list — no separate account setup needed). The **Q&A** tab is
   where Elena builds the Answers knowledge base end users see (below) — add Topics to group related
-  questions, add entries under a Topic or leave them ungrouped, and edit any existing entry at any
-  time (question, rich-text answer, and which Topic it belongs to, including moving it to a different
-  Topic or ungrouping it) via its own **Edit** button. A Form's approval
+  questions (each Topic has its own **Edit** button too, for renaming it later), add entries under a
+  Topic or leave them ungrouped, and edit any existing entry at any time (question, rich-text answer,
+  and which Topic it belongs to, including moving it to a different Topic or ungrouping it) via its
+  own **Edit** button. A Form's approval
   workflow can include an action that automatically raises a task in that project, in whichever
   priority column you choose, the moment a submission reaches it — assigned to whoever most recently
   approved it, if there was an approval step, or left for the back-office team to pick up if not.

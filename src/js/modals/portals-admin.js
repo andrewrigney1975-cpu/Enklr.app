@@ -33,6 +33,7 @@ var editingOrgUsers = [];
 var editingOrgTeams = [];
 var editingPublishedForms = []; // org-wide published FormDto list, for the "attach a form" picker
 var editingTopics = [];
+var editingTopicId = null; // id of the topic currently loaded into #portalQaAddTopicRow for editing, or null when adding a new one
 var editingQaEntries = []; // all Q&A entries currently loaded for the Q&A tab, for editingQaEntryId lookup
 var editingQaEntryId = null; // id of the entry currently loaded into #portalQaAddEntryRow for editing, or null when adding a new one
 var editingIconName = null;
@@ -440,17 +441,43 @@ export function addPortalTeamMemberFromEdit(){
 // ---- Q&A tab ----
 
 export function showPortalQaAddTopicRow(){
+  editingTopicId = null;
   document.getElementById('portalQaAddTopicRow').classList.remove('hidden');
   document.getElementById('portalQaTopicTitleInput').value = '';
+  document.getElementById('portalQaTopicSaveBtn').textContent = 'Save';
+  document.getElementById('portalQaTopicTitleInput').focus();
+}
+/* Reuses the exact same add row/form as showPortalQaAddTopicRow above, just pre-filled from an
+   existing topic and switched into "Update" mode — same Save-vs-Update convention as
+   showPortalQaEditEntryRow below (itself matching modals/project-search.js's Saved Query
+   Save/Update button). */
+export function showPortalQaEditTopicRow(topicId){
+  var topic = editingTopics.filter(function(t){ return t.id === topicId; })[0];
+  if(!topic) return;
+  editingTopicId = topicId;
+  document.getElementById('portalQaAddTopicRow').classList.remove('hidden');
+  document.getElementById('portalQaTopicTitleInput').value = topic.title;
+  document.getElementById('portalQaTopicSaveBtn').textContent = 'Update';
   document.getElementById('portalQaTopicTitleInput').focus();
 }
 export function hidePortalQaAddTopicRow(){
+  editingTopicId = null;
   document.getElementById('portalQaAddTopicRow').classList.add('hidden');
 }
 export function savePortalQaTopicFromEdit(){
   if(!editingPortal) return;
   var title = document.getElementById('portalQaTopicTitleInput').value.trim();
   if(!title){ _toast('Please enter a topic title.'); return; }
+
+  if(editingTopicId){
+    var existing = editingTopics.filter(function(t){ return t.id === editingTopicId; })[0];
+    var order = existing ? existing.order : 0;
+    portalsApi.updateTopic(editingPortal.id, editingTopicId, title, order).then(function(){
+      hidePortalQaAddTopicRow();
+      loadAndRenderPortalQaTab();
+    }, function(e){ _toast('Could not update topic: ' + (e.message || 'unknown error')); });
+    return;
+  }
   portalsApi.createTopic(editingPortal.id, title, editingTopics.length).then(function(){
     hidePortalQaAddTopicRow();
     loadAndRenderPortalQaTab();
@@ -548,6 +575,11 @@ function renderPortalQaList(topics, entries){
       portalsApi.deleteQaEntry(editingPortal.id, btn.getAttribute('data-delete-qa-entry')).then(loadAndRenderPortalQaTab, function(e){ _toast('Could not delete entry: ' + (e.message || 'unknown error')); });
     });
   });
+  list.querySelectorAll('[data-edit-qa-topic]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      showPortalQaEditTopicRow(btn.getAttribute('data-edit-qa-topic'));
+    });
+  });
   list.querySelectorAll('[data-delete-qa-topic]').forEach(function(btn){
     btn.addEventListener('click', function(){
       portalsApi.deleteTopic(editingPortal.id, btn.getAttribute('data-delete-qa-topic')).then(loadAndRenderPortalQaTab, function(e){ _toast('Could not delete topic: ' + (e.message || 'unknown error')); });
@@ -562,6 +594,7 @@ function renderPortalQaGroupHTML(group){
       '<span class="kf-form-admin-row-name">' + escapeHTML(group.topic.title) + '</span>' +
     '</div>' +
     '<div class="kf-form-admin-row-actions">' +
+      '<button type="button" class="kf-btn kf-btn-secondary kf-btn-sm" data-edit-qa-topic="' + group.topic.id + '"><span class="kf-icon" data-icon="edit" data-size="13"></span>Edit</button>' +
       '<button type="button" class="kf-btn kf-btn-danger kf-btn-sm" data-delete-qa-topic="' + group.topic.id + '"><span class="kf-icon" data-icon="trash" data-size="13"></span></button>' +
     '</div>' +
   '</div>' + renderPortalQaEntriesHTML(group.entries);
