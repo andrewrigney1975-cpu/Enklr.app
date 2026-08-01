@@ -6,6 +6,7 @@ namespace Enkl\Api\Controllers;
 
 use Enkl\Api\Db\Database;
 use Enkl\Api\Realtime\Broadcaster;
+use Enkl\Api\Services\FormSubmissionService;
 use Enkl\Api\Services\TaskService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -16,6 +17,11 @@ final class TasksController extends BaseController
     private function service(): TaskService
     {
         return new TaskService(Database::connection());
+    }
+
+    private function formSubmissions(): FormSubmissionService
+    {
+        return new FormSubmissionService(Database::connection());
     }
 
     public function create(Request $request, Response $response, array $args): Response
@@ -40,7 +46,32 @@ final class TasksController extends BaseController
             return $this->notFound($response);
         }
         $this->broadcast($request, $args['projectId'], $result['id'], $result['key'], $result['title'], 'updated');
+        // Cheap no-op for the overwhelming majority of task updates (an indexed lookup that finds
+        // nothing) — only actually does anything when this Task was raised by a Form Workflow
+        // "raiseTaskInPortal" action node AND this update just moved it into a Done column. See
+        // FormSubmissionService::resumeIfLinkedTaskDone's own doc comment for the full shape.
+        $this->notifyLinkedFormResumed($args['taskId']);
         return $this->json($response, $result);
+    }
+
+    /** Best-effort — a notification failure must never fail the task update itself. Broadcast
+     * ownership stays at this controller level (same convention as Portal/Forms controllers) — the
+     * service only decides WHO/what to notify. */
+    private function notifyLinkedFormResumed(string $taskId): void
+    {
+        try {
+            $result = $this->formSubmissions()->resumeIfLinkedTaskDone($taskId);
+            $target = $result['decisionNotify'] ?? null;
+            if ($target === null) {
+                return;
+            }
+            (new Broadcaster(Database::connection()))->broadcastFormSubmissionDecided(
+                $target['userId'], $result['projectId'], $result['submissionId'], $result['formName'] ?? '',
+                $target['decision'], $target['displayName'], null
+            );
+        } catch (\Throwable) {
+            // best-effort, see comment above
+        }
     }
 
     public function delete(Request $request, Response $response, array $args): Response

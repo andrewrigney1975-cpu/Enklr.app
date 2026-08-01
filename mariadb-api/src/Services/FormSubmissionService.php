@@ -175,10 +175,12 @@ final class FormSubmissionService
 
         $nextEdge = self::outgoingEdge($graph, $authorNode['id']);
         $nextNode = $nextEdge !== null ? self::findNode($graph, $nextEdge['toNodeId']) : null;
-        [$status, $currentNodeId, $nextNode] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
+        [$status, $currentNodeId, $nextNode, $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
 
-        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateSubmitted" = now(), "DateLastModified" = now() WHERE "Id" = :id');
-        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
+        // COALESCE, not overwrite — $raisedTaskId is only non-null when THIS call actually executed
+        // a "raiseTaskInPortal" action node.
+        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "DateSubmitted" = now(), "DateLastModified" = now() WHERE "Id" = :id');
+        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $submissionId]);
 
         return [
             'ok' => true, 'error' => '', 'dto' => $this->get($projectId, $submissionId),
@@ -229,6 +231,7 @@ final class FormSubmissionService
 
         $status = $row['Status'];
         $currentNodeId = $row['CurrentNodeId'];
+        $raisedTaskId = null;
         $notifyNode = $node;
         // True only when this approval actually completed the CURRENT node's quorum and advanced to
         // a genuinely new node (a multi-step Approval chain) — a fresh arrival needing a full
@@ -241,7 +244,7 @@ final class FormSubmissionService
         } elseif (self::isApprovalComplete($node, $trail)) {
             $edge = self::outgoingEdge($graph, $node['id']);
             $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
-            [$status, $currentNodeId, $nextNode] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
+            [$status, $currentNodeId, $nextNode, $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
             $notifyNode = $nextNode;
             $notifyIsFreshArrival = true;
         }
@@ -262,8 +265,8 @@ final class FormSubmissionService
             ];
         }
 
-        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateLastModified" = now() WHERE "Id" = :id');
-        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
+        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "DateLastModified" = now() WHERE "Id" = :id');
+        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $submissionId]);
 
         $stmt2 = $this->db->prepare('SELECT * FROM "FormSubmissions" WHERE "Id" = :id');
         $stmt2->execute(['id' => $submissionId]);
@@ -443,22 +446,24 @@ final class FormSubmissionService
         return ['inProgress', $nextNode['id']];
     }
 
-    /** Ported from php-api/src/Services/FormSubmissionService.php. Walks past any consecutive
-     * "action" nodes (each auto-executed the instant the graph transitions into it), appending to
-     * $trail as it goes, before returning the same [status, currentNodeId] shape nextNodeState()
-     * always has, plus the final non-action $nextNode itself. Deliberately NOT wrapped in an explicit
-     * transaction (same reasoning as the Postgres tier — TaskService::create() already wraps itself
-     * in its own transaction, and PDO has no native nested-transaction support on this tier either).
-     * @return array{0: string, 1: ?string, 2: ?array} [status, currentNodeId, finalNode] */
+    /** Ported from php-api/src/Services/FormSubmissionService.php. Applies one node transition's
+     * terminal-status logic (delegated to nextNodeState). An "action" node is executed (its side
+     * effect fires) the instant the graph transitions into it, but does NOT auto-advance past itself
+     * afterward — it falls into the same 'inProgress' branch as an Approval node, pausing the
+     * submission there until resumeIfLinkedTaskDone (below) notices the raised Task land in a Done
+     * column and re-calls this same method with the action node's own outgoing edge. No dialect
+     * divergence from the Postgres tier's own version of this method.
+     * @return array{0: string, 1: ?string, 2: ?array, 3: ?string} [status, currentNodeId, nextNode,
+     *   raisedTaskId] — raisedTaskId is non-null only when THIS call actually executed a
+     *   "raiseTaskInPortal" action node; callers must COALESCE it against the existing DB value. */
     private function applyNextNodeActions(array $graph, ?array $nextNode, array &$trail, array $submissionRow): array
     {
-        while ($nextNode !== null && ($nextNode['type'] ?? null) === 'action') {
-            $this->executeActionNode($nextNode, $trail, $submissionRow);
-            $edge = self::outgoingEdge($graph, $nextNode['id']);
-            $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
+        $raisedTaskId = null;
+        if ($nextNode !== null && ($nextNode['type'] ?? null) === 'action') {
+            $raisedTaskId = $this->executeActionNode($nextNode, $trail, $submissionRow);
         }
         [$status, $currentNodeId] = self::nextNodeState($nextNode);
-        return [$status, $currentNodeId, $nextNode];
+        return [$status, $currentNodeId, $nextNode, $raisedTaskId];
     }
 
     /** The one action type implemented so far: raises a Task in the target Portal's own
@@ -470,13 +475,14 @@ final class FormSubmissionService
      * multiple Portals raises into wherever THIS submission actually came from. Only when the
      * submission's own project isn't any Portal's actioner project at all (a "free floating" Form
      * filled out directly against an ordinary project) does config.portalId's org-admin-configured
-     * default apply. */
-    private function executeActionNode(array $node, array &$trail, array $submissionRow): void
+     * default apply.
+     * @return ?string The raised Task's own Id, or null when no task was actually raised. */
+    private function executeActionNode(array $node, array &$trail, array $submissionRow): ?string
     {
         $actionType = $node['actionType'] ?? null;
         $config = $node['config'] ?? [];
         if ($actionType !== 'raiseTaskInPortal') {
-            return;
+            return null;
         }
 
         $originStmt = $this->db->prepare('SELECT "ProjectId" FROM "Portals" WHERE "ProjectId" = :pid');
@@ -491,14 +497,14 @@ final class FormSubmissionService
             $targetProjectId = $defaultPortal !== false ? $defaultPortal['ProjectId'] : null;
         }
         if ($targetProjectId === null) {
-            return;
+            return null;
         }
 
         $colStmt = $this->db->prepare('SELECT "Id", "Name" FROM "Columns" WHERE "ProjectId" = :pid ORDER BY "Order"');
         $colStmt->execute(['pid' => $targetProjectId]);
         $columns = $colStmt->fetchAll();
         if (count($columns) === 0) {
-            return;
+            return null;
         }
         $wantedName = strtolower((string) ($config['priorityColumn'] ?? ''));
         $column = null;
@@ -515,7 +521,14 @@ final class FormSubmissionService
         if ($title === '') {
             $title = ($submissionRow['FormName'] ?? 'Form') . ' — submission review';
         }
-        $description = self::buildAnswersDescription($submissionRow['FormFieldsJson'] ?? null, $submissionRow['AnswersJson'] ?? null);
+
+        $submitterStmt = $this->db->prepare('SELECT "DisplayName", "Username" FROM "Users" WHERE "Id" = :id');
+        $submitterStmt->execute(['id' => $submissionRow['SubmittedByUserId']]);
+        $submitter = $submitterStmt->fetch();
+        $submitterLine = $submitter !== false ? ('**Submitted by:** ' . $submitter['DisplayName'] . ' (' . $submitter['Username'] . ')') : null;
+        $answersBlock = self::buildAnswersDescription($submissionRow['FormFieldsJson'] ?? null, $submissionRow['AnswersJson'] ?? null);
+        $description = implode("\n\n", array_filter([$submitterLine, $answersBlock], fn ($s) => $s !== null && $s !== ''));
+        $description = $description === '' ? null : $description;
 
         $task = (new TaskService($this->db))->create($targetProjectId, [
             'title' => $title, 'description' => $description, 'columnId' => $column['Id'], 'assigneeId' => $assigneeId, 'priority' => 'medium',
@@ -525,6 +538,66 @@ final class FormSubmissionService
             'nodeId' => $node['id'], 'actorUserId' => '00000000-0000-0000-0000-000000000000', 'action' => 'raisedTask',
             'satisfiedGateKeys' => [], 'comment' => $task['key'] ?? null, 'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
         ];
+
+        return $task['id'] ?? null;
+    }
+
+    /** Ported from php-api/src/Services/FormSubmissionService.php — see that file's own doc comment
+     * for the full pause/resume shape. Called by TasksController right after ANY task update; cheap
+     * no-op for the overwhelming majority (an indexed lookup on RaisedTaskId that finds nothing).
+     * `(bool)` cast on "Done" is required on this tier — PDO_MYSQL returns a TINYINT(1)/BOOLEAN
+     * column as a plain PHP int, never a real bool, unlike PDO_PGSQL (mariadb-api/CLAUDE.md §4.8).
+     *
+     * @return ?array{projectId: string, submissionId: string, formName: string, decisionNotify: ?array}
+     */
+    public function resumeIfLinkedTaskDone(string $taskId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName" FROM "FormSubmissions" s
+             JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."RaisedTaskId" = :tid AND s."Status" = \'inProgress\''
+        );
+        $stmt->execute(['tid' => $taskId]);
+        $row = $stmt->fetch();
+        if ($row === false) {
+            return null;
+        }
+
+        $taskStmt = $this->db->prepare(
+            'SELECT t."Key", c."Done" FROM "Tasks" t JOIN "Columns" c ON c."Id" = t."ColumnId" WHERE t."Id" = :id'
+        );
+        $taskStmt->execute(['id' => $taskId]);
+        $task = $taskStmt->fetch();
+        if ($task === false || !(bool) $task['Done']) {
+            return null;
+        }
+
+        $graph = self::parseWorkflow($row['FormWorkflowJson']);
+        $currentNode = self::findNode($graph, $row['CurrentNodeId']);
+        if ($currentNode === null || ($currentNode['type'] ?? null) !== 'action') {
+            return null;
+        }
+
+        $trail = self::parseTrail($row['ApprovalTrailJson']);
+        $trail[] = [
+            'nodeId' => $currentNode['id'], 'actorUserId' => '00000000-0000-0000-0000-000000000000', 'action' => 'taskCompleted',
+            'satisfiedGateKeys' => [], 'comment' => $task['Key'], 'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
+
+        $edge = self::outgoingEdge($graph, $currentNode['id']);
+        $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
+        [$status, $currentNodeId, , $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
+
+        $stmt = $this->db->prepare(
+            'UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId,
+             "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "DateLastModified" = now() WHERE "Id" = :id'
+        );
+        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $row['Id']]);
+
+        $decisionNotify = null;
+        if ($status === 'approved') {
+            $decisionNotify = ['userId' => $row['SubmittedByUserId'], 'displayName' => 'Task completed', 'decision' => 'approved'];
+        }
+        return ['projectId' => $row['ProjectId'], 'submissionId' => $row['Id'], 'formName' => $row['FormName'], 'decisionNotify' => $decisionNotify];
     }
 
     private static function resolveActionAssignee(?array $gate, array $trail): ?string

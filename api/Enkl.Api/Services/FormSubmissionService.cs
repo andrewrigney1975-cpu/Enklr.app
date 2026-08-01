@@ -364,20 +364,24 @@ public class FormSubmissionService
         return (true, "", ToDto(submission));
     }
 
-    /// <summary>Walks past any consecutive "action" nodes (each auto-executed the instant the graph
-    /// transitions into it — no gating, no user action needed, unlike Author/Approval), before
-    /// applying the same terminal-status logic as before: null -> 'submitted', an End node ->
-    /// 'approved', anything else (an Approval node) -> 'inProgress'. Callers MUST wrap this in an
-    /// explicit transaction (api/Enkl.Api/CLAUDE.md's standing rule) — ExecuteActionNodeAsync below
-    /// can call TaskService.CreateAsync, which commits its own SaveChangesAsync, and the caller does
-    /// its own separate save afterward for the submission's own field changes.</summary>
+    /// <summary>Applies one node transition's terminal-status logic: null -> 'submitted', an End node
+    /// -> 'approved', anything else -> 'inProgress' pinned at that node. An "action" node is executed
+    /// (its side effect fires) the instant the graph transitions into it, but — unlike the auto-
+    /// continue behavior this method used to have — does NOT auto-advance past itself afterward: it
+    /// falls into the same 'inProgress' branch as an Approval node, pausing the submission there.
+    /// For "raiseTaskInPortal" specifically, that pause is exactly the point — the submission stays
+    /// paused until ResumeIfLinkedTaskDoneAsync notices the raised Task land in a Done column and
+    /// re-calls this same method with the action node's own outgoing edge, walking the graph exactly
+    /// one more step (which may itself be another action node, pausing again; or End; or a human
+    /// Approval node). Callers MUST wrap this in an explicit transaction (api/Enkl.Api/CLAUDE.md's
+    /// standing rule) — ExecuteActionNodeAsync below can call TaskService.CreateAsync, which commits
+    /// its own SaveChangesAsync, and the caller does its own separate save afterward for the
+    /// submission's own field changes.</summary>
     private async Task<WfNode?> ApplyNextNodeAsync(FormSubmission submission, WfGraph graph, WfNode? nextNode, List<TrailEntry> trail)
     {
-        while (nextNode is not null && nextNode.Type == "action")
+        if (nextNode is not null && nextNode.Type == "action")
         {
             await ExecuteActionNodeAsync(submission, nextNode, trail);
-            var edge = OutgoingEdge(graph, nextNode.Id);
-            nextNode = edge is null ? null : FindNode(graph, edge.ToNodeId);
         }
 
         if (nextNode is null) { submission.Status = "submitted"; submission.CurrentNodeId = null; }
@@ -428,17 +432,74 @@ public class FormSubmissionService
         var title = string.IsNullOrWhiteSpace(actionNode.Config?.TitleTemplate)
             ? $"{submission.FormVersion.Name} — submission review"
             : actionNode.Config!.TitleTemplate!;
-        var description = BuildAnswersDescription(submission.FormVersion.FieldsJson, submission.AnswersJson);
+
+        var submitter = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == submission.SubmittedByUserId);
+        var submitterLine = submitter is null ? null : $"**Submitted by:** {submitter.DisplayName} ({submitter.Username})";
+        var answersBlock = BuildAnswersDescription(submission.FormVersion.FieldsJson, submission.AnswersJson);
+        var description = string.Join("\n\n", new[] { submitterLine, answersBlock }.Where(s => !string.IsNullOrEmpty(s)));
+        if (description.Length == 0) description = null;
 
         var task = await _tasks.CreateAsync(projectId, new CreateTaskRequest(
             Title: title, Description: description, Priority: "medium", ColumnId: column.Id, AssigneeId: assigneeId,
             ReleaseId: null, TypeId: null, ParentTaskId: null, DependsOnTaskIds: null));
+        submission.RaisedTaskId = task?.Id;
 
         trail.Add(new TrailEntry
         {
             NodeId = actionNode.Id, ActorUserId = Guid.Empty, Action = "raisedTask",
             SatisfiedGateKeys = new(), Comment = task?.Key, Timestamp = DateTime.UtcNow.ToString("o")
         });
+    }
+
+    /// <summary>Called by TasksController right after ANY task update — cheap no-op for the
+    /// overwhelming majority of task moves (an indexed lookup on RaisedTaskId that finds nothing).
+    /// When a Task that a "raiseTaskInPortal" action node raised has landed in a Done column, resumes
+    /// the paused submission by walking exactly one more graph step from that action node's own
+    /// outgoing edge (see ApplyNextNodeAsync's own doc comment for why this reuses that same method)
+    /// — reaching End marks the submission "approved" ("the form is marked as complete"); reaching
+    /// another Approval node instead just moves the pause to a human gate, same as any other Approval
+    /// step; reaching another action node fires and pauses again. Idempotent and safe to call
+    /// unconditionally: no-ops when no submission is currently paused on this Task, the Task's own
+    /// column isn't Done, or the submission's current node isn't actually an "action" node
+    /// (defensive — should never happen given CurrentNodeId/RaisedTaskId are only ever set
+    /// together).</summary>
+    public async Task ResumeIfLinkedTaskDoneAsync(Guid taskId)
+    {
+        var submission = await _db.FormSubmissions.Include(s => s.FormVersion)
+            .FirstOrDefaultAsync(s => s.RaisedTaskId == taskId && s.Status == "inProgress");
+        if (submission is null) return;
+
+        var task = await _db.Tasks.AsNoTracking().Include(t => t.Column).FirstOrDefaultAsync(t => t.Id == taskId);
+        if (task is null || !task.Column.Done) return;
+
+        var graph = ParseWorkflow(submission.FormVersion.WorkflowJson);
+        var currentNode = FindNode(graph, submission.CurrentNodeId);
+        if (currentNode is null || currentNode.Type != "action") return;
+
+        var trail = ParseTrail(submission.ApprovalTrailJson);
+        trail.Add(new TrailEntry
+        {
+            NodeId = currentNode.Id, ActorUserId = Guid.Empty, Action = "taskCompleted",
+            SatisfiedGateKeys = new(), Comment = task.Key, Timestamp = DateTime.UtcNow.ToString("o")
+        });
+
+        var edge = OutgoingEdge(graph, currentNode.Id);
+        var nextNode = edge is null ? null : FindNode(graph, edge.ToNodeId);
+
+        // Explicit transaction (api/Enkl.Api/CLAUDE.md's standing rule) — ApplyNextNodeAsync may
+        // itself call TaskService.CreateAsync (another action node further along the graph), a
+        // committing call, followed by this method's own separate save below.
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await ApplyNextNodeAsync(submission, graph, nextNode, trail);
+        submission.ApprovalTrailJson = JsonSerializer.Serialize(trail, JsonWriteOpts);
+        submission.DateLastModified = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        if (submission.Status == "approved")
+        {
+            await NotifySubmitterOfDecisionAsync(submission, Guid.Empty, "approved", null);
+        }
     }
 
     private static Guid? ResolveActionAssignee(WfGate? gate, List<TrailEntry> trail)

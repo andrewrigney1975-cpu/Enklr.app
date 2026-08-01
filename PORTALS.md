@@ -109,10 +109,12 @@ A genuinely new mechanism — before this feature, Form Workflow nodes were limi
 (`start`/`author`/`approval`/`end`), never side-effecting actions. A 4th node type, `action`
 (`actionType: "raiseTaskInPortal"`, `config: {portalId, priorityColumn, assigneeGate, titleTemplate}`),
 is **auto-executed the instant a submission's graph transitions into it** — no gating, no user action
-needed, unlike Author/Approval.
+needed, unlike Author/Approval — but, unlike a plain routing node, it then **pauses the submission
+there** until the raised Task itself is completed (see "Task ↔ submission link" below); it is not a
+fire-and-forget side effect on the way to whatever's next.
 
-`FormSubmissionService.ApplyNextNodeAsync` (and its PHP twins' `applyNextNodeActions`) walk past any
-consecutive `action` nodes on the way to the next real node, raising a Task:
+`FormSubmissionService.ApplyNextNodeAsync` (and its PHP twins' `applyNextNodeActions`) execute an
+`action` node's side effect the instant the graph transitions into it, raising a Task:
 - **Target Portal/Project — resolved dynamically, `config.portalId` is only a fallback default**:
   `ExecuteActionNodeAsync`/`executeActionNode` first checks whether the *submission's own*
   `ProjectId` is itself some Portal's actioner Project — it is exactly that whenever the submission
@@ -135,21 +137,61 @@ consecutive `action` nodes on the way to the next real node, raising a Task:
   wins; otherwise the most recent `approved` trail entry's actor, or unassigned if none exists yet
   (e.g. an action node placed before any Approval node).
 - **Title**: `config.titleTemplate` if set, else `"{FormName} — submission review"`.
-- **Description**: every field's own label + entered answer, compiled into a Markdown block
-  (`**Label:** value` per field, blank-line separated — rendered through the same Markdown rich-text
-  editor every other Task description uses) via `BuildAnswersDescription`/`buildAnswersDescription`
-  (all 3 tiers) — matches `features/form-answers.js`'s `renderAnswerReadOnlyHTML` value-formatting
-  rules exactly (option ids resolved to their labels for checkbox/select/radio, `Yes`/`No` for a
-  single-toggle radio, `—` for an unanswered field) just as plain text instead of HTML, so the raised
-  task always carries the full submitted context, not just a title. Best-effort: unparsable
-  `FieldsJson`/`AnswersJson` simply yields no description rather than throwing.
+- **Description**: leads with `**Submitted by:** {DisplayName} ({Username})` (looked up from
+  `FormSubmission.SubmittedByUserId`), then every field's own label + entered answer, compiled into
+  a Markdown block (`**Label:** value` per field, blank-line separated — rendered through the same
+  Markdown rich-text editor every other Task description uses) via
+  `BuildAnswersDescription`/`buildAnswersDescription` (all 3 tiers) — matches
+  `features/form-answers.js`'s `renderAnswerReadOnlyHTML` value-formatting rules exactly (option ids
+  resolved to their labels for checkbox/select/radio, `Yes`/`No` for a single-toggle radio, `—` for
+  an unanswered field) just as plain text instead of HTML, so the raised task always carries the
+  full submitted context, not just a title. Best-effort: unparsable `FieldsJson`/`AnswersJson`
+  simply yields no field-answer block rather than throwing.
 
-**.NET** wraps the node-transition + task-raise + submission-save sequence in one explicit
-transaction (same standing rule as Portal provisioning above). **PHP tiers deliberately don't** —
-`TaskService::create()` already wraps itself in its own transaction and PDO has no native
-nested-transaction support, so the Task row and the `FormSubmissions` UPDATE are each independently
-atomic instead of one combined unit; an interruption between the two is a narrow, accepted edge case
-given that constraint, not a silently-ignored gap.
+### Task ↔ submission link — the action node blocks until the Task is Done
+
+`FormSubmission.RaisedTaskId` (nullable, `ON DELETE SET NULL`, indexed) is set the instant a
+`raiseTaskInPortal` node raises its Task. Unlike every other node type, reaching an `action` node
+does **not** auto-advance the graph afterward — `ApplyNextNodeAsync`/`applyNextNodeActions` fall
+into the same `'inProgress'`-pinned-at-this-node branch an Approval node already uses, so the
+submission stays paused there, `CurrentNodeId` pointing at the action node itself, until something
+external resumes it.
+
+That "something external" is `FormSubmissionService.ResumeIfLinkedTaskDoneAsync`/
+`resumeIfLinkedTaskDone` (all 3 tiers) — called unconditionally from `TasksController.Update`/
+`update()` right after **every** task PUT (the single choke point board.js's card-drag and the
+task-edit modal's save both go through), not just ones known in advance to matter. This is
+deliberately a cheap, always-on check rather than a targeted one: an indexed `WHERE RaisedTaskId =
+:taskId AND Status = 'inProgress'` lookup that finds nothing for the overwhelming majority of task
+updates in the app. When it DOES find a match and the Task's own Column is `Done`, it appends a
+`taskCompleted` trail entry and re-calls the same `ApplyNextNodeAsync`/`applyNextNodeActions` with
+the action node's own outgoing edge — walking the graph exactly one more step, reusing all the same
+terminal-status logic every other transition already uses: reaching an End node marks the submission
+`"approved"` (**"the form is marked as complete"**, the whole point of this mechanism); reaching
+another Approval node instead just moves the pause to a human gate; reaching a second consecutive
+action node fires and pauses again (its own Task needs to complete too). The submitter gets notified
+via the same `BroadcastFormSubmissionDecided` SSE event a human approval already triggers, so a
+task-driven completion looks identical to them.
+
+**Why this couldn't just be a `TaskService` dependency**: `FormSubmissionService` already depends on
+`TaskService` to raise the task in the first place — injecting `FormSubmissionService` back into
+`TaskService` would be a straight ASP.NET Core DI constructor cycle. Instead `TasksController`
+depends on both (a clean one-way graph, not a cycle, since `TaskService` itself gains no new
+dependency) and does the orchestration. PHP tiers mirror the same controller-level shape, matching
+their own pre-existing "broadcast ownership stays at the controller" convention (`resolveNotifyTargets`
+et al.) rather than introducing anything DI-specific, since neither PHP tier has a DI container to
+begin with.
+
+**Known gap, not solved this pass**: `AiAssistantService`/`MigrationEntityBuilder` write
+`Task.ColumnId` directly, bypassing `TaskService.UpdateAsync`/`TasksController` entirely — a task
+moved into Done through either of those paths won't trigger this resume.
+
+**.NET** wraps the node-transition + task-raise + submission-save sequence (and, separately, the
+resume-on-task-done sequence) in one explicit transaction each (same standing rule as Portal
+provisioning above). **PHP tiers deliberately don't** — `TaskService::create()` already wraps itself
+in its own transaction and PDO has no native nested-transaction support, so the Task row and the
+`FormSubmissions` UPDATE are each independently atomic instead of one combined unit; an interruption
+between the two is a narrow, accepted edge case given that constraint, not a silently-ignored gap.
 
 Frontend: `features/form-workflow-engine.js`'s `computeNextNodeId` walks past action nodes too (pure,
 UI-prediction only — it never executes anything itself, matching this module's own no-side-effects

@@ -171,10 +171,14 @@ final class FormSubmissionService
 
         $nextEdge = self::outgoingEdge($graph, $authorNode['id']);
         $nextNode = $nextEdge !== null ? self::findNode($graph, $nextEdge['toNodeId']) : null;
-        [$status, $currentNodeId, $nextNode] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
+        [$status, $currentNodeId, $nextNode, $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
 
-        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateSubmitted" = now(), "DateLastModified" = now() WHERE "Id" = :id');
-        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
+        // COALESCE, not overwrite — $raisedTaskId is only non-null when THIS call actually executed
+        // a "raiseTaskInPortal" action node; a Draft's very first transition always starts from
+        // RaisedTaskId=null anyway, but the same statement shape is used here as actOnApproval's own
+        // (below) for consistency/reuse of the same reasoning.
+        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "DateSubmitted" = now(), "DateLastModified" = now() WHERE "Id" = :id');
+        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $submissionId]);
 
         return [
             'ok' => true, 'error' => '', 'dto' => $this->get($projectId, $submissionId),
@@ -225,6 +229,7 @@ final class FormSubmissionService
 
         $status = $row['Status'];
         $currentNodeId = $row['CurrentNodeId'];
+        $raisedTaskId = null;
         $notifyNode = $node;
         // True only when this approval actually completed the CURRENT node's quorum and advanced to
         // a genuinely new node (a multi-step Approval chain) — a fresh arrival needing a full
@@ -237,7 +242,7 @@ final class FormSubmissionService
         } elseif (self::isApprovalComplete($node, $trail)) {
             $edge = self::outgoingEdge($graph, $node['id']);
             $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
-            [$status, $currentNodeId, $nextNode] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
+            [$status, $currentNodeId, $nextNode, $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
             $notifyNode = $nextNode;
             $notifyIsFreshArrival = true;
         }
@@ -258,8 +263,8 @@ final class FormSubmissionService
             ];
         }
 
-        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "DateLastModified" = now() WHERE "Id" = :id');
-        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'id' => $submissionId]);
+        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "DateLastModified" = now() WHERE "Id" = :id');
+        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $submissionId]);
 
         $stmt2 = $this->db->prepare('SELECT * FROM "FormSubmissions" WHERE "Id" = :id');
         $stmt2->execute(['id' => $submissionId]);
@@ -441,26 +446,28 @@ final class FormSubmissionService
         return ['inProgress', $nextNode['id']];
     }
 
-    /** Walks past any consecutive "action" nodes (each auto-executed the instant the graph
-     * transitions into it — no gating, no user action needed, unlike Author/Approval), appending to
-     * $trail as it goes, before returning the same [status, currentNodeId] shape nextNodeState()
-     * always has, plus the final non-action $nextNode itself (needed by callers for notify-target
-     * resolution). Deliberately NOT wrapped in an explicit transaction here (unlike the .NET tier) —
-     * TaskService::create() already wraps itself in its own transaction (PDO has no native nested-
-     * transaction support), so the Task row and this method's own later FormSubmissions UPDATE are
-     * each independently atomic rather than one combined unit; an interruption between the two would
-     * leave a raised Task with no corresponding trail entry, an acceptable, narrow edge case given
-     * PDO's constraint, not a silently-accepted gap.
-     * @return array{0: string, 1: ?string, 2: ?array} [status, currentNodeId, finalNode] */
+    /** Applies one node transition's terminal-status logic (delegated to nextNodeState: null ->
+     * 'submitted', an End node -> 'approved', anything else -> 'inProgress' pinned at that node). An
+     * "action" node is executed (its side effect fires) the instant the graph transitions into it,
+     * but — unlike the auto-continue-past-every-action-node behavior this method used to have — does
+     * NOT auto-advance past itself afterward: it falls into the same 'inProgress' branch as an
+     * Approval node, pausing the submission there. For "raiseTaskInPortal" specifically, that pause
+     * is exactly the point — the submission stays paused until resumeIfLinkedTaskDone (below) notices
+     * the raised Task land in a Done column and re-calls this same method with the action node's own
+     * outgoing edge, walking the graph exactly one more step.
+     * @return array{0: string, 1: ?string, 2: ?array, 3: ?string} [status, currentNodeId, nextNode,
+     *   raisedTaskId] — raisedTaskId is non-null only when THIS call actually executed a
+     *   "raiseTaskInPortal" action node; callers must COALESCE it against the existing DB value
+     *   rather than overwrite unconditionally, so a call that doesn't hit an action node never wipes
+     *   out an earlier pending raised-task link. */
     private function applyNextNodeActions(array $graph, ?array $nextNode, array &$trail, array $submissionRow): array
     {
-        while ($nextNode !== null && ($nextNode['type'] ?? null) === 'action') {
-            $this->executeActionNode($nextNode, $trail, $submissionRow);
-            $edge = self::outgoingEdge($graph, $nextNode['id']);
-            $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
+        $raisedTaskId = null;
+        if ($nextNode !== null && ($nextNode['type'] ?? null) === 'action') {
+            $raisedTaskId = $this->executeActionNode($nextNode, $trail, $submissionRow);
         }
         [$status, $currentNodeId] = self::nextNodeState($nextNode);
-        return [$status, $currentNodeId, $nextNode];
+        return [$status, $currentNodeId, $nextNode, $raisedTaskId];
     }
 
     /** The one action type implemented so far: raises a Task in the target Portal's own
@@ -477,13 +484,15 @@ final class FormSubmissionService
      * resolveActionAssignee — "assigned to the form's approver if known." Silently no-ops for any
      * unrecognized actionType or when neither resolution path yields a project (no origin Portal AND
      * no configured default, or a configured default Portal that's since been deleted) — a
-     * misconfigured or since-deleted Portal must never break the whole Submit/Approve flow. */
-    private function executeActionNode(array $node, array &$trail, array $submissionRow): void
+     * misconfigured or since-deleted Portal must never break the whole Submit/Approve flow.
+     * @return ?string The raised Task's own Id (stored on FormSubmissions.RaisedTaskId by the
+     *   caller), or null when no task was actually raised. */
+    private function executeActionNode(array $node, array &$trail, array $submissionRow): ?string
     {
         $actionType = $node['actionType'] ?? null;
         $config = $node['config'] ?? [];
         if ($actionType !== 'raiseTaskInPortal') {
-            return;
+            return null;
         }
 
         $originStmt = $this->db->prepare('SELECT "ProjectId" FROM "Portals" WHERE "ProjectId" = :pid');
@@ -498,14 +507,14 @@ final class FormSubmissionService
             $targetProjectId = $defaultPortal !== false ? $defaultPortal['ProjectId'] : null;
         }
         if ($targetProjectId === null) {
-            return;
+            return null;
         }
 
         $colStmt = $this->db->prepare('SELECT "Id", "Name" FROM "Columns" WHERE "ProjectId" = :pid ORDER BY "Order"');
         $colStmt->execute(['pid' => $targetProjectId]);
         $columns = $colStmt->fetchAll();
         if (count($columns) === 0) {
-            return;
+            return null;
         }
         $wantedName = strtolower((string) ($config['priorityColumn'] ?? ''));
         $column = null;
@@ -522,7 +531,14 @@ final class FormSubmissionService
         if ($title === '') {
             $title = ($submissionRow['FormName'] ?? 'Form') . ' — submission review';
         }
-        $description = self::buildAnswersDescription($submissionRow['FormFieldsJson'] ?? null, $submissionRow['AnswersJson'] ?? null);
+
+        $submitterStmt = $this->db->prepare('SELECT "DisplayName", "Username" FROM "Users" WHERE "Id" = :id');
+        $submitterStmt->execute(['id' => $submissionRow['SubmittedByUserId']]);
+        $submitter = $submitterStmt->fetch();
+        $submitterLine = $submitter !== false ? ('**Submitted by:** ' . $submitter['DisplayName'] . ' (' . $submitter['Username'] . ')') : null;
+        $answersBlock = self::buildAnswersDescription($submissionRow['FormFieldsJson'] ?? null, $submissionRow['AnswersJson'] ?? null);
+        $description = implode("\n\n", array_filter([$submitterLine, $answersBlock], fn ($s) => $s !== null && $s !== ''));
+        $description = $description === '' ? null : $description;
 
         $task = (new TaskService($this->db))->create($targetProjectId, [
             'title' => $title, 'description' => $description, 'columnId' => $column['Id'], 'assigneeId' => $assigneeId, 'priority' => 'medium',
@@ -532,6 +548,78 @@ final class FormSubmissionService
             'nodeId' => $node['id'], 'actorUserId' => '00000000-0000-0000-0000-000000000000', 'action' => 'raisedTask',
             'satisfiedGateKeys' => [], 'comment' => $task['key'] ?? null, 'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
         ];
+
+        return $task['id'] ?? null;
+    }
+
+    /** Called by TasksController right after ANY task update — cheap no-op for the overwhelming
+     * majority of task moves (an indexed lookup on RaisedTaskId that finds nothing). When a Task
+     * that a "raiseTaskInPortal" action node raised has landed in a Done column, resumes the paused
+     * submission by walking exactly one more graph step from that action node's own outgoing edge
+     * (see applyNextNodeActions' own doc comment for why this reuses that same method) — reaching
+     * End marks the submission "approved" ("the form is marked as complete"); reaching another
+     * Approval node instead just moves the pause to a human gate, same as any other Approval step;
+     * reaching another action node fires and pauses again. Idempotent and safe to call
+     * unconditionally: no-ops when no submission is currently paused on this Task, the Task's own
+     * column isn't Done, or the submission's current node isn't actually an "action" node
+     * (defensive). Broadcast ownership stays at the controller level (this tier's own convention) —
+     * returns null for a no-op, or ['projectId', 'submissionId', 'formName', 'decisionNotify'] (the
+     * last only non-null once the walk actually reached 'approved') for the controller to broadcast.
+     *
+     * @return ?array{projectId: string, submissionId: string, formName: string, decisionNotify: ?array}
+     */
+    public function resumeIfLinkedTaskDone(string $taskId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName" FROM "FormSubmissions" s
+             JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."RaisedTaskId" = :tid AND s."Status" = \'inProgress\''
+        );
+        $stmt->execute(['tid' => $taskId]);
+        $row = $stmt->fetch();
+        if ($row === false) {
+            return null;
+        }
+
+        $taskStmt = $this->db->prepare(
+            'SELECT t."Key", c."Done" FROM "Tasks" t JOIN "Columns" c ON c."Id" = t."ColumnId" WHERE t."Id" = :id'
+        );
+        $taskStmt->execute(['id' => $taskId]);
+        $task = $taskStmt->fetch();
+        if ($task === false || !(bool) $task['Done']) {
+            return null;
+        }
+
+        $graph = self::parseWorkflow($row['FormWorkflowJson']);
+        $currentNode = self::findNode($graph, $row['CurrentNodeId']);
+        if ($currentNode === null || ($currentNode['type'] ?? null) !== 'action') {
+            return null;
+        }
+
+        $trail = self::parseTrail($row['ApprovalTrailJson']);
+        $trail[] = [
+            'nodeId' => $currentNode['id'], 'actorUserId' => '00000000-0000-0000-0000-000000000000', 'action' => 'taskCompleted',
+            'satisfiedGateKeys' => [], 'comment' => $task['Key'], 'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
+
+        $edge = self::outgoingEdge($graph, $currentNode['id']);
+        $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
+        // No explicit transaction needed (same reasoning as submit()/actOnApproval() on this tier) —
+        // applyNextNodeActions may call TaskService::create() (another action node further along the
+        // graph), which already wraps itself in its own transaction; PDO has no native nested-
+        // transaction support, so this method's own UPDATE below is independently atomic.
+        [$status, $currentNodeId, , $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
+
+        $stmt = $this->db->prepare(
+            'UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId,
+             "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "DateLastModified" = now() WHERE "Id" = :id'
+        );
+        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $row['Id']]);
+
+        $decisionNotify = null;
+        if ($status === 'approved') {
+            $decisionNotify = ['userId' => $row['SubmittedByUserId'], 'displayName' => 'Task completed', 'decision' => 'approved'];
+        }
+        return ['projectId' => $row['ProjectId'], 'submissionId' => $row['Id'], 'formName' => $row['FormName'], 'decisionNotify' => $decisionNotify];
     }
 
     private static function resolveActionAssignee(?array $gate, array $trail): ?string

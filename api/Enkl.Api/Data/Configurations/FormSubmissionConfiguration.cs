@@ -32,7 +32,16 @@ public class FormSubmissionConfiguration : IEntityTypeConfiguration<FormSubmissi
             .HasForeignKey(s => s.SubmittedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // SetNull, not Restrict/Cascade — a Task getting deleted must never block on or cascade into
+        // deleting the FormSubmission that raised it; the link is just orphaned. Indexed since
+        // ResumeIfLinkedTaskDoneAsync's whole lookup is keyed by this column.
+        b.HasOne(s => s.RaisedTask)
+            .WithMany()
+            .HasForeignKey(s => s.RaisedTaskId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         b.HasIndex(s => new { s.ProjectId, s.SubmittedByUserId });
         b.HasIndex(s => s.FormVersionId);
+        b.HasIndex(s => s.RaisedTaskId);
     }
 }

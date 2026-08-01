@@ -14,11 +14,17 @@ public class TasksController : ControllerBase
 {
     private readonly TaskService _tasks;
     private readonly SseBroadcaster _broadcaster;
+    private readonly FormSubmissionService _formSubmissions;
 
-    public TasksController(TaskService tasks, SseBroadcaster broadcaster)
+    // FormSubmissionService is injected here rather than into TaskService itself, which would be a
+    // straight constructor cycle (FormSubmissionService already depends on TaskService to raise a
+    // task from a Form Workflow "action" node) — a controller depending on both is a clean one-way
+    // graph, not a cycle, since TaskService itself gains no new dependency.
+    public TasksController(TaskService tasks, SseBroadcaster broadcaster, FormSubmissionService formSubmissions)
     {
         _tasks = tasks;
         _broadcaster = broadcaster;
+        _formSubmissions = formSubmissions;
     }
 
     // ARCHITECTURE-REVIEW.md finding 2.2: additive, targeted alternative to pulling every task
@@ -47,6 +53,11 @@ public class TasksController : ControllerBase
         var result = await _tasks.UpdateAsync(projectId, taskId, request, User.FindFirstValue("displayName"));
         if (result is null) return NotFound();
         await BroadcastAsync(projectId, result, "updated");
+        // Cheap no-op for the overwhelming majority of task updates (an indexed lookup that finds
+        // nothing) — only actually does anything when this Task was raised by a Form Workflow
+        // "raiseTaskInPortal" action node AND this update just moved it into a Done column. See
+        // FormSubmissionService.ResumeIfLinkedTaskDoneAsync's own doc comment for the full shape.
+        await _formSubmissions.ResumeIfLinkedTaskDoneAsync(taskId);
         return Ok(result);
     }
 

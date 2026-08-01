@@ -29,6 +29,16 @@ public class FormSubmission
 
     public string? AnswersJson { get; set; }
     public string? ApprovalTrailJson { get; set; }
+
+    /// <summary>Set the instant a "raiseTaskInPortal" action node raises a Task for this submission
+    /// (ExecuteActionNodeAsync). Nullable, ON DELETE SET NULL — a deleted Task must never break the
+    /// submission row, just orphan the link. Once set, this submission stays paused (Status
+    /// "inProgress", CurrentNodeId pointing at the action node) until TasksController notices this
+    /// Task land in a Done column and calls ResumeIfLinkedTaskDoneAsync, which is what actually looks
+    /// this column up — see that method's own doc comment for the full pause/resume shape.</summary>
+    public Guid? RaisedTaskId { get; set; }
+    public TaskItem? RaisedTask { get; set; }
+
     public DateTime DateCreated { get; set; }
     public DateTime DateLastModified { get; set; }
     public DateTime? DateSubmitted { get; set; }
