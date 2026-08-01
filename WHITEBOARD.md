@@ -101,26 +101,34 @@ org-wide feature, not a project one (unlike Forms' `findProjectByServerId` dance
   element type's own elementJson shape by an (dx, dy) offset (pen/curve points, text x/y, connector
   x1/y1/x2/y2 + optional corner, shape-* x/y) — the Select tool's move handling is the only caller.
 
-### Select tool (move shapes)
+### Select tool (move shapes, single or multi)
 
 `wbToolSelect` (`data-tool="select"`, reuses the `cursorArrow` icon already built for the remote-
 cursor overlay) in `modals/whiteboard.js`: click an element to select it (dashed outline drawn into
 `#wbSelectionLayer`, a plain sibling `<g>` after `#wbElementsLayer` in the canvas SVG); drag a
-selected element to move it. The outline is sized from the selected element's own live
-`getBBox()` rather than a per-type analytic bounding-box calculation — simpler, and the only way to
-get an accurate box for `text` (whose rendered width isn't otherwise knowable without a DOM
-measurement). During the drag, both the element's own `<g>` and the selection outline get a plain
-SVG `transform="translate(dx,dy)"` for live feedback (`getBBox()` reports an element's bounds in its
-own local space, unaffected by its own `transform` — that's what makes reusing the pre-drag bbox for
-the outline correct throughout the drag); the real `elementJson` mutation only happens once, on
-pointerup, via `translateElementData` + `whiteboardApi.updateElement` (`PATCH .../elements/{id}`),
-broadcasting `whiteboard-element-changed` with `changeType: "updated"` to every other participant —
-`handleWhiteboardElementEvent` in `features/whiteboard.js` replaces the element in place by id, same
-shape as the existing `"added"`/`"removed"` handling. Selection state (`_selectedElementId`) is
-local/session-only, same as Grid/Snap — never broadcast, never persisted; it's cleared automatically
-whenever the selected element no longer exists in the live DOM (removed locally, erased/moved-away
-by another participant, or a session/project switch triggers a full re-render) since
-`renderSelectionOutline` just no-ops when the element's `<g>` isn't found.
+selected element to move it. **Shift-click toggles an element in/out of a multi-element selection**
+(`_selectedElementIds`, an array, not a single id) instead of replacing it, so a run of shift-clicks
+builds up a group; a plain (non-Shift) click on an element already part of that group keeps the
+whole group selected and drags it together, while a plain click on an element outside the group (or
+on empty canvas) collapses back to a single selection (or none). Each selected element gets its own
+outline `<rect data-selection-for="{id}">`, sized from that element's own live `getBBox()` rather
+than a per-type analytic bounding-box calculation — simpler, and the only way to get an accurate box
+for `text` (whose rendered width isn't otherwise knowable without a DOM measurement). During the
+drag, every selected element's own `<g>` **and** its own outline rect get the same plain SVG
+`transform="translate(dx,dy)"` for live feedback (`getBBox()` reports an element's bounds in its own
+local space, unaffected by its own `transform` — that's what makes reusing each element's pre-drag
+bbox for its outline correct throughout the drag, even for a multi-element group where each element
+started at a different position); the real `elementJson` mutations only happen once, on pointerup,
+one `translateElementData` + `whiteboardApi.updateElement` (`PATCH .../elements/{id}`) call per
+selected element, fired in parallel (`Promise.all`) then a single `renderWhiteboardState()` — each
+persisted move broadcasts its own `whiteboard-element-changed` event with `changeType: "updated"` to
+every other participant (so a 3-shape group move arrives to other tabs as 3 separate update events,
+not one batched one — no batch/multi-element update endpoint exists). `handleWhiteboardElementEvent`
+in `features/whiteboard.js` replaces the element in place by id, same shape as the existing
+`"added"`/`"removed"` handling. Selection state is local/session-only, same as Grid/Snap — never
+broadcast, never persisted; `renderSelectionOutline` drops any selected id whose element no longer
+exists in the live DOM (removed locally, erased/moved-away by another participant, or a session/
+project switch triggers a full re-render) rather than leaving a stale entry selected forever.
 - `src/js/modals/whiteboard.js` — the modal: entry view (Start/Join) + canvas view (header toolbar +
   left rail — the first modal in this app with rail-based controls rather than header-row-only,
   per explicit design request), participant list, drawing-tool pointer handlers, remote-cursor

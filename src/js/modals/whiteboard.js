@@ -39,10 +39,12 @@ var _curveDrawing = null;
 var _showGrid = false;
 var _snapToGrid = false;
 /* "select" tool state — clicking an element selects it (dashed outline via #wbSelectionLayer);
-   dragging it while selected moves it. Selection is local/session-only, same as Grid/Snap — never
-   broadcast, never serialized. _moveDrag is non-null only while a drag-to-move is in progress. */
-var _selectedElementId = null;
-var _moveDrag = null; // {elementId, startX, startY, dx, dy}
+   dragging it while selected moves it. Shift-click toggles an element in/out of a multi-element
+   selection instead of replacing it — dragging any already-selected element then moves the whole
+   group together. Selection is local/session-only, same as Grid/Snap — never broadcast, never
+   serialized. _moveDrag is non-null only while a drag-to-move is in progress. */
+var _selectedElementIds = [];
+var _moveDrag = null; // {elementIds, startX, startY, dx, dy}
 var _cursorEls = {}; // userId -> DOM element, for the remote-cursor overlay
 var _lastCursorSentAt = 0;
 var _wired = false;
@@ -247,8 +249,8 @@ function selectTool(tool){
     var preview = document.getElementById('wbLivePreview');
     if(preview) preview.remove();
   }
-  if(tool !== 'select' && _selectedElementId){
-    _selectedElementId = null;
+  if(tool !== 'select' && _selectedElementIds.length){
+    _selectedElementIds = [];
     renderSelectionOutline();
   }
   _tool = tool;
@@ -258,43 +260,50 @@ function selectTool(tool){
   document.getElementById('wbCanvas').classList.toggle('kf-wb-canvas-select', tool === 'select');
 }
 
-/* Draws (or clears) the dashed selection outline in #wbSelectionLayer, sized from the actually-
-   rendered element's own getBBox() — deliberately not recomputed analytically per element type
-   (pen/curve points vs shape x/y/w/h vs text vs connector all have different shapes), since the
-   live SVG node already knows its own bounds precisely, including text (whose rendered width isn't
-   otherwise knowable without a DOM measurement). getBBox() reports the element's LOCAL bounding box,
-   unaffected by its own "transform" attribute — see applyMoveDragTransform's own comment for why
-   that's exactly the property this needs during a drag. */
+/* Draws (or clears) one dashed selection outline per currently-selected element in
+   #wbSelectionLayer, sized from each element's own actually-rendered getBBox() — deliberately not
+   recomputed analytically per element type (pen/curve points vs shape x/y/w/h vs text vs connector
+   all have different shapes), since the live SVG node already knows its own bounds precisely,
+   including text (whose rendered width isn't otherwise knowable without a DOM measurement).
+   getBBox() reports the element's LOCAL bounding box, unaffected by its own "transform" attribute —
+   see applyMoveDragTransform's own comment for why that's exactly the property this needs during a
+   drag. Drops any selected id whose element no longer exists in the live DOM (removed locally,
+   erased/moved-away by another participant, or a full re-render) rather than leaving it selected
+   forever. */
 function renderSelectionOutline(){
   var layer = document.getElementById('wbSelectionLayer');
   if(!layer) return;
   layer.innerHTML = '';
-  if(!_selectedElementId) return;
-  var g = document.querySelector('#wbElementsLayer [data-element-id="' + _selectedElementId + '"]');
-  if(!g){ _selectedElementId = null; return; }
-  var bbox;
-  try { bbox = g.getBBox(); } catch(e){ return; }
-  var pad = 6;
   var svgNs = 'http://www.w3.org/2000/svg';
-  var rect = document.createElementNS(svgNs, 'rect');
-  rect.id = 'wbSelectionRect';
-  rect.setAttribute('x', bbox.x - pad);
-  rect.setAttribute('y', bbox.y - pad);
-  rect.setAttribute('width', bbox.width + pad * 2);
-  rect.setAttribute('height', bbox.height + pad * 2);
-  rect.setAttribute('class', 'kf-wb-selection-rect');
-  layer.appendChild(rect);
+  _selectedElementIds = _selectedElementIds.filter(function(id){
+    var g = document.querySelector('#wbElementsLayer [data-element-id="' + id + '"]');
+    if(!g) return false;
+    var bbox;
+    try { bbox = g.getBBox(); } catch(e){ return false; }
+    var pad = 6;
+    var rect = document.createElementNS(svgNs, 'rect');
+    rect.setAttribute('data-selection-for', id);
+    rect.setAttribute('x', bbox.x - pad);
+    rect.setAttribute('y', bbox.y - pad);
+    rect.setAttribute('width', bbox.width + pad * 2);
+    rect.setAttribute('height', bbox.height + pad * 2);
+    rect.setAttribute('class', 'kf-wb-selection-rect');
+    layer.appendChild(rect);
+    return true;
+  });
 }
 
-/* Live drag feedback — moves the selected element's own <g> (and its selection outline) by a plain
-   SVG transform rather than recomputing/re-rendering the element's real path data on every
-   pointermove; the real elementJson mutation (via translateElementData) only happens once, on
-   pointerup, when the move is persisted. */
+/* Live drag feedback — moves every selected element's own <g> (and its own selection outline) by
+   the same plain SVG transform rather than recomputing/re-rendering each element's real path data
+   on every pointermove; the real elementJson mutation (via translateElementData) only happens once
+   per element, on pointerup, when the move is persisted. */
 function applyMoveDragTransform(){
-  var g = document.querySelector('#wbElementsLayer [data-element-id="' + _moveDrag.elementId + '"]');
-  if(g) g.setAttribute('transform', 'translate(' + _moveDrag.dx + ',' + _moveDrag.dy + ')');
-  var outline = document.getElementById('wbSelectionRect');
-  if(outline) outline.setAttribute('transform', 'translate(' + _moveDrag.dx + ',' + _moveDrag.dy + ')');
+  _moveDrag.elementIds.forEach(function(id){
+    var g = document.querySelector('#wbElementsLayer [data-element-id="' + id + '"]');
+    if(g) g.setAttribute('transform', 'translate(' + _moveDrag.dx + ',' + _moveDrag.dy + ')');
+    var outline = document.querySelector('[data-selection-for="' + id + '"]');
+    if(outline) outline.setAttribute('transform', 'translate(' + _moveDrag.dx + ',' + _moveDrag.dy + ')');
+  });
 }
 
 function renderPalette(){
@@ -395,12 +404,26 @@ function handleCanvasPointerDown(e){
   }
   if(_tool === 'select'){
     var hitId = elementAtPoint(e.clientX, e.clientY);
-    if(hitId !== _selectedElementId){
-      _selectedElementId = hitId;
+    if(e.shiftKey){
+      /* Shift toggles membership in the selection rather than starting a drag — lets the user
+         build up a multi-element selection with a run of shift-clicks before dragging any of them.
+         A shift-click on empty canvas is a no-op (doesn't clear the existing selection). */
+      if(hitId){
+        var idx = _selectedElementIds.indexOf(hitId);
+        if(idx === -1) _selectedElementIds.push(hitId); else _selectedElementIds.splice(idx, 1);
+        renderSelectionOutline();
+      }
+      return;
+    }
+    /* A plain click on an element already part of a multi-selection keeps the whole group selected
+       (so it can be dragged together) — otherwise it replaces the selection with just this one
+       element, and a plain click on empty canvas clears the selection entirely. */
+    if(!(hitId && _selectedElementIds.indexOf(hitId) !== -1)){
+      _selectedElementIds = hitId ? [hitId] : [];
       renderSelectionOutline();
     }
     if(hitId){
-      _moveDrag = {elementId: hitId, startX: pt.x, startY: pt.y, dx: 0, dy: 0};
+      _moveDrag = {elementIds: _selectedElementIds.slice(), startX: pt.x, startY: pt.y, dx: 0, dy: 0};
       canvas.setPointerCapture(e.pointerId);
     }
     return;
@@ -551,30 +574,37 @@ function renderLivePreview(){
   document.getElementById('wbCanvas').appendChild(g);
 }
 
-/* Ends a "select" tool drag-to-move: below the ~0.5px jitter floor (a click that never really
-   moved), just clears the live-preview transform back off so the element doesn't look stuck offset
-   from its real, unpersisted data. Otherwise computes the moved elementJson via
-   translateElementData and persists it — the transform stays in place visually until
-   renderWhiteboardState's own fresh rebuild replaces it with the real (already-moved) coordinates,
-   so there's no flicker back to the pre-move position in between. */
+/* Ends a "select" tool drag-to-move (single element or, with Shift-built multi-selection, the
+   whole group at once): below the ~0.5px jitter floor (a click that never really moved), just
+   clears every dragged element's live-preview transform back off so nothing looks stuck offset from
+   its real, unpersisted data. Otherwise computes each element's moved elementJson via
+   translateElementData and persists them all in parallel — each element's own transform stays in
+   place visually until renderWhiteboardState's own fresh rebuild replaces it with the real
+   (already-moved) coordinates, so there's no flicker back to the pre-move position in between. */
 function handleCanvasPointerUp(e){
   if(_moveDrag){
     var drag = _moveDrag;
     _moveDrag = null;
     if(Math.abs(drag.dx) < 0.5 && Math.abs(drag.dy) < 0.5){
-      var g = document.querySelector('#wbElementsLayer [data-element-id="' + drag.elementId + '"]');
-      if(g) g.removeAttribute('transform');
-      var outline = document.getElementById('wbSelectionRect');
-      if(outline) outline.removeAttribute('transform');
+      drag.elementIds.forEach(function(id){
+        var g = document.querySelector('#wbElementsLayer [data-element-id="' + id + '"]');
+        if(g) g.removeAttribute('transform');
+        var outline = document.querySelector('[data-selection-for="' + id + '"]');
+        if(outline) outline.removeAttribute('transform');
+      });
       return;
     }
     var session = getWhiteboardSession();
-    var element = session && session.elements.find(function(el){ return el.id === drag.elementId; });
-    if(!element) return;
-    var data;
-    try { data = JSON.parse(element.elementJson); } catch(err){ return; }
-    var moved = translateElementData(element.elementType, data, drag.dx, drag.dy);
-    updateWhiteboardElement(drag.elementId, JSON.stringify(moved)).then(renderWhiteboardState);
+    if(!session) return;
+    var updates = drag.elementIds.map(function(id){
+      var element = session.elements.find(function(el){ return el.id === id; });
+      if(!element) return null;
+      var data;
+      try { data = JSON.parse(element.elementJson); } catch(err){ return null; }
+      var moved = translateElementData(element.elementType, data, drag.dx, drag.dy);
+      return updateWhiteboardElement(id, JSON.stringify(moved));
+    }).filter(Boolean);
+    Promise.all(updates).then(renderWhiteboardState);
     return;
   }
 
