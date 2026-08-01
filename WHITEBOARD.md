@@ -129,6 +129,13 @@ in `features/whiteboard.js` replaces the element in place by id, same shape as t
 broadcast, never persisted; `renderSelectionOutline` drops any selected id whose element no longer
 exists in the live DOM (removed locally, erased/moved-away by another participant, or a session/
 project switch triggers a full re-render) rather than leaving a stale entry selected forever.
+**Delete/Backspace erases the current selection** (`deleteSelectedElements` in the same file's
+keydown handler, alongside the pre-existing Space-ends-curve binding) — one `removeWhiteboardElement`
+call per selected id, same shape as `handleClearAllClicked`'s own bulk erase just scoped to the
+selection, no confirmation dialog (same precedent as the Eraser tool's own single-click erase, which
+this is functionally equivalent to for a multi-element group). Guarded on the Select tool being
+active with a non-empty selection so it never fires from a stray Delete/Backspace elsewhere on the
+page.
 - `src/js/modals/whiteboard.js` — the modal: entry view (Start/Join) + canvas view (header toolbar +
   left rail — the first modal in this app with rail-based controls rather than header-row-only,
   per explicit design request), participant list, drawing-tool pointer handlers, remote-cursor

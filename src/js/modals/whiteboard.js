@@ -762,15 +762,36 @@ export function wireWhiteboardEvents(){
   canvas.addEventListener('pointermove', handleCanvasPointerMove);
   canvas.addEventListener('pointerup', handleCanvasPointerUp);
 
-  /* Space ends the "curve" tool's current run of clicked points as an OPEN curve — the only other
-     way to end one is clicking back near the start point, which closes it instead (see
-     handleCurveClick). Guarded on _curveDrawing existing so this never steals a page-scroll
-     spacebar when the tool isn't mid-curve. */
   document.addEventListener('keydown', function(e){
-    if(e.code !== 'Space' || !_curveDrawing || !isWhiteboardOpen()) return;
-    e.preventDefault();
-    finishCurve(false);
+    if(!isWhiteboardOpen()) return;
+
+    /* Space ends the "curve" tool's current run of clicked points as an OPEN curve — the only
+       other way to end one is clicking back near the start point, which closes it instead (see
+       handleCurveClick). Guarded on _curveDrawing existing so this never steals a page-scroll
+       spacebar when the tool isn't mid-curve. */
+    if(e.code === 'Space' && _curveDrawing){
+      e.preventDefault();
+      finishCurve(false);
+      return;
+    }
+
+    /* Delete/Backspace erases every currently-selected element (Select tool only) — same
+       one-removeWhiteboardElement-call-per-id shape as handleClearAllClicked's own bulk erase, just
+       scoped to the current selection rather than the whole board, and with no confirmation dialog
+       (same "no confirmation" precedent as the Eraser tool's own single-click erase, which this is
+       functionally equivalent to). Guarded on the Select tool being active with a non-empty
+       selection, so this never fires from stray Delete/Backspace presses elsewhere on the page. */
+    if((e.code === 'Delete' || e.code === 'Backspace') && _tool === 'select' && _selectedElementIds.length){
+      e.preventDefault();
+      deleteSelectedElements();
+    }
   });
+}
+
+function deleteSelectedElements(){
+  var ids = _selectedElementIds.slice();
+  _selectedElementIds = [];
+  Promise.all(ids.map(function(id){ return removeWhiteboardElement(id); })).then(renderWhiteboardState);
 }
 
 /* Called from app.js on load/hashchange when a "#!/whiteboard/CODE" URL is present — joins
