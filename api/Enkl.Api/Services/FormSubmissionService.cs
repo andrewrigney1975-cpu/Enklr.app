@@ -391,31 +391,47 @@ public class FormSubmissionService
     /// auto-provisioned actioner Project, in whichever of its 5 fixed priority columns
     /// (Trivial..Critical) Config.PriorityColumn names (case-insensitive; falls back to the lowest-
     /// Order column if the name doesn't match any of them, never throws for a misconfigured value).
-    /// AssigneeId resolves via ResolveActionAssignee — "assigned to the form's approver if known": a
-    /// namedUser AssigneeGate always wins; otherwise the most recent "approved" trail entry's actor,
-    /// or unassigned if none exists yet (e.g. an action node placed before any Approval node).
-    /// Silently no-ops (never throws) for any unrecognized ActionType or missing/foreign PortalId —
-    /// a misconfigured or since-deleted Portal must never break the whole Submit/Approve flow for a
-    /// caller who has nothing to do with authoring that workflow.</summary>
+    /// The target Portal is resolved dynamically first: if this submission's own ProjectId IS some
+    /// Portal's actioner Project (i.e. it was actually filled out through that Portal —
+    /// PortalHomeService.CreateSubmissionAsync stamps submissions with the Portal's own ProjectId at
+    /// creation), that Portal always wins, regardless of Config.PortalId — a Form attached to
+    /// multiple Portals raises into wherever THIS submission actually came from. Only when the
+    /// submission's own project isn't any Portal's actioner project at all (a "free floating" Form
+    /// filled out directly against an ordinary project) does Config.PortalId's org-admin-configured
+    /// default apply. AssigneeId resolves via ResolveActionAssignee — "assigned to the form's
+    /// approver if known": a namedUser AssigneeGate always wins; otherwise the most recent "approved"
+    /// trail entry's actor, or unassigned if none exists yet (e.g. an action node placed before any
+    /// Approval node). Silently no-ops (never throws) for any unrecognized ActionType or when neither
+    /// resolution path yields a project (no origin Portal AND no configured default, or a configured
+    /// default Portal that's since been deleted) — a misconfigured or since-deleted Portal must never
+    /// break the whole Submit/Approve flow for a caller who has nothing to do with authoring that
+    /// workflow.</summary>
     private async Task ExecuteActionNodeAsync(FormSubmission submission, WfNode actionNode, List<TrailEntry> trail)
     {
-        if (actionNode.ActionType != "raiseTaskInPortal" || actionNode.Config?.PortalId is not Guid portalId) return;
+        if (actionNode.ActionType != "raiseTaskInPortal") return;
 
-        var portal = await _db.Portals.AsNoTracking().FirstOrDefaultAsync(p => p.Id == portalId);
-        if (portal is null) return;
+        var originPortal = await _db.Portals.AsNoTracking().FirstOrDefaultAsync(p => p.ProjectId == submission.ProjectId);
+        Guid? targetProjectId = originPortal?.ProjectId;
+        if (targetProjectId is null && actionNode.Config?.PortalId is Guid defaultPortalId)
+        {
+            var defaultPortal = await _db.Portals.AsNoTracking().FirstOrDefaultAsync(p => p.Id == defaultPortalId);
+            targetProjectId = defaultPortal?.ProjectId;
+        }
+        if (targetProjectId is not Guid projectId) return;
 
-        var columns = await _db.Columns.AsNoTracking().Where(c => c.ProjectId == portal.ProjectId).OrderBy(c => c.Order).ToListAsync();
+        var columns = await _db.Columns.AsNoTracking().Where(c => c.ProjectId == projectId).OrderBy(c => c.Order).ToListAsync();
         if (columns.Count == 0) return;
-        var wantedName = actionNode.Config.PriorityColumn ?? "";
+        var wantedName = actionNode.Config?.PriorityColumn ?? "";
         var column = columns.FirstOrDefault(c => string.Equals(c.Name, wantedName, StringComparison.OrdinalIgnoreCase)) ?? columns[0];
 
-        var assigneeId = ResolveActionAssignee(actionNode.Config.AssigneeGate, trail);
-        var title = string.IsNullOrWhiteSpace(actionNode.Config.TitleTemplate)
+        var assigneeId = ResolveActionAssignee(actionNode.Config?.AssigneeGate, trail);
+        var title = string.IsNullOrWhiteSpace(actionNode.Config?.TitleTemplate)
             ? $"{submission.FormVersion.Name} — submission review"
-            : actionNode.Config.TitleTemplate!;
+            : actionNode.Config!.TitleTemplate!;
+        var description = BuildAnswersDescription(submission.FormVersion.FieldsJson, submission.AnswersJson);
 
-        var task = await _tasks.CreateAsync(portal.ProjectId, new CreateTaskRequest(
-            Title: title, Description: null, Priority: "medium", ColumnId: column.Id, AssigneeId: assigneeId,
+        var task = await _tasks.CreateAsync(projectId, new CreateTaskRequest(
+            Title: title, Description: description, Priority: "medium", ColumnId: column.Id, AssigneeId: assigneeId,
             ReleaseId: null, TypeId: null, ParentTaskId: null, DependsOnTaskIds: null));
 
         trail.Add(new TrailEntry
@@ -430,6 +446,83 @@ public class FormSubmissionService
         if (gate is not null && gate.Kind == "namedUser" && Guid.TryParse(gate.Value, out var namedId)) return namedId;
         // Default/"formApprover" behavior: the most recent approver in the trail, if any known yet.
         return trail.LastOrDefault(t => t.Action == "approved")?.ActorUserId;
+    }
+
+    // ---- Field model — mirrors features/form-fields.js's own shape exactly (see that file's own
+    // doc comment for the full per-type FieldsJson/AnswersJson shape) ----
+    private class WfFieldOption { public string Id { get; set; } = ""; public string? Label { get; set; } }
+    private class WfField
+    {
+        public string Id { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string? Label { get; set; }
+        public List<WfFieldOption>? Options { get; set; }
+        public string? GroupMode { get; set; }
+        public bool Multiple { get; set; }
+        public bool IncludesTime { get; set; }
+    }
+
+    /// <summary>Compiles every field's own label + entered answer (the submitted Form version's
+    /// FieldsJson, matched against the submission's own AnswersJson — a flat {fieldId: value} map,
+    /// see FormSubmission.cs's own doc comment) into a Markdown block for the raised Task's
+    /// Description — same "Label: value" shape features/form-answers.js's renderAnswerReadOnlyHTML
+    /// already renders for a submitted Form's read-only view, just as plain Markdown text instead of
+    /// HTML (Task.Description is rendered through this app's own Markdown rich-text editor, same as
+    /// every other task description — see modals/task.js's getTaskDescEditor().setMarkdown). An
+    /// unanswered field still gets its own "— (no answer)" line, so the raised task always reflects
+    /// the full field list, not just whatever happened to be filled in. Best-effort: any unparsable
+    /// FieldsJson (or missing/unparsable AnswersJson) simply yields no description text rather than
+    /// throwing — a malformed field/answer must never block the whole raise-task action.</summary>
+    private static string? BuildAnswersDescription(string? fieldsJson, string? answersJson)
+    {
+        if (string.IsNullOrWhiteSpace(fieldsJson)) return null;
+        List<WfField>? fields;
+        try { fields = JsonSerializer.Deserialize<List<WfField>>(fieldsJson, JsonOpts); } catch { return null; }
+        if (fields is null || fields.Count == 0) return null;
+
+        Dictionary<string, JsonElement>? answers = null;
+        if (!string.IsNullOrWhiteSpace(answersJson))
+        {
+            try { answers = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(answersJson, JsonOpts); } catch { /* treated as no answers below */ }
+        }
+
+        var lines = new List<string>();
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Id)) continue;
+            var label = string.IsNullOrWhiteSpace(field.Label) ? field.Id : field.Label;
+            JsonElement? value = (answers is not null && answers.TryGetValue(field.Id, out var v)) ? v : null;
+            lines.Add($"**{label}:** {FormatAnswerValue(field, value)}");
+        }
+        return lines.Count == 0 ? null : string.Join("\n\n", lines);
+    }
+
+    private static string FormatAnswerValue(WfField field, JsonElement? value)
+    {
+        if (value is not JsonElement el || el.ValueKind == JsonValueKind.Null || el.ValueKind == JsonValueKind.Undefined) return "—";
+
+        if (field.Type == "radio" && field.GroupMode == "single")
+        {
+            return el.ValueKind == JsonValueKind.True ? "Yes" : "No";
+        }
+        if (el.ValueKind == JsonValueKind.Array)
+        {
+            var ids = el.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : e.ToString());
+            var labels = ids.Select(id => OptionLabel(field, id)).ToList();
+            return labels.Count == 0 ? "—" : string.Join(", ", labels);
+        }
+        if (field.Type is "checkboxGroup" or "select" || (field.Type == "radio" && field.GroupMode != "single"))
+        {
+            var id = el.ValueKind == JsonValueKind.String ? el.GetString() ?? "" : el.ToString();
+            return OptionLabel(field, id);
+        }
+        return el.ValueKind == JsonValueKind.String ? (el.GetString() ?? "—") : el.ToString();
+    }
+
+    private static string OptionLabel(WfField field, string optionId)
+    {
+        var match = field.Options?.FirstOrDefault(o => o.Id == optionId);
+        return match is null ? optionId : (string.IsNullOrWhiteSpace(match.Label) ? optionId : match.Label!);
     }
 
     /// <summary>Phase 6's SSE-push scope (a plain userType gate has no single "specific person" to

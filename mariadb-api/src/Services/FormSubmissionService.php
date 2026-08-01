@@ -143,7 +143,7 @@ final class FormSubmissionService
      * convention for a validated-failure (vs. a genuine exception) elsewhere in this codebase. */
     public function submit(string $projectId, string $callerUserId, bool $callerIsOrgAdmin, string $submissionId): array
     {
-        $stmt = $this->db->prepare('SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName" FROM "FormSubmissions" s JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."Id" = :id AND s."ProjectId" = :pid AND s."SubmittedByUserId" = :uid');
+        $stmt = $this->db->prepare('SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName", f."FieldsJson" AS "FormFieldsJson" FROM "FormSubmissions" s JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."Id" = :id AND s."ProjectId" = :pid AND s."SubmittedByUserId" = :uid');
         $stmt->execute(['id' => $submissionId, 'pid' => $projectId, 'uid' => $callerUserId]);
         $row = $stmt->fetch();
         if ($row === false) {
@@ -198,7 +198,7 @@ final class FormSubmissionService
             return ['ok' => false, 'error' => 'Unknown action.', 'dto' => null];
         }
 
-        $stmt = $this->db->prepare('SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName" FROM "FormSubmissions" s JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."Id" = :id AND s."ProjectId" = :pid');
+        $stmt = $this->db->prepare('SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName", f."FieldsJson" AS "FormFieldsJson" FROM "FormSubmissions" s JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."Id" = :id AND s."ProjectId" = :pid');
         $stmt->execute(['id' => $submissionId, 'pid' => $projectId]);
         $row = $stmt->fetch();
         if ($row === false) {
@@ -462,25 +462,40 @@ final class FormSubmissionService
     }
 
     /** The one action type implemented so far: raises a Task in the target Portal's own
-     * auto-provisioned actioner Project. No dialect divergence from the Postgres tier. */
+     * auto-provisioned actioner Project. No dialect divergence from the Postgres tier. The target
+     * Portal is resolved dynamically first: if this submission's own ProjectId IS some Portal's
+     * actioner Project (i.e. it was actually filled out through that Portal —
+     * PortalHomeService::createSubmission stamps submissions with the Portal's own ProjectId at
+     * creation), that Portal always wins, regardless of config.portalId — a Form attached to
+     * multiple Portals raises into wherever THIS submission actually came from. Only when the
+     * submission's own project isn't any Portal's actioner project at all (a "free floating" Form
+     * filled out directly against an ordinary project) does config.portalId's org-admin-configured
+     * default apply. */
     private function executeActionNode(array $node, array &$trail, array $submissionRow): void
     {
         $actionType = $node['actionType'] ?? null;
         $config = $node['config'] ?? [];
-        $portalId = $config['portalId'] ?? null;
-        if ($actionType !== 'raiseTaskInPortal' || $portalId === null) {
+        if ($actionType !== 'raiseTaskInPortal') {
             return;
         }
 
-        $stmt = $this->db->prepare('SELECT "ProjectId" FROM "Portals" WHERE "Id" = :id');
-        $stmt->execute(['id' => $portalId]);
-        $portal = $stmt->fetch();
-        if ($portal === false) {
+        $originStmt = $this->db->prepare('SELECT "ProjectId" FROM "Portals" WHERE "ProjectId" = :pid');
+        $originStmt->execute(['pid' => $submissionRow['ProjectId']]);
+        $originPortal = $originStmt->fetch();
+
+        $targetProjectId = $originPortal !== false ? $originPortal['ProjectId'] : null;
+        if ($targetProjectId === null && ($config['portalId'] ?? null) !== null) {
+            $defaultStmt = $this->db->prepare('SELECT "ProjectId" FROM "Portals" WHERE "Id" = :id');
+            $defaultStmt->execute(['id' => $config['portalId']]);
+            $defaultPortal = $defaultStmt->fetch();
+            $targetProjectId = $defaultPortal !== false ? $defaultPortal['ProjectId'] : null;
+        }
+        if ($targetProjectId === null) {
             return;
         }
 
         $colStmt = $this->db->prepare('SELECT "Id", "Name" FROM "Columns" WHERE "ProjectId" = :pid ORDER BY "Order"');
-        $colStmt->execute(['pid' => $portal['ProjectId']]);
+        $colStmt->execute(['pid' => $targetProjectId]);
         $columns = $colStmt->fetchAll();
         if (count($columns) === 0) {
             return;
@@ -500,9 +515,10 @@ final class FormSubmissionService
         if ($title === '') {
             $title = ($submissionRow['FormName'] ?? 'Form') . ' — submission review';
         }
+        $description = self::buildAnswersDescription($submissionRow['FormFieldsJson'] ?? null, $submissionRow['AnswersJson'] ?? null);
 
-        $task = (new TaskService($this->db))->create($portal['ProjectId'], [
-            'title' => $title, 'columnId' => $column['Id'], 'assigneeId' => $assigneeId, 'priority' => 'medium',
+        $task = (new TaskService($this->db))->create($targetProjectId, [
+            'title' => $title, 'description' => $description, 'columnId' => $column['Id'], 'assigneeId' => $assigneeId, 'priority' => 'medium',
         ]);
 
         $trail[] = [
@@ -523,6 +539,76 @@ final class FormSubmissionService
             }
         }
         return $lastApproval['actorUserId'] ?? null;
+    }
+
+    /** Compiles every field's own label + entered answer into a Markdown block for the raised
+     * Task's Description — see php-api's own doc comment on this method for the full shape; no
+     * dialect divergence from the Postgres tier (this operates purely on the already-decoded
+     * FieldsJson/AnswersJson strings, not raw SQL). */
+    private static function buildAnswersDescription(?string $fieldsJson, ?string $answersJson): ?string
+    {
+        if ($fieldsJson === null || trim($fieldsJson) === '') {
+            return null;
+        }
+        $fields = json_decode($fieldsJson, true);
+        if (!is_array($fields) || count($fields) === 0) {
+            return null;
+        }
+
+        $answers = [];
+        if ($answersJson !== null && trim($answersJson) !== '') {
+            $decoded = json_decode($answersJson, true);
+            if (is_array($decoded)) {
+                $answers = $decoded;
+            }
+        }
+
+        $lines = [];
+        foreach ($fields as $field) {
+            $id = $field['id'] ?? null;
+            if ($id === null || $id === '') {
+                continue;
+            }
+            $label = $field['label'] ?? null;
+            if ($label === null || trim((string) $label) === '') {
+                $label = $id;
+            }
+            $value = array_key_exists($id, $answers) ? $answers[$id] : null;
+            $lines[] = '**' . $label . ':** ' . self::formatAnswerValue($field, $value);
+        }
+        return count($lines) === 0 ? null : implode("\n\n", $lines);
+    }
+
+    private static function formatAnswerValue(array $field, mixed $value): string
+    {
+        if ($value === null) {
+            return '—';
+        }
+        $type = $field['type'] ?? null;
+        if ($type === 'radio' && ($field['groupMode'] ?? null) === 'single') {
+            return $value === true ? 'Yes' : 'No';
+        }
+        if (is_array($value)) {
+            if (count($value) === 0) {
+                return '—';
+            }
+            return implode(', ', array_map(fn ($id) => self::optionLabel($field, (string) $id), $value));
+        }
+        if ($type === 'checkboxGroup' || $type === 'select' || ($type === 'radio' && ($field['groupMode'] ?? null) !== 'single')) {
+            return self::optionLabel($field, (string) $value);
+        }
+        return (string) $value;
+    }
+
+    private static function optionLabel(array $field, string $optionId): string
+    {
+        foreach (($field['options'] ?? []) as $option) {
+            if (($option['id'] ?? null) === $optionId) {
+                $label = $option['label'] ?? null;
+                return ($label === null || trim((string) $label) === '') ? $optionId : (string) $label;
+            }
+        }
+        return $optionId;
     }
 
     private function resolveActingUser(string $projectId, string $userId, bool $callerIsOrgAdmin): array

@@ -112,8 +112,22 @@ is **auto-executed the instant a submission's graph transitions into it** — no
 needed, unlike Author/Approval.
 
 `FormSubmissionService.ApplyNextNodeAsync` (and its PHP twins' `applyNextNodeActions`) walk past any
-consecutive `action` nodes on the way to the next real node, raising a Task in the target Portal's
-actioner Project:
+consecutive `action` nodes on the way to the next real node, raising a Task:
+- **Target Portal/Project — resolved dynamically, `config.portalId` is only a fallback default**:
+  `ExecuteActionNodeAsync`/`executeActionNode` first checks whether the *submission's own*
+  `ProjectId` is itself some Portal's actioner Project — it is exactly that whenever the submission
+  was actually filled out through a Portal (`PortalHomeService.CreateSubmissionAsync` stamps every
+  Portal submission with `portal.ProjectId` at creation, vs. `ProjectFormsController`'s own
+  ordinary-project `ProjectId` for a direct, non-Portal fill-out — see that controller/service pair
+  for the two paths). If that lookup finds a Portal, its Project *always* wins, regardless of what
+  the workflow node's own `config.portalId` says — a Form attached to multiple Portals raises every
+  submission's task into wherever THAT submission actually came from, never a single hardcoded one.
+  Only when the submission's own project isn't any Portal's actioner project at all (a "free
+  floating" Form filled out directly against an ordinary project, with no Portal involved) does
+  `config.portalId` — the org-admin-configured default, picked once at workflow-authoring time in
+  `views/form-workflow-editor.js`'s Portal picker — get looked up instead. No schema change was
+  needed for this: `FormSubmission.ProjectId` already carried the exact signal needed, since every
+  Portal has its own dedicated 1:1 actioner Project.
 - **Column**: matched case-insensitively against `config.priorityColumn` ("trivial".."critical"),
   falling back to the lowest-`Order` column if the name doesn't match — never throws for a
   misconfigured value.
@@ -121,6 +135,14 @@ actioner Project:
   wins; otherwise the most recent `approved` trail entry's actor, or unassigned if none exists yet
   (e.g. an action node placed before any Approval node).
 - **Title**: `config.titleTemplate` if set, else `"{FormName} — submission review"`.
+- **Description**: every field's own label + entered answer, compiled into a Markdown block
+  (`**Label:** value` per field, blank-line separated — rendered through the same Markdown rich-text
+  editor every other Task description uses) via `BuildAnswersDescription`/`buildAnswersDescription`
+  (all 3 tiers) — matches `features/form-answers.js`'s `renderAnswerReadOnlyHTML` value-formatting
+  rules exactly (option ids resolved to their labels for checkbox/select/radio, `Yes`/`No` for a
+  single-toggle radio, `—` for an unanswered field) just as plain text instead of HTML, so the raised
+  task always carries the full submitted context, not just a title. Best-effort: unparsable
+  `FieldsJson`/`AnswersJson` simply yields no description rather than throwing.
 
 **.NET** wraps the node-transition + task-raise + submission-save sequence in one explicit
 transaction (same standing rule as Portal provisioning above). **PHP tiers deliberately don't** —
@@ -132,8 +154,16 @@ given that constraint, not a silently-ignored gap.
 Frontend: `features/form-workflow-engine.js`'s `computeNextNodeId` walks past action nodes too (pure,
 UI-prediction only — it never executes anything itself, matching this module's own no-side-effects
 doc comment). `views/form-workflow-editor.js` gets a 4th node type in its palette/popover (Portal
-picker, priority column, assignee, title template) — `formWorkflowEditorState.portals`, loaded once
-per editor session via the new `portalsApi.list()`.
+picker relabeled "Default Portal (optional)" with an inline hint explaining the dynamic-resolution/
+fallback relationship, priority column, assignee, title template) — `formWorkflowEditorState.portals`,
+loaded once per editor session via the new `portalsApi.list()`. The node's own canvas summary
+(`gateSummary` in that file) reads `"Raise task · default Portal: {name}"` when one's configured, or
+`"Raise task in the submitter's Portal"` when it isn't — never "No Portal selected yet," since an
+unset default is a valid, common configuration now, not an incomplete one.
+
+**Discoverability note**: the Action step button always sits in the workflow editor's toolbar, but a
+**published** Form's workflow isn't directly editable — create a new version first (Forms admin's own
+versioning flow), then its workflow editor becomes editable and the Action step can be added.
 
 ## Frontend
 

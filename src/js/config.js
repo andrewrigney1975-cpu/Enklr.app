@@ -8,7 +8,7 @@
    timestamp. This value is informational only: it's included in a
    project's export file but is never read back in on import.
    ========================================================= */
-export var APP_VERSION = '4.248.20260801.1052';
+export var APP_VERSION = '4.249.20260801.1225';
 
 /* =========================================================
    ICONS — inline SVG, line-icon style, stroke=currentColor

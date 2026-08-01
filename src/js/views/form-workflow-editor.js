@@ -142,7 +142,10 @@ function gateSummary(node){
   if(node.type === 'action'){
     var cfg = node.config || {};
     var portal = formWorkflowEditorState.portals.filter(function(p){ return p.id === cfg.portalId; })[0];
-    return portal ? ('Raise task in ' + portal.name) : 'No Portal selected yet';
+    // The target Portal is resolved dynamically at submit time (whichever Portal the submission
+    // actually came through) — cfg.portalId is only ever a fallback for a "free floating" (not
+    // filled out via any Portal) submission, so this summary reads as a default, not a requirement.
+    return portal ? ('Raise task · default Portal: ' + portal.name) : 'Raise task in the submitter\'s Portal';
   }
   return '';
 }
