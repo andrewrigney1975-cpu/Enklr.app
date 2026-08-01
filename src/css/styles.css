@@ -8020,8 +8020,8 @@
      kept as its own class rather than an added modifier since the two previews will never share a
      row/need combining. */
   .kf-preferences-avatar-preview {
-    width: 44px;
-    height: 44px;
+    width: 55px;
+    height: 55px;
     border-radius: 50%;
     border: 1px solid var(--kf-border);
     object-fit: cover;
