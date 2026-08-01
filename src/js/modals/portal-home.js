@@ -204,16 +204,25 @@ function stepIndexForStatus(status){
   if(status === 'draft') return 0;
   if(status === 'submitted') return 1;
   if(status === 'inProgress') return 2;
-  if(status === 'approved') return 3;
+  if(status === 'approved' || status === 'completed') return 3;
   if(status === 'rejected') return 2;
   return 0;
 }
+/* 'completed' (a linked raised Task reaching a Done column, see
+   FormSubmissionService.ResumeIfLinkedTaskDoneAsync — not a human's own Approval action) reaches the
+   same final step index as 'approved', but reads differently: the final step's own label becomes
+   "Completed" rather than "Approved", and the "In review" step (index 2) — which may never have
+   actually happened as a distinct human step, e.g. a start->author->action->end workflow with no
+   Approval node at all — is deliberately left with no 'done'/'current' class (the stepper's own
+   default, unstyled/grey dot+line) rather than shown as completed, since it wasn't. */
 function renderStepperHTML(status){
   var current = stepIndexForStatus(status);
   var rejected = status === 'rejected';
+  var completed = status === 'completed';
   return '<div class="kf-portal-stepper">' + STEPPER_STEPS.map(function(label, i){
-    var cls = i < current ? 'done' : (i === current ? (rejected ? 'rejected' : 'current') : '');
-    var stepLabel = (rejected && i === current) ? 'Rejected' : label;
+    var skipStep = completed && i === 2;
+    var cls = skipStep ? '' : (i < current ? 'done' : (i === current ? (rejected ? 'rejected' : 'current') : ''));
+    var stepLabel = (rejected && i === current) ? 'Rejected' : ((completed && i === 3) ? 'Completed' : label);
     return '<div class="kf-portal-stepper-step ' + cls + '">' +
       '<div class="kf-portal-stepper-line"></div>' +
       '<div class="kf-portal-stepper-dot"></div>' +
@@ -389,7 +398,7 @@ function openExistingPortalSubmission(submissionId){
 }
 
 var FILLOUT_STATUS_LABELS = {
-  draft: 'Draft', submitted: 'Submitted', inProgress: 'In Review', approved: 'Approved', rejected: 'Rejected'
+  draft: 'Draft', submitted: 'Submitted', inProgress: 'In Review', approved: 'Approved', rejected: 'Rejected', completed: 'Completed'
 };
 
 function renderPortalFilloutDetail(){

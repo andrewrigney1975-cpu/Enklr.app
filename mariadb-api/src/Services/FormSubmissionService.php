@@ -586,6 +586,13 @@ final class FormSubmissionService
         $edge = self::outgoingEdge($graph, $currentNode['id']);
         $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
         [$status, $currentNodeId, , $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
+        // applyNextNodeActions sets 'approved' for reaching an End node — correct for a human's own
+        // Approval action, but a task-driven resume reaching End means something distinct
+        // ('completed', not approved by anyone) that the Portal frontend's stepper renders
+        // differently. Only overrides in that exact case.
+        if ($status === 'approved') {
+            $status = 'completed';
+        }
 
         $stmt = $this->db->prepare(
             'UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId,
@@ -594,8 +601,8 @@ final class FormSubmissionService
         $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $row['Id']]);
 
         $decisionNotify = null;
-        if ($status === 'approved') {
-            $decisionNotify = ['userId' => $row['SubmittedByUserId'], 'displayName' => 'Task completed', 'decision' => 'approved'];
+        if ($status === 'completed') {
+            $decisionNotify = ['userId' => $row['SubmittedByUserId'], 'displayName' => 'Task completed', 'decision' => 'completed'];
         }
         return ['projectId' => $row['ProjectId'], 'submissionId' => $row['Id'], 'formName' => $row['FormName'], 'decisionNotify' => $decisionNotify];
     }

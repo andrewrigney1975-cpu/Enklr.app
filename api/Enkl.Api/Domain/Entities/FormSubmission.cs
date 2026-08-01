@@ -17,14 +17,18 @@ public class FormSubmission
     public Guid SubmittedByUserId { get; set; }
     public User SubmittedByUser { get; set; } = null!;
 
-    /// <summary>draft|submitted|inProgress|approved|rejected|cancelled — plain unconstrained
-    /// string, same convention as Form.Status.</summary>
+    /// <summary>draft|submitted|inProgress|approved|rejected|completed|cancelled — plain
+    /// unconstrained string, same convention as Form.Status. "completed" is a distinct terminal
+    /// status from "approved": both mean the graph reached an End node, but "completed" specifically
+    /// means it got there via ResumeIfLinkedTaskDoneAsync (a linked raised Task reaching a Done
+    /// column), never via a human's own Approval action — the Portal frontend's own stepper reads
+    /// this distinction directly (see modals/portal-home.js's renderStepperHTML).</summary>
     public string Status { get; set; } = "draft";
 
     /// <summary>The Action node id (from FormVersion.WorkflowJson) this submission is currently
     /// sitting at, awaiting that node's gate to be satisfied. Null while still a Draft (not yet
-    /// entered the workflow) and once a terminal status (approved/rejected/cancelled) is reached.
-    /// Populated starting Phase 4/5 (the workflow engine) — always null in Phase 1.</summary>
+    /// entered the workflow) and once a terminal status (approved/rejected/completed/cancelled) is
+    /// reached. Populated starting Phase 4/5 (the workflow engine) — always null in Phase 1.</summary>
     public string? CurrentNodeId { get; set; }
 
     public string? AnswersJson { get; set; }

@@ -33,7 +33,7 @@ var detail = null; // {mode, form, fields, submissionId, submission}
 
 var STATUS_LABELS = {
   draft: 'Draft', submitted: 'Submitted', inProgress: 'In Progress',
-  approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled'
+  approved: 'Approved', rejected: 'Rejected', completed: 'Completed', cancelled: 'Cancelled'
 };
 
 function parseFieldsJson(json){
@@ -140,7 +140,7 @@ function renderFilloutPicker(){
    archived status vocabulary, but reuse the same three visual classes (draft=neutral,
    published=success-green, archived=faint) rather than inventing a 4th/5th CSS variant. */
 function statusBadgeClass(status){
-  if(status === 'approved') return 'published';
+  if(status === 'approved' || status === 'completed') return 'published';
   if(status === 'draft') return 'draft';
   return 'archived';
 }

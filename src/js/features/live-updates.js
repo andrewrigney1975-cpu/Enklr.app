@@ -85,19 +85,29 @@ function handleFormActionRequiredEvent(payload){
 }
 
 /* Phase 7/8 — pushed to the ORIGINAL SUBMITTER whenever their submission reaches a FINAL decision
-   (payload.decision is 'approved' or 'rejected'), always and unconditionally — no gate-satisfaction
-   "who" question like the approval-required push above, a decision has exactly one interested
-   party. Approved and rejected share one handler/event (rather than two near-duplicate ones)
-   specifically so the message always names BOTH the form and the result together — "which form,
-   what happened" is the whole point of this notification, never one without the other. mode 'view'
-   matches modals/forms-fillout.js's own doc comment for a submission reached via "a future
-   notification link" — read-only fields + Approval Trail, no actions. */
+   (payload.decision is 'approved', 'rejected', or 'completed'), always and unconditionally — no
+   gate-satisfaction "who" question like the approval-required push above, a decision has exactly
+   one interested party. Approved/rejected/completed share one handler/event (rather than several
+   near-duplicate ones) specifically so the message always names BOTH the form and the result
+   together — "which form, what happened" is the whole point of this notification, never one
+   without the other. mode 'view' matches modals/forms-fillout.js's own doc comment for a submission
+   reached via "a future notification link" — read-only fields + Approval Trail, no actions.
+   'completed' (FormSubmissionService.ResumeIfLinkedTaskDoneAsync — a linked raised Task reaching a
+   Done column, not a human decision) gets its own message shape rather than the "by {actor}"
+   phrasing approved/rejected use, since there's no real person to attribute it to. */
 function handleFormSubmissionDecidedEvent(payload){
-  var verb = payload.decision === 'approved' ? 'approved' : 'rejected';
-  var message = '"' + payload.formName + '" was ' + verb + ' by ' + (payload.actedByDisplayName || 'someone') +
-    (payload.comment ? ': "' + payload.comment + '"' : '') + '.';
+  var message, icon;
+  if(payload.decision === 'completed'){
+    message = '"' + payload.formName + '" was completed — its linked task was marked Done.';
+    icon = 'checkSquare';
+  } else {
+    var verb = payload.decision === 'approved' ? 'approved' : 'rejected';
+    message = '"' + payload.formName + '" was ' + verb + ' by ' + (payload.actedByDisplayName || 'someone') +
+      (payload.comment ? ': "' + payload.comment + '"' : '') + '.';
+    icon = payload.decision === 'approved' ? 'check' : 'ty_document';
+  }
   pushDespatch({
-    icon: payload.decision === 'approved' ? 'check' : 'ty_document',
+    icon: icon,
     message: message,
     formSubmission: {projectId: payload.projectId, submissionId: payload.submissionId, mode: 'view'}
   });

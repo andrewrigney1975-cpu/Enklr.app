@@ -557,14 +557,16 @@ final class FormSubmissionService
      * that a "raiseTaskInPortal" action node raised has landed in a Done column, resumes the paused
      * submission by walking exactly one more graph step from that action node's own outgoing edge
      * (see applyNextNodeActions' own doc comment for why this reuses that same method) — reaching
-     * End marks the submission "approved" ("the form is marked as complete"); reaching another
-     * Approval node instead just moves the pause to a human gate, same as any other Approval step;
-     * reaching another action node fires and pauses again. Idempotent and safe to call
-     * unconditionally: no-ops when no submission is currently paused on this Task, the Task's own
-     * column isn't Done, or the submission's current node isn't actually an "action" node
-     * (defensive). Broadcast ownership stays at the controller level (this tier's own convention) —
-     * returns null for a no-op, or ['projectId', 'submissionId', 'formName', 'decisionNotify'] (the
-     * last only non-null once the walk actually reached 'approved') for the controller to broadcast.
+     * End marks the submission "completed", a distinct terminal status from a human's own "approved"
+     * (the form is marked as complete via the linked Task, not a person — see the Portal frontend's
+     * own stepper handling of this distinction); reaching another Approval node instead just moves
+     * the pause to a human gate, same as any other Approval step; reaching another action node fires
+     * and pauses again. Idempotent and safe to call unconditionally: no-ops when no submission is
+     * currently paused on this Task, the Task's own column isn't Done, or the submission's current
+     * node isn't actually an "action" node (defensive). Broadcast ownership stays at the controller
+     * level (this tier's own convention) — returns null for a no-op, or ['projectId', 'submissionId',
+     * 'formName', 'decisionNotify'] (the last only non-null once the walk actually reached
+     * 'completed') for the controller to broadcast.
      *
      * @return ?array{projectId: string, submissionId: string, formName: string, decisionNotify: ?array}
      */
@@ -608,6 +610,13 @@ final class FormSubmissionService
         // graph), which already wraps itself in its own transaction; PDO has no native nested-
         // transaction support, so this method's own UPDATE below is independently atomic.
         [$status, $currentNodeId, , $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
+        // applyNextNodeActions sets 'approved' for reaching an End node — correct for a human's own
+        // Approval action, but a task-driven resume reaching End means something distinct
+        // ('completed', not approved by anyone) that the Portal frontend's stepper renders
+        // differently. Only overrides in that exact case.
+        if ($status === 'approved') {
+            $status = 'completed';
+        }
 
         $stmt = $this->db->prepare(
             'UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId,
@@ -616,8 +625,8 @@ final class FormSubmissionService
         $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $row['Id']]);
 
         $decisionNotify = null;
-        if ($status === 'approved') {
-            $decisionNotify = ['userId' => $row['SubmittedByUserId'], 'displayName' => 'Task completed', 'decision' => 'approved'];
+        if ($status === 'completed') {
+            $decisionNotify = ['userId' => $row['SubmittedByUserId'], 'displayName' => 'Task completed', 'decision' => 'completed'];
         }
         return ['projectId' => $row['ProjectId'], 'submissionId' => $row['Id'], 'formName' => $row['FormName'], 'decisionNotify' => $decisionNotify];
     }

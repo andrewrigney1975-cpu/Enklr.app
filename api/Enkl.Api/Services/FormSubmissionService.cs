@@ -456,7 +456,8 @@ public class FormSubmissionService
     /// When a Task that a "raiseTaskInPortal" action node raised has landed in a Done column, resumes
     /// the paused submission by walking exactly one more graph step from that action node's own
     /// outgoing edge (see ApplyNextNodeAsync's own doc comment for why this reuses that same method)
-    /// — reaching End marks the submission "approved" ("the form is marked as complete"); reaching
+    /// — reaching End marks the submission "completed", a distinct terminal status from a human's
+    /// own "approved" (the form is marked as complete via the linked Task, not a person); reaching
     /// another Approval node instead just moves the pause to a human gate, same as any other Approval
     /// step; reaching another action node fires and pauses again. Idempotent and safe to call
     /// unconditionally: no-ops when no submission is currently paused on this Task, the Task's own
@@ -491,14 +492,21 @@ public class FormSubmissionService
         // committing call, followed by this method's own separate save below.
         await using var transaction = await _db.Database.BeginTransactionAsync();
         await ApplyNextNodeAsync(submission, graph, nextNode, trail);
+        // ApplyNextNodeAsync sets "approved" for reaching an End node — that's correct for a human's
+        // own Approval action, but a task-driven resume reaching End means something distinct
+        // ("completed", not "approved" by anyone) that the Portal frontend's stepper renders
+        // differently (see FormSubmission.Status's own doc comment). Only overrides in that exact
+        // case — if the walk instead landed back on 'inProgress' (another Approval/action node), the
+        // status is left alone.
+        if (submission.Status == "approved") submission.Status = "completed";
         submission.ApprovalTrailJson = JsonSerializer.Serialize(trail, JsonWriteOpts);
         submission.DateLastModified = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
 
-        if (submission.Status == "approved")
+        if (submission.Status == "completed")
         {
-            await NotifySubmitterOfDecisionAsync(submission, Guid.Empty, "approved", null);
+            await NotifySubmitterOfDecisionAsync(submission, Guid.Empty, "completed", null);
         }
     }
 

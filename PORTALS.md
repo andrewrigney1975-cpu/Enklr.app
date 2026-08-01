@@ -166,12 +166,24 @@ deliberately a cheap, always-on check rather than a targeted one: an indexed `WH
 updates in the app. When it DOES find a match and the Task's own Column is `Done`, it appends a
 `taskCompleted` trail entry and re-calls the same `ApplyNextNodeAsync`/`applyNextNodeActions` with
 the action node's own outgoing edge — walking the graph exactly one more step, reusing all the same
-terminal-status logic every other transition already uses: reaching an End node marks the submission
-`"approved"` (**"the form is marked as complete"**, the whole point of this mechanism); reaching
-another Approval node instead just moves the pause to a human gate; reaching a second consecutive
-action node fires and pauses again (its own Task needs to complete too). The submitter gets notified
-via the same `BroadcastFormSubmissionDecided` SSE event a human approval already triggers, so a
-task-driven completion looks identical to them.
+terminal-status logic every other transition already uses, with **one override**: reaching an End
+node this way sets `Status = "completed"`, not `"approved"` — a distinct terminal value from a
+human's own Approval decision (**"the form is marked as complete"**, the whole point of this
+mechanism, but attributed to the linked Task, not a person). Reaching another Approval node instead
+just moves the pause to a human gate; reaching a second consecutive action node fires and pauses
+again (its own Task needs to complete too). The submitter gets notified via the same
+`BroadcastFormSubmissionDecided` SSE event a human approval already triggers (`decision: "completed"`),
+so a task-driven completion shows up the same way a decision does, just worded differently — see
+`features/live-updates.js`'s `handleFormSubmissionDecidedEvent`, which skips the usual "by {actor}"
+phrasing for this decision value since there's no person to attribute it to.
+
+`FormSubmission.Status`'s full value set is now `draft | submitted | inProgress | approved | rejected
+| completed | cancelled` (`cancelled` remains reserved/unused — see its own doc comment). The Portal
+frontend's stepper (`modals/portal-home.js`'s `renderStepperHTML`) treats `completed` as reaching the
+same final step index as `approved`, but relabels that step "Completed" and — since a
+`start → author → action → end` workflow may never have had a real human Approval step at all —
+deliberately leaves the "In review" step (index 2) unstyled/grey rather than marking it `done`, so a
+task-driven completion doesn't visually imply a review happened that never did.
 
 **Why this couldn't just be a `TaskService` dependency**: `FormSubmissionService` already depends on
 `TaskService` to raise the task in the first place — injecting `FormSubmissionService` back into
