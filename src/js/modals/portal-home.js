@@ -213,15 +213,18 @@ function stepIndexForStatus(status){
    same final step index as 'approved', but reads differently: the final step's own label becomes
    "Completed" rather than "Approved", and the "In review" step (index 2) — which may never have
    actually happened as a distinct human step, e.g. a start->author->action->end workflow with no
-   Approval node at all — is deliberately left with no 'done'/'current' class (the stepper's own
-   default, unstyled/grey dot+line) rather than shown as completed, since it wasn't. */
+   Approval node at all — gets its DOT left grey (not marked 'done'/'current') rather than shown as
+   completed, since it wasn't. Its outgoing LINE (into "Completed") still gets coloured via the
+   line-only 'line-done' class, though — otherwise the progress line halts at "In review" and
+   "Completed" reads as floating/disconnected rather than as the trail's actual endpoint (a real bug
+   caught live: the dot-only fix originally shipped left exactly that gap). */
 function renderStepperHTML(status){
   var current = stepIndexForStatus(status);
   var rejected = status === 'rejected';
   var completed = status === 'completed';
   return '<div class="kf-portal-stepper">' + STEPPER_STEPS.map(function(label, i){
     var skipStep = completed && i === 2;
-    var cls = skipStep ? '' : (i < current ? 'done' : (i === current ? (rejected ? 'rejected' : 'current') : ''));
+    var cls = skipStep ? 'line-done' : (i < current ? 'done' : (i === current ? (rejected ? 'rejected' : 'current') : ''));
     var stepLabel = (rejected && i === current) ? 'Rejected' : ((completed && i === 3) ? 'Completed' : label);
     return '<div class="kf-portal-stepper-step ' + cls + '">' +
       '<div class="kf-portal-stepper-line"></div>' +

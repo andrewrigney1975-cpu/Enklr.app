@@ -6372,7 +6372,8 @@
   .kf-portal-stepper-step:last-child .kf-portal-stepper-line {
     display: none;
   }
-  .kf-portal-stepper-step.done .kf-portal-stepper-line {
+  .kf-portal-stepper-step.done .kf-portal-stepper-line,
+  .kf-portal-stepper-step.line-done .kf-portal-stepper-line {
     background: var(--kf-portal-accent);
   }
   .kf-portal-stepper-label {
