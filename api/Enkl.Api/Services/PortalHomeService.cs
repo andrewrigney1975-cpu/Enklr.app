@@ -178,11 +178,11 @@ public class PortalHomeService
     /// IsOrgAdmin flag: an orgAdmin-gated Approval node is the natural gate for the Org Admins
     /// PortalService.CreateAsync auto-adds to every actioner Project, and suppressing it here would
     /// make such a node unsatisfiable by anyone through this surface.</summary>
-    public async Task<(bool ok, string error, FormSubmissionDto? dto)> ActOnApprovalAsync(Guid organisationId, Guid portalId, Guid userId, Guid submissionId, string action, string? comment, bool callerIsOrgAdmin)
+    public async Task<(bool ok, string error, FormSubmissionDto? dto)> ActOnApprovalAsync(Guid organisationId, Guid portalId, Guid userId, Guid submissionId, string action, string? comment, bool callerIsOrgAdmin, string? closingNotes = null)
     {
         var portal = await GetAccessiblePortalAsync(organisationId, portalId, userId);
         if (portal is null) return (false, "not_found", null);
-        return await _submissions.ActOnApprovalAsync(portal.ProjectId, userId, callerIsOrgAdmin, submissionId, action, comment);
+        return await _submissions.ActOnApprovalAsync(portal.ProjectId, userId, callerIsOrgAdmin, submissionId, action, comment, closingNotes);
     }
 
     /// <summary>Delegates into FormSubmissionService.CreateAsync against the Portal's own actioner

@@ -425,6 +425,9 @@ function registerRoutes(App $app): void
         })->add(ProjectAdminMiddleware::class);
 
         registerEntityRoutes($group, '/tasks', TasksController::class, 'taskId');
+        // Cheap "is this Task linked to a raised Form submission" check the frontend's Done-column
+        // closing-notes prompt uses — see TasksController::formLink's own doc comment.
+        $group->get('/tasks/{taskId}/form-link', [TasksController::class, 'formLink']);
         // v4 Phase 1 AI Assistant — a single chat endpoint, ProjectMember-gated same as every other
         // route in this group. Rate-limited per-caller (hashed bearer token) since each request can
         // fan out to several Claude API calls internally (AiAssistantService's own tool-use loop) —

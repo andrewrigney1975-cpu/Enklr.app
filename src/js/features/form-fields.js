@@ -2,6 +2,7 @@
 import { escapeHTML } from '../views/board.js';
 import { uid } from '../storage.js';
 import { iconSvg } from '../icons.js';
+import { PRIORITY_META, PRIORITY_ORDER } from '../config.js';
 
 /* Pure per-field-type helpers for the Enterprise Forms field builder (modals/forms-admin.js) — no
    DOM/API/state here, same "pure renderer" role features/dashboard-widgets.js plays for Dashboard
@@ -9,13 +10,19 @@ import { iconSvg } from '../icons.js';
    Domain/Entities/Form.cs's own doc comment — that JSON is opaque and unvalidated server-side, the
    frontend owns the whole shape):
 
-   {id, type: 'text'|'textarea'|'numeric'|'checkboxGroup'|'radio'|'select'|'datetime',
+   {id, type: 'text'|'textarea'|'numeric'|'checkboxGroup'|'radio'|'select'|'datetime'|'priority',
     label, helpText, required (bool), order (int),
     // checkboxGroup only: options: [{id, label}], mutex (bool — true = pick-one-of-group)
     // radio only: options: [{id, label}], groupMode: 'single'|'mutexGroup'|'multiGroup'
     // select only: options: [{id, label}], multiple (bool)
     // numeric only: min, max (nullable numbers)
-    // datetime only: includesTime (bool)}
+    // datetime only: includesTime (bool)
+    // priority only: options: [{id, label}] — FIXED to PRIORITY_ORDER's 5 keys/labels, not editable
+    //   in the builder (see renderFieldTypeConfigHTML). The stored answer is the raw priority key
+    //   itself ('high', etc), not an arbitrary option id — that's what lets
+    //   FormSubmissionService.ExecuteActionNodeAsync use it directly as both the raised Task's own
+    //   Priority AND match it case-insensitively against the Portal's 5 fixed column names, the
+    //   exact same convention the workflow's static config.priorityColumn already relies on.}
 */
 
 export var FIELD_TYPES = [
@@ -25,7 +32,8 @@ export var FIELD_TYPES = [
   {value: 'checkboxGroup', label: 'Checkbox', icon: 'checkSquare'},
   {value: 'radio', label: 'Radio button', icon: 'check'},
   {value: 'select', label: 'Select', icon: 'list'},
-  {value: 'datetime', label: 'Date and time', icon: 'clock'}
+  {value: 'datetime', label: 'Date and time', icon: 'clock'},
+  {value: 'priority', label: 'Priority', icon: 'p_medium'}
 ];
 
 export function fieldTypeLabel(type){
@@ -44,6 +52,9 @@ export function defaultFieldConfig(type){
   if(type === 'select') return Object.assign(base, {options: [], multiple: false});
   if(type === 'numeric') return Object.assign(base, {min: null, max: null});
   if(type === 'datetime') return Object.assign(base, {includesTime: false});
+  if(type === 'priority') return Object.assign(base, {
+    options: PRIORITY_ORDER.map(function(key){ return {id: key, label: PRIORITY_META[key].label}; })
+  });
   return base;
 }
 
@@ -66,6 +77,7 @@ export function fieldSummary(field){
     parts.push('range ' + (field.min != null ? field.min : '–') + '–' + (field.max != null ? field.max : '–'));
   }
   if(field.type === 'datetime' && field.includesTime) parts.push('with time');
+  if(field.type === 'priority') parts.push('fixed options');
   if(field.required) parts.push('required');
   return parts.join(' • ');
 }
@@ -131,6 +143,13 @@ export function renderFieldTypeConfigHTML(field){
         '<input type="checkbox" id="formFieldIncludesTimeCheckbox"' + (field.includesTime ? ' checked' : '') + '>' +
         '<label for="formFieldIncludesTimeCheckbox" style="text-transform:none;font-weight:500;">Include a time, not just a date</label>' +
       '</div>';
+  }
+  if(field.type === 'priority'){
+    // No options editor — the 5 priority options are fixed (PRIORITY_ORDER) so a Form Workflow's
+    // "raiseTaskInPortal" action node can match the answer directly against a Portal's own fixed
+    // priority-named columns (see this file's own top-of-file doc comment).
+    return '<div class="kf-form-answer-help">Fixed options: ' +
+      PRIORITY_ORDER.map(function(key){ return escapeHTML(PRIORITY_META[key].label); }).join(', ') + '.</div>';
   }
   return '';
 }

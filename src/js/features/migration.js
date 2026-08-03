@@ -1,10 +1,11 @@
 "use strict";
 import { state, saveDB, createDefaultProject } from '../storage.js';
 import { buildExportDoc } from './export.js';
-import { migrateProjectApi, loginApi, ssoExchangeApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, updateColumnApi, deleteColumnApi, releaseApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi, getTodoListsApi, createTodoListApi, renameTodoListApi, deleteTodoListApi, createTodoItemApi, updateTodoItemApi, deleteTodoItemApi } from '../api.js';
+import { migrateProjectApi, loginApi, ssoExchangeApi, changePasswordApi, getProjectsApi, getProjectDetailApi, createProjectApi, updateProjectApi, deleteProjectApi, taskApi, getTaskFormLink, updateColumnApi, deleteColumnApi, releaseApi, setToken, isLoggedIn, getTemplatesApi, createTemplateApi, getTodoListsApi, createTodoListApi, renameTodoListApi, deleteTodoListApi, createTodoItemApi, updateTodoItemApi, deleteTodoItemApi } from '../api.js';
 import { applyServerUserPreferences } from '../modals/my-preferences.js';
+import { promptFormClosingNotes } from '../modals/closing-notes-prompt.js';
 import { isoToServerDateOnly, serverDateOnlyToIso } from '../date-utils.js';
-import { getReleaseById } from '../utils.js';
+import { getReleaseById, getColumn } from '../utils.js';
 
 var _toast = function(msg){ console.error(msg); };
 export function setMigrationToast(fn){ _toast = fn; }
@@ -206,10 +207,26 @@ function taskToServerBody(t, overrides){
    column changes server-side — there's no intra-column ordering field in the server model yet (only
    Column.Order, the column's own position among columns), so a drop position within the column is a
    local-only detail that doesn't survive a refresh for a server-authoritative project. */
-export async function moveTaskToColumnOnServer(project, taskId, targetColumnId){
+/* Fires only when the move actually lands in a Done column AND that Task is linked to a raised Form
+   submission (RaisedTaskId) — a single cheap indexed GET (getTaskFormLink), never shown for the
+   overwhelming majority of ordinary Done-column moves. Resolves to the entered notes (or null if the
+   prompt was skipped/never shown) — the caller carries this straight through to the same PUT that
+   moves the column, as UpdateTaskRequest.FormClosingNotes (see
+   FormSubmissionService.ResumeIfLinkedTaskDoneAsync's own doc comment for how it's transcribed onto
+   the submission). Never blocks the move itself either way. */
+export async function maybePromptFormClosingNotes(project, taskId, targetColumnId){
+  if(!isServerAuthoritative(project)) return null;
+  var col = getColumn(project, targetColumnId);
+  if(!col || !col.done) return null;
+  var link = await getTaskFormLink(project.serverProjectId, taskId);
+  if(!link) return null;
+  return promptFormClosingNotes();
+}
+
+export async function moveTaskToColumnOnServer(project, taskId, targetColumnId, formClosingNotes){
   var t = project.tasks[taskId];
   if(!t) return;
-  await taskApi.update(project.serverProjectId, taskId, taskToServerBody(t, {columnId: targetColumnId}));
+  await taskApi.update(project.serverProjectId, taskId, taskToServerBody(t, {columnId: targetColumnId, formClosingNotes: formClosingNotes || null}));
   return refreshProjectFromServer(project.id);
 }
 

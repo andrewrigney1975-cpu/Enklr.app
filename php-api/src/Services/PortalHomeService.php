@@ -183,13 +183,13 @@ final class PortalHomeService
      * callerIsOrgAdmin is always false here for the same reason submitSubmission passes false — acting
      * through the Portal surface is never Org-Admin authority, regardless of the caller's real
      * IsOrgAdmin flag. */
-    public function actOnApproval(string $organisationId, string $portalId, string $userId, string $submissionId, string $action, ?string $comment, bool $callerIsOrgAdmin): array
+    public function actOnApproval(string $organisationId, string $portalId, string $userId, string $submissionId, string $action, ?string $comment, bool $callerIsOrgAdmin, ?string $closingNotes = null): array
     {
         $portal = $this->accessiblePortal($organisationId, $portalId, $userId);
         if ($portal === null) {
             return ['ok' => false, 'error' => 'not_found', 'dto' => null];
         }
-        $result = (new FormSubmissionService($this->db))->actOnApproval($portal['ProjectId'], $userId, $callerIsOrgAdmin, $submissionId, $action, $comment);
+        $result = (new FormSubmissionService($this->db))->actOnApproval($portal['ProjectId'], $userId, $callerIsOrgAdmin, $submissionId, $action, $comment, $closingNotes);
         // The controller broadcasts by real ProjectId, not the Portal's own id — see
         // PortalHomeController::notifyFormAction's own comment for why this has to ride along here.
         $result['projectId'] = $portal['ProjectId'];

@@ -192,7 +192,7 @@ final class FormSubmissionService
      * ActOnApprovalAsync doc comment for the full quorum shape. Not scoped to the caller's own
      * submissions (an approver acts on someone ELSE's submission), unlike every Draft-management
      * method above. */
-    public function actOnApproval(string $projectId, string $callerUserId, bool $callerIsOrgAdmin, string $submissionId, string $action, ?string $comment): array
+    public function actOnApproval(string $projectId, string $callerUserId, bool $callerIsOrgAdmin, string $submissionId, string $action, ?string $comment, ?string $closingNotes = null): array
     {
         if ($action !== 'approve' && $action !== 'reject') {
             return ['ok' => false, 'error' => 'Unknown action.', 'dto' => null];
@@ -237,14 +237,24 @@ final class FormSubmissionService
         // complete and we're still re-checking $node itself after a partial approval — the "narrows
         // to one" case, not a fresh one.
         $notifyIsFreshArrival = false;
+        $closingNotesToSave = null;
         if ($action === 'reject') {
             $status = 'rejected';
+            if ($closingNotes !== null && trim($closingNotes) !== '') {
+                $closingNotesToSave = $closingNotes;
+            }
         } elseif (self::isApprovalComplete($node, $trail)) {
             $edge = self::outgoingEdge($graph, $node['id']);
             $nextNode = $edge !== null ? self::findNode($graph, $edge['toNodeId']) : null;
             [$status, $currentNodeId, $nextNode, $raisedTaskId] = $this->applyNextNodeActions($graph, $nextNode, $trail, $row);
             $notifyNode = $nextNode;
             $notifyIsFreshArrival = true;
+            // Only the decisive approval (this node's own quorum just completed AND the graph landed
+            // on an End node) records closing notes — an intermediate step in a multi-step Approval
+            // chain has nothing final to close out yet.
+            if ($status === 'approved' && $closingNotes !== null && trim($closingNotes) !== '') {
+                $closingNotesToSave = $closingNotes;
+            }
         }
         // else: quorum not yet complete — Status/CurrentNodeId unchanged, and resolveNotifyTargets
         // below re-checks the SAME node — its own ALL-mode branch is what notices the remaining-
@@ -263,8 +273,8 @@ final class FormSubmissionService
             ];
         }
 
-        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "DateLastModified" = now() WHERE "Id" = :id');
-        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $submissionId]);
+        $stmt = $this->db->prepare('UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId, "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "ClosingNotes" = COALESCE(:closingNotes, "ClosingNotes"), "DateLastModified" = now() WHERE "Id" = :id');
+        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'closingNotes' => $closingNotesToSave, 'id' => $submissionId]);
 
         $stmt2 = $this->db->prepare('SELECT * FROM "FormSubmissions" WHERE "Id" = :id');
         $stmt2->execute(['id' => $submissionId]);
@@ -443,6 +453,13 @@ final class FormSubmissionService
         if (($nextNode['type'] ?? null) === 'end') {
             return ['approved', $nextNode['id']];
         }
+        // An "action" node stays 'submitted' rather than jumping straight to 'inProgress' — nobody
+        // has actually picked up the raised Task yet, so nothing is "In Review" until
+        // markInReviewIfTaskAssigned (below) notices it get assigned. An Approval node genuinely IS
+        // "In Review" the instant it's reached (a human gate is pending right now).
+        if (($nextNode['type'] ?? null) === 'action') {
+            return ['submitted', $nextNode['id']];
+        }
         return ['inProgress', $nextNode['id']];
     }
 
@@ -516,7 +533,8 @@ final class FormSubmissionService
         if (count($columns) === 0) {
             return null;
         }
-        $wantedName = strtolower((string) ($config['priorityColumn'] ?? ''));
+        $priorityAnswer = self::resolvePriorityFieldAnswer($submissionRow['FormFieldsJson'] ?? null, $submissionRow['AnswersJson'] ?? null);
+        $wantedName = strtolower((string) ($priorityAnswer ?? ($config['priorityColumn'] ?? '')));
         $column = null;
         foreach ($columns as $c) {
             if (strtolower((string) $c['Name']) === $wantedName) {
@@ -541,7 +559,8 @@ final class FormSubmissionService
         $description = $description === '' ? null : $description;
 
         $task = (new TaskService($this->db))->create($targetProjectId, [
-            'title' => $title, 'description' => $description, 'columnId' => $column['Id'], 'assigneeId' => $assigneeId, 'priority' => 'medium',
+            'title' => $title, 'description' => $description, 'columnId' => $column['Id'], 'assigneeId' => $assigneeId,
+            'priority' => $priorityAnswer ?? 'medium',
         ]);
 
         $trail[] = [
@@ -568,13 +587,20 @@ final class FormSubmissionService
      * 'formName', 'decisionNotify'] (the last only non-null once the walk actually reached
      * 'completed') for the controller to broadcast.
      *
+     * Matches Status 'submitted' OR 'inProgress' — a task-raised submission may still be 'submitted'
+     * if the raised Task was never explicitly assigned before landing in Done
+     * (markInReviewIfTaskAssigned never fired); task-driven completion must work either way,
+     * skipping the "In Review" gate entirely rather than requiring it. $closingNotes, if provided
+     * (the raised Task's assignee filled it in on the same Done-column move), is transcribed onto
+     * the submission only when this resume actually reaches the terminal 'completed' status below.
+     *
      * @return ?array{projectId: string, submissionId: string, formName: string, decisionNotify: ?array}
      */
-    public function resumeIfLinkedTaskDone(string $taskId): ?array
+    public function resumeIfLinkedTaskDone(string $taskId, ?string $closingNotes = null): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT s.*, f."WorkflowJson" AS "FormWorkflowJson", f."Name" AS "FormName" FROM "FormSubmissions" s
-             JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."RaisedTaskId" = :tid AND s."Status" = \'inProgress\''
+             JOIN "Forms" f ON f."Id" = s."FormVersionId" WHERE s."RaisedTaskId" = :tid AND s."Status" IN (\'submitted\', \'inProgress\')'
         );
         $stmt->execute(['tid' => $taskId]);
         $row = $stmt->fetch();
@@ -614,21 +640,67 @@ final class FormSubmissionService
         // Approval action, but a task-driven resume reaching End means something distinct
         // ('completed', not approved by anyone) that the Portal frontend's stepper renders
         // differently. Only overrides in that exact case.
+        $closingNotesToSave = null;
         if ($status === 'approved') {
             $status = 'completed';
+            if ($closingNotes !== null && trim($closingNotes) !== '') {
+                $closingNotesToSave = $closingNotes;
+            }
         }
 
         $stmt = $this->db->prepare(
             'UPDATE "FormSubmissions" SET "ApprovalTrailJson" = :trail, "Status" = :status, "CurrentNodeId" = :nodeId,
-             "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "DateLastModified" = now() WHERE "Id" = :id'
+             "RaisedTaskId" = COALESCE(:raisedTaskId, "RaisedTaskId"), "ClosingNotes" = COALESCE(:closingNotes, "ClosingNotes"),
+             "DateLastModified" = now() WHERE "Id" = :id'
         );
-        $stmt->execute(['trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId, 'id' => $row['Id']]);
+        $stmt->execute([
+            'trail' => json_encode($trail), 'status' => $status, 'nodeId' => $currentNodeId, 'raisedTaskId' => $raisedTaskId,
+            'closingNotes' => $closingNotesToSave, 'id' => $row['Id'],
+        ]);
 
         $decisionNotify = null;
         if ($status === 'completed') {
             $decisionNotify = ['userId' => $row['SubmittedByUserId'], 'displayName' => 'Task completed', 'decision' => 'completed'];
         }
         return ['projectId' => $row['ProjectId'], 'submissionId' => $row['Id'], 'formName' => $row['FormName'], 'decisionNotify' => $decisionNotify];
+    }
+
+    /** Called by TasksController right after ANY task update, alongside resumeIfLinkedTaskDone —
+     * cheap no-op for the overwhelming majority of task updates (an indexed lookup on RaisedTaskId
+     * that only matches a submission still sitting at 'submitted', i.e. its raised Task hasn't been
+     * picked up yet). The moment that Task's AssigneeId is non-null, flips the submission to
+     * 'inProgress' ("In Review" in the UI) and stamps InReviewAt. Only ever fires once: after the
+     * flip, the query's own Status = 'submitted' predicate no longer matches, so a later
+     * re-assignment is a silent no-op, same idempotency shape as resumeIfLinkedTaskDone. */
+    public function markInReviewIfTaskAssigned(string $taskId): void
+    {
+        $stmt = $this->db->prepare('SELECT "Id" FROM "FormSubmissions" WHERE "RaisedTaskId" = :tid AND "Status" = \'submitted\'');
+        $stmt->execute(['tid' => $taskId]);
+        $row = $stmt->fetch();
+        if ($row === false) {
+            return;
+        }
+
+        $taskStmt = $this->db->prepare('SELECT "AssigneeId" FROM "Tasks" WHERE "Id" = :id');
+        $taskStmt->execute(['id' => $taskId]);
+        $task = $taskStmt->fetch();
+        if ($task === false || $task['AssigneeId'] === null) {
+            return;
+        }
+
+        $this->db->prepare(
+            'UPDATE "FormSubmissions" SET "Status" = \'inProgress\', "InReviewAt" = now(), "DateLastModified" = now() WHERE "Id" = :id'
+        )->execute(['id' => $row['Id']]);
+    }
+
+    /** Backs GET .../tasks/{taskId}/form-link — the cheap "is this Task linked to a raised Form
+     * submission" check the frontend's Done-column-transition prompt uses. */
+    public function getRaisedFromTaskId(string $projectId, string $taskId): ?string
+    {
+        $stmt = $this->db->prepare('SELECT "Id" FROM "FormSubmissions" WHERE "ProjectId" = :pid AND "RaisedTaskId" = :tid');
+        $stmt->execute(['pid' => $projectId, 'tid' => $taskId]);
+        $id = $stmt->fetchColumn();
+        return $id !== false ? (string) $id : null;
     }
 
     private static function resolveActionAssignee(?array $gate, array $trail): ?string
@@ -705,10 +777,51 @@ final class FormSubmissionService
             }
             return implode(', ', array_map(fn ($id) => self::optionLabel($field, (string) $id), $value));
         }
-        if ($type === 'checkboxGroup' || $type === 'select' || ($type === 'radio' && ($field['groupMode'] ?? null) !== 'single')) {
+        if ($type === 'checkboxGroup' || $type === 'select' || $type === 'priority' || ($type === 'radio' && ($field['groupMode'] ?? null) !== 'single')) {
             return self::optionLabel($field, (string) $value);
         }
         return (string) $value;
+    }
+
+    private const KNOWN_PRIORITIES = ['trivial', 'low', 'medium', 'high', 'critical'];
+
+    /** Looks for a "priority" field (see form-fields.js's own fixed-option field type) in the
+     * submitted Form version and, if it has an answered value that's one of the 5 known priority
+     * keys, returns it lowercased — matches Column "Name" case-insensitively for free (the Portal's
+     * 5 fixed columns are literally named Trivial/Low/Medium/High/Critical), same convention
+     * config.priorityColumn already relies on. Returns null for any form with no priority field, an
+     * unanswered one, or an answer that isn't one of the 5 known keys — executeActionNode falls back
+     * to the static config.priorityColumn/"medium" default in every one of those cases. */
+    private static function resolvePriorityFieldAnswer(?string $fieldsJson, ?string $answersJson): ?string
+    {
+        if ($fieldsJson === null || trim($fieldsJson) === '' || $answersJson === null || trim($answersJson) === '') {
+            return null;
+        }
+        $fields = json_decode($fieldsJson, true);
+        if (!is_array($fields)) {
+            return null;
+        }
+        $priorityField = null;
+        foreach ($fields as $f) {
+            if (($f['type'] ?? null) === 'priority') {
+                $priorityField = $f;
+                break;
+            }
+        }
+        if ($priorityField === null) {
+            return null;
+        }
+
+        $answers = json_decode($answersJson, true);
+        if (!is_array($answers) || !array_key_exists($priorityField['id'], $answers)) {
+            return null;
+        }
+        $raw = $answers[$priorityField['id']];
+        if (!is_string($raw)) {
+            return null;
+        }
+        $lower = strtolower($raw);
+        return in_array($lower, self::KNOWN_PRIORITIES, true) ? $lower : null;
     }
 
     private static function optionLabel(array $field, string $optionId): string
@@ -757,7 +870,8 @@ final class FormSubmissionService
         return [
             'id' => $s['Id'], 'formVersionId' => $s['FormVersionId'], 'projectId' => $s['ProjectId'],
             'submittedByUserId' => $s['SubmittedByUserId'], 'status' => $s['Status'], 'currentNodeId' => $s['CurrentNodeId'],
-            'answersJson' => $s['AnswersJson'], 'approvalTrailJson' => $s['ApprovalTrailJson'],
+            'answersJson' => $s['AnswersJson'], 'approvalTrailJson' => $s['ApprovalTrailJson'], 'raisedTaskId' => $s['RaisedTaskId'],
+            'inReviewAt' => $s['InReviewAt'], 'closingNotes' => $s['ClosingNotes'],
             'dateCreated' => $s['DateCreated'], 'dateLastModified' => $s['DateLastModified'], 'dateSubmitted' => $s['DateSubmitted'],
         ];
     }

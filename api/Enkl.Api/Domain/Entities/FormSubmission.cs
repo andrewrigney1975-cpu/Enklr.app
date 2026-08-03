@@ -43,6 +43,20 @@ public class FormSubmission
     public Guid? RaisedTaskId { get; set; }
     public TaskItem? RaisedTask { get; set; }
 
+    /// <summary>Set the instant a task-raised submission's RaisedTask is first assigned to a team
+    /// member (MarkInReviewIfTaskAssignedAsync) — the point at which "In Review" (Status
+    /// "inProgress") actually means someone has picked it up, rather than the moment the Task was
+    /// merely raised. Null until then; also null for a submission that never went through the
+    /// task-raising path at all (it went straight to a human Approval node instead, which already set
+    /// Status "inProgress" immediately — that path doesn't need this stamp).</summary>
+    public DateTime? InReviewAt { get; set; }
+
+    /// <summary>A closing summary, set either by the deciding approver (ActOnApprovalAsync, on the
+    /// decisive approve/reject) or transcribed from the raised Task's assignee when they complete that
+    /// Task (ResumeIfLinkedTaskDoneAsync) — whichever path this submission actually took. Shown in the
+    /// Portal's post-completion read-only view alongside the Approval Trail.</summary>
+    public string? ClosingNotes { get; set; }
+
     public DateTime DateCreated { get; set; }
     public DateTime DateLastModified { get; set; }
     public DateTime? DateSubmitted { get; set; }

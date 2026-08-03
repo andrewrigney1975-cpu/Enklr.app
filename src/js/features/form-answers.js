@@ -53,7 +53,7 @@ export function renderAnswerInputHTML(field, value){
     body = (field.options || []).map(function(o){
       return '<label class="kf-form-answer-option"><input type="' + (multi ? 'checkbox' : 'radio') + '" name="answer-' + field.id + '" data-answer-option value="' + escapeHTML(o.id) + '"' + (checkedRadioIds.indexOf(o.id) !== -1 ? ' checked' : '') + '> ' + escapeHTML(o.label) + '</label>';
     }).join('');
-  } else if(field.type === 'select'){
+  } else if(field.type === 'select' || field.type === 'priority'){
     var selectedIds = field.multiple ? (Array.isArray(value) ? value : []) : (value != null ? [value] : []);
     var opts = (field.multiple ? '' : '<option value="">— Select —</option>') + (field.options || []).map(function(o){
       return '<option value="' + escapeHTML(o.id) + '"' + (selectedIds.indexOf(o.id) !== -1 ? ' selected' : '') + '>' + escapeHTML(o.label) + '</option>';
@@ -89,7 +89,7 @@ export function collectAnswerValue(field, fieldEl){
   var input = fieldEl.querySelector('[data-answer-input]');
   if(!input) return null;
   if(field.type === 'numeric') return input.value === '' ? null : Number(input.value);
-  if(field.type === 'select') return input.value === '' ? null : input.value;
+  if(field.type === 'select' || field.type === 'priority') return input.value === '' ? null : input.value;
   return input.value === '' ? null : input.value;
 }
 
@@ -129,7 +129,7 @@ export function renderAnswerReadOnlyHTML(field, value){
     display = value === true ? 'Yes' : 'No';
   } else if(Array.isArray(value)){
     display = escapeHTML(value.map(function(id){ return optionLabel(field, id); }).join(', '));
-  } else if(field.type === 'checkboxGroup' || (field.type === 'radio' && field.groupMode !== 'single') || field.type === 'select'){
+  } else if(field.type === 'checkboxGroup' || (field.type === 'radio' && field.groupMode !== 'single') || field.type === 'select' || field.type === 'priority'){
     display = escapeHTML(optionLabel(field, value));
   } else if(field.type === 'datetime'){
     // Rendered in the viewer's own locale (dd/mm/yyyy for an Australian user, etc — see

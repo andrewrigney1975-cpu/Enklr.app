@@ -83,7 +83,7 @@ public class ProjectFormsController : ControllerBase
     [HttpPost("submissions/{submissionId:guid}/approval-action")]
     public async Task<IActionResult> ActOnApproval(Guid projectId, Guid submissionId, FormApprovalActionRequest request)
     {
-        var (ok, error, dto) = await _submissions.ActOnApprovalAsync(projectId, User.UserId(), CallerIsOrgAdmin, submissionId, request.Action, request.Comment);
+        var (ok, error, dto) = await _submissions.ActOnApprovalAsync(projectId, User.UserId(), CallerIsOrgAdmin, submissionId, request.Action, request.Comment, request.ClosingNotes);
         if (!ok) return error == "not_found" ? NotFound() : BadRequest(new { message = error });
         return Ok(dto);
     }

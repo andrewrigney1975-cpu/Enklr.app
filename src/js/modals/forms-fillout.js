@@ -206,6 +206,13 @@ function renderFilloutDetail(){
     return '<div class="kf-form-admin-row-desc">' + escapeHTML(t.action) + ' — ' + escapeHTML(when) + (t.comment ? ': ' + escapeHTML(t.comment) : '') + '</div>';
   }).join('');
 
+  // Post-completion read-only view — shown whenever a decided/completed submission carries a closing
+  // summary, from either entry point (a deciding approver, or the raised Task's own assignee — see
+  // FormSubmissionService.ActOnApprovalAsync/ResumeIfLinkedTaskDoneAsync).
+  var closingNotes = detail.submission ? detail.submission.closingNotes : null;
+  document.getElementById('formFilloutClosingNotesDisplay').classList.toggle('hidden', !closingNotes);
+  document.getElementById('formFilloutClosingNotesDisplayValue').textContent = closingNotes || '';
+
   document.getElementById('formFilloutSaveDraftBtn').classList.toggle('hidden', !editable);
   document.getElementById('formFilloutSubmitBtn').classList.toggle('hidden', !editable);
   document.getElementById('formFilloutDeleteDraftBtn').classList.toggle('hidden', detail.mode !== 'draft');
@@ -213,6 +220,8 @@ function renderFilloutDetail(){
   document.getElementById('formFilloutRejectBtn').classList.toggle('hidden', detail.mode !== 'approve');
   document.getElementById('formFilloutCommentField').classList.toggle('hidden', detail.mode !== 'approve');
   document.getElementById('formFilloutCommentInput').value = '';
+  document.getElementById('formFilloutClosingNotesField').classList.toggle('hidden', detail.mode !== 'approve');
+  document.getElementById('formFilloutClosingNotesInput').value = '';
 
   document.getElementById('formFilloutDetailOverlay').classList.remove('hidden');
 }
@@ -292,7 +301,8 @@ export function deleteFormFilloutDraft(){
 
 function actOnApproval(action){
   var comment = document.getElementById('formFilloutCommentInput').value.trim();
-  projectFormsApi.approvalAction(projectId, detail.submissionId, action, comment || null).then(function(){
+  var closingNotes = document.getElementById('formFilloutClosingNotesInput').value.trim();
+  projectFormsApi.approvalAction(projectId, detail.submissionId, action, comment || null, closingNotes || null).then(function(){
     _toast(action === 'approve' ? 'Approved.' : 'Rejected.');
     closeFormFilloutDetailOverlay();
     loadAndRenderFilloutPicker();

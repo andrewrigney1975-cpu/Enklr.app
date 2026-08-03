@@ -36,10 +36,11 @@ final class TasksController extends BaseController
 
     public function update(Request $request, Response $response, array $args): Response
     {
+        $body = $this->body($request);
         $result = $this->service()->update(
             $args['projectId'],
             $args['taskId'],
-            $this->body($request),
+            $body,
             $this->callerDisplayName($request)
         );
         if ($result === null) {
@@ -50,17 +51,41 @@ final class TasksController extends BaseController
         // nothing) — only actually does anything when this Task was raised by a Form Workflow
         // "raiseTaskInPortal" action node AND this update just moved it into a Done column. See
         // FormSubmissionService::resumeIfLinkedTaskDone's own doc comment for the full shape.
-        $this->notifyLinkedFormResumed($args['taskId']);
+        // formClosingNotes is not a Task field — it's a pass-through that only matters when this
+        // update happens to be the Done-column move for a linked submission (ignored otherwise).
+        $this->notifyLinkedFormResumed($args['taskId'], $body['formClosingNotes'] ?? null);
+        // Same shape, for the "In Review" transition — only does anything the first time this Task's
+        // AssigneeId goes non-null while its linked submission is still 'submitted'.
+        try {
+            $this->formSubmissions()->markInReviewIfTaskAssigned($args['taskId']);
+        } catch (\Throwable) {
+            // best-effort, same as notifyLinkedFormResumed
+        }
         return $this->json($response, $result);
+    }
+
+    /** GET .../tasks/{taskId}/form-link — cheap single-indexed-lookup check the frontend fires only
+     * at the moment a Task is about to move into a Done column, to decide whether to show the
+     * optional "Add closing notes?" prompt. Deliberately NOT part of the Task's own DTO/the full
+     * project-detail graph fetch, which every task on every board load would otherwise pay for. 404
+     * (not an empty 200) when unlinked, so the frontend treats "not linked" and "no such task"
+     * identically — nothing to prompt for either way. */
+    public function formLink(Request $request, Response $response, array $args): Response
+    {
+        $submissionId = $this->formSubmissions()->getRaisedFromTaskId($args['projectId'], $args['taskId']);
+        if ($submissionId === null) {
+            return $this->notFound($response);
+        }
+        return $this->json($response, ['submissionId' => $submissionId]);
     }
 
     /** Best-effort — a notification failure must never fail the task update itself. Broadcast
      * ownership stays at this controller level (same convention as Portal/Forms controllers) — the
      * service only decides WHO/what to notify. */
-    private function notifyLinkedFormResumed(string $taskId): void
+    private function notifyLinkedFormResumed(string $taskId, ?string $closingNotes): void
     {
         try {
-            $result = $this->formSubmissions()->resumeIfLinkedTaskDone($taskId);
+            $result = $this->formSubmissions()->resumeIfLinkedTaskDone($taskId, $closingNotes);
             $target = $result['decisionNotify'] ?? null;
             if ($target === null) {
                 return;

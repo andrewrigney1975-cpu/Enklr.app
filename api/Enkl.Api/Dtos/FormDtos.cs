@@ -18,15 +18,25 @@ public record FormVersionSummaryDto(
 
 public record FormSubmissionDto(
     Guid Id, Guid FormVersionId, Guid ProjectId, Guid SubmittedByUserId, string Status,
-    string? CurrentNodeId, string? AnswersJson, string? ApprovalTrailJson,
+    string? CurrentNodeId, string? AnswersJson, string? ApprovalTrailJson, Guid? RaisedTaskId,
+    DateTime? InReviewAt, string? ClosingNotes,
     DateTime DateCreated, DateTime DateLastModified, DateTime? DateSubmitted);
 
 public record CreateFormSubmissionRequest(Guid FormVersionId, string? AnswersJson);
 public record UpdateFormSubmissionRequest(string? AnswersJson);
 
 /// <summary>action: 'approve'|'reject' — Submit has no body (POST .../submit takes only the
-/// submissionId), since the acting user's own gate check is entirely server-derived.</summary>
-public record FormApprovalActionRequest(string Action, string? Comment);
+/// submissionId), since the acting user's own gate check is entirely server-derived. ClosingNotes is
+/// only actually persisted onto the submission when this action is the DECISIVE one (a reject, or an
+/// approve that completes the node's own quorum and advances Status to "approved") — see
+/// FormSubmissionService.ActOnApprovalAsync's own doc comment.</summary>
+public record FormApprovalActionRequest(string Action, string? Comment, string? ClosingNotes = null);
+
+/// <summary>Response for the cheap "is this Task linked to a raised Form submission" check
+/// (GET .../tasks/{taskId}/form-link) — the frontend's Done-column-transition closing-notes prompt
+/// uses this to decide whether to ask at all, without paying for a reverse Task->FormSubmission nav
+/// on every task in the normal board-load graph fetch.</summary>
+public record TaskFormLinkDto(Guid SubmissionId);
 
 /// <summary>A submission enriched with the display fields a list view needs (form name/version, the
 /// submitter's display name) that the bare FormSubmissionDto doesn't carry — used by both "My

@@ -432,6 +432,19 @@ function makeEntityApi(resource){
 
 export var taskApi = makeEntityApi('tasks');
 
+/* GET /projects/{projectId}/tasks/{taskId}/form-link — the cheap "is this Task linked to a raised
+   Form submission" check the Done-column closing-notes prompt (mutations.js/task.js) uses. Resolves
+   to null (not a thrown ApiError) for the overwhelming majority of tasks, which aren't linked at all
+   — a 404 here is an expected, non-exceptional outcome, not a real error. */
+export async function getTaskFormLink(projectId, taskId){
+  try {
+    return await apiFetch('/projects/' + projectId + '/tasks/' + taskId + '/form-link', {method: 'GET'});
+  } catch(e){
+    if(e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
 /* Comments are nested under a specific task (not a flat per-project entity), so they don't fit
    makeEntityApi's single-{resource} shape — POST/PUT/DELETE /projects/{projectId}/tasks/{taskId}/comments[/{commentId}],
    see TaskCommentsController.cs for the definitive route list. AuthorId/AuthorName are always derived
@@ -916,8 +929,8 @@ export var portalHomeApi = {
   listAwaitingMyAction: function(portalId){
     return apiFetch('/portals/' + portalId + '/submissions/awaiting-me', {method: 'GET'});
   },
-  actOnApproval: function(portalId, submissionId, action, comment){
-    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId + '/approval-action', {method: 'POST', body: JSON.stringify({action: action, comment: comment || null})});
+  actOnApproval: function(portalId, submissionId, action, comment, closingNotes){
+    return apiFetch('/portals/' + portalId + '/submissions/' + submissionId + '/approval-action', {method: 'POST', body: JSON.stringify({action: action, comment: comment || null, closingNotes: closingNotes || null})});
   }
 };
 
@@ -1059,8 +1072,8 @@ export var projectFormsApi = {
   submit: function(projectId, submissionId){
     return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId + '/submit', {method: 'POST'});
   },
-  approvalAction: function(projectId, submissionId, action, comment){
-    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId + '/approval-action', {method: 'POST', body: JSON.stringify({action: action, comment: comment || null})});
+  approvalAction: function(projectId, submissionId, action, comment, closingNotes){
+    return apiFetch('/projects/' + projectId + '/forms/submissions/' + submissionId + '/approval-action', {method: 'POST', body: JSON.stringify({action: action, comment: comment || null, closingNotes: closingNotes || null})});
   }
 };
 

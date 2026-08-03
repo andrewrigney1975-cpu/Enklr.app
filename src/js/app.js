@@ -48,6 +48,7 @@ import { closeAllExportAsPanels, toggleExportAsPanel, exportSvgElementAsSvgFile,
 
 /* ---- Modals ---- */
 import { confirmDialog, closeConfirmDialog, getPendingConfirmAction, getPendingCancelAction } from './modals/confirm.js';
+import { skipFormClosingNotesPrompt, saveFormClosingNotesPrompt } from './modals/closing-notes-prompt.js';
 import { openTaskModal, closeTaskModal, saveTaskFromModal, deleteTaskFromModal, updatePriorityIcon, updateDocUrlOpenButtonVisibility, openDocUrlInNewTab, renderDependencyPicker, toggleAuditTrail, toggleAuditSortOrder, onParentTaskSelectChange, renderSubtaskPicker, toggleCommentsSortOrder, submitTaskComment, cancelEditTaskComment } from './modals/task.js';
 import { closeSetPrivateKeyModal, confirmSetPrivateKeyFromModal } from './modals/private-key-set.js';
 import { closeUnlockPrivateTaskModal, confirmUnlockFromModal, continueWithoutKeyFromModal } from './modals/private-key-unlock.js';
@@ -1949,6 +1950,13 @@ function wireEvents(){
     if(e.target.id === 'confirmOverlay') closeConfirmDialog();
   });
 
+  document.getElementById('closingNotesPromptClose').addEventListener('click', skipFormClosingNotesPrompt);
+  document.getElementById('closingNotesPromptSkipBtn').addEventListener('click', skipFormClosingNotesPrompt);
+  document.getElementById('closingNotesPromptSaveBtn').addEventListener('click', saveFormClosingNotesPrompt);
+  document.getElementById('closingNotesPromptOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'closingNotesPromptOverlay') skipFormClosingNotesPrompt();
+  });
+
   document.getElementById('announcementsAlertClose').addEventListener('click', closeAnnouncementsAlert);
   document.getElementById('announcementsAlertOkBtn').addEventListener('click', closeAnnouncementsAlert);
   document.getElementById('announcementsAlertOverlay').addEventListener('mousedown', function(e){
@@ -2073,6 +2081,7 @@ function wireEvents(){
     else if(!document.getElementById('apiEndpointsOverlay').classList.contains('hidden')) closeApiEndpointsModal();
     else if(!document.getElementById('importCentreOverlay').classList.contains('hidden')) closeImportCentreModal();
     else if(!document.getElementById('confirmOverlay').classList.contains('hidden')) closeConfirmDialog();
+    else if(!document.getElementById('closingNotesPromptOverlay').classList.contains('hidden')) skipFormClosingNotesPrompt();
     else if(!document.getElementById('importConflictOverlay').classList.contains('hidden')) closeImportConflictModal();
     else if(!document.getElementById('overdueAlertOverlay').classList.contains('hidden')) closeOverdueAlert();
     else if(!document.getElementById('overrunAlertOverlay').classList.contains('hidden')) closeOverrunAlert();

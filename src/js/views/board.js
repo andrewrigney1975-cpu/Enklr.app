@@ -12,7 +12,7 @@ import { reorderColumns, deleteColumn, moveTaskToColumn, updateTask, addTask, de
 import { getReleaseById } from '../utils.js';
 import { evaluateColumnMove, isWorkflowEnabled } from '../features/workflow-engine.js';
 import { isGovernanceMapEnabled } from './governance-map.js';
-import { isServerAuthoritative, isServerLoggedIn, moveTaskToColumnOnServer, refreshProjectFromServer, reorderColumnsOnServer, deleteColumnOnServer } from '../features/migration.js';
+import { isServerAuthoritative, isServerLoggedIn, moveTaskToColumnOnServer, maybePromptFormClosingNotes, refreshProjectFromServer, reorderColumnsOnServer, deleteColumnOnServer } from '../features/migration.js';
 import { checkReleaseCompletionOnTaskMove } from '../features/release-completion.js';
 import { updateProjectSettingsApi, isOrgAdmin, isProjectAdmin, getOrgName, isApiReachable, pollApiReachability } from '../api.js';
 import { renderPriorityFilterChips, renderTeamFilterChips, renderAssigneeFilterChips, renderTaskTypeFilterChips, renderStatusFilterChips, taskMatchesFilters, updateSearchClearButtonVisibility, clearBoardSearch, updateSearchHashtagIntellisense, closeSearchHashtagPanel, isSearchHashtagPanelOpen, acceptSearchHashtagOption, onSearchInputKeydown, updateArchivedSearchMatchesPanel } from './board-filters.js';
@@ -796,7 +796,9 @@ export function renderColumn(project, col){
     // Private tasks aren't modeled server-side (see modals/task.js) — a private task in a
     // server-authoritative project only ever exists locally, so its moves stay local-only too.
     if(isServerAuthoritative(project) && !(draggedTask && draggedTask.isPrivate)){
-      moveTaskToColumnOnServer(project, taskId, col.id).then(function(){
+      maybePromptFormClosingNotes(project, taskId, col.id).then(function(closingNotes){
+        return moveTaskToColumnOnServer(project, taskId, col.id, closingNotes);
+      }).then(function(){
         renderBoard();
         // refreshProjectFromServer (inside moveTaskToColumnOnServer) replaces the project object in
         // state.db entirely, so the closured `project` above is now stale — re-fetch before checking.

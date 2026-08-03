@@ -119,7 +119,7 @@ public class PortalHomeController : ControllerBase
     [HttpPost("{portalId:guid}/submissions/{submissionId:guid}/approval-action")]
     public async Task<IActionResult> ActOnApproval(Guid portalId, Guid submissionId, FormApprovalActionRequest request)
     {
-        var (ok, error, dto) = await _home.ActOnApprovalAsync(User.OrgId(), portalId, User.UserId(), submissionId, request.Action, request.Comment, CallerIsOrgAdmin);
+        var (ok, error, dto) = await _home.ActOnApprovalAsync(User.OrgId(), portalId, User.UserId(), submissionId, request.Action, request.Comment, CallerIsOrgAdmin, request.ClosingNotes);
         if (!ok) return error == "not_found" ? NotFound() : BadRequest(new { message = error });
         return Ok(dto);
     }

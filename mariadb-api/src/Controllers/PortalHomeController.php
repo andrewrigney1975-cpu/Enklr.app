@@ -108,7 +108,8 @@ final class PortalHomeController extends BaseController
         $body = $this->body($request);
         $result = $this->service()->actOnApproval(
             $this->callerOrgId($request), $args['portalId'], $this->callerUserId($request),
-            $args['submissionId'], (string) ($body['action'] ?? ''), $body['comment'] ?? null, $this->callerIsOrgAdmin($request)
+            $args['submissionId'], (string) ($body['action'] ?? ''), $body['comment'] ?? null, $this->callerIsOrgAdmin($request),
+            $body['closingNotes'] ?? null
         );
         if (!$result['ok']) {
             return $result['error'] === 'not_found' ? $this->notFound($response) : $this->json($response, ['message' => $result['error']], 400);

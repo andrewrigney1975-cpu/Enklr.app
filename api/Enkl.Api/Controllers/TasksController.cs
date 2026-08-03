@@ -57,8 +57,23 @@ public class TasksController : ControllerBase
         // nothing) — only actually does anything when this Task was raised by a Form Workflow
         // "raiseTaskInPortal" action node AND this update just moved it into a Done column. See
         // FormSubmissionService.ResumeIfLinkedTaskDoneAsync's own doc comment for the full shape.
-        await _formSubmissions.ResumeIfLinkedTaskDoneAsync(taskId);
+        await _formSubmissions.ResumeIfLinkedTaskDoneAsync(taskId, request.FormClosingNotes);
+        // Same shape, for the "In Review" transition — only does anything the first time this Task's
+        // AssigneeId goes non-null while its linked submission is still 'submitted'.
+        await _formSubmissions.MarkInReviewIfTaskAssignedAsync(taskId);
         return Ok(result);
+    }
+
+    // Cheap, single-indexed-lookup check the frontend fires only at the moment a Task is about to
+    // move into a Done column, to decide whether to show the optional "Add closing notes?" prompt —
+    // deliberately NOT part of TaskDto/GetProjectDetailAsync's own graph fetch, which every task on
+    // every board load would otherwise pay for. 404 (not an empty 200) when unlinked, so the frontend
+    // can treat "not linked" and "no such task" identically — there's nothing to prompt for either way.
+    [HttpGet("{taskId:guid}/form-link")]
+    public async Task<IActionResult> GetFormLink(Guid projectId, Guid taskId)
+    {
+        var submissionId = await _formSubmissions.GetRaisedFromTaskIdAsync(projectId, taskId);
+        return submissionId is null ? NotFound() : Ok(new TaskFormLinkDto(submissionId.Value));
     }
 
     [HttpDelete("{taskId:guid}")]

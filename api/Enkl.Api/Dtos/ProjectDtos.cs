@@ -145,13 +145,17 @@ public record CreateTaskRequest(
     int? BusinessValue = null, int? TaskCost = null, int Progress = 0,
     decimal? EstimatedEffort = null, decimal? ActualEffort = null, bool Archived = false,
     bool LocalDelete = false);
+/// <summary>FormClosingNotes is not a Task field at all — it's a pass-through carried on this same
+/// request only so a Done-column move can optionally transcribe the assignee's closing notes onto a
+/// linked Form submission in the same call (see FormSubmissionService.ResumeIfLinkedTaskDoneAsync).
+/// Ignored entirely for a Task with no RaisedTaskId link back to it.</summary>
 public record UpdateTaskRequest(
     string Title, string? Description, string Priority, Guid ColumnId, Guid? AssigneeId,
     Guid? ReleaseId, Guid? TypeId, Guid? ParentTaskId, List<Guid>? DependsOnTaskIds,
     string? DocumentationUrl, DateOnly? StartDate, DateOnly? EndDate,
     int? BusinessValue, int? TaskCost, int Progress,
     decimal? EstimatedEffort, decimal? ActualEffort, bool Archived,
-    bool LocalDelete = false);
+    bool LocalDelete = false, string? FormClosingNotes = null);
 
 public record CreateReleaseRequest(string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? Color);
 public record UpdateReleaseRequest(string Name, string Status, Guid? OwnerId, DateOnly? StartDate, DateOnly? EndDate, string? Color);

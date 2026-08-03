@@ -84,7 +84,7 @@ final class ProjectFormsController extends BaseController
         $body = $this->body($request);
         $result = $this->submissions()->actOnApproval(
             $args['projectId'], $this->callerUserId($request), $this->callerIsOrgAdmin($request),
-            $args['submissionId'], (string) ($body['action'] ?? ''), $body['comment'] ?? null
+            $args['submissionId'], (string) ($body['action'] ?? ''), $body['comment'] ?? null, $body['closingNotes'] ?? null
         );
         if (!$result['ok']) {
             return $result['error'] === 'not_found' ? $this->notFound($response) : $this->json($response, ['message' => $result['error']], 400);

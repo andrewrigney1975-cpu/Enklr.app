@@ -951,6 +951,27 @@
   </div>
 </div>
 
+<!-- Closing Notes Prompt (shown, optionally, moving a Form-raised Task into a Done column) -->
+<div class="kf-overlay hidden" id="closingNotesPromptOverlay">
+  <div class="kf-modal kf-modal-sm" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Add closing notes?</h2>
+      <button class="kf-btn kf-btn-ghost" id="closingNotesPromptClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <p style="margin:0 0 12px;color:var(--kf-text);">This task was raised from a form submission. You can leave a closing summary that's shown on the submission — optional.</p>
+      <div class="kf-field">
+        <label for="closingNotesPromptInput">Closing notes</label>
+        <textarea id="closingNotesPromptInput" rows="4"></textarea>
+      </div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="closingNotesPromptSkipBtn">Skip</button>
+      <button class="kf-btn kf-btn-primary" id="closingNotesPromptSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Dependency Map Overlay -->
 <div class="kf-overlay hidden" id="depMapOverlay">
   <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
@@ -1978,9 +1999,17 @@
         <div class="kf-form-fields-header"><label>Approval Trail</label></div>
         <div id="portalHomeFilloutTrailList"></div>
       </div>
+      <div class="kf-form-answer-field kf-form-answer-readonly hidden" id="portalHomeFilloutClosingNotesDisplay">
+        <label>Closing notes</label>
+        <div class="kf-form-answer-value" id="portalHomeFilloutClosingNotesDisplayValue"></div>
+      </div>
       <div class="kf-field hidden" id="portalHomeFilloutCommentField">
         <label for="portalHomeFilloutCommentInput">Comment <span style="font-weight:400;color:var(--kf-text-faint);">(optional)</span></label>
         <textarea id="portalHomeFilloutCommentInput" rows="2"></textarea>
+      </div>
+      <div class="kf-field hidden" id="portalHomeFilloutClosingNotesField">
+        <label for="portalHomeFilloutClosingNotesInput">Closing notes <span style="font-weight:400;color:var(--kf-text-faint);">(optional — shown to the submitter once decided)</span></label>
+        <textarea id="portalHomeFilloutClosingNotesInput" rows="3"></textarea>
       </div>
     </div>
     <div class="kf-modal-footer">
@@ -2209,9 +2238,17 @@
         <div class="kf-form-fields-header"><label>Approval Trail</label></div>
         <div id="formFilloutTrailList"></div>
       </div>
+      <div class="kf-form-answer-field kf-form-answer-readonly hidden" id="formFilloutClosingNotesDisplay">
+        <label>Closing notes</label>
+        <div class="kf-form-answer-value" id="formFilloutClosingNotesDisplayValue"></div>
+      </div>
       <div class="kf-field hidden" id="formFilloutCommentField">
         <label for="formFilloutCommentInput">Comment <span style="font-weight:400;color:var(--kf-text-faint);">(optional)</span></label>
         <textarea id="formFilloutCommentInput" rows="2"></textarea>
+      </div>
+      <div class="kf-field hidden" id="formFilloutClosingNotesField">
+        <label for="formFilloutClosingNotesInput">Closing notes <span style="font-weight:400;color:var(--kf-text-faint);">(optional — shown to the submitter once decided)</span></label>
+        <textarea id="formFilloutClosingNotesInput" rows="3"></textarea>
       </div>
     </div>
     <div class="kf-modal-footer">

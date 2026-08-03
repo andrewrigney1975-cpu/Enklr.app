@@ -421,6 +421,12 @@ function renderPortalFilloutDetail(){
     return '<div class="kf-form-admin-row-desc">' + escapeHTML(t.action) + ' — ' + escapeHTML(when) + (t.comment ? ': ' + escapeHTML(t.comment) : '') + '</div>';
   }).join('');
 
+  // Post-completion read-only view — see modals/forms-fillout.js's identically-shaped block for why
+  // this can come from either entry point (deciding approver, or the raised Task's own assignee).
+  var closingNotes = detail.submission ? detail.submission.closingNotes : null;
+  document.getElementById('portalHomeFilloutClosingNotesDisplay').classList.toggle('hidden', !closingNotes);
+  document.getElementById('portalHomeFilloutClosingNotesDisplayValue').textContent = closingNotes || '';
+
   document.getElementById('portalHomeFilloutSaveDraftBtn').classList.toggle('hidden', !editable);
   document.getElementById('portalHomeFilloutSubmitBtn').classList.toggle('hidden', !editable);
   document.getElementById('portalHomeFilloutDeleteBtn').classList.toggle('hidden', detail.mode !== 'draft');
@@ -428,6 +434,8 @@ function renderPortalFilloutDetail(){
   document.getElementById('portalHomeFilloutRejectBtn').classList.toggle('hidden', detail.mode !== 'approve');
   document.getElementById('portalHomeFilloutCommentField').classList.toggle('hidden', detail.mode !== 'approve');
   document.getElementById('portalHomeFilloutCommentInput').value = '';
+  document.getElementById('portalHomeFilloutClosingNotesField').classList.toggle('hidden', detail.mode !== 'approve');
+  document.getElementById('portalHomeFilloutClosingNotesInput').value = '';
 
   document.getElementById('portalHomeFilloutOverlay').classList.remove('hidden');
 }
@@ -501,7 +509,8 @@ export function deletePortalHomeFilloutDraft(){
 
 function actOnPortalApproval(action){
   var comment = document.getElementById('portalHomeFilloutCommentInput').value.trim();
-  portalHomeApi.actOnApproval(currentPortal.id, detail.submissionId, action, comment || null).then(function(){
+  var closingNotes = document.getElementById('portalHomeFilloutClosingNotesInput').value.trim();
+  portalHomeApi.actOnApproval(currentPortal.id, detail.submissionId, action, comment || null, closingNotes || null).then(function(){
     _toast(action === 'approve' ? 'Approved.' : 'Rejected.');
     closePortalHomeFilloutOverlay();
     loadAndRenderPortalHome();

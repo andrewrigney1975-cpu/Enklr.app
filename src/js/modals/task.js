@@ -15,7 +15,7 @@ import { openSetPrivateKeyModal } from './private-key-set.js';
 import { openUnlockPrivateTaskModal } from './private-key-unlock.js';
 import { setTaskHash, clearTaskHash } from '../features/hash-router.js';
 import { taskApi, taskCommentApi, getCurrentUserId } from '../api.js';
-import { isServerAuthoritative, refreshProjectFromServer } from '../features/migration.js';
+import { isServerAuthoritative, refreshProjectFromServer, maybePromptFormClosingNotes } from '../features/migration.js';
 import { checkReleaseCompletionOnTaskMove } from '../features/release-completion.js';
 import { canCurrentUserManageProject } from '../views/board.js';
 import { createRichTextEditor } from '../rich-text/editor.js';
@@ -43,7 +43,8 @@ function buildServerTaskBody(data){
     documentationUrl: data.documentationUrl || null,
     startDate: isoToServerDateOnly(data.startDate), endDate: isoToServerDateOnly(data.endDate),
     businessValue: data.businessValue, taskCost: data.taskCost, progress: data.progress,
-    estimatedEffort: data.estimatedEffort, actualEffort: data.actualEffort, archived: data.archived
+    estimatedEffort: data.estimatedEffort, actualEffort: data.actualEffort, archived: data.archived,
+    formClosingNotes: data.formClosingNotes || null
   };
 }
 
@@ -878,6 +879,11 @@ async function finishSave(project, data){
       var editingId = ui.editingTaskId;
       var resultTaskId;
       if(editingId){
+        // Only relevant when this save is itself the move into a Done column — a no-op prompt-skip
+        // for every other edit, including a Done->Done save with no column change.
+        if(!existingTask || data.columnId !== existingTask.columnId){
+          data.formClosingNotes = await maybePromptFormClosingNotes(project, editingId, data.columnId);
+        }
         await taskApi.update(project.serverProjectId, editingId, buildServerTaskBody(data));
         resultTaskId = editingId;
       } else {

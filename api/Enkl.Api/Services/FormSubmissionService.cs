@@ -131,6 +131,15 @@ public class FormSubmissionService
         return new ActingUser(userId, callerIsOrgAdmin, isProjectAdmin);
     }
 
+    /// <summary>Backs GET .../tasks/{taskId}/form-link — the cheap "is this Task linked to a raised
+    /// Form submission" check the frontend's Done-column-transition prompt uses (see TaskFormLinkDto's
+    /// own doc comment for why this stays a standalone lookup rather than a TaskDto field).</summary>
+    public Task<Guid?> GetRaisedFromTaskIdAsync(Guid projectId, Guid taskId) =>
+        _db.FormSubmissions.AsNoTracking()
+            .Where(s => s.ProjectId == projectId && s.RaisedTaskId == taskId)
+            .Select(s => (Guid?)s.Id)
+            .FirstOrDefaultAsync();
+
     public async Task<List<FormSubmissionListItemDto>> ListMineAsync(Guid projectId, Guid callerUserId)
     {
         var subs = await _db.FormSubmissions.AsNoTracking()
@@ -290,7 +299,7 @@ public class FormSubmissionService
     /// ALL-mode node with other approvers still pending records this approval in the trail and
     /// leaves the submission exactly where it was.</summary>
     public async Task<(bool ok, string error, FormSubmissionDto? dto)> ActOnApprovalAsync(
-        Guid projectId, Guid callerUserId, bool callerIsOrgAdmin, Guid submissionId, string action, string? comment)
+        Guid projectId, Guid callerUserId, bool callerIsOrgAdmin, Guid submissionId, string action, string? comment, string? closingNotes = null)
     {
         if (action != "approve" && action != "reject") return (false, "Unknown action.", null);
 
@@ -325,12 +334,18 @@ public class FormSubmissionService
         if (action == "reject")
         {
             submission.Status = "rejected";
+            if (!string.IsNullOrWhiteSpace(closingNotes)) submission.ClosingNotes = closingNotes;
         }
         else if (IsApprovalComplete(node, trail))
         {
             var edge = OutgoingEdge(graph, node.Id);
             nextNode = edge is null ? null : FindNode(graph, edge.ToNodeId);
             nextNode = await ApplyNextNodeAsync(submission, graph, nextNode, trail);
+            // Only the decisive approval (the one that actually completed this node's own quorum AND
+            // landed the graph on an End node) records closing notes — an intermediate step in a
+            // multi-step Approval chain has nothing final to close out yet.
+            if (submission.Status == "approved" && !string.IsNullOrWhiteSpace(closingNotes))
+                submission.ClosingNotes = closingNotes;
         }
         // else: quorum not yet complete — Status stays 'inProgress', CurrentNodeId unchanged, and
         // NotifyIfNamedApproverNeeded below re-checks the SAME node (not nextNode) — its own
@@ -365,18 +380,22 @@ public class FormSubmissionService
     }
 
     /// <summary>Applies one node transition's terminal-status logic: null -> 'submitted', an End node
-    /// -> 'approved', anything else -> 'inProgress' pinned at that node. An "action" node is executed
-    /// (its side effect fires) the instant the graph transitions into it, but — unlike the auto-
-    /// continue behavior this method used to have — does NOT auto-advance past itself afterward: it
-    /// falls into the same 'inProgress' branch as an Approval node, pausing the submission there.
-    /// For "raiseTaskInPortal" specifically, that pause is exactly the point — the submission stays
-    /// paused until ResumeIfLinkedTaskDoneAsync notices the raised Task land in a Done column and
-    /// re-calls this same method with the action node's own outgoing edge, walking the graph exactly
-    /// one more step (which may itself be another action node, pausing again; or End; or a human
-    /// Approval node). Callers MUST wrap this in an explicit transaction (api/Enkl.Api/CLAUDE.md's
-    /// standing rule) — ExecuteActionNodeAsync below can call TaskService.CreateAsync, which commits
-    /// its own SaveChangesAsync, and the caller does its own separate save afterward for the
-    /// submission's own field changes.</summary>
+    /// -> 'approved', an Approval node -> 'inProgress' pinned at that node ("In Review" — a human gate
+    /// is genuinely pending right now). An "action" node is executed (its side effect fires) the
+    /// instant the graph transitions into it, but — unlike the auto-continue behavior this method used
+    /// to have — does NOT auto-advance past itself afterward: it pins CurrentNodeId at itself same as
+    /// an Approval node, but Status stays 'submitted' rather than jumping straight to 'inProgress' —
+    /// nobody has actually picked up the raised Task yet, so nothing is "In Review" until
+    /// MarkInReviewIfTaskAssignedAsync notices it get assigned. For "raiseTaskInPortal" specifically,
+    /// that pause is exactly the point — the submission stays paused until ResumeIfLinkedTaskDoneAsync
+    /// notices the raised Task land in a Done column and re-calls this same method with the action
+    /// node's own outgoing edge, walking the graph exactly one more step (which may itself be another
+    /// action node, pausing again; or End; or a human Approval node) — see that method's own doc
+    /// comment for why it matches both 'submitted' and 'inProgress', since a task-driven completion
+    /// must work whether or not the assignment step ever happened. Callers MUST wrap this in an
+    /// explicit transaction (api/Enkl.Api/CLAUDE.md's standing rule) — ExecuteActionNodeAsync below can
+    /// call TaskService.CreateAsync, which commits its own SaveChangesAsync, and the caller does its
+    /// own separate save afterward for the submission's own field changes.</summary>
     private async Task<WfNode?> ApplyNextNodeAsync(FormSubmission submission, WfGraph graph, WfNode? nextNode, List<TrailEntry> trail)
     {
         if (nextNode is not null && nextNode.Type == "action")
@@ -386,6 +405,7 @@ public class FormSubmissionService
 
         if (nextNode is null) { submission.Status = "submitted"; submission.CurrentNodeId = null; }
         else if (nextNode.Type == "end") { submission.Status = "approved"; submission.CurrentNodeId = nextNode.Id; }
+        else if (nextNode.Type == "action") { submission.Status = "submitted"; submission.CurrentNodeId = nextNode.Id; }
         else { submission.Status = "inProgress"; submission.CurrentNodeId = nextNode.Id; }
 
         return nextNode;
@@ -409,7 +429,11 @@ public class FormSubmissionService
     /// resolution path yields a project (no origin Portal AND no configured default, or a configured
     /// default Portal that's since been deleted) — a misconfigured or since-deleted Portal must never
     /// break the whole Submit/Approve flow for a caller who has nothing to do with authoring that
-    /// workflow.</summary>
+    /// workflow. Priority/column selection: if the Form itself has a "priority" field with an
+    /// answered value, that answer WINS for both the raised Task's own Priority and which of the 5
+    /// fixed columns it lands in (ResolvePriorityFieldAnswer) — Config.PriorityColumn (and the
+    /// previously-hardcoded "medium" Task priority) is only the fallback for a Form that never asked
+    /// the question.</summary>
     private async Task ExecuteActionNodeAsync(FormSubmission submission, WfNode actionNode, List<TrailEntry> trail)
     {
         if (actionNode.ActionType != "raiseTaskInPortal") return;
@@ -425,7 +449,8 @@ public class FormSubmissionService
 
         var columns = await _db.Columns.AsNoTracking().Where(c => c.ProjectId == projectId).OrderBy(c => c.Order).ToListAsync();
         if (columns.Count == 0) return;
-        var wantedName = actionNode.Config?.PriorityColumn ?? "";
+        var priorityAnswer = ResolvePriorityFieldAnswer(submission.FormVersion.FieldsJson, submission.AnswersJson);
+        var wantedName = priorityAnswer ?? actionNode.Config?.PriorityColumn ?? "";
         var column = columns.FirstOrDefault(c => string.Equals(c.Name, wantedName, StringComparison.OrdinalIgnoreCase)) ?? columns[0];
 
         var assigneeId = ResolveActionAssignee(actionNode.Config?.AssigneeGate, trail);
@@ -440,7 +465,7 @@ public class FormSubmissionService
         if (description.Length == 0) description = null;
 
         var task = await _tasks.CreateAsync(projectId, new CreateTaskRequest(
-            Title: title, Description: description, Priority: "medium", ColumnId: column.Id, AssigneeId: assigneeId,
+            Title: title, Description: description, Priority: priorityAnswer ?? "medium", ColumnId: column.Id, AssigneeId: assigneeId,
             ReleaseId: null, TypeId: null, ParentTaskId: null, DependsOnTaskIds: null));
         submission.RaisedTaskId = task?.Id;
 
@@ -463,11 +488,18 @@ public class FormSubmissionService
     /// unconditionally: no-ops when no submission is currently paused on this Task, the Task's own
     /// column isn't Done, or the submission's current node isn't actually an "action" node
     /// (defensive — should never happen given CurrentNodeId/RaisedTaskId are only ever set
-    /// together).</summary>
-    public async Task ResumeIfLinkedTaskDoneAsync(Guid taskId)
+    /// together). Matches Status 'submitted' OR 'inProgress' — a task-raised submission may still be
+    /// 'submitted' if the raised Task was never explicitly assigned before landing in Done
+    /// (MarkInReviewIfTaskAssignedAsync never fired); task-driven completion must work either way,
+    /// skipping the "In Review" gate entirely rather than requiring it. closingNotes, if provided
+    /// (the raised Task's assignee filled it in on the same Done-column move), is transcribed onto the
+    /// submission only when this resume actually reaches the terminal 'completed' status below —
+    /// an intermediate resume landing back on another Approval/action node has nothing final to
+    /// record yet.</summary>
+    public async Task ResumeIfLinkedTaskDoneAsync(Guid taskId, string? closingNotes = null)
     {
         var submission = await _db.FormSubmissions.Include(s => s.FormVersion)
-            .FirstOrDefaultAsync(s => s.RaisedTaskId == taskId && s.Status == "inProgress");
+            .FirstOrDefaultAsync(s => s.RaisedTaskId == taskId && (s.Status == "submitted" || s.Status == "inProgress"));
         if (submission is null) return;
 
         var task = await _db.Tasks.AsNoTracking().Include(t => t.Column).FirstOrDefaultAsync(t => t.Id == taskId);
@@ -498,7 +530,11 @@ public class FormSubmissionService
         // differently (see FormSubmission.Status's own doc comment). Only overrides in that exact
         // case — if the walk instead landed back on 'inProgress' (another Approval/action node), the
         // status is left alone.
-        if (submission.Status == "approved") submission.Status = "completed";
+        if (submission.Status == "approved")
+        {
+            submission.Status = "completed";
+            if (!string.IsNullOrWhiteSpace(closingNotes)) submission.ClosingNotes = closingNotes;
+        }
         submission.ApprovalTrailJson = JsonSerializer.Serialize(trail, JsonWriteOpts);
         submission.DateLastModified = DateTime.UtcNow;
         await _db.SaveChangesAsync();
@@ -508,6 +544,59 @@ public class FormSubmissionService
         {
             await NotifySubmitterOfDecisionAsync(submission, Guid.Empty, "completed", null);
         }
+    }
+
+    /// <summary>Called by TasksController right after ANY task update, alongside
+    /// ResumeIfLinkedTaskDoneAsync — cheap no-op for the overwhelming majority of task updates (an
+    /// indexed lookup on RaisedTaskId that only matches a submission still sitting at 'submitted',
+    /// i.e. its raised Task hasn't been picked up yet). The moment that Task's AssigneeId is non-null,
+    /// flips the submission to 'inProgress' ("In Review" in the UI) and stamps InReviewAt — making "In
+    /// Review" mean someone has actually taken the raised Task, not just that it was raised. Only ever
+    /// fires once: after the flip, the query's own Status == "submitted" predicate no longer matches,
+    /// so a later re-assignment (or the Task's own subsequent unrelated updates) is a silent no-op,
+    /// same idempotency shape as ResumeIfLinkedTaskDoneAsync.</summary>
+    public async Task MarkInReviewIfTaskAssignedAsync(Guid taskId)
+    {
+        var submission = await _db.FormSubmissions
+            .FirstOrDefaultAsync(s => s.RaisedTaskId == taskId && s.Status == "submitted");
+        if (submission is null) return;
+
+        var task = await _db.Tasks.AsNoTracking().FirstOrDefaultAsync(t => t.Id == taskId);
+        if (task is null || task.AssigneeId is null) return;
+
+        var now = DateTime.UtcNow;
+        submission.Status = "inProgress";
+        submission.InReviewAt = now;
+        submission.DateLastModified = now;
+        await _db.SaveChangesAsync();
+    }
+
+    private static readonly HashSet<string> KnownPriorities =
+        new(StringComparer.OrdinalIgnoreCase) { "trivial", "low", "medium", "high", "critical" };
+
+    /// <summary>Looks for a "priority" field (see form-fields.js's own fixed-option field type) in the
+    /// submitted Form version and, if it has an answered value that's one of the 5 known priority
+    /// keys, returns it lowercased — matches Column.Name case-insensitively for free (the Portal's 5
+    /// fixed columns are literally named Trivial/Low/Medium/High/Critical), same convention
+    /// Config.PriorityColumn already relies on. Returns null for any form with no priority field, an
+    /// unanswered one, or an answer that isn't one of the 5 known keys (defensive — should never
+    /// happen given the field only ever offers those 5 options) — ExecuteActionNodeAsync falls back to
+    /// the static Config.PriorityColumn/"medium" default in every one of those cases.</summary>
+    private static string? ResolvePriorityFieldAnswer(string? fieldsJson, string? answersJson)
+    {
+        if (string.IsNullOrWhiteSpace(fieldsJson) || string.IsNullOrWhiteSpace(answersJson)) return null;
+        List<WfField>? fields;
+        try { fields = JsonSerializer.Deserialize<List<WfField>>(fieldsJson, JsonOpts); } catch { return null; }
+        var priorityField = fields?.FirstOrDefault(f => f.Type == "priority");
+        if (priorityField is null) return null;
+
+        Dictionary<string, JsonElement>? answers;
+        try { answers = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(answersJson, JsonOpts); } catch { return null; }
+        if (answers is null || !answers.TryGetValue(priorityField.Id, out var value)) return null;
+        if (value.ValueKind != JsonValueKind.String) return null;
+
+        var raw = value.GetString();
+        return raw is not null && KnownPriorities.Contains(raw) ? raw.ToLowerInvariant() : null;
     }
 
     private static Guid? ResolveActionAssignee(WfGate? gate, List<TrailEntry> trail)
@@ -580,7 +669,7 @@ public class FormSubmissionService
             var labels = ids.Select(id => OptionLabel(field, id)).ToList();
             return labels.Count == 0 ? "—" : string.Join(", ", labels);
         }
-        if (field.Type is "checkboxGroup" or "select" || (field.Type == "radio" && field.GroupMode != "single"))
+        if (field.Type is "checkboxGroup" or "select" or "priority" || (field.Type == "radio" && field.GroupMode != "single"))
         {
             var id = el.ValueKind == JsonValueKind.String ? el.GetString() ?? "" : el.ToString();
             return OptionLabel(field, id);
@@ -665,5 +754,6 @@ public class FormSubmissionService
 
     private static FormSubmissionDto ToDto(FormSubmission s) => new(
         s.Id, s.FormVersionId, s.ProjectId, s.SubmittedByUserId, s.Status, s.CurrentNodeId,
-        s.AnswersJson, s.ApprovalTrailJson, s.DateCreated, s.DateLastModified, s.DateSubmitted);
+        s.AnswersJson, s.ApprovalTrailJson, s.RaisedTaskId, s.InReviewAt, s.ClosingNotes,
+        s.DateCreated, s.DateLastModified, s.DateSubmitted);
 }
