@@ -6282,10 +6282,18 @@
   }
 
   .kf-portal-home-pane {
-    background: var(--kf-bg);
+    background: var(--kf-surface);
     padding: 20px;
     overflow-y: auto;
     min-height: 0;
+  }
+
+  /* Middle pane (My requests + Top Articles) gets the page's muted background instead — the request
+     cards and article cards both sit on --kf-surface with a shadow, so they read as distinct cards
+     against --kf-bg here; the left/right rails (forms list, Q&A accordion) have no card-like content
+     of their own and stay on --kf-surface, matching the header. */
+  .kf-portal-home-pane-main {
+    background: var(--kf-bg);
   }
 
   .kf-portal-home-pane + .kf-portal-home-pane {
