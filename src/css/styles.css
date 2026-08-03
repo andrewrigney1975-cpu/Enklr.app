@@ -6401,7 +6401,7 @@
      showing either the Pexels-resolved image or a persisted random fallback colour. */
   .kf-portal-top-articles-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px;
   }
   .kf-portal-top-article-card {
@@ -6509,6 +6509,9 @@
     .kf-portal-home-pane + .kf-portal-home-pane {
       border-left: none;
       border-top: 1px solid var(--kf-border);
+    }
+    .kf-portal-top-articles-grid {
+      grid-template-columns: 1fr 1fr;
     }
   }
 
