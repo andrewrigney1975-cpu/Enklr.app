@@ -6420,7 +6420,7 @@
   .kf-portal-top-article-card {
     display: flex;
     flex-direction: column;
-    height: 280px;
+    height: 320px;
     background: var(--kf-surface);
     box-shadow: var(--kf-shadow);
     border: 1px solid var(--kf-border);
