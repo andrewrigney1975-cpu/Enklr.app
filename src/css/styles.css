@@ -6428,8 +6428,12 @@
     overflow: hidden;
   }
   .kf-portal-top-article-header {
+    /* Fixed px height, not aspect-ratio — aspect-ratio scales with the column's own width, which on
+       a very wide/4K screen (grid-template-columns: repeat(4, 1fr) over a much wider pane) grew tall
+       enough to blow past the card's own fixed 320px height entirely. background-size:cover still
+       crops correctly to this fixed box regardless of column width. */
     flex: 0 0 auto;
-    aspect-ratio: 16 / 9;
+    height: 140px;
     background-size: cover;
     background-position: center;
   }
