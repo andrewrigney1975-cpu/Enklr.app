@@ -253,14 +253,6 @@ function renderPortalHomeRequests(){
   });
 }
 
-/* Strips Markdown syntax (search-query material server-side, plain-text display here — no need for
-   a full parser either way, see PortalQaImageResolver.cs's own identical strip regex) and collapses
-   whitespace — the card shows the entire post, no truncation. Local to this one call site — not
-   worth promoting to a shared module for a single-use stripper. */
-function stripMarkdownForDisplay(md){
-  return (md || '').replace(/[#*_\[\]()>`~-]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
 /* "Top Articles" — the 4 highest-NPS Q&A entries from the SAME currentQa data the Answers pane
    already fetched (no separate request). Shares votedQaEntryIds/vote-button wiring with
    renderPortalQaEntryHTML exactly, so voting from either surface re-renders both and stays
@@ -278,7 +270,7 @@ function renderPortalHomeTopArticles(){
     return '<div class="kf-portal-top-article-card">' +
       '<div class="kf-portal-top-article-header" style="' + headerStyle + '"></div>' +
       '<div class="kf-portal-top-article-title">' + escapeHTML(e.question) + '</div>' +
-      '<div class="kf-portal-top-article-body">' + escapeHTML(stripMarkdownForDisplay(e.answer)) + '</div>' +
+      '<div class="kf-portal-top-article-body kf-richtext-content">' + markdownToHtml(e.answer || '') + '</div>' +
       '<div class="kf-portal-qa-feedback">' +
         '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm' + (voted === 'up' ? ' kf-portal-qa-voted' : '') + '" data-vote-qa-entry="' + e.id + '" data-vote-direction="up" title="Yes" ' + (voted ? 'disabled' : '') + '>' + iconSvg('thumbsUp', 14) + '</button>' +
         '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm' + (voted === 'down' ? ' kf-portal-qa-voted' : '') + '" data-vote-qa-entry="' + e.id + '" data-vote-direction="down" title="No" ' + (voted ? 'disabled' : '') + '>' + iconSvg('thumbsDown', 14) + '</button>' +
