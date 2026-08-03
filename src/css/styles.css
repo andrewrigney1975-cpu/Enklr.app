@@ -6403,11 +6403,15 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 12px;
-    /* Cards now show the entire post (no truncation) — lengths vary a lot per entry, so size each
-       card to its own content rather than stretching every card in a row to match the tallest. */
-    align-items: start;
   }
+  /* Fixed card height (not just grid-row stretch, which would still vary row-to-row depending on
+     content) — every card is the same height regardless of post length, with the body itself
+     scrolling internally once its own content overflows the space left after the header/title/
+     feedback rows. */
   .kf-portal-top-article-card {
+    display: flex;
+    flex-direction: column;
+    height: 280px;
     background: var(--kf-surface);
     box-shadow: var(--kf-shadow);
     border: 1px solid var(--kf-border);
@@ -6415,23 +6419,29 @@
     overflow: hidden;
   }
   .kf-portal-top-article-header {
+    flex: 0 0 auto;
     aspect-ratio: 16 / 9;
     background-size: cover;
     background-position: center;
   }
   .kf-portal-top-article-title {
+    flex: 0 0 auto;
     font-size: 12.5px;
     font-weight: 600;
     color: var(--kf-text);
     padding: 10px 12px 0;
   }
   .kf-portal-top-article-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
     font-size: 11.5px;
     color: var(--kf-text-faint);
     padding: 4px 12px 0;
     line-height: 1.4;
   }
   .kf-portal-top-article-card .kf-portal-qa-feedback {
+    flex: 0 0 auto;
     padding: 0 12px 10px;
   }
 
