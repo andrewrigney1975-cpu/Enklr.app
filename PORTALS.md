@@ -58,8 +58,13 @@ Migrations: `.NET` `20260729190152_AddPortals`; `php-api` `042_add_portals.sql`;
 `PortalService.CreateAsync` (all 3 tiers) provisions a dedicated, **membership-free** Project via
 `PortfolioService.CreateProjectAsync` — the same "an Org Admin sketching something out isn't
 necessarily a member of it" reasoning that method's own doc comment already gives — then bootstraps
-5 fixed columns (`Trivial`, `Low`, `Medium`, `High`, `Critical`, left-to-right via `Column.Order`),
-then inserts the `Portal` row referencing it. **.NET** wraps the whole sequence in one explicit
+8 fixed columns, left-to-right via `Column.Order`: the 5 priority columns (`Trivial`, `Low`,
+`Medium`, `High`, `Critical`, `Done = false`) followed by 3 lifecycle columns (`On Hold` — `Done =
+false`, still active work, just paused; `Completed`/`Abandoned` — both `Done = true`, terminal). The
+lifecycle columns are deliberately not priority-named, so they never collide with
+`ExecuteActionNodeAsync`'s priority-field-driven column matching (§ below), which only ever matches
+against the 5 known priority keys. Then inserts the `Portal` row referencing it. **.NET** wraps the
+whole sequence in one explicit
 transaction (`api/Enkl.Api/CLAUDE.md`'s standing rule for a service method that calls another
 service's committing method and then writes again itself, mirroring `RetrospectiveService.PromoteItemAsync`).
 **PHP tiers deliberately don't** — `PDO` has no native nested-transaction support and this call chain
@@ -274,7 +279,9 @@ container), all cleaned up afterward. Verified live, end-to-end:
 - Cross-org isolation on the admin surface too: an Org B admin fetching Org A's Portal by id via
   `PortalsController` also 404s.
 - Portal creation actually provisions its actioner Project with the 5 fixed columns in the correct
-  `Trivial → Low → Medium → High → Critical` order.
+  `Trivial → Low → Medium → High → Critical` order. **Extended 2026-08-03**: now 8 columns total —
+  verified live that `On Hold`/`Completed`/`Abandoned` land at `Order` 5-7 with `Done` set correctly
+  (`false`/`true`/`true`), right after `Critical`.
 - `PortalFormDto`'s `FieldsJson`/`FormVersionId` (the fix described above) resolve correctly on the
   wire — confirmed a Portal end user can list an attached form's fields with no `formsApi` access of
   their own.

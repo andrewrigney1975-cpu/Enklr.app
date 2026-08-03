@@ -14,6 +14,16 @@ namespace Enkl.Api.Services;
 public class PortalService
 {
     private static readonly string[] PriorityColumnNames = { "Trivial", "Low", "Medium", "High", "Critical" };
+    // Provisioned right after the 5 priority columns (Order 5-7) — status-tracking columns for the
+    // actioner Project's own lifecycle, not priority-named, so they never collide with
+    // ExecuteActionNodeAsync's priority-field-driven column matching (which only ever matches
+    // against the 5 known priority keys). "Completed"/"Abandoned" are both terminal (Done = true) so
+    // a task landing in either drops off the active board same as any other Done column; "On Hold"
+    // stays Done = false — a paused task is still active work, just not currently being worked.
+    private static readonly (string Name, bool Done)[] LifecycleColumns =
+    {
+        ("On Hold", false), ("Completed", true), ("Abandoned", true)
+    };
     // Must match MemberService.MemberPalette[0]/ProjectService.FirstMemberColor — same convention,
     // just applied to every Org Admin at once instead of a single creator.
     private static readonly string[] MemberPalette =
@@ -52,7 +62,8 @@ public class PortalService
     /// Provisions a dedicated, membership-free actioner Project (via PortfolioService.CreateProjectAsync
     /// — the same "OrgAdmin sketching something out isn't necessarily a member of it" reasoning that
     /// method's own doc comment already gives) with 5 fixed priority columns (Trivial..Critical,
-    /// left-to-right via Column.Order), then the Portal row referencing it. PortfolioService.CreateProjectAsync
+    /// left-to-right via Column.Order) followed by 3 fixed lifecycle columns (On Hold, Completed,
+    /// Abandoned — see LifecycleColumns' own doc comment), then the Portal row referencing it. PortfolioService.CreateProjectAsync
     /// commits its own SaveChangesAsync internally, and this method does a separate save afterward for
     /// the columns+Portal row — both wrapped in one explicit transaction per this tier's standing
     /// convention (api/Enkl.Api/CLAUDE.md) for exactly this shape, mirroring
@@ -72,6 +83,11 @@ public class PortalService
         for (var i = 0; i < PriorityColumnNames.Length; i++)
         {
             _db.Columns.Add(new Column { Id = Guid.NewGuid(), ProjectId = project.Id, Name = PriorityColumnNames[i], Done = false, Order = i });
+        }
+        for (var i = 0; i < LifecycleColumns.Length; i++)
+        {
+            var (columnName, done) = LifecycleColumns[i];
+            _db.Columns.Add(new Column { Id = Guid.NewGuid(), ProjectId = project.Id, Name = columnName, Done = done, Order = PriorityColumnNames.Length + i });
         }
 
         // Every current Org Admin is auto-added as a Project Admin of the actioner Project — it's

@@ -18,6 +18,13 @@ use PDO;
 final class PortalService
 {
     private const PRIORITY_COLUMN_NAMES = ['Trivial', 'Low', 'Medium', 'High', 'Critical'];
+    // Provisioned right after the 5 priority columns (Order 5-7) — status-tracking columns for the
+    // actioner Project's own lifecycle, not priority-named, so they never collide with
+    // executeActionNode's priority-field-driven column matching (only ever matches the 5 known
+    // priority keys). "Completed"/"Abandoned" are both terminal (Done = true); "On Hold" stays
+    // Done = false — a paused task is still active work, just not currently being worked. No
+    // dialect divergence from the Postgres tier (plain INSERT, same as the priority columns above).
+    private const LIFECYCLE_COLUMNS = [['name' => 'On Hold', 'done' => 0], ['name' => 'Completed', 'done' => 1], ['name' => 'Abandoned', 'done' => 1]];
 
     public function __construct(private readonly PDO $db)
     {
@@ -42,9 +49,10 @@ final class PortalService
      * Provisions a dedicated, membership-free actioner Project (via PortfolioService::createProject
      * — the same "OrgAdmin sketching something out isn't necessarily a member of it" reasoning that
      * method's own doc comment already gives) with 5 fixed priority columns (Trivial..Critical,
-     * left-to-right via Order), then the Portal row referencing it — all wrapped in one transaction
-     * per this tier's standing convention (php-api/CLAUDE.md) for a service method that calls
-     * another service's committing method, then writes again itself.
+     * left-to-right via Order) followed by 3 fixed lifecycle columns (On Hold, Completed, Abandoned
+     * — see LIFECYCLE_COLUMNS' own doc comment), then the Portal row referencing it — all wrapped in
+     * one transaction per this tier's standing convention (php-api/CLAUDE.md) for a service method
+     * that calls another service's committing method, then writes again itself.
      */
     public function create(string $organisationId, string $callerUserId, array $request): array
     {
@@ -65,6 +73,9 @@ final class PortalService
             );
             foreach (self::PRIORITY_COLUMN_NAMES as $i => $colName) {
                 $colStmt->execute(['id' => Uuid::v4(), 'pid' => $project['id'], 'name' => $colName, 'done' => 0, 'order' => $i]);
+            }
+            foreach (self::LIFECYCLE_COLUMNS as $i => $col) {
+                $colStmt->execute(['id' => Uuid::v4(), 'pid' => $project['id'], 'name' => $col['name'], 'done' => $col['done'], 'order' => count(self::PRIORITY_COLUMN_NAMES) + $i]);
             }
 
             // Every current Org Admin is auto-added as a Project Admin of the actioner Project — see
