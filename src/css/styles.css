@@ -6403,6 +6403,9 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 12px;
+    /* Cards now show the entire post (no truncation) — lengths vary a lot per entry, so size each
+       card to its own content rather than stretching every card in a row to match the tallest. */
+    align-items: start;
   }
   .kf-portal-top-article-card {
     background: var(--kf-surface);
