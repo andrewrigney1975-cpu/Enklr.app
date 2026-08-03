@@ -421,10 +421,13 @@ function renderPortalFilloutDetail(){
     return '<div class="kf-form-admin-row-desc">' + escapeHTML(t.action) + ' — ' + escapeHTML(when) + (t.comment ? ': ' + escapeHTML(t.comment) : '') + '</div>';
   }).join('');
 
-  // Post-completion read-only view — see modals/forms-fillout.js's identically-shaped block for why
-  // this can come from either entry point (deciding approver, or the raised Task's own assignee).
+  // Closing Notes is a Form/Task-integration-only concept — see modals/forms-fillout.js's
+  // identically-shaped block: a submission whose workflow never raises a Task (no RaisedTaskId) has
+  // nothing to close out on behalf of a task assignee, so neither the read-only display nor the
+  // approver's own input field applies to it.
+  var hasRaisedTask = !!(detail.submission && detail.submission.raisedTaskId);
   var closingNotes = detail.submission ? detail.submission.closingNotes : null;
-  document.getElementById('portalHomeFilloutClosingNotesDisplay').classList.toggle('hidden', !closingNotes);
+  document.getElementById('portalHomeFilloutClosingNotesDisplay').classList.toggle('hidden', !hasRaisedTask || !closingNotes);
   document.getElementById('portalHomeFilloutClosingNotesDisplayValue').textContent = closingNotes || '';
 
   document.getElementById('portalHomeFilloutSaveDraftBtn').classList.toggle('hidden', !editable);
@@ -434,7 +437,7 @@ function renderPortalFilloutDetail(){
   document.getElementById('portalHomeFilloutRejectBtn').classList.toggle('hidden', detail.mode !== 'approve');
   document.getElementById('portalHomeFilloutCommentField').classList.toggle('hidden', detail.mode !== 'approve');
   document.getElementById('portalHomeFilloutCommentInput').value = '';
-  document.getElementById('portalHomeFilloutClosingNotesField').classList.toggle('hidden', detail.mode !== 'approve');
+  document.getElementById('portalHomeFilloutClosingNotesField').classList.toggle('hidden', detail.mode !== 'approve' || !hasRaisedTask);
   document.getElementById('portalHomeFilloutClosingNotesInput').value = '';
 
   document.getElementById('portalHomeFilloutOverlay').classList.remove('hidden');

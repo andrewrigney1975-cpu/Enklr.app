@@ -206,11 +206,12 @@ function renderFilloutDetail(){
     return '<div class="kf-form-admin-row-desc">' + escapeHTML(t.action) + ' — ' + escapeHTML(when) + (t.comment ? ': ' + escapeHTML(t.comment) : '') + '</div>';
   }).join('');
 
-  // Post-completion read-only view — shown whenever a decided/completed submission carries a closing
-  // summary, from either entry point (a deciding approver, or the raised Task's own assignee — see
-  // FormSubmissionService.ActOnApprovalAsync/ResumeIfLinkedTaskDoneAsync).
+  // Closing Notes is a Form/Task-integration-only concept — a submission whose workflow never
+  // raises a Task (no RaisedTaskId) has nothing for an approver to close out on behalf of a task
+  // assignee, so neither the read-only display nor the approver's own input field applies to it.
+  var hasRaisedTask = !!(detail.submission && detail.submission.raisedTaskId);
   var closingNotes = detail.submission ? detail.submission.closingNotes : null;
-  document.getElementById('formFilloutClosingNotesDisplay').classList.toggle('hidden', !closingNotes);
+  document.getElementById('formFilloutClosingNotesDisplay').classList.toggle('hidden', !hasRaisedTask || !closingNotes);
   document.getElementById('formFilloutClosingNotesDisplayValue').textContent = closingNotes || '';
 
   document.getElementById('formFilloutSaveDraftBtn').classList.toggle('hidden', !editable);
@@ -220,7 +221,7 @@ function renderFilloutDetail(){
   document.getElementById('formFilloutRejectBtn').classList.toggle('hidden', detail.mode !== 'approve');
   document.getElementById('formFilloutCommentField').classList.toggle('hidden', detail.mode !== 'approve');
   document.getElementById('formFilloutCommentInput').value = '';
-  document.getElementById('formFilloutClosingNotesField').classList.toggle('hidden', detail.mode !== 'approve');
+  document.getElementById('formFilloutClosingNotesField').classList.toggle('hidden', detail.mode !== 'approve' || !hasRaisedTask);
   document.getElementById('formFilloutClosingNotesInput').value = '';
 
   document.getElementById('formFilloutDetailOverlay').classList.remove('hidden');
