@@ -25,7 +25,12 @@ public record PortalTopicDto(Guid Id, string Title, int Order);
 public record CreatePortalTopicRequest(string Title, int Order);
 public record UpdatePortalTopicRequest(string Title, int Order);
 
-public record PortalQaEntryDto(Guid Id, Guid? PortalTopicId, string Question, string? Answer, int Order, int Nps);
+/// <summary>HeaderImageUrl/HeaderImageColor are resolved once, server-side, at Create/Update time
+/// (PortalQaImageResolver) — never re-resolved on read, so the Portal home page pays zero Pexels
+/// latency/rate-limit cost on view. Exactly one of the two is ever set: an image when Pexels found a
+/// reasonable match for the entry's own keyword-extracted search query, otherwise a persisted random
+/// fallback colour.</summary>
+public record PortalQaEntryDto(Guid Id, Guid? PortalTopicId, string Question, string? Answer, int Order, int Nps, string? HeaderImageUrl, string? HeaderImageColor);
 public record CreatePortalQaEntryRequest(string Question, string? Answer, Guid? PortalTopicId, int Order);
 public record UpdatePortalQaEntryRequest(string Question, string? Answer, Guid? PortalTopicId, int Order);
 

@@ -119,6 +119,7 @@ function loadAndRenderPortalHome(){
   portalHomeApi.listQa(portalId).then(function(qa){
     currentQa = qa || {topics: [], entries: []};
     renderPortalHomeQa();
+    renderPortalHomeTopArticles();
   }, function(){});
 }
 
@@ -252,6 +253,49 @@ function renderPortalHomeRequests(){
   });
 }
 
+/* Strips Markdown syntax (search-query material server-side, preview material here — no need for a
+   full parser either way, see PortalQaImageResolver.cs's own identical strip regex), collapses
+   whitespace, and truncates to a card-friendly preview length. Local to this one call site — not
+   worth promoting to a shared module for a single-use truncator. */
+function stripMarkdownForPreview(md, maxLength){
+  var plain = (md || '').replace(/[#*_\[\]()>`~-]/g, ' ').replace(/\s+/g, ' ').trim();
+  if(plain.length <= maxLength) return plain;
+  return plain.slice(0, maxLength).replace(/\s+\S*$/, '') + '…';
+}
+
+/* "Top Articles" — the 4 highest-NPS Q&A entries from the SAME currentQa data the Answers pane
+   already fetched (no separate request). Shares votedQaEntryIds/vote-button wiring with
+   renderPortalQaEntryHTML exactly, so voting from either surface re-renders both and stays
+   consistent without a reload. */
+function renderPortalHomeTopArticles(){
+  var entries = (currentQa && currentQa.entries) || [];
+  var top = entries.slice().sort(function(a, b){ return b.nps - a.nps; }).slice(0, 4);
+
+  document.getElementById('portalHomeTopArticlesSection').classList.toggle('hidden', top.length === 0);
+  document.getElementById('portalHomeTopArticlesList').innerHTML = top.map(function(e){
+    var voted = votedQaEntryIds[e.id]; // undefined | 'up' | 'down'
+    var headerStyle = e.headerImageUrl
+      ? 'background-image:url(\'' + e.headerImageUrl.replace(/'/g, '%27') + '\');'
+      : 'background:' + escapeHTML(e.headerImageColor || '#6B778C') + ';';
+    return '<div class="kf-portal-top-article-card">' +
+      '<div class="kf-portal-top-article-header" style="' + headerStyle + '"></div>' +
+      '<div class="kf-portal-top-article-title">' + escapeHTML(e.question) + '</div>' +
+      '<div class="kf-portal-top-article-body">' + escapeHTML(stripMarkdownForPreview(e.answer, 140)) + '</div>' +
+      '<div class="kf-portal-qa-feedback">' +
+        '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm' + (voted === 'up' ? ' kf-portal-qa-voted' : '') + '" data-vote-qa-entry="' + e.id + '" data-vote-direction="up" title="Yes" ' + (voted ? 'disabled' : '') + '>' + iconSvg('thumbsUp', 14) + '</button>' +
+        '<button type="button" class="kf-btn kf-btn-ghost kf-btn-sm' + (voted === 'down' ? ' kf-portal-qa-voted' : '') + '" data-vote-qa-entry="' + e.id + '" data-vote-direction="down" title="No" ' + (voted ? 'disabled' : '') + '>' + iconSvg('thumbsDown', 14) + '</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  document.querySelectorAll('#portalHomeTopArticlesList [data-vote-qa-entry]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      voteOnQaEntry(btn.getAttribute('data-vote-qa-entry'), btn.getAttribute('data-vote-direction'));
+    });
+  });
+  hydrateIcons(document.getElementById('portalHomeTopArticlesList'));
+}
+
 /* Read-only detail for anything past Draft (submitted/in review/approved/rejected) — reuses the
    same fillout overlay in 'view' mode (renderPortalFilloutDetail's own editable flag already treats
    any non-new/non-draft mode as read-only, with the Approval Trail shown and no action buttons). */
@@ -324,16 +368,26 @@ function renderPortalHomeQa(){
   list.querySelectorAll('[data-vote-qa-entry]').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      var id = btn.getAttribute('data-vote-qa-entry');
-      var direction = btn.getAttribute('data-vote-direction');
-      portalHomeApi.voteQaEntryNps(currentPortal.id, id, direction).then(function(){
-        votedQaEntryIds[id] = direction;
-        toast('Thanks for your feedback!');
-        renderPortalHomeQa();
-      }, function(err){ toast('Could not record your feedback: ' + (err.message || 'unknown error')); });
+      voteOnQaEntry(btn.getAttribute('data-vote-qa-entry'), btn.getAttribute('data-vote-direction'));
     });
   });
   hydrateIcons(list);
+}
+
+/* Shared by the Answers accordion's own vote buttons AND the Top Articles cards' — voting from
+   either surface updates the SAME votedQaEntryIds/currentQa.entries state and re-renders BOTH, so
+   they stay consistent with each other without a page reload. Also nudges the entry's own local nps
+   (+1/-1, same delta VoteQaEntryNpsAsync applies server-side) so the Top Articles "top 4 by NPS" sort
+   reflects the vote immediately rather than only after the next full reload. */
+function voteOnQaEntry(id, direction){
+  portalHomeApi.voteQaEntryNps(currentPortal.id, id, direction).then(function(){
+    votedQaEntryIds[id] = direction;
+    var entry = (currentQa.entries || []).filter(function(e){ return e.id === id; })[0];
+    if(entry) entry.nps = (entry.nps || 0) + (direction === 'up' ? 1 : -1);
+    toast('Thanks for your feedback!');
+    renderPortalHomeQa();
+    renderPortalHomeTopArticles();
+  }, function(err){ toast('Could not record your feedback: ' + (err.message || 'unknown error')); });
 }
 
 function renderPortalQaEntryHTML(e, forceExpanded){

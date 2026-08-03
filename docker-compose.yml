@@ -35,6 +35,9 @@ services:
       # v4 Phase 1 AI Assistant — optional. Left unset (default ""), the feature just throws a clear
       # error when used rather than failing the whole stack's startup (see AiAssistantService.cs).
       Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      # Portal Q&A header images — optional. Left unset (default ""), PortalQaImageResolver just
+      # falls back to a random colour rather than failing (see its own doc comment).
+      Pexels__ApiKey: ${PEXELS_API_KEY:-}
       App__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost}
       RunMigrationsOnStartup: "true"
       ASPNETCORE_URLS: "http://+:8080"

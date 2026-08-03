@@ -22,6 +22,17 @@ public class PortalQaEntry
     /// (no per-user vote tracking, no floor/ceiling), each vote just applies a +1/-1 delta.</summary>
     public int Nps { get; set; }
 
+    /// <summary>Resolved once, server-side, at Create/Update time (PortalQaImageResolver) from a
+    /// Pexels search over the entry's own keyword-extracted Question+Answer text — never re-resolved
+    /// on read. Null if no reasonable image match was found (or PEXELS_API_KEY isn't configured), in
+    /// which case HeaderImageColor is set instead.</summary>
+    public string? HeaderImageUrl { get; set; }
+
+    /// <summary>Set only when HeaderImageUrl is null — a random hex colour picked once from a fixed
+    /// palette (PortalQaImageResolver.ColorPalette) and persisted, so the same entry always shows the
+    /// same fallback colour across page views rather than re-randomizing on every render.</summary>
+    public string? HeaderImageColor { get; set; }
+
     public Guid? CreatedByUserId { get; set; }
     public User? CreatedByUser { get; set; }
     public DateTime DateCreated { get; set; }

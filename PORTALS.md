@@ -265,6 +265,56 @@ versioning flow), then its workflow editor becomes editable and the Action step 
   Portal is normally reached via its own shared link (same as a Whiteboard join code); the Browse nav
   entry is a fallback that prompts for a known slug.
 
+## Top Articles, Pexels header images, My Requests scroll cap (2026-08-03)
+
+Three related additions to the Portal home page, branch `feature/portal-top-articles-pexels`:
+
+- **`PortalQaEntry` gains `HeaderImageUrl`/`HeaderImageColor`** (both nullable, exactly one ever
+  set) — resolved **once, at author time** (`PortalService.CreateQaEntryAsync`/`UpdateQaEntryAsync`,
+  all 3 tiers — re-resolved on every edit, no "only if changed" special-casing), never live on Portal
+  home page view. This was a deliberate call over resolving live per page-view: Pexels' free tier is
+  200 req/hr, and a live-per-view design would risk hitting that under normal visitor traffic and add
+  real latency to every load — caching at author time makes the Portal home page's own read path pay
+  zero Pexels cost.
+- **`PortalQaImageResolver`** (new, all 3 tiers — `Services/PortalQaImageResolver.cs`,
+  `Support/PortalQaImageResolver.php` on both PHP tiers): "keyword density" extraction — strips
+  Markdown syntax from the Answer (search-query material only, no need for a full parser), tokenizes
+  Question+Answer, drops a fixed English stopword list, counts frequency with Question words weighted
+  double (the title is the strongest topic signal), takes the top 2 terms as the Pexels search query
+  (`GET /v1/search?query=...&per_page=1&orientation=landscape`, `Authorization: {key}` header, no
+  `Bearer` prefix — Pexels' own convention). **Best-effort throughout**: a missing `PEXELS_API_KEY`, a
+  non-2xx response, a thrown exception, or zero results all fall through to a persisted random colour
+  from a small fixed palette — picked once and stored, never re-randomized on re-view — matching this
+  codebase's standing "an external dependency failure must never break the primary flow" posture
+  (`ExecuteActionNodeAsync`'s own misconfigured-Portal handling is the precedent this follows). Wired
+  in via a named `HttpClient("Pexels")` (.NET `Program.cs`, mirroring the existing `"Anthropic"`
+  client exactly) / plain cURL (both PHP tiers, matching `AiAssistantService.php`'s own zero-HTTP-
+  client-dependency style) — `PEXELS_API_KEY` env var → `Pexels:ApiKey`/`Pexels__ApiKey` config
+  (`.NET`) or `Config::get('PEXELS_API_KEY', '')` (PHP tiers), same shape as the existing Anthropic key.
+- **"Top Articles"** (`modals/portal-home.js`'s `renderPortalHomeTopArticles`) — the 4 highest-`Nps`
+  Q&A entries rendered as image/colour-header cards below My Requests, reusing the *same* `currentQa`
+  payload the Answers accordion already fetches (`portalHomeApi.listQa`) — a pure client-side
+  `sort by Nps desc, slice(0, 4)`, no new endpoint. Thumbs voting is shared with the Answers accordion
+  via a new `voteOnQaEntry(id, direction)` helper — voting from either surface updates the same
+  `votedQaEntryIds`/`currentQa.entries[].nps` state and re-renders **both** surfaces, so a vote from a
+  Top Articles card is immediately reflected in the Answers accordion (and vice versa) without a
+  reload, and the Top Articles sort order updates live too (a local `+1`/`-1` nudge on `nps`, matching
+  `VoteQaEntryNpsAsync`'s own server-side delta — not a refetch).
+- **My Requests scroll cap**: `#portalHomeRequestsList` (`.kf-portal-requests-scroll`) gets its own
+  `max-height: 520px; overflow-y: auto` — roughly 5 request cards visible before it scrolls
+  internally, nested inside the pane's own pre-existing `overflow-y: auto` (the inner list hits its
+  cap first). `.kf-portal-request-card` also gained `background: var(--kf-surface)` +
+  `box-shadow: var(--kf-shadow)` (previously just a plain bordered box).
+- **Live-verified against real Pexels** (docker-compose stack, real `PEXELS_API_KEY`): a Q&A entry
+  about mountain hiking resolved a real, on-topic Pexels photo URL; editing an entry re-resolves a
+  fresh image (confirmed via `PUT`). Temporarily swapped in an invalid API key (`.env` edit +
+  `docker compose up -d --force-recreate api`, reverted afterward) and confirmed the *same* entry's
+  edit fell back cleanly to `HeaderImageUrl: null` / a persisted `HeaderImageColor` — the graceful
+  non-2xx path (a 401 from Pexels), not just the exception-catch path, both landing at the same
+  fallback. Full jsdom suite: 3370 pass, 0 fail. **php-api/mariadb-api were not live-fired against a
+  real Postgres/MariaDB instance in this pass** — both lint-clean and ported line-for-line from the
+  .NET version, same honesty caveat as this file's own earlier live-verification entries.
+
 ## Live verification (2026-07-30, `.NET` tier, real docker-compose stack)
 
 Containers rebuilt/force-recreated on this branch (`docker compose build api web && docker compose

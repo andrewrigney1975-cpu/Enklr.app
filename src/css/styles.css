@@ -6324,10 +6324,18 @@
      -> Approved), reused nowhere else in the app — see PORTALS.md's design note on why this replaces
      a plain status badge here specifically: it directly encodes the submission's real state machine. */
   .kf-portal-request-card {
+    background: var(--kf-surface);
+    box-shadow: var(--kf-shadow);
     border: 1px solid var(--kf-border);
     border-radius: var(--kf-radius);
     padding: 12px 14px;
     margin-bottom: 12px;
+  }
+  /* ~5 cards visible before scrolling internally (card height ~92px + 12px margin ≈ 104px/card) —
+     nested inside the pane's own overflow-y:auto, but this list hits its own cap first. */
+  .kf-portal-requests-scroll {
+    max-height: 520px;
+    overflow-y: auto;
   }
   .kf-portal-request-name {
     font-size: 13px;
@@ -6385,6 +6393,43 @@
   .kf-portal-stepper-step.current .kf-portal-stepper-label {
     color: var(--kf-portal-accent);
     font-weight: 600;
+  }
+
+  /* "Top Articles" — the 4 highest-NPS Q&A entries as visual cards, below My requests. New pattern
+     (no existing "image card" component in this app), kept minimal — visually a sibling of
+     .kf-portal-request-card (same surface/shadow/border/radius) plus a fixed-aspect header block
+     showing either the Pexels-resolved image or a persisted random fallback colour. */
+  .kf-portal-top-articles-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .kf-portal-top-article-card {
+    background: var(--kf-surface);
+    box-shadow: var(--kf-shadow);
+    border: 1px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    overflow: hidden;
+  }
+  .kf-portal-top-article-header {
+    aspect-ratio: 16 / 9;
+    background-size: cover;
+    background-position: center;
+  }
+  .kf-portal-top-article-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--kf-text);
+    padding: 10px 12px 0;
+  }
+  .kf-portal-top-article-body {
+    font-size: 11.5px;
+    color: var(--kf-text-faint);
+    padding: 4px 12px 0;
+    line-height: 1.4;
+  }
+  .kf-portal-top-article-card .kf-portal-qa-feedback {
+    padding: 0 12px 10px;
   }
 
   /* Right pane — Answers (Q&A), a knowledge-base-style expand/collapse accordion per entry, grouped

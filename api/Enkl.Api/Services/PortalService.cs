@@ -34,12 +34,14 @@ public class PortalService
     private readonly AppDbContext _db;
     private readonly PortfolioService _portfolio;
     private readonly PortalAccessService _access;
+    private readonly PortalQaImageResolver _qaImages;
 
-    public PortalService(AppDbContext db, PortfolioService portfolio, PortalAccessService access)
+    public PortalService(AppDbContext db, PortfolioService portfolio, PortalAccessService access, PortalQaImageResolver qaImages)
     {
         _db = db;
         _portfolio = portfolio;
         _access = access;
+        _qaImages = qaImages;
     }
 
     public async Task<List<PortalDto>> ListAsync(Guid organisationId)
@@ -390,11 +392,15 @@ public class PortalService
             return null;
         }
 
+        var question = request.Question.Trim();
+        var (imageUrl, color) = await _qaImages.ResolveAsync(question, request.Answer);
+
         var now = DateTime.UtcNow;
         var entry = new PortalQaEntry
         {
             Id = Guid.NewGuid(), PortalId = portalId, PortalTopicId = request.PortalTopicId,
-            Question = request.Question.Trim(), Answer = request.Answer, Order = request.Order,
+            Question = question, Answer = request.Answer, Order = request.Order,
+            HeaderImageUrl = imageUrl, HeaderImageColor = color,
             CreatedByUserId = callerUserId, DateCreated = now, DateLastModified = now
         };
         _db.PortalQaEntries.Add(entry);
@@ -402,6 +408,8 @@ public class PortalService
         return ToQaEntryDto(entry);
     }
 
+    /// <summary>Re-resolves the header image on every edit — an edited Question/Answer may
+    /// legitimately want a different image, no "only if changed" special-casing.</summary>
     public async Task<PortalQaEntryDto?> UpdateQaEntryAsync(Guid organisationId, Guid portalId, Guid entryId, UpdatePortalQaEntryRequest request)
     {
         if (!await OwnsPortalAsync(organisationId, portalId)) return null;
@@ -412,10 +420,15 @@ public class PortalService
             return null;
         }
 
-        entry.Question = request.Question.Trim();
+        var question = request.Question.Trim();
+        var (imageUrl, color) = await _qaImages.ResolveAsync(question, request.Answer);
+
+        entry.Question = question;
         entry.Answer = request.Answer;
         entry.PortalTopicId = request.PortalTopicId;
         entry.Order = request.Order;
+        entry.HeaderImageUrl = imageUrl;
+        entry.HeaderImageColor = color;
         entry.DateLastModified = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return ToQaEntryDto(entry);
@@ -497,5 +510,5 @@ public class PortalService
         _db.Portals.AsNoTracking().AnyAsync(p => p.Id == portalId && p.OrganisationId == organisationId);
 
     private static PortalDto ToDto(Portal p) => new(p.Id, p.Name, p.Slug, p.Description, p.IconName, p.Status, p.ProjectId, p.DateCreated, p.DateLastModified, p.PublishedAt);
-    private static PortalQaEntryDto ToQaEntryDto(PortalQaEntry e) => new(e.Id, e.PortalTopicId, e.Question, e.Answer, e.Order, e.Nps);
+    private static PortalQaEntryDto ToQaEntryDto(PortalQaEntry e) => new(e.Id, e.PortalTopicId, e.Question, e.Answer, e.Order, e.Nps, e.HeaderImageUrl, e.HeaderImageColor);
 }

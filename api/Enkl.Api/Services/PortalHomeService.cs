@@ -105,7 +105,7 @@ public class PortalHomeService
         var entries = await _db.PortalQaEntries.AsNoTracking()
             .Where(e => e.PortalId == portalId)
             .OrderBy(e => e.Order)
-            .Select(e => new PortalQaEntryDto(e.Id, e.PortalTopicId, e.Question, e.Answer, e.Order, e.Nps))
+            .Select(e => new PortalQaEntryDto(e.Id, e.PortalTopicId, e.Question, e.Answer, e.Order, e.Nps, e.HeaderImageUrl, e.HeaderImageColor))
             .ToListAsync();
         return new PortalQaDto(topics, entries);
     }

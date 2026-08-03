@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Enkl\Api\Services;
 
 use Enkl\Api\Support\MemberPalette;
+use Enkl\Api\Support\PortalQaImageResolver;
 use Enkl\Api\Support\Uuid;
 use PDO;
 
@@ -426,17 +427,20 @@ final class PortalService
         $question = trim((string) ($request['question'] ?? ''));
         $answer = $request['answer'] ?? null;
         $order = (int) ($request['order'] ?? 0);
+        [$imageUrl, $color] = (new PortalQaImageResolver())->resolve($question, $answer);
         $stmt = $this->db->prepare(<<<SQL
-            INSERT INTO "PortalQaEntries" ("Id", "PortalId", "PortalTopicId", "Question", "Answer", "Order", "CreatedByUserId", "DateCreated", "DateLastModified")
-            VALUES (:id, :portalId, :topicId, :question, :answer, :order, :createdBy, now(), now())
+            INSERT INTO "PortalQaEntries" ("Id", "PortalId", "PortalTopicId", "Question", "Answer", "Order", "HeaderImageUrl", "HeaderImageColor", "CreatedByUserId", "DateCreated", "DateLastModified")
+            VALUES (:id, :portalId, :topicId, :question, :answer, :order, :imageUrl, :color, :createdBy, now(), now())
         SQL);
         $stmt->execute([
             'id' => $entryId, 'portalId' => $portalId, 'topicId' => $topicId, 'question' => $question,
-            'answer' => $answer, 'order' => $order, 'createdBy' => $callerUserId,
+            'answer' => $answer, 'order' => $order, 'imageUrl' => $imageUrl, 'color' => $color, 'createdBy' => $callerUserId,
         ]);
-        return ['id' => $entryId, 'portalTopicId' => $topicId, 'question' => $question, 'answer' => $answer, 'order' => $order, 'nps' => 0];
+        return ['id' => $entryId, 'portalTopicId' => $topicId, 'question' => $question, 'answer' => $answer, 'order' => $order, 'nps' => 0, 'headerImageUrl' => $imageUrl, 'headerImageColor' => $color];
     }
 
+    /** Re-resolves the header image on every edit — see PortalQaImageResolver's own doc comment for
+     * why. No dialect divergence from the Postgres tier. */
     public function updateQaEntry(string $organisationId, string $portalId, string $entryId, array $request): ?array
     {
         if (!$this->ownsPortal($organisationId, $portalId)) {
@@ -450,18 +454,20 @@ final class PortalService
         $question = trim((string) ($request['question'] ?? ''));
         $answer = $request['answer'] ?? null;
         $order = (int) ($request['order'] ?? 0);
+        [$imageUrl, $color] = (new PortalQaImageResolver())->resolve($question, $answer);
         $stmt = $this->db->prepare(<<<SQL
-            UPDATE "PortalQaEntries" SET "Question" = :question, "Answer" = :answer, "PortalTopicId" = :topicId, "Order" = :order, "DateLastModified" = now()
+            UPDATE "PortalQaEntries" SET "Question" = :question, "Answer" = :answer, "PortalTopicId" = :topicId, "Order" = :order,
+                "HeaderImageUrl" = :imageUrl, "HeaderImageColor" = :color, "DateLastModified" = now()
             WHERE "Id" = :id AND "PortalId" = :portalId
         SQL);
-        $stmt->execute(['question' => $question, 'answer' => $answer, 'topicId' => $topicId, 'order' => $order, 'id' => $entryId, 'portalId' => $portalId]);
+        $stmt->execute(['question' => $question, 'answer' => $answer, 'topicId' => $topicId, 'order' => $order, 'imageUrl' => $imageUrl, 'color' => $color, 'id' => $entryId, 'portalId' => $portalId]);
         if ($stmt->rowCount() === 0) {
             return null;
         }
         $npsStmt = $this->db->prepare('SELECT "Nps" FROM "PortalQaEntries" WHERE "Id" = :id');
         $npsStmt->execute(['id' => $entryId]);
         $nps = (int) $npsStmt->fetchColumn();
-        return ['id' => $entryId, 'portalTopicId' => $topicId, 'question' => $question, 'answer' => $answer, 'order' => $order, 'nps' => $nps];
+        return ['id' => $entryId, 'portalTopicId' => $topicId, 'question' => $question, 'answer' => $answer, 'order' => $order, 'nps' => $nps, 'headerImageUrl' => $imageUrl, 'headerImageColor' => $color];
     }
 
     public function deleteQaEntry(string $organisationId, string $portalId, string $entryId): bool
@@ -569,6 +575,7 @@ final class PortalService
         return [
             'id' => $e['Id'], 'portalTopicId' => $e['PortalTopicId'], 'question' => $e['Question'],
             'answer' => $e['Answer'], 'order' => (int) $e['Order'], 'nps' => (int) $e['Nps'],
+            'headerImageUrl' => $e['HeaderImageUrl'] ?? null, 'headerImageColor' => $e['HeaderImageColor'] ?? null,
         ];
     }
 }

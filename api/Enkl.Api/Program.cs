@@ -118,6 +118,15 @@ builder.Services.AddScoped<PortfolioResourceService>();
 builder.Services.AddScoped<PortalAccessService>();
 builder.Services.AddScoped<PortalService>();
 builder.Services.AddScoped<PortalHomeService>();
+builder.Services.AddScoped<PortalQaImageResolver>();
+// Portal Q&A header images: BaseAddress only, same "key added per-request from config, not baked in
+// here" reasoning as the "Anthropic" client below — a missing PEXELS_API_KEY should fall back to the
+// random-colour path (PortalQaImageResolver's own try/catch), not surface as a broken default header.
+builder.Services.AddHttpClient("Pexels", client =>
+{
+    client.BaseAddress = new Uri("https://api.pexels.com/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddScoped<StrategyService>();
 builder.Services.AddScoped<StrategyPillarService>();
 builder.Services.AddScoped<StrategyMetricService>();

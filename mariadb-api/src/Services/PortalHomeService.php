@@ -107,6 +107,7 @@ final class PortalHomeService
         $entries = array_map(static fn(array $e): array => [
             'id' => $e['Id'], 'portalTopicId' => $e['PortalTopicId'], 'question' => $e['Question'],
             'answer' => $e['Answer'], 'order' => (int) $e['Order'], 'nps' => (int) $e['Nps'],
+            'headerImageUrl' => $e['HeaderImageUrl'] ?? null, 'headerImageColor' => $e['HeaderImageColor'] ?? null,
         ], $entryStmt->fetchAll());
 
         return ['topics' => $topics, 'entries' => $entries];
