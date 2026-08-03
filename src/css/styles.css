@@ -6282,6 +6282,7 @@
   }
 
   .kf-portal-home-pane {
+    background: var(--kf-bg);
     padding: 20px;
     overflow-y: auto;
     min-height: 0;
