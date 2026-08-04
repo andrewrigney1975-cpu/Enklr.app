@@ -57,6 +57,7 @@ import { openProjectModal, closeProjectModal, saveProjectFromModal, handleProjec
 import { openTeamModal, closeTeamModal, addMemberFromModal, wireAddMemberCombobox } from './modals/team.js';
 import { openOrgUsersModal, closeOrgUsersModal, createOrgUserFromModal, saveOrgDefaultPasswordFromModal } from './modals/organisation.js';
 import { openAnnouncementsAdminModal, closeAnnouncementsAdminModal, saveAnnouncementFromModal, cancelAnnouncementEdit } from './modals/announcements-admin.js';
+import { openVendorsAdminModal, closeVendorsAdminModal, saveVendorFromModal, cancelVendorEdit } from './modals/vendors-admin.js';
 import { openSsoConfigModal, closeSsoConfigModal, saveSsoConfigFromModal, generateScimTokenFromModal } from './modals/sso.js';
 import { openImportCentreModal, closeImportCentreModal, showImportCentreTab, handleImportCentreSchemasClick, handleImportEntityChange, handleImportCentreFileChange, runImportCentreTestRun, confirmImportCentreCommit } from './modals/import-centre.js';
 import { openSaveAsTemplateModal, closeSaveAsTemplateModal, saveAsTemplateFromModal, openTemplatesModal, closeTemplatesModal } from './modals/templates.js';
@@ -1631,6 +1632,18 @@ function wireEvents(){
   });
   document.getElementById('announcementAdminSaveBtn').addEventListener('click', saveAnnouncementFromModal);
   document.getElementById('announcementAdminCancelEditBtn').addEventListener('click', cancelAnnouncementEdit);
+
+  document.getElementById('manageVendorsLink').addEventListener('click', function(e){
+    e.preventDefault();
+    openVendorsAdminModal();
+  });
+  document.getElementById('vendorsAdminClose').addEventListener('click', closeVendorsAdminModal);
+  document.getElementById('vendorsAdminDoneBtn').addEventListener('click', closeVendorsAdminModal);
+  document.getElementById('vendorsAdminOverlay').addEventListener('mousedown', function(e){
+    if(e.target.id === 'vendorsAdminOverlay') closeVendorsAdminModal();
+  });
+  document.getElementById('vendorAdminSaveBtn').addEventListener('click', saveVendorFromModal);
+  document.getElementById('vendorAdminCancelEditBtn').addEventListener('click', cancelVendorEdit);
 
   document.getElementById('saveAsTemplateLink').addEventListener('click', function(e){
     e.preventDefault();

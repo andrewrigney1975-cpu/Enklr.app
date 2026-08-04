@@ -429,6 +429,9 @@ export function renderToolbar(){
   var announcementsAdminLink = document.getElementById('announcementsAdminLink');
   if(announcementsAdminLink) announcementsAdminLink.classList.toggle('kf-vis-hidden', !isOrgAdmin() || !reachable);
 
+  var manageVendorsLink = document.getElementById('manageVendorsLink');
+  if(manageVendorsLink) manageVendorsLink.classList.toggle('kf-vis-hidden', !isOrgAdmin() || !reachable);
+
   // Manage Templates lives in the Projects menu now (moved out of here — local-only templates have
   // real value signed-out too, so it never needed the Account menu's API-dependent items around it).
   // Same visibility rule as before the move: only hidden in the one case where opening it would

@@ -64,6 +64,8 @@ public class AppDbContext : DbContext
     public DbSet<PortalForm> PortalForms => Set<PortalForm>();
     public DbSet<PortalTopic> PortalTopics => Set<PortalTopic>();
     public DbSet<PortalQaEntry> PortalQaEntries => Set<PortalQaEntry>();
+    public DbSet<Vendor> Vendors => Set<Vendor>();
+    public DbSet<VendorIntegration> VendorIntegrations => Set<VendorIntegration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -287,6 +287,30 @@ export function revokeApiKeyApi(){
   return apiFetch('/organisations/me/api-key', {method: 'DELETE'});
 }
 
+export var vendorApi = {
+  list: function(){
+    return apiFetch('/organisations/me/vendors', {method: 'GET'});
+  },
+  get: function(vendorId){
+    return apiFetch('/organisations/me/vendors/' + vendorId, {method: 'GET'});
+  },
+  create: function(body){
+    return apiFetch('/organisations/me/vendors', {method: 'POST', body: JSON.stringify(body)});
+  },
+  update: function(vendorId, body){
+    return apiFetch('/organisations/me/vendors/' + vendorId, {method: 'PUT', body: JSON.stringify(body)});
+  },
+  remove: function(vendorId){
+    return apiFetch('/organisations/me/vendors/' + vendorId, {method: 'DELETE'});
+  },
+  generateApiKey: function(vendorId){
+    return apiFetch('/organisations/me/vendors/' + vendorId + '/api-key', {method: 'POST'});
+  },
+  revokeApiKey: function(vendorId){
+    return apiFetch('/organisations/me/vendors/' + vendorId + '/api-key', {method: 'DELETE'});
+  }
+};
+
 export function importOrganisationUsersApi(rows, dryRun){
   return apiFetch('/organisations/me/import/organisation-users', {method: 'POST', body: JSON.stringify({rows: rows, dryRun: dryRun})});
 }
