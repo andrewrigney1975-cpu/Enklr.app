@@ -194,6 +194,9 @@ final class AiAssistantService
                 'list_critical_tasks' => $this->listCriticalTasksTool($projectId, $input),
                 'search_tasks' => $this->searchTasksTool($projectId, $input),
                 'create_project' => $this->createProjectTool($orgId, $callerUserId, $callerIsOrgAdmin, $input),
+                'list_available_forms' => $this->listAvailableFormsTool($projectId, $orgId, $callerUserId, $callerIsOrgAdmin),
+                'get_form_fields' => $this->getFormFieldsTool($orgId, $input),
+                'submit_form' => $this->submitFormTool($projectId, $orgId, $callerUserId, $callerIsOrgAdmin, $input),
                 default => ["Unknown tool: {$toolName}", true, []],
             };
         } catch (\Throwable $e) {
@@ -776,6 +779,162 @@ final class AiAssistantService
         return $titles;
     }
 
+    /** The set of Forms is org-wide and changes over time — deliberately NOT baked into the system
+     * prompt (see buildSystemPrompt's own note), queried fresh on every call instead. Delegates
+     * entirely to FormSubmissionService::getAuthorableForms, which already re-derives the caller's
+     * own Author-gate satisfaction server-side — the model is never even offered a form it can't
+     * actually submit. */
+    private function listAvailableFormsTool(string $projectId, string $orgId, string $callerUserId, bool $callerIsOrgAdmin): array
+    {
+        $forms = (new FormSubmissionService($this->db))->getAuthorableForms($orgId, $projectId, $callerUserId, $callerIsOrgAdmin);
+        if (count($forms) === 0) {
+            return ['There are no Forms currently available for you to submit.', false, []];
+        }
+
+        $lines = array_map(static function (array $f) {
+            $desc = ($f['description'] ?? '') !== '' ? ": {$f['description']}" : '';
+            return "formId=\"{$f['formId']}\" — \"{$f['name']}\"{$desc}";
+        }, $forms);
+        return ["Available forms:\n" . implode("\n", $lines), false, []];
+    }
+
+    /** Re-resolves formId to its currently-published version EVERY call (never trusts an earlier
+     * list_available_forms result — a different version may have been published since), then
+     * describes every field's id/type/required-ness/options AND the exact value shape submit_form
+     * expects for that field, so the model can construct a correct "answers" object rather than
+     * guessing. Field ids (not labels) are what submit_form's own answers keys must be. */
+    private function getFormFieldsTool(string $orgId, array $input): array
+    {
+        $formId = (string) ($input['formId'] ?? '');
+        if ($formId === '') {
+            return ['A valid formId is required — call list_available_forms first to get one.', true, []];
+        }
+
+        $form = (new FormSubmissionService($this->db))->getPublishedForm($orgId, $formId);
+        if ($form === null) {
+            return ['That form is no longer available (it may have been unpublished or archived) — call list_available_forms again.', true, []];
+        }
+
+        [$ok, $error, $fields] = FormAnswerValidator::describeFields($form['FieldsJson']);
+        if (!$ok) {
+            return [$error, true, []];
+        }
+        if (count($fields) === 0) {
+            return ["\"{$form['Name']}\" (v{$form['VersionNumber']}) has no fields defined — you can submit it with submit_form using an empty answers object.", false, []];
+        }
+
+        $lines = array_map(function (array $f) {
+            $req = !empty($f['required']) ? ', required' : ', optional';
+            $shape = $this->fieldValueShapeDescription($f);
+            $options = $f['options'] ?? null;
+            $optionsNote = is_array($options) && count($options) > 0
+                ? ' Options: ' . implode(', ', array_map(static fn(array $o) => "id=\"{$o['id']}\" (\"{$o['label']}\")", $options))
+                : '';
+            $help = !empty($f['helpText']) ? " ({$f['helpText']})" : '';
+            return "- id=\"{$f['id']}\" \"{$f['label']}\"{$help} — type {$f['type']}{$req}. {$shape}{$optionsNote}";
+        }, $fields);
+
+        return ["\"{$form['Name']}\" (v{$form['VersionNumber']}) fields — use these exact ids as the keys of submit_form's \"answers\" object:\n" . implode("\n", $lines), false, []];
+    }
+
+    /** Plain-English instruction for exactly what JSON shape submit_form's "answers" value must be
+     * for this field — mirrors features/form-answers.js's own documented AnswersJson storage shape so
+     * the model constructs something FormAnswerValidator will actually accept first try. */
+    private function fieldValueShapeDescription(array $f): string
+    {
+        $type = $f['type'] ?? '';
+        $multiple = !empty($f['multiple']);
+        $mutex = !empty($f['mutex']);
+        $groupMode = $f['groupMode'] ?? null;
+
+        if ($type === 'text' || $type === 'textarea') {
+            return 'Answer with a plain string.';
+        }
+        if ($type === 'numeric') {
+            return 'Answer with a number.';
+        }
+        if ($type === 'datetime') {
+            return 'Answer with an ISO date string, e.g. "2026-08-04".';
+        }
+        if (($type === 'select' || $type === 'priority') && $multiple) {
+            return 'Answer with an array of one or more option ids.';
+        }
+        if ($type === 'select' || $type === 'priority') {
+            return 'Answer with exactly one option id (a plain string).';
+        }
+        if ($type === 'checkboxGroup' && $mutex) {
+            return 'Answer with an array containing at most one option id.';
+        }
+        if ($type === 'checkboxGroup') {
+            return 'Answer with an array of the selected option ids.';
+        }
+        if ($type === 'radio' && $groupMode === 'single') {
+            return 'This is a yes/no field — answer true or false.';
+        }
+        if ($type === 'radio' && $groupMode === 'multiGroup') {
+            return 'Answer with an array of the selected option ids.';
+        }
+        if ($type === 'radio') {
+            return 'Answer with exactly one option id (a plain string).';
+        }
+        return 'Answer with the value as given.';
+    }
+
+    /** Validates the model-constructed "answers" object against the form's CURRENT published version
+     * (re-resolved here too, in case it changed since a get_form_fields call earlier in the same
+     * conversation), then reuses FormSubmissionService::create (Draft + answers) followed immediately
+     * by submit() — deliberately NOT reimplementing the Author-gate check here even though
+     * list_available_forms already pre-filtered for it: submit()'s own independent re-derivation is
+     * the actual security boundary, same defense-in-depth every other cross-role check in this
+     * codebase gets. If the workflow raised a Task on the way through, surfaces it as an ordinary
+     * task_created action (same type/shape create_task's own action already uses) so the frontend's
+     * existing board-refresh hook picks it up with no new frontend code needed. */
+    private function submitFormTool(string $projectId, string $orgId, string $callerUserId, bool $callerIsOrgAdmin, array $input): array
+    {
+        $formId = (string) ($input['formId'] ?? '');
+        if ($formId === '') {
+            return ['A valid formId is required — call list_available_forms first to get one.', true, []];
+        }
+
+        $forms = new FormSubmissionService($this->db);
+        $form = $forms->getPublishedForm($orgId, $formId);
+        if ($form === null) {
+            return ['That form is no longer available (it may have been unpublished or archived) — call list_available_forms again.', true, []];
+        }
+
+        $answers = is_array($input['answers'] ?? null) ? $input['answers'] : [];
+        [$validated, $validationError, $answersJson] = FormAnswerValidator::validate($form['FieldsJson'], $answers);
+        if (!$validated) {
+            return ["Could not submit \"{$form['Name']}\": {$validationError}", true, []];
+        }
+
+        $draft = $forms->create($projectId, $callerUserId, ['formVersionId' => $form['Id'], 'answersJson' => $answersJson]);
+        if ($draft === null) {
+            return ['Could not start this submission — the form may no longer be published.', true, []];
+        }
+
+        $result = $forms->submit($projectId, $callerUserId, $callerIsOrgAdmin, $draft['id']);
+        if (!$result['ok']) {
+            $message = $result['error'] === 'not_found' ? 'Could not find the submission that was just created.' : $result['error'];
+            return ["Could not submit \"{$form['Name']}\": {$message}", true, []];
+        }
+
+        $dto = $result['dto'];
+        $actions = [];
+        $taskNote = '';
+        if (!empty($dto['raisedTaskId'])) {
+            $taskStmt = $this->db->prepare('SELECT "Id", "Key", "Title" FROM "Tasks" WHERE "Id" = :id');
+            $taskStmt->execute(['id' => $dto['raisedTaskId']]);
+            $raisedTask = $taskStmt->fetch();
+            if ($raisedTask !== false) {
+                $actions[] = ['type' => 'task_created', 'taskId' => $raisedTask['Id'], 'taskKey' => $raisedTask['Key'], 'title' => $raisedTask['Title']];
+                $taskNote = " This raised task {$raisedTask['Key']}: \"{$raisedTask['Title']}\".";
+            }
+        }
+
+        return ["Submitted \"{$form['Name']}\" — status is now \"{$dto['status']}\".{$taskNote}", false, $actions];
+    }
+
     private function findTask(string $projectId, string $identifier): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM "Tasks" WHERE "ProjectId" = :pid AND LOWER("Key") = LOWER(:key)');
@@ -1027,6 +1186,15 @@ final class AiAssistantService
                 "- If the user hasn't mentioned a start or end date, ask for them before calling create_project rather than guessing.\n";
         }
 
+        $prompt .= "\nThe organisation may also have Enterprise Forms the user can submit (e.g. an expense claim, an access " .
+            "request). You do NOT know in advance which forms exist or what fields they have — never guess a form name or a " .
+            "field's shape. When the user wants to submit/fill out a form: call list_available_forms to see what's actually " .
+            "available to them right now, then get_form_fields for the specific one to get its real field ids/types/options " .
+            "and the exact answer shape each field expects. Gather the answers conversationally (ask about missing required " .
+            "fields one or a few at a time, don't demand everything in one message). Before calling submit_form, summarize " .
+            "the answers back to the user in plain language and get an explicit go-ahead — submitting can immediately trigger " .
+            "a real workflow action, so never submit speculatively or without that confirmation.\n";
+
         $prompt .= "Keep replies short and conversational — this is a chat-style assistant, not a report generator.\n";
 
         if ($alertsSummary !== null && trim($alertsSummary) !== '') {
@@ -1175,6 +1343,32 @@ final class AiAssistantService
                         ],
                     ],
                     'required' => ['name'],
+                ],
+            ],
+            [
+                'name' => 'list_available_forms',
+                'description' => 'List the org\'s currently-published Forms you are personally allowed to submit right now. Call this FIRST whenever the user wants to submit/fill out a form and hasn\'t already named a specific one you already have the formId for — the set of forms changes over time, so always call this fresh rather than assuming a form from earlier in the conversation still exists or is still the one meant.',
+                'input_schema' => ['type' => 'object', 'properties' => new \stdClass()],
+            ],
+            [
+                'name' => 'get_form_fields',
+                'description' => 'Get the exact field list (ids, types, required-ness, valid options) for one Form, by formId (from list_available_forms). ALWAYS call this before submit_form, even if you already saw this form\'s fields earlier in the conversation — the published version can change between turns, and this always returns the current one.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => ['formId' => ['type' => 'string', 'description' => 'The formId from list_available_forms.']],
+                    'required' => ['formId'],
+                ],
+            ],
+            [
+                'name' => 'submit_form',
+                'description' => 'Submit a Form with the gathered answers. Before calling this, always summarize the answers you\'re about to submit back to the user in plain language and get an explicit go-ahead — this can immediately trigger real workflow actions (e.g. raising a task, notifying an approver) and is not something to do speculatively. Each key in "answers" must be a real field id from get_form_fields, with a value in exactly the shape that field\'s own description specifies.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'formId' => ['type' => 'string', 'description' => 'The formId from list_available_forms / get_form_fields.'],
+                        'answers' => ['type' => 'object', 'description' => 'Map of field id -> answer value, per get_form_fields\' own per-field value-shape instructions.'],
+                    ],
+                    'required' => ['formId', 'answers'],
                 ],
             ],
         ];
