@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>11. Data, backup, and moving between tiers — Enklr Task User Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — User Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html">Overview</a><div class="help-nav-title">Sections</div><a href="01-getting-started.html">1. Getting started</a><a href="02-the-board.html">2. The Board</a><a href="03-anatomy-of-a-task.html">3. Anatomy of a Task</a><a href="04-seeing-your-work-differently.html">4. Seeing your work differently</a><a href="05-tools.html">5. Tools</a><a href="06-governance-and-knowledge.html">6. Governance &amp; knowledge</a><a href="07-search-and-the-advanced-query-workbench.html">7. Search and the Advanced Query workbench</a><a href="08-collaboration.html">8. Collaboration</a><a href="09-portfolio-and-organisation-management.html">9. Portfolio &amp; organisation management</a><a href="10-making-it-yours.html">10. Making it yours</a><a href="11-data-backup-and-moving-between-tiers.html" class="active">11. Data, backup, and moving between tiers</a><a href="12-reports-and-exporting.html">12. Reports and exporting</a><a href="13-roles-and-permissions-in-plain-terms.html">13. Roles and permissions, in plain terms</a><a href="14-quick-reference-index.html">14. Quick reference index</a><a href="15-appendix-feature-access-at-a-glance.html">15. Appendix: feature access at a glance</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/7370679/pexels-photo-7370679.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Data, backup, and moving between tiers"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@amaliadigital" target="_blank" rel="noopener">Antonio Moreno Nadal</a> on <a href="https://www.pexels.com/photo/close-up-of-a-computer-drive-7370679/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">11. Data, backup, and moving between tiers</h1><div class="help-doc"><ul><li><strong>Export Project</strong> — <strong>What</strong>: download the entire project — every task, column, comment, and setting — as a single backup file. <strong>Who</strong>: good practice for anyone on Option A (local-only), since there&#39;s no server copy of that data anywhere else. Sam, the freelancer from Section 1, should be exporting regularly.</li><li><strong>Import Project</strong> — <strong>What</strong>: the reverse — load a previously exported file back in, including into a fresh install.</li><li><strong>Migrate to Server</strong> — covered in <a href="#1-getting-started--where-does-enklr-task-actually-live" target="_blank" rel="noopener noreferrer">Section 1</a> — the one-way (but non-destructive) move from a local sandbox to a real server-backed project.</li><li><strong>Storage usage indicator</strong> — <strong>What</strong>: a quiet warning if a local-only project&#39;s data is approaching your browser&#39;s storage limits — worth heeding on Option A long before it becomes urgent, since it&#39;s a signal to export a backup and/or migrate to a server rather than risk running out of room.</li><li><strong>A quiet safety net</strong>: the app checks in on a project every time you start looking at it — when you first load the app, and again each time you switch to a different project — and nudges you about things worth knowing before they become problems. It works through a short chain of checks, one overlay at a time, each falling through to the next only once you&#39;ve dismissed it: 1. <strong>Announcements</strong> — see below; if your organisation&#39;s admin has something to tell everyone, this is the very first thing you see, ahead of anything the app itself has noticed. 2. <strong>Overdue tasks</strong> — anything with an end date already in the past. 3. <strong>Predicted overruns</strong> — the same &quot;at risk&quot; prediction described in <a href="#3-anatomy-of-a-task" target="_blank" rel="noopener noreferrer">Section 3</a>, summarized project-wide (only ever surfaces the <em>at risk</em> level here — &quot;over&quot; tasks are already covered by the overdue check above, or just carry their own red card border with no separate nag). 4. <strong>Unscored tasks</strong> — tasks still sitting at the default Business Value/Task Cost of 1, which usually just means nobody&#39;s gotten to scoring them yet. 5. <strong>Backup reminders</strong> — for Option A (local-only) projects specifically: a nudge that it&#39;s been a while since your last export, since a local project has no other copy of its data anywhere. These aren&#39;t alarms, just gentle reminders that surface on their own — and if a project genuinely has nothing to say, you won&#39;t see anything at all.</li><li><strong>Announcements</strong> — <strong>What</strong>: a message your organisation&#39;s admin wants everyone to see, shown once per person as a small pop-up at the very start of a session (see the check-in chain above). Each one has its own <strong>&quot;Don&#39;t show this one again&quot;</strong> tick box, so if several are active at once you can dismiss the ones you&#39;ve read while leaving the rest to reappear next time. <strong>Who</strong>: this only exists once you&#39;re on Option B or C from <a href="#1-getting-started--where-does-enklr-task-actually-live" target="_blank" rel="noopener noreferrer">Section 1</a> — a fully local project has no organisation for an admin to post to. For setting these up as an admin, see <a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9</a>.</li><li><strong>Disruption Notices</strong> — <strong>What</strong>: a persistent white-on-red banner across the very top of the page, above the header, for as long as the admin&#39;s scheduled window says it should be there. Unlike an Announcement, there&#39;s nothing to dismiss — it simply stops appearing once its end time passes (or stays up indefinitely if no end time was set). <strong>Who</strong>: for genuinely disruptive situations — planned maintenance, a known outage, &quot;don&#39;t create new projects until further notice&quot; — where you want it impossible to miss for as long as it&#39;s relevant, not just glanced at once and forgotten.</li><li><strong>Despatches button</strong> — <strong>What</strong>: a header button (between Refresh and the theme switcher, megaphone icon) that&#39;s your personal activity feed — up to the 25 most recent items relevant to you, newest first, refreshing automatically every 30 seconds while you&#39;re signed in. It combines: any active Announcements or Disruption Notices, overdue tasks, at-risk predictions, unscored tasks, and local projects overdue for a backup (the same live check-in described above, always current) — together with a running log of task updates and chat messages/mentions, i.e. anything that would otherwise have only ever shown you a brief toast notification. A task entry links straight to that task (by its key); a chat entry opens the relevant conversation. This feed is entirely personal — what you see reflects only activity relevant to you, never anyone else&#39;s. <strong>Who</strong>: anyone who wants a quick &quot;what have I missed&quot; answer mid-session, or who wants to jump back to a task/message a toast already flashed past before they could click it.</li></ul><hr></div><div class="help-pager"><a href="10-making-it-yours.html"><span class="help-pager-label">‹ Previous</span>Making it yours</a><a href="12-reports-and-exporting.html"><span class="help-pager-label">Next ›</span>Reports and exporting</a></div></div></div></body></html>

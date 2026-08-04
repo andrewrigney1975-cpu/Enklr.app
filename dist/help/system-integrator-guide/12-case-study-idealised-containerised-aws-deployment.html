@@ -1,0 +1,113 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>12. Case study: idealised containerised AWS deployment — Enklr Task Systems Integrator Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — Systems Integrator Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html">Overview</a><div class="help-nav-title">Sections</div><a href="01-system-overview-and-integration-surface.html">1. System overview and integration surface</a><a href="02-deployment-models.html">2. Deployment models</a><a href="03-backend-tier-selection.html">3. Backend tier selection</a><a href="04-identity-and-access-management-overview.html">4. Identity and access management overview</a><a href="05-single-sign-on-via-saml-2-0.html">5. Single Sign-On via SAML 2.0</a><a href="06-automated-provisioning-via-scim-2-0.html">6. Automated provisioning via SCIM 2.0</a><a href="07-authentication-tokens-and-session-security.html">7. Authentication tokens and session security</a><a href="08-network-security-architecture.html">8. Network security architecture</a><a href="09-database-accounts-and-data-protection.html">9. Database accounts and data protection</a><a href="10-web-application-protections.html">10. Web application protections</a><a href="11-certificates-and-tls.html">11. Certificates and TLS</a><a href="12-case-study-idealised-containerised-aws-deployment.html" class="active">12. Case study: idealised containerised AWS deployment</a><a href="13-logging-monitoring-and-incident-response-hooks.html">13. Logging, monitoring, and incident response hooks</a><a href="14-backup-recovery-and-business-continuity.html">14. Backup, recovery, and business continuity</a><a href="15-integration-checklist-pre-go-live.html">15. Integration checklist (pre-go-live)</a><a href="16-glossary.html">16. Glossary</a><a href="17-references.html">17. References</a><a href="18-appendix-bulk-data-import-import-centre.html">18. Appendix: bulk data import (Import Centre)</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/29652161/pexels-photo-29652161.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Case study: idealised containerised AWS deployment"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@jan-van-der-wolf-11680885" target="_blank" rel="noopener">Jan van der Wolf</a> on <a href="https://www.pexels.com/photo/vivid-shipping-containers-against-blue-sky-29652161/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">12. Case study: idealised containerised AWS deployment</h1><div class="help-mini-toc"><div class="help-mini-toc-title">In this section</div><ul><li><a href="#12-1-target-architecture">12.1 Target architecture</a></li><li><a href="#12-2-networking">12.2 Networking</a></li><li><a href="#12-3-database">12.3 Database</a></li><li><a href="#12-4-secrets">12.4 Secrets</a></li><li><a href="#12-5-compute-and-load-balancing">12.5 Compute and load balancing</a></li><li><a href="#12-6-validation">12.6 Validation</a></li></ul></div><div class="help-doc"><p>This section walks through a complete, production-grade AWS reference architecture using containers throughout. It is the architecture this repository&#39;s own <code>DEPLOYMENT-AWS.md</code> documents in full command-by-command detail — this section summarises the <em>design decisions and rationale</em> an integrator needs to evaluate before adapting it to their own AWS account; consult <code>DEPLOYMENT-AWS.md</code> directly for exact, current <code>aws</code> CLI invocations. <strong>All identifiers below are illustrative placeholders.</strong></p><h3 id="12-1-target-architecture">12.1 Target architecture</h3><svg viewBox="0 0 620 410" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AWS target architecture diagram: Route 53 and an ACM certificate reach an Application Load Balancer in public subnets, which forwards plain HTTP within private subnets to an ECS Fargate service running web and api containers in one task, which reaches RDS for PostgreSQL over port 5432, also private-subnets only.">
+  <defs>
+    <marker id="awsArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" style="fill: var(--kf-blue)"/>
+    </marker>
+  </defs>
+  <text x="310" y="24" font-size="13" font-weight="600" text-anchor="middle" style="fill: var(--kf-text)">Route 53 (customer's own domain)</text>
+  <line x1="310" y1="32" x2="310" y2="66" stroke-width="2" style="stroke: var(--kf-blue)" marker-end="url(#awsArrow)"/>
+  <text x="320" y="54" font-size="11" style="fill: var(--kf-text-secondary)">ACM certificate (443)</text>
+  <rect x="130" y="72" width="360" height="60" rx="6" fill="none" stroke-width="1.5" style="stroke: var(--kf-border)"/>
+  <text x="310" y="98" font-size="13" font-weight="600" text-anchor="middle" style="fill: var(--kf-text)">Application Load Balancer</text>
+  <text x="310" y="116" font-size="11.5" text-anchor="middle" style="fill: var(--kf-text-secondary)">443 &#8594; target group &quot;web&quot;</text>
+  <text x="500" y="106" font-size="11" font-style="italic" style="fill: var(--kf-text-secondary)">public subnets</text>
+  <line x1="310" y1="132" x2="310" y2="186" stroke-width="2" style="stroke: var(--kf-blue)" marker-end="url(#awsArrow)"/>
+  <text x="320" y="164" font-size="11" style="fill: var(--kf-text-secondary)">plain HTTP, private subnets only</text>
+  <rect x="110" y="192" width="400" height="80" rx="6" fill="none" stroke-width="1.5" style="stroke: var(--kf-border)"/>
+  <text x="310" y="216" font-size="13" font-weight="600" text-anchor="middle" style="fill: var(--kf-text)">ECS Fargate service</text>
+  <text x="310" y="234" font-size="11.5" text-anchor="middle" style="fill: var(--kf-text-secondary)">one task, two containers:</text>
+  <text x="310" y="250" font-size="11.5" text-anchor="middle" style="fill: var(--kf-text-secondary)">web (nginx) &#8594; api (Kestrel)</text>
+  <text x="310" y="266" font-size="10.5" font-style="italic" text-anchor="middle" style="fill: var(--kf-text-secondary)">same task = same network namespace</text>
+  <line x1="310" y1="272" x2="310" y2="326" stroke-width="2" style="stroke: var(--kf-blue)" marker-end="url(#awsArrow)"/>
+  <text x="320" y="304" font-size="11" style="fill: var(--kf-text-secondary)">port 5432, private subnets only</text>
+  <rect x="130" y="332" width="360" height="60" rx="6" fill="none" stroke-width="1.5" style="stroke: var(--kf-border)"/>
+  <text x="310" y="358" font-size="13" font-weight="600" text-anchor="middle" style="fill: var(--kf-text)">RDS for PostgreSQL 16</text>
+  <text x="310" y="376" font-size="11.5" text-anchor="middle" style="fill: var(--kf-text-secondary)">Multi-AZ, no RDS Proxy</text>
+</svg><p><strong>Design rationale — one ECS task, two sidecar containers, not two ECS services</strong>: this maps 1:1 onto the reference Docker Compose topology (web + api as two containers of one logical unit) and minimises new infrastructure. The trade-off an integrator should weigh: the two containers then scale together (identical task count for both), and containers within one Fargate task communicate over <code>localhost</code> rather than by service-discovery name — the reverse-proxy configuration&#39;s upstream target requires a one-line adjustment (<code>http://api:8080</code> → <code>http://localhost:8080</code>) to account for this, applied to an AWS-specific copy of that configuration file, leaving the reference configuration unmodified for non-AWS deployments. If independent scaling of the two components later becomes a requirement, splitting them into two ECS services behind ECS Service Connect restores service-discovery-by-name and removes this constraint.</p><h3 id="12-2-networking">12.2 Networking</h3><p>A minimal two-Availability-Zone VPC: two public subnets (hosting only the load balancer) and two private subnets (hosting the ECS tasks and the RDS instance). Three security groups, each permitting traffic <strong>only</strong> from the specific security group one layer up the chain — never a CIDR range wider than necessary, and never a rule admitting inbound traffic to the application container&#39;s port from anywhere except the load balancer&#39;s own security group. No security group in this design ever admits inbound traffic to the database from anything other than the ECS task&#39;s security group, and no security group admits inbound traffic to the ECS task&#39;s application-server port from anything other than the load balancer&#39;s security group. A NAT gateway provides the private-subnet ECS tasks outbound-only connectivity (for image pulls and any future outbound integration need); the database itself requires no outbound internet route at all.</p><h3 id="12-3-database">12.3 Database</h3><p>Amazon RDS for PostgreSQL, engine version 16, <code>--no-publicly-accessible</code>, provisioned into the private subnets only, with automated backups enabled and a Multi-AZ deployment for production workloads (a single-AZ instance is an acceptable cost reduction for a non-production environment only). Two AWS-specific considerations beyond generic RDS guidance, both already noted in §8/§9:</p><ul><li><strong>No RDS Proxy</strong> in front of this database, for the <code>LISTEN</code>/<code>NOTIFY</code> reason given in §8.</li><li>The database&#39;s master user (or an app-dedicated user granted the platform&#39;s bounded superuser-equivalent role) is used as the application&#39;s connecting account specifically because the optional Public Query API feature&#39;s role-provisioning step requires that privilege level on this platform — see §9.1.</li></ul><h3 id="12-4-secrets">12.4 Secrets</h3><p>The database connection string, the JWT signing key, and (if SCIM is enabled) the SCIM bearer token are stored in a managed secrets store (AWS Secrets Manager, or SSM Parameter Store as a lower-cost alternative) and referenced directly by ARN in the container orchestration platform&#39;s task definition — the actual secret values never appear in the task definition JSON itself, in the container orchestration platform&#39;s console, or in the application&#39;s log output. The execution role permitted to read these secrets is scoped to exactly the specific secret ARNs required, never a wildcard grant across the account&#39;s entire secrets store. The application container&#39;s own runtime role (as opposed to the execution role that merely starts it) requires no AWS API permissions at all, since the application makes no calls to AWS services itself — that runtime role should remain empty or minimal, and an integrator reviewing this deployment should treat any broader grant on it as unjustified by the application&#39;s own needs.</p><h3 id="12-5-compute-and-load-balancing">12.5 Compute and load balancing</h3><p>Two container images (reverse-proxy/frontend tier, application-server tier) are pushed to a private container registry and deployed as one Fargate task definition, run behind an Application Load Balancer terminating TLS with a certificate issued by the platform&#39;s managed certificate service, validated via DNS. The load balancer&#39;s health check targets the application&#39;s own <code>/health</code> endpoint, which itself confirms the full request chain — proxy through to the application server through to a live database connectivity check performed as part of the application&#39;s own startup sequence. A production-appropriate desired task count (two or more) gives baseline high availability, with one noted, accepted trade-off: an in-process rate limiter becomes per-instance once more than one task is running, proportionally weakening (not eliminating) that specific control at scale — an integrator requiring a stronger guarantee at high task counts should layer a web-application-firewall rate rule in front of the load balancer as an additional control, rather than relying on the in-process limiter alone at that scale.</p><p><strong>A load-balancer-specific gotcha worth flagging explicitly</strong>: the default idle-timeout on most managed load balancers (commonly 60 seconds) is far shorter than the multi-hour duration the application&#39;s live-update streaming connection is designed to stay open for. Failing to raise the load balancer&#39;s own idle-timeout setting to match or exceed the application&#39;s own long-read-timeout configuration does not produce a visible error — the frontend simply reconnects every ~60 seconds instead of maintaining one continuous connection, a behaviour easy to miss without deliberately watching for it during a validation pass.</p><h3 id="12-6-validation">12.6 Validation</h3><p>A complete deployment validation should confirm, at minimum: the public health endpoint returns a healthy response through the full chain (load balancer → reverse-proxy tier → application server → its own database connectivity check); the application&#39;s schema migrations applied successfully on first boot (visible in the centralised log destination); and — the most commonly missed check — that the live-update mechanism functions correctly across two independent browser sessions, which is the definitive end-to-end proof that the load-balancer idle-timeout adjustment above actually took effect.</p><hr></div><div class="help-pager"><a href="11-certificates-and-tls.html"><span class="help-pager-label">‹ Previous</span>Certificates and TLS</a><a href="13-logging-monitoring-and-incident-response-hooks.html"><span class="help-pager-label">Next ›</span>Logging, monitoring, and incident response hooks</a></div></div></div></body></html>

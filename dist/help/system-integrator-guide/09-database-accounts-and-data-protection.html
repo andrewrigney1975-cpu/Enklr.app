@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>9. Database accounts and data protection — Enklr Task Systems Integrator Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — Systems Integrator Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html">Overview</a><div class="help-nav-title">Sections</div><a href="01-system-overview-and-integration-surface.html">1. System overview and integration surface</a><a href="02-deployment-models.html">2. Deployment models</a><a href="03-backend-tier-selection.html">3. Backend tier selection</a><a href="04-identity-and-access-management-overview.html">4. Identity and access management overview</a><a href="05-single-sign-on-via-saml-2-0.html">5. Single Sign-On via SAML 2.0</a><a href="06-automated-provisioning-via-scim-2-0.html">6. Automated provisioning via SCIM 2.0</a><a href="07-authentication-tokens-and-session-security.html">7. Authentication tokens and session security</a><a href="08-network-security-architecture.html">8. Network security architecture</a><a href="09-database-accounts-and-data-protection.html" class="active">9. Database accounts and data protection</a><a href="10-web-application-protections.html">10. Web application protections</a><a href="11-certificates-and-tls.html">11. Certificates and TLS</a><a href="12-case-study-idealised-containerised-aws-deployment.html">12. Case study: idealised containerised AWS deployment</a><a href="13-logging-monitoring-and-incident-response-hooks.html">13. Logging, monitoring, and incident response hooks</a><a href="14-backup-recovery-and-business-continuity.html">14. Backup, recovery, and business continuity</a><a href="15-integration-checklist-pre-go-live.html">15. Integration checklist (pre-go-live)</a><a href="16-glossary.html">16. Glossary</a><a href="17-references.html">17. References</a><a href="18-appendix-bulk-data-import-import-centre.html">18. Appendix: bulk data import (Import Centre)</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/19825057/pexels-photo-19825057.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Database accounts and data protection"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@jakubzerdzicki" target="_blank" rel="noopener">Jakub Zerdzicki</a> on <a href="https://www.pexels.com/photo/close-up-of-a-data-hub-diskstation-19825057/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">9. Database accounts and data protection</h1><div class="help-mini-toc"><div class="help-mini-toc-title">In this section</div><ul><li><a href="#9-1-connection-account">9.1 Connection account</a></li><li><a href="#9-2-credential-handling">9.2 Credential handling</a></li><li><a href="#9-3-tenant-data-isolation">9.3 Tenant data isolation</a></li><li><a href="#9-4-at-rest-protection">9.4 At-rest protection</a></li><li><a href="#9-5-no-check-constraints-as-a-security-control">9.5 No CHECK constraints as a security control</a></li></ul></div><div class="help-doc"><h3 id="9-1-connection-account">9.1 Connection account</h3><p>The application connects to its database using a single service account per deployment. That account requires, at minimum:</p><ul><li>Full DML (<code>SELECT</code>/<code>INSERT</code>/<code>UPDATE</code>/<code>DELETE</code>) on the application&#39;s own schema.</li><li>DDL rights sufficient to apply the application&#39;s own forward-only schema migrations automatically at startup (<code>CREATE TABLE</code>/<code>ALTER TABLE</code> and equivalent).</li><li>On PostgreSQL specifically: the ability to <code>CREATE ROLE</code> and <code>CREATE VIEW</code> — the Public Query API feature (an optional, per-project, saved-SQL-query exposure capability, disabled unless explicitly configured) provisions a narrowly-scoped, isolated database role for that purpose. On a managed PostgreSQL service, this generally requires the connecting account to hold the platform&#39;s own bounded superuser-equivalent (e.g., AWS RDS&#39;s <code>rds_superuser</code>, which the RDS master user holds by default). On database platforms where the connecting account cannot be granted that (notably commercial shared MySQL/MariaDB hosting), this step becomes a manual, one-time, out-of-band provisioning action — see <code>DEPLOYMENT-MARIADB.md</code> §7.1.</li></ul><h3 id="9-2-credential-handling">9.2 Credential handling</h3><ul><li>Database credentials, the JWT signing key, and the SCIM bearer token hash are the deployment&#39;s three categories of secret material. None of them ship with a usable default in a production configuration — the reference container images and configuration schemas fail to start rather than falling back to a placeholder value when these are unset.</li><li>Credentials should be sourced from the target platform&#39;s secrets management facility (a cloud secrets manager, HashiCorp Vault, a Kubernetes <code>Secret</code> backed by an external secrets operator, or equivalent) and injected as environment variables at container start — never baked into a container image, never committed to source control, never present in plain text in an orchestrator manifest checked into version control.</li><li>Encryption in transit between the application server and the database should be enabled and, where the database platform supports it, required (<code>sslmode=require</code> or equivalent) rather than merely offered.</li></ul><h3 id="9-3-tenant-data-isolation">9.3 Tenant data isolation</h3><p>Every entity that is Organisation-scoped rather than Project-scoped (user accounts, org-wide settings, cross-project portfolio data) carries an explicit foreign key to its owning Organisation. Every server-side code path that accepts a client-supplied identifier for such an entity — most notably any Org-Admin-scoped, cross-project reporting or management endpoint — independently re-derives which of the supplied identifiers actually belong to the caller&#39;s own Organisation before touching any data, rather than trusting the client&#39;s claim. An identifier belonging to a different Organisation is treated identically to a nonexistent identifier (a uniform not-found response) — deliberately, so that no error response can be used to enumerate the existence of another tenant&#39;s data. This pattern is applied consistently across every cross-tenant-capable endpoint and is the primary architectural control against tenant data leakage in a multi-tenant (Hosted, or multi-Organisation self-hosted) deployment.</p><h3 id="9-4-at-rest-protection">9.4 At-rest protection</h3><p>The application itself performs no database-level encryption of its own beyond what the underlying database platform provides (transparent data encryption / storage-level encryption is a database platform configuration concern, not something this application manages). One feature is a partial exception worth noting for a data-protection review: the application&#39;s &quot;Private Task&quot; feature performs <strong>client-side</strong> encryption (Web Crypto API, PBKDF2 key derivation into AES-GCM) of a task&#39;s content <em>before</em> it is ever transmitted or stored — the passphrase is never transmitted to or held by the server, meaning the server (and by extension, any database administrator) cannot recover the plaintext of a private task without the end user&#39;s passphrase. This is an end-user convenience feature, not a substitute for platform-level encryption at rest, and it has a genuine, irreversible data-loss mode: a forgotten passphrase permanently forfeits that task&#39;s content, by design.</p><h3 id="9-5-no-check-constraints-as-a-security-control">9.5 No CHECK constraints as a security control</h3><p>By deliberate, consistent convention across every tier and every schema, string fields with a bounded set of valid values (priority levels, statuses, and similar) are <strong>not</strong> enforced via database-level <code>CHECK</code> constraints — validation of these fields is an application-layer concern only. An integrator auditing the schema directly (rather than through the application) should not expect to find, and should not add, ad hoc <code>CHECK</code> constraints as a defence-in-depth measure without coordinating with the application&#39;s own maintainers first — an inconsistently-applied constraint on one column reads as accidental, not deliberate hardening.</p><hr></div><div class="help-pager"><a href="08-network-security-architecture.html"><span class="help-pager-label">‹ Previous</span>Network security architecture</a><a href="10-web-application-protections.html"><span class="help-pager-label">Next ›</span>Web application protections</a></div></div></div></body></html>

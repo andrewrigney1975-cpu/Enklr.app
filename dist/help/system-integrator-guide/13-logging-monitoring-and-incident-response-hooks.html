@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>13. Logging, monitoring, and incident response hooks — Enklr Task Systems Integrator Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — Systems Integrator Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html">Overview</a><div class="help-nav-title">Sections</div><a href="01-system-overview-and-integration-surface.html">1. System overview and integration surface</a><a href="02-deployment-models.html">2. Deployment models</a><a href="03-backend-tier-selection.html">3. Backend tier selection</a><a href="04-identity-and-access-management-overview.html">4. Identity and access management overview</a><a href="05-single-sign-on-via-saml-2-0.html">5. Single Sign-On via SAML 2.0</a><a href="06-automated-provisioning-via-scim-2-0.html">6. Automated provisioning via SCIM 2.0</a><a href="07-authentication-tokens-and-session-security.html">7. Authentication tokens and session security</a><a href="08-network-security-architecture.html">8. Network security architecture</a><a href="09-database-accounts-and-data-protection.html">9. Database accounts and data protection</a><a href="10-web-application-protections.html">10. Web application protections</a><a href="11-certificates-and-tls.html">11. Certificates and TLS</a><a href="12-case-study-idealised-containerised-aws-deployment.html">12. Case study: idealised containerised AWS deployment</a><a href="13-logging-monitoring-and-incident-response-hooks.html" class="active">13. Logging, monitoring, and incident response hooks</a><a href="14-backup-recovery-and-business-continuity.html">14. Backup, recovery, and business continuity</a><a href="15-integration-checklist-pre-go-live.html">15. Integration checklist (pre-go-live)</a><a href="16-glossary.html">16. Glossary</a><a href="17-references.html">17. References</a><a href="18-appendix-bulk-data-import-import-centre.html">18. Appendix: bulk data import (Import Centre)</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/30901558/pexels-photo-30901558.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Logging, monitoring, and incident response hooks"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@markus-winkler-1430818" target="_blank" rel="noopener">Markus Winkler</a> on <a href="https://www.pexels.com/photo/data-breach-concept-with-scrabble-tiles-30901558/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">13. Logging, monitoring, and incident response hooks</h1><div class="help-doc"><ul><li><strong>Structured logging</strong>: both the .NET and PHP tiers emit structured JSON log lines to standard output — no application-managed log file, no built-in log-shipping agent. Route container stdout to the platform&#39;s log aggregation service (CloudWatch Logs, an ELK/Loki stack, or equivalent); retention should be set deliberately rather than left at whatever the platform&#39;s own default is (several platforms default to unlimited retention, which is a cost and data-governance decision, not a technical default that should go unexamined).</li><li><strong>Correlation IDs</strong>: every request is tagged with a correlation identifier (sourced from the reverse-proxy tier&#39;s own per-request ID where available, generated by the application otherwise) and echoed back in the response and into every log line produced while handling that request — this is the mechanism to use when correlating a user-reported issue against server-side logs, rather than attempting to correlate on timestamp alone. The application deliberately never logs request/response bodies, the <code>Authorization</code> header, or raw token values.</li><li><strong>Audit surface</strong>: task-level changes are recorded in a per-task audit trail visible within the application itself. This is an application-data-level audit trail (what changed on a given task), not a security/access-log audit trail (who authenticated when, from where) — an integrator with a formal security-audit-logging requirement should treat the correlation-ID-tagged structured request logs (above) as the source for the latter, not the in-application task audit trail.</li><li><strong>No built-in external error-tracking (e.g., Sentry-class) integration</strong> ships by default — this is a deliberate, currently-open decision point for an integrator with an existing error-tracking platform to wire in via the structured log stream, rather than an assumed gap to fill.</li></ul><hr></div><div class="help-pager"><a href="12-case-study-idealised-containerised-aws-deployment.html"><span class="help-pager-label">‹ Previous</span>Case study: idealised containerised AWS deployment</a><a href="14-backup-recovery-and-business-continuity.html"><span class="help-pager-label">Next ›</span>Backup, recovery, and business continuity</a></div></div></div></body></html>

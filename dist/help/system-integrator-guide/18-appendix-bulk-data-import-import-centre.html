@@ -1,0 +1,99 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>18. Appendix: bulk data import (Import Centre) — Enklr Task Systems Integrator Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — Systems Integrator Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html">Overview</a><div class="help-nav-title">Sections</div><a href="01-system-overview-and-integration-surface.html">1. System overview and integration surface</a><a href="02-deployment-models.html">2. Deployment models</a><a href="03-backend-tier-selection.html">3. Backend tier selection</a><a href="04-identity-and-access-management-overview.html">4. Identity and access management overview</a><a href="05-single-sign-on-via-saml-2-0.html">5. Single Sign-On via SAML 2.0</a><a href="06-automated-provisioning-via-scim-2-0.html">6. Automated provisioning via SCIM 2.0</a><a href="07-authentication-tokens-and-session-security.html">7. Authentication tokens and session security</a><a href="08-network-security-architecture.html">8. Network security architecture</a><a href="09-database-accounts-and-data-protection.html">9. Database accounts and data protection</a><a href="10-web-application-protections.html">10. Web application protections</a><a href="11-certificates-and-tls.html">11. Certificates and TLS</a><a href="12-case-study-idealised-containerised-aws-deployment.html">12. Case study: idealised containerised AWS deployment</a><a href="13-logging-monitoring-and-incident-response-hooks.html">13. Logging, monitoring, and incident response hooks</a><a href="14-backup-recovery-and-business-continuity.html">14. Backup, recovery, and business continuity</a><a href="15-integration-checklist-pre-go-live.html">15. Integration checklist (pre-go-live)</a><a href="16-glossary.html">16. Glossary</a><a href="17-references.html">17. References</a><a href="18-appendix-bulk-data-import-import-centre.html" class="active">18. Appendix: bulk data import (Import Centre)</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/14020705/pexels-photo-14020705.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Appendix: bulk data import (Import Centre)"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@bilal-ahmed-297238753" target="_blank" rel="noopener">Bilal  Ahmed</a> on <a href="https://www.pexels.com/photo/cargo-containers-in-harbor-14020705/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">18. Appendix: bulk data import (Import Centre)</h1><div class="help-doc"><p>Import Centre is an Org-Admin-facing bulk data loader, reachable both from the application&#39;s own UI (App Settings → Enterprise → Import Centre) and directly as a REST API — the same endpoints the UI itself calls. This appendix documents the API surface for an integrator scripting a bulk onboarding or data-migration job (e.g. seeding an Organisation from a legacy system&#39;s export) rather than driving the UI by hand.</p><p><strong>Authentication and authorisation</strong>: unlike SCIM (§6), Import Centre has <strong>no separate service- account bearer token</strong> — every request authenticates with the same end-user JWT (§7) any other authenticated API call uses, and every endpoint is gated <code>[Authorize(Policy = &quot;OrgAdmin&quot;)]</code> (<code>OrgAdminMiddleware</code> on both PHP tiers) — the caller must hold a valid session for a user who is themselves an Org Admin of the target Organisation. There is no cross-Organisation import: every endpoint operates only against the Organisation implied by the caller&#39;s own <code>orgId</code> JWT claim, and every entity reference within a row (a project key, a Portal slug, a username) is independently re-validated against that same Organisation server-side before anything is written — a reference that resolves in a different Organisation is indistinguishable from one that doesn&#39;t exist at all (no enumeration oracle), matching this application&#39;s cross-tenant isolation stance described in §9.3.</p><p><strong>Endpoints</strong> (all <code>POST</code>, all under <code>/api/organisations/me/import/</code>):</p><table><thead><tr><th>Path segment</th><th>Entity</th></tr></thead><tbody><tr><td><code>organisation-users</code></td><td>Organisation Users</td></tr><tr><td><code>team-members</code></td><td>Team Members</td></tr><tr><td><code>teams-committees</code></td><td>Teams &amp; Committees</td></tr><tr><td><code>portal-qa</code></td><td>Portal Q&amp;A</td></tr></tbody></table><p><strong>Request body</strong> (identical shape for every endpoint):</p><pre><code>{
+  &quot;rows&quot;: [ { &quot;field1&quot;: &quot;value1&quot;, &quot;field2&quot;: &quot;value2&quot; } ],
+  &quot;dryRun&quot;: true
+}</code></pre><p><code>rows</code> is a flat array of objects, one per record to import — field names match the entity&#39;s schema table below exactly. <code>dryRun: true</code> validates and executes every row for real through the identical code path a committed import would use, then unconditionally rolls back the database transaction regardless of outcome — so a caller can preflight an entire file&#39;s validity (including cross-field lookups like an existing project key or Portal slug) without writing anything. <code>dryRun: false</code> commits.</p><p><strong>Response body</strong> (identical shape for every endpoint):</p><pre><code>{
+  &quot;total&quot;: 2,
+  &quot;succeeded&quot;: 1,
+  &quot;failed&quot;: 1,
+  &quot;results&quot;: [
+    {&quot;row&quot;: 1, &quot;success&quot;: true,  &quot;message&quot;: null, &quot;data&quot;: { /* the row as submitted */ }},
+    {&quot;row&quot;: 2, &quot;success&quot;: false, &quot;message&quot;: &quot;\&quot;password\&quot; is required.&quot;, &quot;data&quot;: { /* the row as submitted */ }}
+  ]
+}</code></pre><p><strong>Per-row transactional isolation</strong>: each row in <code>rows</code> is executed in its <strong>own</strong> database transaction, independent of every other row — a malformed or invalid row never sinks the rest of the batch, and <code>results[]</code> reports each row&#39;s own outcome individually (<code>row</code> is the 1-based index into the submitted <code>rows</code> array, not any generated id). This is a deliberate, different shape from this application&#39;s <code>MigrationController</code> bulk-import endpoint (used for the one-time anonymous-migration bootstrap, §4), which wraps its entire request in a single all-or-nothing transaction — Import Centre&#39;s per-row model is the right fit for an Org Admin knowingly loading a large, possibly-imperfect external export and wanting partial success with a precise per-row error report, rather than an atomic all-or-nothing bootstrap.</p><p><strong>Cross-row reference caveat under <code>dryRun</code></strong>: because every row gets its own transaction that is rolled back immediately when <code>dryRun</code> is set, a row that references another row <strong>earlier in the same file</strong> by a not-yet-existing identifier (Team Members&#39; <code>reportsTo</code>, Teams &amp; Committees&#39; <code>parent</code>/ <code>members</code>) will report that reference as unresolvable on a Test Run even though it would resolve correctly on a real Commit — the earlier row&#39;s own creation is rolled back before the later row&#39;s lookup runs. This is inherent to the per-row-dry-run design, not a bug; an integrator scripting against this API should expect a <code>dryRun: true</code> preflight of an interdependent file to under-report success relative to what an actual <code>dryRun: false</code> commit of the same file will achieve, when rows reference each other in-order.</p><p><strong>Entity schemas</strong>: <code>required</code> values are <code>true</code> (must be present and non-empty), <code>false</code> (may be omitted), or <em>conditional</em> (nullable at the storage layer but effectively mandatory under normal operating conditions — noted per-field below).</p><p><em>Organisation Users</em> (<code>organisation-users</code>):</p><table><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead><tbody><tr><td><code>username</code></td><td>string</td><td>Required</td><td>Must be unique within the Organisation.</td></tr><tr><td><code>displayName</code></td><td>string</td><td>Required</td><td></td></tr><tr><td><code>password</code></td><td>string</td><td>Required</td><td>Minimum 8 characters. The new account must change it on first login (<code>MustChangePassword</code>, §4).</td></tr><tr><td><code>email</code></td><td>string</td><td>Conditional</td><td>Required unless the account will only ever authenticate via SSO.</td></tr></tbody></table><p><em>Team Members</em> (<code>team-members</code>):</p><table><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead><tbody><tr><td><code>projectKey</code></td><td>string</td><td>Required</td><td>Must match an existing project in the caller&#39;s Organisation.</td></tr><tr><td><code>name</code></td><td>string</td><td>Required</td><td>Matched against an existing Organisation User by name/email where possible; a new account is created otherwise.</td></tr><tr><td><code>email</code></td><td>string</td><td>Optional</td><td>Used to find-or-create the underlying Organisation User account.</td></tr><tr><td><code>role</code></td><td>string</td><td>Optional</td><td>Free-text role label.</td></tr><tr><td><code>allocatedFraction</code></td><td>integer (0–100)</td><td>Optional</td><td>Percentage of time allocated to this project.</td></tr><tr><td><code>reportsTo</code></td><td>string (username)</td><td>Optional</td><td>Must reference another Team Member already on the same project — see the cross-row caveat above.</td></tr><tr><td><code>isProjectAdmin</code></td><td>boolean</td><td>Optional</td><td>Defaults to <code>false</code>.</td></tr></tbody></table><p><em>Teams &amp; Committees</em> (<code>teams-committees</code>):</p><table><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead><tbody><tr><td><code>projectKey</code></td><td>string</td><td>Required</td><td>Must match an existing project in the caller&#39;s Organisation.</td></tr><tr><td><code>name</code></td><td>string</td><td>Required</td><td></td></tr><tr><td><code>type</code></td><td><code>&quot;team&quot;</code> \</td><td><code>&quot;committee&quot;</code></td><td>Required</td><td>Any other value fails the row explicitly — the interactive UI&#39;s own create path silently defaults an invalid type to <code>&quot;team&quot;</code>, but this API treats it as a reportable error instead.</td></tr><tr><td><code>description</code></td><td>string</td><td>Optional</td><td></td></tr><tr><td><code>parent</code></td><td>string (name)</td><td>Optional</td><td>Must reference another Team/Committee already on the same project — see the cross-row caveat above.</td></tr><tr><td><code>members</code></td><td>string (semicolon-separated usernames)</td><td>Optional</td><td>Each must already be a Team Member on the same project — see the cross-row caveat above.</td></tr></tbody></table><p><em>Portal Q&amp;A</em> (<code>portal-qa</code>, only meaningful once Organisational Portals is enabled for the Organisation):</p><table><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead><tbody><tr><td><code>portal</code></td><td>string (slug or name)</td><td>Required</td><td>Must match an existing Portal in the caller&#39;s Organisation; resolved by slug first, then by name.</td></tr><tr><td><code>question</code></td><td>string</td><td>Required</td><td></td></tr><tr><td><code>topic</code></td><td>string (name)</td><td>Optional</td><td>Must reference an existing Topic on the same Portal, if given.</td></tr><tr><td><code>answer</code></td><td>string (markdown)</td><td>Optional</td><td></td></tr><tr><td><code>order</code></td><td>integer</td><td>Optional</td><td>Defaults to appending after this Portal&#39;s current highest <code>order</code>, so an <code>order</code>-less row never collides at <code>0</code>.</td></tr></tbody></table><hr><p><em>This document, like <code>USER-GUIDE.md</code>, is intended to evolve alongside the application. It reflects the architecture and controls in place as of this writing; re-verify any specific claim against the source documents in §17 before relying on it for a compliance attestation or formal security review, since those source documents — not this summary — are updated first when the underlying implementation changes.</em></p></div><div class="help-pager"><a href="17-references.html"><span class="help-pager-label">‹ Previous</span>References</a><span></span></div></div></div></body></html>

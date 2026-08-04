@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Overview — Enklr Task User Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — User Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html" class="active">Overview</a><div class="help-nav-title">Sections</div><a href="01-getting-started.html">1. Getting started</a><a href="02-the-board.html">2. The Board</a><a href="03-anatomy-of-a-task.html">3. Anatomy of a Task</a><a href="04-seeing-your-work-differently.html">4. Seeing your work differently</a><a href="05-tools.html">5. Tools</a><a href="06-governance-and-knowledge.html">6. Governance &amp; knowledge</a><a href="07-search-and-the-advanced-query-workbench.html">7. Search and the Advanced Query workbench</a><a href="08-collaboration.html">8. Collaboration</a><a href="09-portfolio-and-organisation-management.html">9. Portfolio &amp; organisation management</a><a href="10-making-it-yours.html">10. Making it yours</a><a href="11-data-backup-and-moving-between-tiers.html">11. Data, backup, and moving between tiers</a><a href="12-reports-and-exporting.html">12. Reports and exporting</a><a href="13-roles-and-permissions-in-plain-terms.html">13. Roles and permissions, in plain terms</a><a href="14-quick-reference-index.html">14. Quick reference index</a><a href="15-appendix-feature-access-at-a-glance.html">15. Appendix: feature access at a glance</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/6804077/pexels-photo-6804077.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Enklr Task User Guide"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@cottonbro" target="_blank" rel="noopener">cottonbro studio</a> on <a href="https://www.pexels.com/photo/manager-considering-project-strategy-by-the-task-board-6804077/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">Enklr Task User Guide</h1><p class="help-subtitle">Everything you need to get productive with Enklr Task — pick a section below or use the nav on the left.</p><div class="help-intro help-doc"><p>To keep the examples grounded, this guide follows the same small cast throughout:</p><ul><li><strong>Priya</strong> runs a five-person product team and lives in the board every day.</li><li><strong>Marcus</strong> is a developer on Priya&#39;s team — he mostly just wants to know what&#39;s assigned to him.</li><li><strong>Elena</strong> is the Org Admin — she doesn&#39;t touch individual tasks much, but she&#39;s accountable for who has access to what, and for reporting upward on how the whole portfolio is doing.</li></ul><p>You&#39;ll see them pop up wherever a feature makes more sense with a face attached to it.</p><p>This guide is organised the same way the app&#39;s own menus are, so if you&#39;re staring at a button and wondering what it does, you can jump straight to the matching section rather than reading front to back. It will keep growing as new features ship — treat each section as a self-contained chapter, because eventually that&#39;s exactly what they&#39;ll become on a proper help site.</p><hr></div><div class="help-card-grid"><a class="help-card" href="01-getting-started.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/2646531/pexels-photo-2646531.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">1. Getting started</div><div class="help-card-desc">Before any feature makes sense, it helps to know that Enklr Task isn&amp;#39;t one fixed thing — it&amp;#39;s the same app running at three different level…</div></div></a><a class="help-card" href="02-the-board.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/7118790/pexels-photo-7118790.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">2. The Board</div><div class="help-card-desc">What it is: a column-based task board — columns represent stages of work (say, To Do → In Progress → Review → Done), and cards represent individual…</div></div></a><a class="help-card" href="03-anatomy-of-a-task.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/33266834/pexels-photo-33266834.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">3. Anatomy of a Task</div><div class="help-card-desc">A task is where almost every other feature in this guide eventually connects back to. It&amp;#39;s worth knowing the full shape of one even if you only…</div></div></a><a class="help-card" href="04-seeing-your-work-differently.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/5273652/pexels-photo-5273652.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">4. Seeing your work differently</div><div class="help-card-desc">The board is the default lens, but it&amp;#39;s rarely the only useful one. Every view below is reading the same underlying tasks — switching views nev…</div></div></a><a class="help-card" href="05-tools.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/7423708/pexels-photo-7423708.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">5. Tools</div><div class="help-card-desc"></div></div></a><a class="help-card" href="06-governance-and-knowledge.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/30565116/pexels-photo-30565116.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">6. Governance &amp; knowledge</div><div class="help-card-desc">Five registers live alongside the board, each capturing a different kind of project knowledge that doesn&amp;#39;t fit neatly into a task card. They al…</div></div></a><a class="help-card" href="07-search-and-the-advanced-query-workbench.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/2882652/pexels-photo-2882652.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">7. Search and the Advanced Query workbench</div><div class="help-card-desc"></div></div></a><a class="help-card" href="08-collaboration.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/5257005/pexels-photo-5257005.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">8. Collaboration</div><div class="help-card-desc">What it is: an org-wide chat — channels for group conversations, direct messages for one-on-one, @mentions that ping the right person, emoji reacti…</div></div></a><a class="help-card" href="09-portfolio-and-organisation-management.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/8123882/pexels-photo-8123882.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">9. Portfolio &amp; organisation management</div><div class="help-card-desc">Everything in this section only appears once your organisation is on Option B or C, and most of it only appears for an Org Admin — this is Elena&amp;#3…</div></div></a><a class="help-card" href="10-making-it-yours.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/7563673/pexels-photo-7563673.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">10. Making it yours</div><div class="help-card-desc"></div></div></a><a class="help-card" href="11-data-backup-and-moving-between-tiers.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/7370679/pexels-photo-7370679.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">11. Data, backup, and moving between tiers</div><div class="help-card-desc"></div></div></a><a class="help-card" href="12-reports-and-exporting.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/7948073/pexels-photo-7948073.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">12. Reports and exporting</div><div class="help-card-desc"></div></div></a><a class="help-card" href="13-roles-and-permissions-in-plain-terms.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/16411587/pexels-photo-16411587.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">13. Roles and permissions, in plain terms</div><div class="help-card-desc">Three levels, from least to most access — and worth knowing that the server always enforces these independently, so nothing in the interface is a &amp;…</div></div></a><a class="help-card" href="14-quick-reference-index.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/1370294/pexels-photo-1370294.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">14. Quick reference index</div><div class="help-card-desc"></div></div></a><a class="help-card" href="15-appendix-feature-access-at-a-glance.html"><div class="help-card-image" style="background-image:url('https://images.pexels.com/photos/37717005/pexels-photo-37717005.jpeg?auto=compress&cs=tinysrgb&h=350');"></div><div class="help-card-body"><div class="help-card-title">15. Appendix: feature access at a glance</div><div class="help-card-desc">Every feature above, in one table, cross-referenced against Section 13&amp;#39;s three roles and against which of Section 1&amp;#39;s options it needs. Two…</div></div></a></div></div></div></body></html>

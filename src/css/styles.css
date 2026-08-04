@@ -6417,14 +6417,13 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 12px;
   }
-  /* Fixed card height (not just grid-row stretch, which would still vary row-to-row depending on
-     content) — every card is the same height regardless of post length, with the body itself
-     scrolling internally once its own content overflows the space left after the header/title/
-     feedback rows. */
+  /* height: 100% — CSS Grid stretches every item to its row's height by default, and with no fixed
+     grid-auto-rows that row height is the tallest card's own natural (content) height, so every card
+     in the row matches the tallest one rather than each scrolling independently at a fixed height. */
   .kf-portal-top-article-card {
     display: flex;
     flex-direction: column;
-    height: 320px;
+    height: 100%;
     background: var(--kf-surface);
     box-shadow: var(--kf-shadow);
     border: 1px solid var(--kf-border);
@@ -6450,8 +6449,6 @@
   }
   .kf-portal-top-article-body {
     flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
     font-size: 11.5px;
     color: var(--kf-text-faint);
     padding: 4px 12px 0;
@@ -6682,11 +6679,12 @@
     width: 760px;
   }
 
-  /* 20% wider than the shared .kf-modal-md (540px), at the user's explicit request — same
-     "widen just for this modal" precedent as #teamOverlay/#apiEndpointsOverlay/#orgUsersOverlay
-     above, just for readability of the justified blurb text rather than a row-layout squeeze. */
+  /* Narrower than the original 648px widen — now that .kf-about-links wraps its 4 buttons into a
+     2x2 grid instead of one row (see below), the modal no longer needs the extra width the row
+     squeeze required. Kept slightly over the shared .kf-modal-md (540px) for the justified blurb
+     text's own readability, per the original widen's other stated reason. */
   #aboutOverlay .kf-modal {
-    width: 648px;
+    width: 560px;
   }
 
   .kf-opening-experience-body {
@@ -10205,10 +10203,16 @@
     text-align: right;
   }
 
+  /* 2x2 grid (was a single flex row) — keeps the 4 buttons readable without forcing the modal wide
+     enough to fit all of them on one line, see #aboutOverlay .kf-modal's own narrower width. */
   .kf-about-links {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
     margin-bottom: 18px;
+  }
+  .kf-about-links .kf-btn {
+    justify-content: center;
   }
 
   .kf-about-company-placeholder {

@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>1. Getting started — Enklr Task User Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — User Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html">Overview</a><div class="help-nav-title">Sections</div><a href="01-getting-started.html" class="active">1. Getting started</a><a href="02-the-board.html">2. The Board</a><a href="03-anatomy-of-a-task.html">3. Anatomy of a Task</a><a href="04-seeing-your-work-differently.html">4. Seeing your work differently</a><a href="05-tools.html">5. Tools</a><a href="06-governance-and-knowledge.html">6. Governance &amp; knowledge</a><a href="07-search-and-the-advanced-query-workbench.html">7. Search and the Advanced Query workbench</a><a href="08-collaboration.html">8. Collaboration</a><a href="09-portfolio-and-organisation-management.html">9. Portfolio &amp; organisation management</a><a href="10-making-it-yours.html">10. Making it yours</a><a href="11-data-backup-and-moving-between-tiers.html">11. Data, backup, and moving between tiers</a><a href="12-reports-and-exporting.html">12. Reports and exporting</a><a href="13-roles-and-permissions-in-plain-terms.html">13. Roles and permissions, in plain terms</a><a href="14-quick-reference-index.html">14. Quick reference index</a><a href="15-appendix-feature-access-at-a-glance.html">15. Appendix: feature access at a glance</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/2646531/pexels-photo-2646531.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Getting started"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@ann-h-45017" target="_blank" rel="noopener">Ann H</a> on <a href="https://www.pexels.com/photo/start-written-on-asphalt-2646531/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">1. Getting started</h1><p class="help-subtitle">where does Enklr Task actually live?</p><div class="help-mini-toc"><div class="help-mini-toc-title">In this section</div><ul><li><a href="#option-a-on-your-own-device-nothing-installed">Option A — On your own device, nothing installed</a></li><li><a href="#option-b-self-hosted-for-your-organisation">Option B — Self-hosted for your organisation</a></li><li><a href="#option-c-a-hosted-instance-ready-to-use">Option C — A hosted instance, ready to use</a></li></ul></div><div class="help-doc"><p>Before any feature makes sense, it helps to know that Enklr Task isn&#39;t one fixed thing — it&#39;s the same app running at three different levels of commitment. You don&#39;t have to pick the &quot;right&quot; one on day one; you can start at the shallow end and walk in deeper later without losing any work.</p><h3 id="option-a-on-your-own-device-nothing-installed">Option A — On your own device, nothing installed</h3><p><strong>What it is</strong>: open <code>index.html</code> in a browser — even by double-clicking the file with no internet connection — and the whole app runs. Every task, column, and setting is saved straight into your browser&#39;s local storage. Nothing leaves your machine.</p><p><strong>Who it&#39;s for</strong>: Sam, a freelancer who wants to plan a single project this afternoon and doesn&#39;t want to create an account for it. Also the right choice for anyone kicking the tyres before recommending Enklr Task to a team.</p><p><strong>How</strong>: just open the app. A short &quot;what&#39;s your name?&quot; prompt appears the very first time (so your seed project has a real first member instead of a placeholder), and after that you&#39;re straight into a working board with example data already on it. There&#39;s no login screen at this level — &quot;logged out&quot; <em>is</em> the normal state.</p><h3 id="option-b-self-hosted-for-your-organisation">Option B — Self-hosted for your organisation</h3><p><strong>What it is</strong>: the same frontend, now talking to a real backend your organisation runs — most commonly through Docker, on your own servers or cloud account. Once connected, projects become &quot;server-authoritative&quot;: real accounts, real roles, live updates when a colleague changes something, and org-wide features like Chat and the Portfolio Dashboard switch on.</p><p><strong>Who it&#39;s for</strong>: Elena&#39;s organisation, once they&#39;ve outgrown solo sandboxes and need shared, auditable, multi-person project data — with full control over where that data physically lives.</p><p><strong>How</strong>: from an existing local project, open the account menu and choose <strong>Migrate to Server</strong> (only shown once a server is actually reachable). This converts your local project into a server-hosted one in place — nothing is thrown away. The very first person to migrate a project into a brand-new organisation automatically becomes that organisation&#39;s Org Admin.</p><h3 id="option-c-a-hosted-instance-ready-to-use">Option C — A hosted instance, ready to use</h3><p><strong>What it is</strong>: the same self-hosted backend from Option B, except someone else runs the infrastructure and your organisation simply signs in — no server to provision, no Docker to learn. Each organisation&#39;s data stays walled off from every other organisation on the same instance, the same isolation guarantee as Option B, just without the operational overhead.</p><p><strong>Who it&#39;s for</strong>: teams that want everything Option B offers — real accounts, live updates, portfolio reporting — without taking on hosting themselves.</p><p><strong>How</strong>: your administrator gives you a URL and, if you&#39;re the first person in, you&#39;ll go through the same &quot;Migrate to Server&quot; or sign-up flow described above. Everything from Section 2 onward behaves identically regardless of which of these three options you&#39;re on — the only thing that changes is <em>where the data lives</em> and <em>who else can see it</em>.</p><hr></div><div class="help-pager"><span></span><a href="02-the-board.html"><span class="help-pager-label">Next ›</span>The Board</a></div></div></div></body></html>

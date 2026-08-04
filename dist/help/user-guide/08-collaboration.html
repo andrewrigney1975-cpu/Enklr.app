@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>8. Collaboration — Enklr Task User Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — User Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html">Overview</a><div class="help-nav-title">Sections</div><a href="01-getting-started.html">1. Getting started</a><a href="02-the-board.html">2. The Board</a><a href="03-anatomy-of-a-task.html">3. Anatomy of a Task</a><a href="04-seeing-your-work-differently.html">4. Seeing your work differently</a><a href="05-tools.html">5. Tools</a><a href="06-governance-and-knowledge.html">6. Governance &amp; knowledge</a><a href="07-search-and-the-advanced-query-workbench.html">7. Search and the Advanced Query workbench</a><a href="08-collaboration.html" class="active">8. Collaboration</a><a href="09-portfolio-and-organisation-management.html">9. Portfolio &amp; organisation management</a><a href="10-making-it-yours.html">10. Making it yours</a><a href="11-data-backup-and-moving-between-tiers.html">11. Data, backup, and moving between tiers</a><a href="12-reports-and-exporting.html">12. Reports and exporting</a><a href="13-roles-and-permissions-in-plain-terms.html">13. Roles and permissions, in plain terms</a><a href="14-quick-reference-index.html">14. Quick reference index</a><a href="15-appendix-feature-access-at-a-glance.html">15. Appendix: feature access at a glance</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/5257005/pexels-photo-5257005.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Collaboration"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@thirdman" target="_blank" rel="noopener">Thirdman</a> on <a href="https://www.pexels.com/photo/people-working-together-5257005/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">8. Collaboration</h1><p class="help-subtitle">Chat and comments</p><div class="help-doc"><p><strong>What it is</strong>: an org-wide chat — channels for group conversations, direct messages for one-on-one, <code>@mentions</code> that ping the right person, emoji reactions, and its own light send/receive sound so you notice a new message without staring at the tab. There&#39;s also a genuine full-screen mode for anyone who wants chat to feel less like a bolted-on sidebar and more like its own workspace.</p><p><strong>Who it&#39;s for</strong>: this only exists once you&#39;re on Option B or C from Section 1 — a fully local, never-migrated project has no concept of &quot;colleagues&quot; to chat with, so Chat simply isn&#39;t present at that level. For everyone else, it&#39;s the difference between &quot;leaving a comment and hoping someone checks the task&quot; and an actual real-time conversation.</p><p><strong>How it fits with Task Comments</strong>: comments (Section 3) are the permanent, task-scoped record — the paper trail attached to one specific piece of work. Chat is the live, cross-project conversation layer. Use comments for anything future-you (or a teammate six months from now) needs to find attached to the task itself; use chat for the back-and-forth that doesn&#39;t need to live forever on any one task.</p><p><strong>A small but genuinely useful detail</strong>: description text and comments both understand <code>#hashtags</code> — write <code>#launch</code> into a few related tasks and that hashtag becomes a live, clickable thread tying them together, all without anyone having created a formal &quot;tag&quot; entity anywhere.</p><p><strong>Whiteboard</strong> — <strong>What</strong>: an org-wide, real-time shared drawing surface — anyone can start one from the Whiteboard item in the side navigation (Tools section), no setup or feature toggle required. Starting one gives you a 6-digit code and a shareable link; anyone else in your organisation who enters that code (or opens the link) lands straight in the same board and sees your cursor moving, and everyone else&#39;s, live, as well as everything anyone draws the instant they draw it. <strong>Who</strong>: Priya, sketching a quick flow with a teammate on a call instead of describing it in words; Marcus, walking through a diagram live with someone in another office. <strong>How</strong>: pick a tool from the toolbar along the top — pen (choose a width and any of 16 colours), eraser, text box, five basic shapes (rectangle, circle, oval, triangle, diamond — hold the circle tool and it stays a true circle no matter how you drag), and a connector line for pointing one thing at another. <strong>Hold Shift while drawing a connector</strong> to turn a diagonal drag into a clean right-angle line (a rounded elbow bend, same look as the Dependency Map&#39;s connectors) instead of a straight diagonal — handy for pointing at something without the line cutting across unrelated parts of the sketch; a connector already drawn perfectly horizontal or vertical is unaffected either way. <strong>Hold Alt (Option on a Mac) instead</strong> to draw the connector as a single smooth curve rather than a straight or right-angled line — useful for a softer-looking pointer line, and unlike Shift it curves the connector no matter which direction you drag it in. Down the left side: <strong>Copy Link</strong> (puts a shareable join link on your clipboard), <strong>Save</strong>, and <strong>Exit</strong>. <strong>Save vs. Exit matters</strong>: a whiteboard is scratch space until someone actually clicks Save — closing it beforehand (only the person who started it can close it for everyone; anyone else can just leave) discards it for good, and you&#39;ll get an explicit warning first if there&#39;s anything undrawn-over on it. Click Save any time you want to keep it. Once you&#39;re done, <strong>Export As...</strong> in the toolbar saves the whole board as a real SVG file you can drop into a doc or a design tool. <strong>Who can use it</strong>: like Chat, this only exists once you&#39;re on Option B or C from Section 1 — it&#39;s an organisation-wide feature, so a fully local, never-migrated project has no one to share a board with.</p><p><strong>AI Assistant</strong> — <strong>What</strong>: a second floating bubble, next to Chat&#39;s, that opens a conversation with an AI that can actually act on this project — create tasks, edit them, look things up, and answer &quot;what should I work on next&quot; or &quot;how do I...&quot; questions (it knows this User Guide). <strong>Who</strong>: Priya, turning &quot;I need to log five tasks for this sprint&quot; into one sentence instead of five separate forms; Marcus, asking &quot;what&#39;s my most critical task&quot; instead of scanning the board himself. <strong>How</strong>: click the sparkle bubble, then just talk to it — mention a task by its key (<code>ENKLR-42</code>) or enough of its title to be unambiguous, and it&#39;ll ask a quick clarifying question rather than guessing if something&#39;s unclear. A microphone button is there too, on browsers that support voice input.</p><ul><li><strong>Breaking a task down into sub-tasks</strong>: ask it to draft sub-tasks out of an existing task&#39;s own description — e.g. &quot;look at ENKLR-42 and create a sub-task for each item in its description.&quot; Each new sub-task is linked back to that task as its parent (the same Parent/Sub-Task relationship from <a href="#3-anatomy-of-a-task" target="_blank" rel="noopener noreferrer">Section 3</a>) and inherits the parent&#39;s assignee, release, business value, and task cost wherever the parent has them set — so a whole breakdown lands on the board already staffed and costed the same way as the work it came from, not as a set of blank, unowned tasks. If the parent belongs to a Release, its new sub-tasks are also spread evenly across that Release&#39;s own dates (three sub-tasks under a ten-day release each get roughly a third of it); with no Release to schedule against, they default to an even split of a two-week window starting today. Naming specific dates for a sub-task while asking always wins over this automatic scheduling. You can also ask it to link an <em>already-existing</em> task under a parent — that one leaves the task&#39;s own dates alone, since it isn&#39;t a fresh sub-task being scheduled for the first time.</li><li><strong>Standing up a whole new project</strong> (Org Admins only): from any project&#39;s assistant, ask it to create a new one — e.g. &quot;start a new project for our Q3 website redesign.&quot; If you haven&#39;t described what it&#39;s for yet, it&#39;ll ask; it uses that description to draft a handful of relevant starter tasks itself, on top of a fixed setup checklist it always adds (double-check the board&#39;s columns, review App Settings for any extended modules this project should have on, confirm the team member list is current). Name an existing project template and it&#39;ll build from that instead of the plain default columns; leave the project key unspecified and it&#39;ll derive a short one from the name itself rather than asking, unless it collides with one you already have. If you haven&#39;t mentioned start/end dates, it asks for them rather than guessing. Once it&#39;s done, a &quot;Switch to it&quot; button appears right in the chat to take you straight there.</li><li><strong>Who can use it</strong>: only on a server-connected project (Option B or C from Section 1) — a fully local project has no server-side conversation to have. Availability also depends on your organisation&#39;s own plan; if the sparkle bubble isn&#39;t there, it isn&#39;t enabled for your organisation.</li></ul><hr></div><div class="help-pager"><a href="07-search-and-the-advanced-query-workbench.html"><span class="help-pager-label">‹ Previous</span>Search and the Advanced Query workbench</a><a href="09-portfolio-and-organisation-management.html"><span class="help-pager-label">Next ›</span>Portfolio &amp; organisation management</a></div></div></div></body></html>

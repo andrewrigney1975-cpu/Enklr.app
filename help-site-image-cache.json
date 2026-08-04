@@ -1,0 +1,247 @@
+{
+  "user-guide::Getting started": {
+    "large": "https://images.pexels.com/photos/2646531/pexels-photo-2646531.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/2646531/pexels-photo-2646531.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Ann H",
+    "photographerUrl": "https://www.pexels.com/@ann-h-45017",
+    "pexelsUrl": "https://www.pexels.com/photo/start-written-on-asphalt-2646531/"
+  },
+  "user-guide::The Board": {
+    "large": "https://images.pexels.com/photos/7118790/pexels-photo-7118790.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/7118790/pexels-photo-7118790.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "cottonbro studio",
+    "photographerUrl": "https://www.pexels.com/@cottonbro",
+    "pexelsUrl": "https://www.pexels.com/photo/overhead-shot-of-a-boy-in-denim-shorts-sitting-on-a-red-penny-board-7118790/"
+  },
+  "user-guide::Anatomy of a Task": {
+    "large": "https://images.pexels.com/photos/33266834/pexels-photo-33266834.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/33266834/pexels-photo-33266834.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Jakub Zerdzicki",
+    "photographerUrl": "https://www.pexels.com/@jakubzerdzicki",
+    "pexelsUrl": "https://www.pexels.com/photo/digital-checklist-on-tablet-with-stylus-33266834/"
+  },
+  "user-guide::Seeing your work differently": {
+    "large": "https://images.pexels.com/photos/5273652/pexels-photo-5273652.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/5273652/pexels-photo-5273652.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Monstera Production",
+    "photographerUrl": "https://www.pexels.com/@gabby-k",
+    "pexelsUrl": "https://www.pexels.com/photo/multiracial-coworkers-with-papers-in-office-5273652/"
+  },
+  "user-guide::Tools": {
+    "large": "https://images.pexels.com/photos/7423708/pexels-photo-7423708.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/7423708/pexels-photo-7423708.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Karen Laårk Boshoff",
+    "photographerUrl": "https://www.pexels.com/@laarkstudio",
+    "pexelsUrl": "https://www.pexels.com/photo/part-of-machine-in-workshop-7423708/"
+  },
+  "user-guide::Governance & knowledge": {
+    "large": "https://images.pexels.com/photos/30565116/pexels-photo-30565116.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/30565116/pexels-photo-30565116.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Laszlo Magyar",
+    "photographerUrl": "https://www.pexels.com/@laczadesign",
+    "pexelsUrl": "https://www.pexels.com/photo/library-of-congress-reading-room-in-washington-30565116/"
+  },
+  "user-guide::Search and the Advanced Query workbench": {
+    "large": "https://images.pexels.com/photos/2882652/pexels-photo-2882652.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/2882652/pexels-photo-2882652.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Miguel Á. Padriñán",
+    "photographerUrl": "https://www.pexels.com/@padrinan",
+    "pexelsUrl": "https://www.pexels.com/photo/close-up-shot-of-keys-on-a-red-surface-2882652/"
+  },
+  "user-guide::Collaboration": {
+    "large": "https://images.pexels.com/photos/5257005/pexels-photo-5257005.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/5257005/pexels-photo-5257005.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Thirdman",
+    "photographerUrl": "https://www.pexels.com/@thirdman",
+    "pexelsUrl": "https://www.pexels.com/photo/people-working-together-5257005/"
+  },
+  "user-guide::Portfolio & organisation management": {
+    "large": "https://images.pexels.com/photos/8123882/pexels-photo-8123882.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/8123882/pexels-photo-8123882.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "RDNE Stock project",
+    "photographerUrl": "https://www.pexels.com/@rdne",
+    "pexelsUrl": "https://www.pexels.com/photo/a-person-holding-black-pen-and-white-paper-8123882/"
+  },
+  "user-guide::Making it yours": {
+    "large": "https://images.pexels.com/photos/7563673/pexels-photo-7563673.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/7563673/pexels-photo-7563673.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "RDNE Stock project",
+    "photographerUrl": "https://www.pexels.com/@rdne",
+    "pexelsUrl": "https://www.pexels.com/photo/black-and-white-cardboard-7563673/"
+  },
+  "user-guide::Data, backup, and moving between tiers": {
+    "large": "https://images.pexels.com/photos/7370679/pexels-photo-7370679.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/7370679/pexels-photo-7370679.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Antonio Moreno Nadal",
+    "photographerUrl": "https://www.pexels.com/@amaliadigital",
+    "pexelsUrl": "https://www.pexels.com/photo/close-up-of-a-computer-drive-7370679/"
+  },
+  "user-guide::Reports and exporting": {
+    "large": "https://images.pexels.com/photos/7948073/pexels-photo-7948073.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/7948073/pexels-photo-7948073.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "RDNE Stock project",
+    "photographerUrl": "https://www.pexels.com/@rdne",
+    "pexelsUrl": "https://www.pexels.com/photo/black-smartphone-on-white-paper-7948073/"
+  },
+  "user-guide::Roles and permissions, in plain terms": {
+    "large": "https://images.pexels.com/photos/16411587/pexels-photo-16411587.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/16411587/pexels-photo-16411587.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Vlado Paunovic",
+    "photographerUrl": "https://www.pexels.com/@vlado-paunovic-1567547",
+    "pexelsUrl": "https://www.pexels.com/photo/crew-only-text-on-board-behind-ladder-16411587/"
+  },
+  "user-guide::Quick reference index": {
+    "large": "https://images.pexels.com/photos/1370294/pexels-photo-1370294.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/1370294/pexels-photo-1370294.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Element5 Digital",
+    "photographerUrl": "https://www.pexels.com/@element5",
+    "pexelsUrl": "https://www.pexels.com/photo/gray-steel-file-cabinet-1370294/"
+  },
+  "user-guide::Appendix: feature access at a glance": {
+    "large": "https://images.pexels.com/photos/37717005/pexels-photo-37717005.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/37717005/pexels-photo-37717005.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "panumas nikhomkhai",
+    "photographerUrl": "https://www.pexels.com/@cookiecutter",
+    "pexelsUrl": "https://www.pexels.com/photo/close-up-of-key-in-modern-locking-mechanism-37717005/"
+  },
+  "user-guide::hero": {
+    "large": "https://images.pexels.com/photos/6804077/pexels-photo-6804077.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/6804077/pexels-photo-6804077.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "cottonbro studio",
+    "photographerUrl": "https://www.pexels.com/@cottonbro",
+    "pexelsUrl": "https://www.pexels.com/photo/manager-considering-project-strategy-by-the-task-board-6804077/"
+  },
+  "system-integrator-guide::System overview and integration surface": {
+    "large": "https://images.pexels.com/photos/6842695/pexels-photo-6842695.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/6842695/pexels-photo-6842695.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Alexandra Krainyukhova",
+    "photographerUrl": "https://www.pexels.com/@alexakrain",
+    "pexelsUrl": "https://www.pexels.com/photo/close-up-of-microcircuit-6842695/"
+  },
+  "system-integrator-guide::Deployment models": {
+    "large": "https://images.pexels.com/photos/35630637/pexels-photo-35630637.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/35630637/pexels-photo-35630637.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Blackcurrant Great",
+    "photographerUrl": "https://www.pexels.com/@blackcurrant-great-2016663774",
+    "pexelsUrl": "https://www.pexels.com/photo/modern-architectural-model-in-focus-35630637/"
+  },
+  "system-integrator-guide::Backend tier selection": {
+    "large": "https://images.pexels.com/photos/2881228/pexels-photo-2881228.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/2881228/pexels-photo-2881228.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Brett Sayles",
+    "photographerUrl": "https://www.pexels.com/@brett-sayles",
+    "pexelsUrl": "https://www.pexels.com/photo/close-up-photo-of-ethernet-port-2881228/"
+  },
+  "system-integrator-guide::Identity and access management overview": {
+    "large": "https://images.pexels.com/photos/13657375/pexels-photo-13657375.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/13657375/pexels-photo-13657375.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Susanne Plank",
+    "photographerUrl": "https://www.pexels.com/@susanne-plank-318815465",
+    "pexelsUrl": "https://www.pexels.com/photo/close-up-of-man-holding-access-card-over-reader-13657375/"
+  },
+  "system-integrator-guide::Single Sign-On via SAML 2.0": {
+    "large": "https://images.pexels.com/photos/13092433/pexels-photo-13092433.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/13092433/pexels-photo-13092433.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Image Hunter",
+    "photographerUrl": "https://www.pexels.com/@image-hunter-281453274",
+    "pexelsUrl": "https://www.pexels.com/photo/arrow-signs-on-concrete-walls-13092433/"
+  },
+  "system-integrator-guide::Automated provisioning via SCIM 2.0": {
+    "large": "https://images.pexels.com/photos/36423820/pexels-photo-36423820.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/36423820/pexels-photo-36423820.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Keegan Checks",
+    "photographerUrl": "https://www.pexels.com/@keeganjchecks",
+    "pexelsUrl": "https://www.pexels.com/photo/industrial-glass-factory-interior-machinery-36423820/"
+  },
+  "system-integrator-guide::Authentication tokens and session security": {
+    "large": "https://images.pexels.com/photos/30901563/pexels-photo-30901563.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/30901563/pexels-photo-30901563.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Markus Winkler",
+    "photographerUrl": "https://www.pexels.com/@markus-winkler-1430818",
+    "pexelsUrl": "https://www.pexels.com/photo/scrabble-tiles-spelling-token-on-wooden-surface-30901563/"
+  },
+  "system-integrator-guide::Network security architecture": {
+    "large": "https://images.pexels.com/photos/17323801/pexels-photo-17323801.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/17323801/pexels-photo-17323801.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "panumas nikhomkhai",
+    "photographerUrl": "https://www.pexels.com/@cookiecutter",
+    "pexelsUrl": "https://www.pexels.com/photo/network-rack-17323801/"
+  },
+  "system-integrator-guide::Database accounts and data protection": {
+    "large": "https://images.pexels.com/photos/19825057/pexels-photo-19825057.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/19825057/pexels-photo-19825057.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Jakub Zerdzicki",
+    "photographerUrl": "https://www.pexels.com/@jakubzerdzicki",
+    "pexelsUrl": "https://www.pexels.com/photo/close-up-of-a-data-hub-diskstation-19825057/"
+  },
+  "system-integrator-guide::Web application protections": {
+    "large": "https://images.pexels.com/photos/5125366/pexels-photo-5125366.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/5125366/pexels-photo-5125366.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Leonid Altman",
+    "photographerUrl": "https://www.pexels.com/@altman",
+    "pexelsUrl": "https://www.pexels.com/photo/web-coding-programming-development-5125366/"
+  },
+  "system-integrator-guide::Certificates and TLS": {
+    "large": "https://images.pexels.com/photos/8112198/pexels-photo-8112198.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/8112198/pexels-photo-8112198.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Pavel Danilyuk",
+    "photographerUrl": "https://www.pexels.com/@pavel-danilyuk",
+    "pexelsUrl": "https://www.pexels.com/photo/a-certificate-and-lady-justice-figurine-on-table-8112198/"
+  },
+  "system-integrator-guide::Case study: idealised containerised AWS deployment": {
+    "large": "https://images.pexels.com/photos/29652161/pexels-photo-29652161.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/29652161/pexels-photo-29652161.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Jan van der Wolf",
+    "photographerUrl": "https://www.pexels.com/@jan-van-der-wolf-11680885",
+    "pexelsUrl": "https://www.pexels.com/photo/vivid-shipping-containers-against-blue-sky-29652161/"
+  },
+  "system-integrator-guide::Logging, monitoring, and incident response hooks": {
+    "large": "https://images.pexels.com/photos/30901558/pexels-photo-30901558.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/30901558/pexels-photo-30901558.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Markus Winkler",
+    "photographerUrl": "https://www.pexels.com/@markus-winkler-1430818",
+    "pexelsUrl": "https://www.pexels.com/photo/data-breach-concept-with-scrabble-tiles-30901558/"
+  },
+  "system-integrator-guide::Backup, recovery, and business continuity": {
+    "large": "https://images.pexels.com/photos/28729682/pexels-photo-28729682.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/28729682/pexels-photo-28729682.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Jakub Zerdzicki",
+    "photographerUrl": "https://www.pexels.com/@jakubzerdzicki",
+    "pexelsUrl": "https://www.pexels.com/photo/modern-office-desk-with-laptop-and-external-drives-28729682/"
+  },
+  "system-integrator-guide::Integration checklist (pre-go-live)": {
+    "large": "https://images.pexels.com/photos/27745609/pexels-photo-27745609.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/27745609/pexels-photo-27745609.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Jakub Zerdzicki",
+    "photographerUrl": "https://www.pexels.com/@jakubzerdzicki",
+    "pexelsUrl": "https://www.pexels.com/photo/graphic-tablet-checklist-performing-project-tasks-27745609/"
+  },
+  "system-integrator-guide::Glossary": {
+    "large": "https://images.pexels.com/photos/12009574/pexels-photo-12009574.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/12009574/pexels-photo-12009574.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Melike  B",
+    "photographerUrl": "https://www.pexels.com/@mlkbnl",
+    "pexelsUrl": "https://www.pexels.com/photo/a-black-framed-eyeglasses-on-book-page-12009574/"
+  },
+  "system-integrator-guide::References": {
+    "large": "https://images.pexels.com/photos/3622341/pexels-photo-3622341.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/3622341/pexels-photo-3622341.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Telstarboy",
+    "photographerUrl": "https://www.pexels.com/@telstarboy",
+    "pexelsUrl": "https://www.pexels.com/photo/close-up-photography-of-books-on-wooden-table-3622341/"
+  },
+  "system-integrator-guide::Appendix: bulk data import (Import Centre)": {
+    "large": "https://images.pexels.com/photos/14020705/pexels-photo-14020705.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/14020705/pexels-photo-14020705.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "Bilal  Ahmed",
+    "photographerUrl": "https://www.pexels.com/@bilal-ahmed-297238753",
+    "pexelsUrl": "https://www.pexels.com/photo/cargo-containers-in-harbor-14020705/"
+  },
+  "system-integrator-guide::hero": {
+    "large": "https://images.pexels.com/photos/37730212/pexels-photo-37730212.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "medium": "https://images.pexels.com/photos/37730212/pexels-photo-37730212.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "photographer": "panumas nikhomkhai",
+    "photographerUrl": "https://www.pexels.com/@cookiecutter",
+    "pexelsUrl": "https://www.pexels.com/photo/data-center-server-racks-with-active-equipment-37730212/"
+  }
+}

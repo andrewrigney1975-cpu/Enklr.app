@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>14. Quick reference index — Enklr Task User Guide</title><style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --border:#dfe1e6; --text:#172b4d; --text-faint:#5e6c84;
+  --accent:#0052cc; --accent-fg:#ffffff; --shadow:0 1px 3px rgba(9,30,66,0.15), 0 0 1px rgba(9,30,66,0.2);
+  --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --text-faint:#8b949e;
+    --accent:#4c9aff; --accent-fg:#0d1117; --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--accent);}
+.help-topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:10;
+}
+.help-topbar-brand{font-weight:800; font-size:15px; text-decoration:none; color:var(--text);}
+.help-topbar-brand span{font-weight:200;}
+.help-topbar-back{font-size:13px; text-decoration:none; color:var(--text-faint);}
+.help-shell{
+  max-width:1180px; margin:0 auto; padding:28px 24px 64px;
+  display:grid; grid-template-columns:250px 1fr; gap:36px; align-items:start;
+}
+.help-nav{
+  position:sticky; top:70px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; box-shadow:var(--shadow);
+}
+.help-nav-title{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); padding:6px 10px;}
+.help-nav a{
+  display:block; padding:7px 10px; border-radius:6px; font-size:13.5px; color:var(--text);
+  text-decoration:none;
+}
+.help-nav a:hover{background:var(--bg);}
+.help-nav a.active{background:var(--accent); color:var(--accent-fg); font-weight:600;}
+.help-content{min-width:0;}
+.help-hero{
+  width:100%; aspect-ratio:16/6; border-radius:var(--radius); background-size:cover; background-position:center;
+  margin-bottom:16px; box-shadow:var(--shadow);
+}
+.help-hero-credit{font-size:11px; color:var(--text-faint); margin:-10px 0 18px;}
+.help-hero-credit a{color:inherit;}
+h1.help-title{font-size:26px; margin:0 0 4px;}
+.help-subtitle{color:var(--text-faint); font-size:15px; margin:0 0 20px;}
+.help-mini-toc{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:22px; font-size:13px;
+}
+.help-mini-toc-title{font-weight:700; margin-bottom:6px;}
+.help-mini-toc ul{margin:0; padding-left:18px;}
+.help-doc h2{font-size:20px; margin-top:32px;}
+.help-doc h3{font-size:16.5px; margin-top:24px;}
+.help-doc p, .help-doc li{font-size:14.5px;}
+.help-doc table{border-collapse:collapse; width:100%; margin:14px 0; font-size:13.5px;}
+.help-doc th, .help-doc td{border:1px solid var(--border); padding:7px 10px; text-align:left;}
+.help-doc th{background:var(--bg);}
+.help-doc pre{background:var(--bg); padding:12px; border-radius:6px; overflow-x:auto;}
+.help-doc code{background:var(--bg); padding:1px 5px; border-radius:4px;}
+.help-doc blockquote{border-left:3px solid var(--border); margin:0; padding:2px 16px; color:var(--text-faint);}
+.help-pager{display:flex; justify-content:space-between; margin-top:40px; gap:12px;}
+.help-pager a{
+  flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px;
+  text-decoration:none; color:var(--text); background:var(--surface); font-size:13.5px;
+}
+.help-pager a:last-child{text-align:right;}
+.help-pager-label{display:block; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.help-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+.help-card{
+  display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; text-decoration:none; color:var(--text); box-shadow:var(--shadow);
+}
+.help-card-image{height:120px; background-size:cover; background-position:center;}
+.help-card-body{padding:14px 16px;}
+.help-card-title{font-weight:700; font-size:14.5px; margin-bottom:4px;}
+.help-card-desc{font-size:12.5px; color:var(--text-faint); line-height:1.45;}
+.help-intro{font-size:15px; color:var(--text-faint); max-width:760px; margin-bottom:24px;}
+@media (max-width:860px){
+  .help-shell{grid-template-columns:1fr;}
+  .help-nav{position:static;}
+  .help-card-grid{grid-template-columns:1fr;}
+}
+</style></head><body><div class="help-topbar"><a class="help-topbar-brand" href="index.html">Enkl<span>r</span> Task — User Guide</a><a class="help-topbar-back" href="/">‹ Back to the app</a></div><div class="help-shell"><nav class="help-nav"><a href="index.html">Overview</a><div class="help-nav-title">Sections</div><a href="01-getting-started.html">1. Getting started</a><a href="02-the-board.html">2. The Board</a><a href="03-anatomy-of-a-task.html">3. Anatomy of a Task</a><a href="04-seeing-your-work-differently.html">4. Seeing your work differently</a><a href="05-tools.html">5. Tools</a><a href="06-governance-and-knowledge.html">6. Governance &amp; knowledge</a><a href="07-search-and-the-advanced-query-workbench.html">7. Search and the Advanced Query workbench</a><a href="08-collaboration.html">8. Collaboration</a><a href="09-portfolio-and-organisation-management.html">9. Portfolio &amp; organisation management</a><a href="10-making-it-yours.html">10. Making it yours</a><a href="11-data-backup-and-moving-between-tiers.html">11. Data, backup, and moving between tiers</a><a href="12-reports-and-exporting.html">12. Reports and exporting</a><a href="13-roles-and-permissions-in-plain-terms.html">13. Roles and permissions, in plain terms</a><a href="14-quick-reference-index.html" class="active">14. Quick reference index</a><a href="15-appendix-feature-access-at-a-glance.html">15. Appendix: feature access at a glance</a></nav><div class="help-content"><div class="help-hero" style="background-image:url('https://images.pexels.com/photos/1370294/pexels-photo-1370294.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940');" role="img" aria-label="Quick reference index"></div><p class="help-hero-credit">Photo by <a href="https://www.pexels.com/@element5" target="_blank" rel="noopener">Element5 Digital</a> on <a href="https://www.pexels.com/photo/gray-steel-file-cabinet-1370294/" target="_blank" rel="noopener">Pexels</a></p><h1 class="help-title">14. Quick reference index</h1><div class="help-doc"><table><thead><tr><th>I want to…</th><th>Go to</th></tr></thead><tbody><tr><td>Start using Enklr Task with zero setup</td><td><a href="#1-getting-started--where-does-enklr-task-actually-live" target="_blank" rel="noopener noreferrer">Section 1, Option A</a></td></tr><tr><td>Move a solo project onto a real server</td><td><a href="#1-getting-started--where-does-enklr-task-actually-live" target="_blank" rel="noopener noreferrer">Section 1, Option B</a></td></tr><tr><td>See only my own tasks</td><td><a href="#2-the-board--your-home-base" target="_blank" rel="noopener noreferrer">Section 2 — filtering</a></td></tr><tr><td>Keep a task&#39;s contents secret, even from admins</td><td><a href="#3-anatomy-of-a-task" target="_blank" rel="noopener noreferrer">Section 3 — Privacy</a></td></tr><tr><td>Figure out what to work on next</td><td><a href="#4-seeing-your-work-differently--the-views" target="_blank" rel="noopener noreferrer">Section 4 — Cost/Benefit Chart</a></td></tr><tr><td>Understand what&#39;s blocking a task</td><td><a href="#4-seeing-your-work-differently--the-views" target="_blank" rel="noopener noreferrer">Section 4 — Dependency Map</a></td></tr><tr><td>Change ten tasks at once</td><td><a href="#5-tools--everyday-utilities" target="_blank" rel="noopener noreferrer">Section 5 — Bulk Edit</a></td></tr><tr><td>Stop a task moving to Done too early</td><td><a href="#5-tools--everyday-utilities" target="_blank" rel="noopener noreferrer">Section 5 — Workflow</a></td></tr><tr><td>Set up a form with a required approval process</td><td><a href="#5-tools--everyday-utilities" target="_blank" rel="noopener noreferrer">Section 5 — Forms &amp; Workflow</a></td></tr><tr><td>Get notified the moment my submission is approved or rejected</td><td><a href="#5-tools--everyday-utilities" target="_blank" rel="noopener noreferrer">Section 5 — Forms &amp; Workflow</a></td></tr><tr><td>Give people outside the board a governed way to raise a request</td><td><a href="#5-tools--everyday-utilities" target="_blank" rel="noopener noreferrer">Section 5 — Organisational Portals</a></td></tr><tr><td>Build a self-serve Q&amp;A knowledge base for a request-raising portal</td><td><a href="#5-tools--everyday-utilities" target="_blank" rel="noopener noreferrer">Section 5 — Organisational Portals</a></td></tr><tr><td>Track the status of a request I submitted, without board access</td><td><a href="#5-tools--everyday-utilities" target="_blank" rel="noopener noreferrer">Section 5 — Organisational Portals</a></td></tr><tr><td>Draft a changelog from what actually shipped</td><td><a href="#5-tools--everyday-utilities" target="_blank" rel="noopener noreferrer">Section 5 — Release Notes Packager</a></td></tr><tr><td>Keep a running log of project risk</td><td><a href="#6-governance--knowledge--the-why-not-just-the-what" target="_blank" rel="noopener noreferrer">Section 6 — Risks</a></td></tr><tr><td>Run a proper end-of-release retro</td><td><a href="#6-governance--knowledge--the-why-not-just-the-what" target="_blank" rel="noopener noreferrer">Section 6 — Retrospectives</a></td></tr><tr><td>Ask a genuinely custom question of my project data</td><td><a href="#7-search-and-the-advanced-query-workbench" target="_blank" rel="noopener noreferrer">Section 7 — Advanced Query</a></td></tr><tr><td>Build a reporting screen from my own Saved Queries</td><td><a href="#7-search-and-the-advanced-query-workbench" target="_blank" rel="noopener noreferrer">Section 7 — Dashboards</a></td></tr><tr><td>See every Dashboard across the whole organisation</td><td><a href="#7-search-and-the-advanced-query-workbench" target="_blank" rel="noopener noreferrer">Section 7 — Dashboards</a></td></tr><tr><td>Talk to a teammate in real time</td><td><a href="#8-collaboration--chat-and-comments" target="_blank" rel="noopener noreferrer">Section 8 — Chat</a></td></tr><tr><td>Sketch a diagram live with a teammate, in real time</td><td><a href="#8-collaboration--chat-and-comments" target="_blank" rel="noopener noreferrer">Section 8 — Whiteboard</a></td></tr><tr><td>Share a whiteboard with a 6-digit code or a link</td><td><a href="#8-collaboration--chat-and-comments" target="_blank" rel="noopener noreferrer">Section 8 — Whiteboard</a></td></tr><tr><td>Create tasks (or break one into sub-tasks) by just asking</td><td><a href="#8-collaboration--chat-and-comments" target="_blank" rel="noopener noreferrer">Section 8 — AI Assistant</a></td></tr><tr><td>Stand up a whole new project by just asking (Org Admins)</td><td><a href="#8-collaboration--chat-and-comments" target="_blank" rel="noopener noreferrer">Section 8 — AI Assistant</a></td></tr><tr><td>See a permanent, live view of what&#39;s actually blocked right now</td><td><a href="#2-the-board--your-home-base" target="_blank" rel="noopener noreferrer">Section 2 — A &quot;Blocked&quot; column</a></td></tr><tr><td>See how the whole organisation&#39;s projects are doing</td><td><a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9 — Portfolio Dashboard</a></td></tr><tr><td>Add a new person to the organisation</td><td><a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9 — Manage Users</a></td></tr><tr><td>Offboard someone who&#39;s leaving</td><td><a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9 — Manage Users</a></td></tr><tr><td>Reset a forgotten or compromised password</td><td><a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9 — Manage Users</a></td></tr><tr><td>Bulk-load users/team members/teams from a spreadsheet</td><td><a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9 — Import Centre</a></td></tr><tr><td>Stop rebuilding the same board layout every time</td><td><a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9 — Manage Templates</a></td></tr><tr><td>Tell the whole organisation something</td><td><a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9 — Announcements</a></td></tr><tr><td>Warn everyone about planned maintenance or an outage</td><td><a href="#9-portfolio--organisation-management" target="_blank" rel="noopener noreferrer">Section 9 — Announcements</a></td></tr><tr><td>See how much a project actually advances the organisation&#39;s Strategy</td><td><a href="#6-governance--knowledge--the-why-not-just-the-what" target="_blank" rel="noopener noreferrer">Section 6 — Strategy</a></td></tr><tr><td>Turn on an optional module like Retrospectives or Strategy</td><td><a href="#6-governance--knowledge--the-why-not-just-the-what" target="_blank" rel="noopener noreferrer">Section 6 — Strategy</a></td></tr><tr><td>Print a one-page active-vs-planned Strategy summary</td><td><a href="#12-reports-and-exporting" target="_blank" rel="noopener noreferrer">Section 12 — Strategy on a Page</a></td></tr><tr><td>Change how the board looks for just me</td><td><a href="#10-making-it-yours--personalisation" target="_blank" rel="noopener noreferrer">Section 10 — My Preferences</a></td></tr><tr><td>Make sure I don&#39;t lose my local-only work</td><td><a href="#11-data-backup-and-moving-between-tiers" target="_blank" rel="noopener noreferrer">Section 11 — Export Project</a></td></tr><tr><td>See a personal feed of my recent activity/mentions/tasks</td><td><a href="#11-data-backup-and-moving-between-tiers" target="_blank" rel="noopener noreferrer">Section 11 — Despatches button</a></td></tr><tr><td>Hand a stakeholder a document, not a login</td><td><a href="#12-reports-and-exporting" target="_blank" rel="noopener noreferrer">Section 12 — Reports</a></td></tr><tr><td>Understand what an Org Admin can do that I can&#39;t</td><td><a href="#13-roles-and-permissions-in-plain-terms" target="_blank" rel="noopener noreferrer">Section 13</a></td></tr><tr><td>Check exactly who can access a specific feature, at a glance</td><td><a href="#15-appendix-feature-access-at-a-glance" target="_blank" rel="noopener noreferrer">Section 15 — Appendix</a></td></tr></tbody></table><hr></div><div class="help-pager"><a href="13-roles-and-permissions-in-plain-terms.html"><span class="help-pager-label">‹ Previous</span>Roles and permissions, in plain terms</a><a href="15-appendix-feature-access-at-a-glance.html"><span class="help-pager-label">Next ›</span>Appendix: feature access at a glance</a></div></div></div></body></html>
