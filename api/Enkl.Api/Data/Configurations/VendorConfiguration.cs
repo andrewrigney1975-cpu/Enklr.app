@@ -39,7 +39,15 @@ public class VendorIntegrationConfiguration : IEntityTypeConfiguration<VendorInt
     public void Configure(EntityTypeBuilder<VendorIntegration> b)
     {
         b.HasKey(i => i.Id);
-        b.Property(i => i.ApiKey).HasMaxLength(200).IsRequired();
+        // text, not a fixed varchar length — exact match to OrganisationApiKeyConfiguration's own
+        // KeyHash column, same bcrypt-hash-only shape. No unique index on this column — unlike a
+        // plain secret value, a bcrypt hash is never looked up by exact value; verification is
+        // always "try PasswordHasher.Verify against known candidate rows" (see
+        // Auth/ApiKeyAuthFilter.cs), same as the org-wide key's own check.
+        b.Property(i => i.ApiKeyHash).HasColumnType("text");
+        // Explicit HasDefaultValue — EF Core doesn't read a property initializer as a SQL column
+        // default (see api/Enkl.Api/CLAUDE.md's documented gotcha).
+        b.Property(i => i.IsActive).HasDefaultValue(true);
 
         // Cascade — an integration has no meaning without its owning Vendor, same containment
         // reasoning as Vendor.Organisation above.
@@ -49,11 +57,5 @@ public class VendorIntegrationConfiguration : IEntityTypeConfiguration<VendorInt
             .OnDelete(DeleteBehavior.Cascade);
 
         b.HasIndex(i => i.VendorId);
-        // Globally unique, not scoped to Vendor — an ApiKey is a bearer secret meant to be looked up
-        // directly (WHERE ApiKey = ...) once real auth is built on top of this, same "secret token,
-        // not a human-facing short code" shape as a session token, NOT the composite-scoped-key
-        // pattern Task.Key/Document.Key etc use (see SOLUTION_ARCHITECTURE.md's indexing section for
-        // why those two cases are treated differently).
-        b.HasIndex(i => i.ApiKey).IsUnique();
     }
 }

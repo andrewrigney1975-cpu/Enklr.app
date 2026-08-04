@@ -134,6 +134,7 @@
             <a href="#" class="kf-header-more-link kf-vis-hidden" id="manageUsersLink">Manage Users</a>
             <a href="#" class="kf-header-more-link kf-vis-hidden" id="ssoConfigLink">SSO &amp; Provisioning</a>
             <a href="#" class="kf-header-more-link kf-vis-hidden" id="announcementsAdminLink">Announcements</a>
+            <a href="#" class="kf-header-more-link kf-vis-hidden" id="manageVendorsLink">Manage Vendors</a>
             <div class="kf-header-more-divider" id="accountMenuDivider2"></div>
             <a href="#" class="kf-header-more-link kf-vis-hidden" data-nav-target="serverLogoutBtn">Logout</a>
           </div>
@@ -715,6 +716,57 @@
     </div>
     <div class="kf-modal-footer">
       <button class="kf-btn kf-btn-secondary" id="announcementsAdminDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="kf-overlay hidden" id="vendorsAdminOverlay">
+  <div class="kf-modal kf-modal-lg" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Manage Vendors</h2>
+      <button class="kf-btn kf-btn-ghost" id="vendorsAdminClose"><span class="kf-icon" data-icon="close" data-size="18"></span></button>
+    </div>
+    <div class="kf-modal-body">
+      <div class="kf-field">
+        <label for="vendorAdminNameInput">Name</label>
+        <input type="text" id="vendorAdminNameInput" maxlength="200" placeholder="Vendor name" autocomplete="off">
+      </div>
+      <div class="kf-field">
+        <div class="kf-orguser-new-row">
+          <div>
+            <label for="vendorAdminContactInput">Primary contact person</label>
+            <input type="text" id="vendorAdminContactInput" maxlength="200" autocomplete="off">
+          </div>
+          <div>
+            <label for="vendorAdminEmailInput">Contact email</label>
+            <input type="text" id="vendorAdminEmailInput" maxlength="320" autocomplete="off">
+          </div>
+        </div>
+      </div>
+      <div class="kf-field">
+        <div class="kf-orguser-new-row">
+          <div>
+            <label for="vendorAdminUrlInput">Contact URL</label>
+            <input type="text" id="vendorAdminUrlInput" maxlength="500" autocomplete="off" placeholder="https://...">
+          </div>
+          <div>
+            <label for="vendorAdminTaxNumberInput">Tax number</label>
+            <input type="text" id="vendorAdminTaxNumberInput" maxlength="50" autocomplete="off">
+          </div>
+        </div>
+      </div>
+      <div class="kf-field" id="vendorAdminActiveField" style="display:none;">
+        <label class="kf-sso-checkbox-label"><input type="checkbox" id="vendorAdminActiveInput"> Active</label>
+      </div>
+      <input type="hidden" id="vendorAdminEditingId" value="">
+      <div style="display:flex;gap:8px;">
+        <button class="kf-btn kf-btn-primary" id="vendorAdminSaveBtn"><span class="kf-icon" data-icon="plus" data-size="14"></span>Add vendor</button>
+        <button class="kf-btn kf-btn-secondary hidden" id="vendorAdminCancelEditBtn">Cancel edit</button>
+      </div>
+      <div id="vendorsAdminList" class="kf-member-list" style="margin-top:16px;"></div>
+    </div>
+    <div class="kf-modal-footer">
+      <button class="kf-btn kf-btn-secondary" id="vendorsAdminDoneBtn">Done</button>
     </div>
   </div>
 </div>

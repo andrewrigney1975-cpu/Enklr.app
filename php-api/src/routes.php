@@ -38,6 +38,7 @@ use Enkl\Api\Controllers\ProjectFormsController;
 use Enkl\Api\Controllers\ProjectStrategyController;
 use Enkl\Api\Controllers\PublicQueryController;
 use Enkl\Api\Controllers\ReleasesController;
+use Enkl\Api\Controllers\VendorController;
 use Enkl\Api\Controllers\RetrospectivesController;
 use Enkl\Api\Controllers\RisksController;
 use Enkl\Api\Controllers\SavedQueriesController;
@@ -212,6 +213,17 @@ function registerRoutes(App $app): void
         $group->post('', [OrganisationAnnouncementsController::class, 'create']);
         $group->put('/{announcementId}', [OrganisationAnnouncementsController::class, 'update']);
         $group->delete('/{announcementId}', [OrganisationAnnouncementsController::class, 'delete']);
+    })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
+
+    // ---- Manage Vendors (OrgAdmin only, CRUD + per-Vendor API key generate/revoke) ----
+    $app->group('/api/organisations/me/vendors', function ($group) {
+        $group->get('', [VendorController::class, 'list']);
+        $group->get('/{vendorId}', [VendorController::class, 'get']);
+        $group->post('', [VendorController::class, 'create']);
+        $group->put('/{vendorId}', [VendorController::class, 'update']);
+        $group->delete('/{vendorId}', [VendorController::class, 'delete']);
+        $group->post('/{vendorId}/api-key', [VendorController::class, 'generateApiKey']);
+        $group->delete('/{vendorId}/api-key', [VendorController::class, 'revokeApiKey']);
     })->add(OrgAdminMiddleware::class)->add(RequireAuthMiddleware::class);
 
     // ---- Public Query API (the app's first public/3rd-party-facing surface — deliberately

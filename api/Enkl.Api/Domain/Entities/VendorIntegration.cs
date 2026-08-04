@@ -1,25 +1,30 @@
 namespace Enkl.Api.Domain.Entities;
 
-/// <summary>One API-key-bearing integration owned by a Vendor — groundwork only, for now: no
-/// controller/service exposes this yet. Deliberately a PLAIN string ApiKey column, not a hash
-/// (contrast OrganisationApiKey.KeyHash's bcrypt-hash-only, shown-once-at-generation pattern) — this
-/// entity exists purely to establish the schema shape ahead of the real "extend API management to
-/// per-vendor API keys" feature described when this was added; whether that feature reuses
-/// OrganisationApiKey's hash-only pattern or needs the raw key persisted (e.g. for outbound calls TO
-/// the vendor, not just inbound calls authenticated BY this key) is an open design question for that
-/// later pass, not decided here.</summary>
+/// <summary>The one API-key-bearing integration owned by a Vendor — backs "Manage Vendors"'
+/// per-Vendor Generate/Revoke API key flow. One active row per Vendor in practice ("rotate-only",
+/// same as OrganisationApiKey): generating a new key reuses/updates this same row rather than
+/// inserting a second one. Same bcrypt-hash-only, shown-once-at-generation pattern as
+/// OrganisationApiKey.KeyHash — the raw key is never persisted, only its hash. A Vendor's key, once
+/// generated and enabled, grants access to ANY published Public Query API endpoint in its
+/// Organisation (see Auth/ApiKeyAuthFilter.cs) — identical scope to the org-wide key, no per-query
+/// fine-grained restriction.</summary>
 public class VendorIntegration
 {
     public Guid Id { get; set; }
     public Guid VendorId { get; set; }
     public Vendor Vendor { get; set; } = null!;
 
-    public string ApiKey { get; set; } = "";
+    /// <summary>bcrypt hash via PasswordHasher, same as OrganisationApiKey.KeyHash — null until a
+    /// key has actually been generated for this Vendor.</summary>
+    public string? ApiKeyHash { get; set; }
 
-    /// <summary>No default specified (unlike Vendor.IsActive) — left as the plain bool zero-value
-    /// (false) until the real feature decides what "freshly created, key not yet issued/activated"
-    /// should mean.</summary>
-    public bool IsActive { get; set; }
+    public DateTime? GeneratedAt { get; set; }
+    public DateTime? LastUsedAt { get; set; }
+
+    /// <summary>Defaults true (confirmed) — semantically "the currently generated key is enabled,"
+    /// same role OrganisationApiKey.Enabled plays. Revoke sets this false (soft-disable, row kept
+    /// for audit) rather than deleting the row.</summary>
+    public bool IsActive { get; set; } = true;
 
     public DateTime DateCreated { get; set; }
     public DateTime DateLastModified { get; set; }
