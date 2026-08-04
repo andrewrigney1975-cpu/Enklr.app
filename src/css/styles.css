@@ -1258,13 +1258,13 @@
      .kf-board-wrap, so it never drifts as the board scrolls horizontally underneath it (an
      absolutely-positioned child of a scrolling container moves WITH that content, which is wrong
      here — the bubble needs to stay pinned to the same visible corner regardless of scroll
-     position). Sits in the same z-index band as .kf-toast-wrap (1100) — below every real modal's
-     backdrop (1000... but modals are also >=1000, so this needs to be BELOW a blocking modal while
-     still above ordinary board content) — see the two rules' actual values below for the reasoning
-     spelled out per-element. No .kf-overlay backdrop anywhere here — the whole point (per the
-     original ask) is that the app stays usable while the panel is open, same "floats above the app,
-     nothing dims/blocks behind it" shape as the widescreen docked task panel's own
-     pointer-events:none overlay trick. */
+     position). Deliberately ABOVE every other z-index tier in this file (modals at 1000, toast/
+     drawer at 1090-1100, chat/AIA's own former fullscreen/pinned tier at 1200) — at the user's
+     explicit request, so Chat/AI Assistant stay reachable even over a full-screen Portal
+     (.kf-modal.kf-modal-full, itself just .kf-overlay's base 1000) or any other open modal. No
+     .kf-overlay backdrop anywhere here — the whole point (per the original ask) is that the app
+     stays usable while the panel is open, same "floats above the app, nothing dims/blocks behind
+     it" shape as the widescreen docked task panel's own pointer-events:none overlay trick. */
   /* Shares --kf-header-bg/--kf-header-fg with .kf-header itself (both read the same custom
      properties, set once on #app by modals/my-preferences.js's applyHeaderColor — see that
      function's own comment on why #app and not .kf-header) so a custom header colour re-themes
@@ -1274,7 +1274,7 @@
     position: fixed;
     bottom: 24px;
     right: 24px;
-    z-index: 900;
+    z-index: 1500;
     width: 56px;
     height: 56px;
     border-radius: 50%;
@@ -1316,7 +1316,7 @@
     position: fixed;
     bottom: 24px;
     right: 24px;
-    z-index: 900;
+    z-index: 1500;
     width: 360px;
     height: 520px;
     max-height: calc(100vh - 48px);
@@ -1364,7 +1364,7 @@
     max-height: 100%;
     border-radius: 0;
     border: none;
-    z-index: 1200;
+    z-index: 1500;
     transition: none;
   }
 
@@ -1502,7 +1502,7 @@
     border-radius: 0;
     border: none;
     border-left: 1px solid var(--kf-border);
-    z-index: 1200;
+    z-index: 1500;
     /* See the identical note on .kf-chat-panel.kf-chat-fullscreen — the base .kf-chat-panel rule's
        `transition: right .2s ease` must not apply here either, or board-layout.js's
        fitBoardForChatPinned() can measure this panel mid-animation and compute a stale header width. */
@@ -1977,7 +1977,7 @@
       max-height: 100%;
       border-radius: 0;
       border: none;
-      z-index: 1200;
+      z-index: 1500;
     }
 
     .kf-chat-bubble {
@@ -2006,7 +2006,7 @@
       max-height: 100%;
       border-radius: 0;
       border: none;
-      z-index: 1200;
+      z-index: 1500;
     }
 
     /* Two-pane full screen doesn't fit a narrow viewport, and mobile already gets its own
