@@ -75,6 +75,49 @@ final class FormSubmissionService
         return $result;
     }
 
+    /** Ported from php-api's own getAuthorableForms (itself ported from FormSubmissionService.cs's
+     * GetAuthorableFormsAsync) — every currently-published Form in the org whose workflow's Author
+     * node the caller's own gates satisfy. AI Assistant's list_available_forms tool's entire
+     * implementation. No dialect divergence — plain SELECT under ANSI_QUOTES.
+     * @return array<int, array{formId: string, name: string, description: ?string}> */
+    public function getAuthorableForms(string $organisationId, string $projectId, string $callerUserId, bool $callerIsOrgAdmin): array
+    {
+        $stmt = $this->db->prepare('SELECT "Id", "Name", "Description", "WorkflowJson" FROM "Forms" WHERE "OrganisationId" = :orgId AND "Status" = \'published\'');
+        $stmt->execute(['orgId' => $organisationId]);
+        $forms = $stmt->fetchAll();
+        if (count($forms) === 0) {
+            return [];
+        }
+
+        $user = $this->resolveActingUser($projectId, $callerUserId, $callerIsOrgAdmin);
+        $result = [];
+        foreach ($forms as $form) {
+            $graph = self::parseWorkflow($form['WorkflowJson']);
+            $start = self::findStart($graph);
+            $firstEdge = $start !== null ? self::outgoingEdge($graph, $start['id']) : null;
+            $authorNode = $firstEdge !== null ? self::findNode($graph, $firstEdge['toNodeId']) : null;
+            if ($authorNode === null || ($authorNode['type'] ?? null) !== 'author') {
+                continue;
+            }
+            if (!self::satisfiesAny($authorNode['authorGates'] ?? [], $user)) {
+                continue;
+            }
+            $result[] = ['formId' => $form['Id'], 'name' => $form['Name'], 'description' => $form['Description']];
+        }
+        usort($result, fn(array $a, array $b) => strcmp($a['name'], $b['name']));
+        return $result;
+    }
+
+    /** Re-resolves a Form to its own currently-published row (org-scoped) — the shared "is this
+     * still the current version" re-check both get_form_fields and submit_form need. */
+    public function getPublishedForm(string $organisationId, string $formId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM "Forms" WHERE "Id" = :id AND "OrganisationId" = :orgId AND "Status" = \'published\'');
+        $stmt->execute(['id' => $formId, 'orgId' => $organisationId]);
+        $row = $stmt->fetch();
+        return $row !== false ? $row : null;
+    }
+
     public function get(string $projectId, string $submissionId): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM "FormSubmissions" WHERE "Id" = :id AND "ProjectId" = :pid');

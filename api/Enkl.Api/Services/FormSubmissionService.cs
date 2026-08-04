@@ -175,6 +175,45 @@ public class FormSubmissionService
         return result.OrderByDescending(r => r.DateLastModified).ToList();
     }
 
+    /// <summary>Every currently-published Form in the org whose workflow's Author node the caller's
+    /// own gates satisfy — the AI Assistant's list_available_forms tool's entire implementation
+    /// (AiAssistantService.cs), reusing this class's own gate-matching primitives directly rather than
+    /// exposing them for a second implementation elsewhere. A misconfigured Form (no Start->Author
+    /// edge, same "not accepting submissions yet" case SubmitAsync itself rejects) is silently
+    /// excluded rather than erroring the whole list — matches this method's own "don't offer what
+    /// can't actually be submitted" contract.</summary>
+    public async Task<List<(Guid FormId, string Name, string? Description)>> GetAuthorableFormsAsync(
+        Guid organisationId, Guid projectId, Guid callerUserId, bool callerIsOrgAdmin)
+    {
+        var forms = await _db.Forms.AsNoTracking()
+            .Where(f => f.OrganisationId == organisationId && f.Status == "published")
+            .ToListAsync();
+        if (forms.Count == 0) return new();
+
+        var user = await ResolveActingUserAsync(projectId, callerUserId, callerIsOrgAdmin);
+        var result = new List<(Guid, string, string?)>();
+        foreach (var form in forms)
+        {
+            var graph = ParseWorkflow(form.WorkflowJson);
+            var start = FindStart(graph);
+            var firstEdge = start is null ? null : OutgoingEdge(graph, start.Id);
+            var authorNode = firstEdge is null ? null : FindNode(graph, firstEdge.ToNodeId);
+            if (authorNode is null || authorNode.Type != "author") continue;
+            if (!SatisfiesAny(authorNode.AuthorGates, user)) continue;
+            result.Add((form.Id, form.Name, form.Description));
+        }
+        return result.OrderBy(r => r.Item2).ToList();
+    }
+
+    /// <summary>Re-resolves a Form to its own currently-published row (org-scoped, so a caller can
+    /// never probe another organisation's Form by guessing its id) — the shared "is this still the
+    /// current version" re-check both get_form_fields and submit_form need, always re-run fresh
+    /// rather than trusting a formId a model may have seen several conversation turns ago (root
+    /// CLAUDE.md §1's "server independently re-derives" principle, applied to a version pointer
+    /// instead of an ownership id).</summary>
+    public Task<Form?> GetPublishedFormAsync(Guid organisationId, Guid formId) =>
+        _db.Forms.AsNoTracking().FirstOrDefaultAsync(f => f.Id == formId && f.OrganisationId == organisationId && f.Status == "published");
+
     /// <summary>Deliberately scoped to the PROJECT only, not the caller's own submissions — any
     /// project member (including an approver reviewing someone else's submission) may view a
     /// submission's answers/trail, same trust level as everything else inside a project's own
