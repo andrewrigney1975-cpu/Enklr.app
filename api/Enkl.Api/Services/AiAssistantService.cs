@@ -70,15 +70,17 @@ public class AiAssistantService
     private readonly AppDbContext _db;
     private readonly TaskService _tasks;
     private readonly ProjectService _projects;
+    private readonly FormSubmissionService _forms;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _config;
     private readonly ILogger<AiAssistantService> _logger;
 
-    public AiAssistantService(AppDbContext db, TaskService tasks, ProjectService projects, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<AiAssistantService> logger)
+    public AiAssistantService(AppDbContext db, TaskService tasks, ProjectService projects, FormSubmissionService forms, IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<AiAssistantService> logger)
     {
         _db = db;
         _tasks = tasks;
         _projects = projects;
+        _forms = forms;
         _httpClientFactory = httpClientFactory;
         _config = config;
         _logger = logger;
@@ -254,6 +256,9 @@ public class AiAssistantService
                 "list_critical_tasks" => await ListCriticalTasksToolAsync(projectId, input),
                 "search_tasks" => await SearchTasksToolAsync(projectId, input),
                 "create_project" => await CreateProjectToolAsync(orgId, callerUserId, callerIsOrgAdmin, input),
+                "list_available_forms" => await ListAvailableFormsToolAsync(projectId, orgId, callerUserId, callerIsOrgAdmin),
+                "get_form_fields" => await GetFormFieldsToolAsync(orgId, input),
+                "submit_form" => await SubmitFormToolAsync(projectId, orgId, callerUserId, callerIsOrgAdmin, input),
                 _ => ($"Unknown tool: {toolName}", true, new List<AiAssistantActionDto>())
             };
         }
@@ -664,6 +669,118 @@ public class AiAssistantService
         return ($"Created project {project.Key}: \"{project.Name}\"{warningNote}.{setupNote}{domainNote}", false, actions);
     }
 
+    /// <summary>The set of Forms is org-wide and changes over time (new ones published, old ones
+    /// archived) — deliberately NOT baked into the system prompt (see BuildSystemPrompt's own note),
+    /// queried fresh on every call instead. Delegates entirely to FormSubmissionService.
+    /// GetAuthorableFormsAsync, which already re-derives the caller's own Author-gate satisfaction
+    /// server-side — the model is never even offered a form it can't actually submit.</summary>
+    private async Task<(string, bool, List<AiAssistantActionDto>)> ListAvailableFormsToolAsync(Guid projectId, Guid orgId, Guid callerUserId, bool callerIsOrgAdmin)
+    {
+        var forms = await _forms.GetAuthorableFormsAsync(orgId, projectId, callerUserId, callerIsOrgAdmin);
+        if (forms.Count == 0) return ("There are no Forms currently available for you to submit.", false, NoActions);
+
+        var lines = forms.Select(f => $"formId=\"{f.FormId}\" — \"{f.Name}\"" + (string.IsNullOrWhiteSpace(f.Description) ? "" : $": {f.Description}"));
+        return ("Available forms:\n" + string.Join("\n", lines), false, NoActions);
+    }
+
+    /// <summary>Re-resolves formId to its currently-published version EVERY call (never trusts an
+    /// earlier list_available_forms result — a different version may have been published since), then
+    /// describes every field's id/type/required-ness/options AND the exact value shape submit_form
+    /// expects for that field, so the model can construct a correct "answers" object rather than
+    /// guessing. Field ids (not labels) are what submit_form's own answers keys must be.</summary>
+    private async Task<(string, bool, List<AiAssistantActionDto>)> GetFormFieldsToolAsync(Guid orgId, JsonObject input)
+    {
+        if (!Guid.TryParse(input["formId"]?.GetValue<string>(), out var formId))
+            return ("A valid formId is required — call list_available_forms first to get one.", true, NoActions);
+
+        var form = await _forms.GetPublishedFormAsync(orgId, formId);
+        if (form is null) return ("That form is no longer available (it may have been unpublished or archived) — call list_available_forms again.", true, NoActions);
+
+        var (ok, error, fields) = FormAnswerValidator.DescribeFields(form.FieldsJson);
+        if (!ok) return (error!, true, NoActions);
+        if (fields.Count == 0) return ($"\"{form.Name}\" (v{form.VersionNumber}) has no fields defined — you can submit it with submit_form using an empty answers object.", false, NoActions);
+
+        var lines = fields.Select(f =>
+        {
+            var req = f.Required ? ", required" : ", optional";
+            var shape = FieldValueShapeDescription(f);
+            var optionsNote = f.Options is { Count: > 0 }
+                ? " Options: " + string.Join(", ", f.Options.Select(o => $"id=\"{o.Id}\" (\"{o.Label}\")"))
+                : "";
+            var help = string.IsNullOrWhiteSpace(f.HelpText) ? "" : $" ({f.HelpText})";
+            return $"- id=\"{f.Id}\" \"{f.Label}\"{help} — type {f.Type}{req}. {shape}{optionsNote}";
+        });
+
+        return ($"\"{form.Name}\" (v{form.VersionNumber}) fields — use these exact ids as the keys of submit_form's \"answers\" object:\n" + string.Join("\n", lines), false, NoActions);
+    }
+
+    /// <summary>Plain-English instruction for exactly what JSON shape submit_form's "answers" value
+    /// must be for this field — mirrors features/form-answers.js's own documented AnswersJson storage
+    /// shape (its module doc comment is the source of truth this and FormAnswerValidator were both
+    /// written against) so the model constructs something FormAnswerValidator will actually accept
+    /// first try, rather than discovering the right shape through a validation-error round trip.</summary>
+    private static string FieldValueShapeDescription(FormAnswerValidator.FieldSummary f) => f.Type switch
+    {
+        "text" or "textarea" => "Answer with a plain string.",
+        "numeric" => "Answer with a number.",
+        "datetime" => "Answer with an ISO date string, e.g. \"2026-08-04\".",
+        "select" or "priority" when f.Multiple => "Answer with an array of one or more option ids.",
+        "select" or "priority" => "Answer with exactly one option id (a plain string).",
+        "checkboxGroup" when f.Mutex => "Answer with an array containing at most one option id.",
+        "checkboxGroup" => "Answer with an array of the selected option ids.",
+        "radio" when f.GroupMode == "single" => "This is a yes/no field — answer true or false.",
+        "radio" when f.GroupMode == "multiGroup" => "Answer with an array of the selected option ids.",
+        "radio" => "Answer with exactly one option id (a plain string).",
+        _ => "Answer with the value as given."
+    };
+
+    /// <summary>Validates the model-constructed "answers" object against the form's CURRENT published
+    /// version (re-resolved here too, in case it changed since a get_form_fields call earlier in the
+    /// same conversation), then reuses FormSubmissionService.CreateAsync (Draft + answers) followed
+    /// immediately by SubmitAsync — deliberately NOT reimplementing the Author-gate check here even
+    /// though list_available_forms already pre-filtered for it: SubmitAsync's own independent
+    /// re-derivation is the actual security boundary (root CLAUDE.md §1's "server independently
+    /// re-derives" principle), same defense-in-depth every other cross-role check in this codebase
+    /// gets. If the workflow raised a Task on the way through, surfaces it as an ordinary task_created
+    /// action (same type/shape create_task's own action already uses) so the frontend's existing
+    /// board-refresh hook picks it up with no new frontend code needed.</summary>
+    private async Task<(string, bool, List<AiAssistantActionDto>)> SubmitFormToolAsync(Guid projectId, Guid orgId, Guid callerUserId, bool callerIsOrgAdmin, JsonObject input)
+    {
+        if (!Guid.TryParse(input["formId"]?.GetValue<string>(), out var formId))
+            return ("A valid formId is required — call list_available_forms first to get one.", true, NoActions);
+
+        var form = await _forms.GetPublishedFormAsync(orgId, formId);
+        if (form is null) return ("That form is no longer available (it may have been unpublished or archived) — call list_available_forms again.", true, NoActions);
+
+        var answers = input["answers"] as JsonObject ?? new JsonObject();
+        var (validated, validationError, answersJson) = FormAnswerValidator.Validate(form.FieldsJson, answers);
+        if (!validated) return ($"Could not submit \"{form.Name}\": {validationError}", true, NoActions);
+
+        var draft = await _forms.CreateAsync(projectId, callerUserId, new CreateFormSubmissionRequest(form.Id, answersJson));
+        if (draft is null) return ("Could not start this submission — the form may no longer be published.", true, NoActions);
+
+        var (ok, submitError, dto) = await _forms.SubmitAsync(projectId, callerUserId, callerIsOrgAdmin, draft.Id);
+        if (!ok)
+        {
+            var message = submitError == "not_found" ? "Could not find the submission that was just created." : submitError;
+            return ($"Could not submit \"{form.Name}\": {message}", true, NoActions);
+        }
+
+        var actions = new List<AiAssistantActionDto>();
+        var taskNote = "";
+        if (dto!.RaisedTaskId is { } raisedTaskId)
+        {
+            var raisedTask = await _db.Tasks.AsNoTracking().FirstOrDefaultAsync(t => t.Id == raisedTaskId);
+            if (raisedTask is not null)
+            {
+                actions.Add(new AiAssistantActionDto("task_created", raisedTask.Id, raisedTask.Key, raisedTask.Title));
+                taskNote = $" This raised task {raisedTask.Key}: \"{raisedTask.Title}\".";
+            }
+        }
+
+        return ($"Submitted \"{form.Name}\" — status is now \"{dto.Status}\".{taskNote}", false, actions);
+    }
+
     /// <summary>Fixed checklist added to every AI-created project (unless includeSetupTasks: false) —
     /// covers the same "did you actually mean to keep the defaults" review the app's own New Project
     /// flow leaves entirely manual today. The dates item is only added when the caller didn't already
@@ -859,6 +976,15 @@ public class AiAssistantService
                 $"derived from the project name automatically. Existing keys in this org (avoid suggesting a duplicate): {keyList}.");
             sb.AppendLine("- If the user hasn't mentioned a start or end date, ask for them before calling create_project rather than guessing.");
         }
+        sb.AppendLine();
+        sb.AppendLine("The organisation may also have Enterprise Forms the user can submit (e.g. an expense claim, an access " +
+            "request). You do NOT know in advance which forms exist or what fields they have — never guess a form name or a " +
+            "field's shape. When the user wants to submit/fill out a form: call list_available_forms to see what's actually " +
+            "available to them right now, then get_form_fields for the specific one to get its real field ids/types/options " +
+            "and the exact answer shape each field expects. Gather the answers conversationally (ask about missing required " +
+            "fields one or a few at a time, don't demand everything in one message). Before calling submit_form, summarize " +
+            "the answers back to the user in plain language and get an explicit go-ahead — submitting can immediately trigger " +
+            "a real workflow action, so never submit speculatively or without that confirmation.");
         sb.AppendLine("Keep replies short and conversational — this is a chat-style assistant, not a report generator.");
         if (!string.IsNullOrWhiteSpace(alertsSummary))
         {
@@ -1037,6 +1163,38 @@ public class AiAssistantService
                     }
                 },
                 ["required"] = new JsonArray { "name" }
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "list_available_forms",
+            ["description"] = "List the org's currently-published Forms you are personally allowed to submit right now. Call this FIRST whenever the user wants to submit/fill out a form and hasn't already named a specific one you already have the formId for — the set of forms changes over time, so always call this fresh rather than assuming a form from earlier in the conversation still exists or is still the one meant.",
+            ["input_schema"] = new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() }
+        },
+        new JsonObject
+        {
+            ["name"] = "get_form_fields",
+            ["description"] = "Get the exact field list (ids, types, required-ness, valid options) for one Form, by formId (from list_available_forms). ALWAYS call this before submit_form, even if you already saw this form's fields earlier in the conversation — the published version can change between turns, and this always returns the current one.",
+            ["input_schema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject { ["formId"] = new JsonObject { ["type"] = "string", ["description"] = "The formId from list_available_forms." } },
+                ["required"] = new JsonArray { "formId" }
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "submit_form",
+            ["description"] = "Submit a Form with the gathered answers. Before calling this, always summarize the answers you're about to submit back to the user in plain language and get an explicit go-ahead — this can immediately trigger real workflow actions (e.g. raising a task, notifying an approver) and is not something to do speculatively. Each key in \"answers\" must be a real field id from get_form_fields, with a value in exactly the shape that field's own description specifies.",
+            ["input_schema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["formId"] = new JsonObject { ["type"] = "string", ["description"] = "The formId from list_available_forms / get_form_fields." },
+                    ["answers"] = new JsonObject { ["type"] = "object", ["description"] = "Map of field id -> answer value, per get_form_fields' own per-field value-shape instructions." }
+                },
+                ["required"] = new JsonArray { "formId", "answers" }
             }
         }
     };
