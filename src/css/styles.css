@@ -1258,9 +1258,10 @@
      .kf-board-wrap, so it never drifts as the board scrolls horizontally underneath it (an
      absolutely-positioned child of a scrolling container moves WITH that content, which is wrong
      here — the bubble needs to stay pinned to the same visible corner regardless of scroll
-     position). Deliberately ABOVE every other z-index tier in this file (modals at 1000, toast/
-     drawer at 1090-1100, chat/AIA's own former fullscreen/pinned tier at 1200) — at the user's
-     explicit request, so Chat/AI Assistant stay reachable even over a full-screen Portal
+     position). Deliberately ABOVE every other z-index tier in this file except toast (modals at
+     1000, drawer at 1090-1100, chat/AIA's own former fullscreen/pinned tier at 1200; toast is
+     its own topmost tier at 9999) — at the user's explicit request, so Chat/AI Assistant stay
+     reachable even over a full-screen Portal
      (.kf-modal.kf-modal-full, itself just .kf-overlay's base 1000) or any other open modal. No
      .kf-overlay backdrop anywhere here — the whole point (per the original ask) is that the app
      stays usable while the panel is open, same "floats above the app, nothing dims/blocks behind
@@ -9917,7 +9918,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    z-index: 1100;
+    z-index: 9999;
   }
 
   .kf-toast {
