@@ -1317,7 +1317,7 @@
     position: fixed;
     bottom: 24px;
     right: 24px;
-    z-index: 1500;
+    z-index: 1600;
     width: 360px;
     height: 520px;
     max-height: calc(100vh - 48px);
@@ -1392,6 +1392,32 @@
   }
   .kf-ai-assistant-panel.hidden {
     display: none;
+  }
+
+  /* Desktop only (mobile chat goes full-screen via its own media-query rule below and already
+     repositions the AI Assistant bubble/panel differently — see that rule's own comment): while the
+     small floating chat panel (not fullscreen/pinned, which reflow the board itself instead) is
+     open, it now sits above the AI Assistant bubble/panel (z-index 1600 vs 1500) — push the AI
+     Assistant clear of it instead of letting it hide underneath. #chatPanel is the AI Assistant
+     bubble/panel's earlier DOM sibling in index.html, so a plain `~` combinator works with no
+     JS-toggled class needed. 360px-wide panel (right:24) spans out to right:384; 396px clears it
+     with the same 12px breathing room the closed-chat 92px offset already uses. */
+  @media (min-width: 1025px) {
+    #chatPanel:not(.hidden):not(.kf-chat-fullscreen):not(.kf-chat-pinned) ~ .kf-ai-assistant-bubble,
+    #chatPanel:not(.hidden):not(.kf-chat-fullscreen):not(.kf-chat-pinned) ~ .kf-ai-assistant-panel {
+      right: 396px;
+    }
+
+    /* Same clearance, but a docked Task (body.kf-task-panel-docked) has already pushed the chat
+       panel itself out to right:724px (see that rule above), so the panel now spans out to
+       724+360=1084 instead of 24-to-384 — the plain 396px above would sit underneath it. Extra
+       class in the selector beats the rule above on specificity alone (both have the #chatPanel id),
+       so source order here doesn't matter, but it's kept directly after its un-docked counterpart
+       for readability. */
+    body.kf-task-panel-docked #chatPanel:not(.hidden):not(.kf-chat-fullscreen):not(.kf-chat-pinned) ~ .kf-ai-assistant-bubble,
+    body.kf-task-panel-docked #chatPanel:not(.hidden):not(.kf-chat-fullscreen):not(.kf-chat-pinned) ~ .kf-ai-assistant-panel {
+      right: 1096px;
+    }
   }
 
   .kf-ai-assistant-messages {
