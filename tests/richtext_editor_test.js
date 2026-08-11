@@ -166,5 +166,47 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   await wait(600);
   const unlockedEditor = doc.getElementById('taskDescEditor');
   log('decrypted description round-trips through the editor with formatting intact', unlockedEditor.innerHTML === '<p><strong>Confidential</strong> notes</p>', unlockedEditor.innerHTML);
+  doc.getElementById('taskCancelBtn').click();
+  await wait(10);
+
+  // ── 8. "View Source": raw Markdown typed in source view reflects back as formatted content in the
+  //      WYSIWYG view, and Save works directly from source view without switching back first ──
+  doc.querySelectorAll('.kf-add-task-btn')[0].click();
+  await wait(20);
+  doc.getElementById('taskTitleInput').value = 'View source task';
+  const toolbar = doc.getElementById('taskDescToolbar');
+  const sourceBtn = toolbar.querySelector('[data-cmd="source"]');
+  log('toolbar has a View Source button', !!sourceBtn);
+
+  const editorEl = doc.getElementById('taskDescEditor');
+  const sourceEl = editorEl.nextElementSibling;
+  log('a source textarea sits right after the WYSIWYG surface', sourceEl && sourceEl.classList.contains('kf-richtext-source'));
+  log('source textarea starts hidden (editor opens in WYSIWYG mode)', sourceEl.classList.contains('hidden'));
+
+  sourceBtn.click();
+  await wait(10);
+  log('WYSIWYG surface is hidden while in source mode', editorEl.classList.contains('hidden'));
+  log('source textarea is visible while in source mode', !sourceEl.classList.contains('hidden'));
+  log('View Source button reads as active while in source mode', sourceBtn.classList.contains('active'));
+
+  sourceEl.value = '## Typed directly as Markdown\n\nWith **bold** text.';
+  sourceEl.dispatchEvent(new window.Event('input', { bubbles: true }));
+  await wait(5);
+
+  sourceBtn.click(); // back to WYSIWYG
+  await wait(10);
+  log('WYSIWYG view reflects the heading typed in source mode', editorEl.querySelector('h2') && editorEl.querySelector('h2').textContent === 'Typed directly as Markdown', editorEl.innerHTML);
+  log('WYSIWYG view reflects the bold text typed in source mode', editorEl.querySelector('strong') && editorEl.querySelector('strong').textContent === 'bold', editorEl.innerHTML);
+
+  sourceBtn.click(); // into source mode again
+  await wait(10);
+  sourceEl.value = 'Saved directly from source view.';
+  sourceEl.dispatchEvent(new window.Event('input', { bubbles: true }));
+  await wait(5);
+  doc.getElementById('taskSaveBtn').click();
+  await wait(20);
+  stored = getStoredTask('View source task');
+  log('Save works directly from source view, without switching back to WYSIWYG first', stored.description === 'Saved directly from source view.', stored.description);
+
   process.exit(0);
 })().catch(e => { console.error('CRASHED', e); process.exit(1); });

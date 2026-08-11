@@ -7392,6 +7392,48 @@
     margin-bottom: 0;
   }
 
+  /* "View Source" mode (editor.js's toggleSourceMode) — the raw-Markdown <textarea> the factory
+     creates and inserts right after .kf-richtext-editor, and the .hidden toggle for whichever of the
+     two surfaces (WYSIWYG div vs. source textarea) isn't currently shown. No generic .hidden utility
+     exists in this file (see CLAUDE.md) — each needs its own compound selector. Sized/bordered to
+     match .kf-richtext-editor exactly so toggling between the two doesn't visibly jump. */
+  .kf-richtext-source {
+    width: 100%;
+    border: 2px solid var(--kf-border);
+    border-radius: var(--kf-radius);
+    padding: 8px 10px;
+    color: var(--kf-text);
+    background: var(--kf-input-bg);
+    min-height: 140px;
+    max-height: 300px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  .kf-richtext-source:focus {
+    outline: none;
+    border-color: var(--kf-blue);
+    background: var(--kf-input-bg-focus);
+  }
+
+  .kf-richtext-source.hidden {
+    display: none;
+  }
+
+  .kf-richtext-editor.hidden {
+    display: none;
+  }
+
+  /* While source mode is active, every other toolbar button is visually inert (source-only editing
+     has nothing for Bold/H1/Link/etc. to act on) — the "View Source" button itself stays enabled so
+     it can always toggle back. */
+  .kf-richtext-toolbar.kf-richtext-source-active .kf-richtext-btn:not(.kf-richtext-source-btn) {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
   /* Scoped read-only rendering of stored Markdown (e.g. views/task-list.js's row-expand detail
      view) — every nested selector is scoped under this one class so heading/list/blockquote/link
      styling never leaks onto an unrelated <ul>/<ol>/<a> elsewhere in the app. */

@@ -63,13 +63,59 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
   // this is purely a visual-consistency nicety, not a correctness requirement.
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch(e){ /* ignore */ }
 
+  /* "View Source" — a plain <textarea> holding the raw Markdown, created and inserted right after
+     containerEl rather than requiring every one of this factory's ~11 static HTML mount sites to add
+     their own markup (matches this file's own "two-line integration" design goal). Toggled via the
+     toolbar button appended below; getMarkdown()/setMarkdown() both know about sourceMode so every
+     existing caller (Save handlers in 11 different modals) keeps working unmodified whether the user
+     is currently looking at the WYSIWYG view or the source view. */
+  var sourceTextarea = document.createElement('textarea');
+  sourceTextarea.className = 'kf-richtext-source hidden';
+  sourceTextarea.maxLength = maxLength;
+  containerEl.parentNode.insertBefore(sourceTextarea, containerEl.nextSibling);
+  var sourceMode = false;
+
+  function enterSourceMode(){
+    if(sourceMode) return;
+    sourceTextarea.value = htmlToMarkdown(containerEl);
+    sourceMode = true;
+    containerEl.classList.add('hidden');
+    sourceTextarea.classList.remove('hidden');
+    closeHashtagDropdown();
+    sourceTextarea.focus();
+    updateToolbarState();
+  }
+
+  function exitSourceMode(){
+    if(!sourceMode) return;
+    containerEl.innerHTML = markdownToHtml(sourceTextarea.value);
+    lastGoodHtml = containerEl.innerHTML;
+    sourceMode = false;
+    sourceTextarea.classList.add('hidden');
+    containerEl.classList.remove('hidden');
+    updateToolbarState();
+  }
+
+  function toggleSourceMode(){
+    if(sourceMode) exitSourceMode(); else enterSourceMode();
+  }
+
   function setMarkdown(markdown){
+    // A freshly-loaded value (e.g. opening the modal on a different task) always lands in the
+    // WYSIWYG view, regardless of whatever mode was showing before — same defensive-default spirit
+    // as the rest of this app's storage handling.
+    sourceMode = false;
+    sourceTextarea.classList.add('hidden');
+    containerEl.classList.remove('hidden');
     containerEl.innerHTML = markdownToHtml(markdown || '');
     lastGoodHtml = containerEl.innerHTML;
   }
 
   function getMarkdown(){
-    return htmlToMarkdown(containerEl);
+    // Save-from-source-view: if the user clicks Save without switching back to WYSIWYG first, the
+    // textarea's own live value IS the current markdown — reading htmlToMarkdown(containerEl) instead
+    // would silently discard whatever they just typed in source view.
+    return sourceMode ? sourceTextarea.value : htmlToMarkdown(containerEl);
   }
 
   function convertBlock(block, tagName){
@@ -132,6 +178,11 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
   }
 
   function runCommand(cmd){
+    // "source" toggles between the WYSIWYG surface and the raw-Markdown textarea — it never acts on
+    // containerEl's own selection, so it's handled before the generic focus() below (which would
+    // otherwise steal focus back from the textarea on the way into source mode).
+    if(cmd === 'source'){ toggleSourceMode(); return; }
+    if(sourceMode) return; // every other toolbar command is inert while source mode is active (also visually disabled via CSS)
     containerEl.focus();
     if(cmd === 'bold') document.execCommand('bold');
     else if(cmd === 'italic') document.execCommand('italic');
@@ -148,6 +199,8 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
 
   function updateToolbarState(){
     if(!toolbarEl) return;
+    toolbarEl.classList.toggle('kf-richtext-source-active', sourceMode);
+
     var boldActive = false, italicActive = false;
     try {
       boldActive = document.queryCommandState('bold');
@@ -167,7 +220,8 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
         (cmd === 'h1' && blockTag === 'H1') ||
         (cmd === 'h2' && blockTag === 'H2') ||
         (cmd === 'h3' && blockTag === 'H3') ||
-        (cmd === 'quote' && blockTag === 'BLOCKQUOTE');
+        (cmd === 'quote' && blockTag === 'BLOCKQUOTE') ||
+        (cmd === 'source' && sourceMode);
       btn.classList.toggle('active', active);
     });
   }
@@ -355,6 +409,14 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
   }
 
   if(toolbarEl){
+    var sourceBtn = document.createElement('button');
+    sourceBtn.type = 'button';
+    sourceBtn.className = 'kf-btn kf-btn-ghost kf-richtext-btn kf-richtext-source-btn';
+    sourceBtn.setAttribute('data-cmd', 'source');
+    sourceBtn.title = 'View source';
+    sourceBtn.textContent = '</>';
+    toolbarEl.appendChild(sourceBtn);
+
     toolbarEl.addEventListener('mousedown', function(e){
       // Prevent the toolbar button from stealing focus (and therefore the live selection) away from
       // the editable surface before the click handler below gets to run the command against it —
@@ -378,7 +440,7 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
   return {
     getMarkdown: getMarkdown,
     setMarkdown: setMarkdown,
-    focus: function(){ containerEl.focus(); },
+    focus: function(){ (sourceMode ? sourceTextarea : containerEl).focus(); },
     destroy: function(){} // Stub kept for API symmetry - a later Phase 2 modal may need real teardown.
   };
 }
