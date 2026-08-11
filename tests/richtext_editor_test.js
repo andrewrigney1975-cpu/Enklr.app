@@ -170,7 +170,8 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   await wait(10);
 
   // ── 8. "View Source": raw Markdown typed in source view reflects back as formatted content in the
-  //      WYSIWYG view, and Save works directly from source view without switching back first ──
+  //      WYSIWYG view, Save works directly from source view without switching back first, the source
+  //      view is height-matched to the WYSIWYG view, and the gutter tracks line numbers ──
   doc.querySelectorAll('.kf-add-task-btn')[0].click();
   await wait(20);
   doc.getElementById('taskTitleInput').value = 'View source task';
@@ -179,19 +180,25 @@ function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
   log('toolbar has a View Source button', !!sourceBtn);
 
   const editorEl = doc.getElementById('taskDescEditor');
-  const sourceEl = editorEl.nextElementSibling;
-  log('a source textarea sits right after the WYSIWYG surface', sourceEl && sourceEl.classList.contains('kf-richtext-source'));
-  log('source textarea starts hidden (editor opens in WYSIWYG mode)', sourceEl.classList.contains('hidden'));
+  const sourceWrapEl = editorEl.nextElementSibling;
+  const sourceEl = sourceWrapEl ? sourceWrapEl.querySelector('.kf-richtext-source') : null;
+  const gutterEl = sourceWrapEl ? sourceWrapEl.querySelector('.kf-richtext-source-gutter') : null;
+  log('a source view wrapper sits right after the WYSIWYG surface', !!sourceWrapEl && sourceWrapEl.classList.contains('kf-richtext-source-wrap'));
+  log('the source wrapper contains a line-number gutter and a textarea', !!gutterEl && !!sourceEl);
+  log('source view starts hidden (editor opens in WYSIWYG mode)', sourceWrapEl.classList.contains('hidden'));
 
   sourceBtn.click();
   await wait(10);
   log('WYSIWYG surface is hidden while in source mode', editorEl.classList.contains('hidden'));
-  log('source textarea is visible while in source mode', !sourceEl.classList.contains('hidden'));
+  log('source view is visible while in source mode', !sourceWrapEl.classList.contains('hidden'));
   log('View Source button reads as active while in source mode', sourceBtn.classList.contains('active'));
+  log('source view height is set to match the WYSIWYG surface it replaced', sourceWrapEl.style.height === editorEl.offsetHeight + 'px', sourceWrapEl.style.height);
+  log('gutter shows "1" for a single (empty) line', gutterEl.textContent === '1', JSON.stringify(gutterEl.textContent));
 
-  sourceEl.value = '## Typed directly as Markdown\n\nWith **bold** text.';
+  sourceEl.value = '## Typed directly as Markdown\n\nWith **bold** text.\nA fourth line.';
   sourceEl.dispatchEvent(new window.Event('input', { bubbles: true }));
   await wait(5);
+  log('gutter line numbers track the textarea\'s line count as it\'s edited', gutterEl.textContent === '1\n2\n3\n4', JSON.stringify(gutterEl.textContent));
 
   sourceBtn.click(); // back to WYSIWYG
   await wait(10);

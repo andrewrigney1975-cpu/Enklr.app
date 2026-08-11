@@ -7392,34 +7392,69 @@
     margin-bottom: 0;
   }
 
-  /* "View Source" mode (editor.js's toggleSourceMode) — the raw-Markdown <textarea> the factory
-     creates and inserts right after .kf-richtext-editor, and the .hidden toggle for whichever of the
-     two surfaces (WYSIWYG div vs. source textarea) isn't currently shown. No generic .hidden utility
-     exists in this file (see CLAUDE.md) — each needs its own compound selector. Sized/bordered to
-     match .kf-richtext-editor exactly so toggling between the two doesn't visibly jump. */
-  .kf-richtext-source {
+  /* "View Source" mode (editor.js's toggleSourceMode) — sourceWrapEl is a gutter (line numbers) +
+     textarea pair the factory creates and inserts right after .kf-richtext-editor, height set inline
+     (JS) to match whatever height the WYSIWYG view was showing at the moment of switching. No generic
+     .hidden utility exists in this file (see CLAUDE.md) — each needs its own compound selector. */
+  .kf-richtext-source-wrap {
+    display: flex;
     width: 100%;
     border: 2px solid var(--kf-border);
     border-radius: var(--kf-radius);
-    padding: 8px 10px;
-    color: var(--kf-text);
     background: var(--kf-input-bg);
-    min-height: 140px;
-    max-height: 300px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12.5px;
-    line-height: 1.5;
-    resize: vertical;
+    overflow: hidden;
   }
 
-  .kf-richtext-source:focus {
-    outline: none;
+  .kf-richtext-source-wrap:focus-within {
     border-color: var(--kf-blue);
     background: var(--kf-input-bg-focus);
   }
 
-  .kf-richtext-source.hidden {
+  .kf-richtext-source-wrap.hidden {
     display: none;
+  }
+
+  /* Line-number column — kept in lockstep with the textarea's content (editor.js's
+     updateSourceGutter) and scroll position (syncSourceGutterScroll). Not independently scrollable
+     by the user (overflow: hidden, no scrollbar of its own) — its scrollTop is only ever driven
+     programmatically from the textarea's own 'scroll' event. */
+  .kf-richtext-source-gutter {
+    flex: 0 0 auto;
+    background: var(--kf-surface);
+    border-right: 1px solid var(--kf-border);
+    padding: 8px 8px 8px 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--kf-text-faint);
+    text-align: right;
+    white-space: pre;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* Scoped under .kf-richtext-source-wrap (not just .kf-field textarea's own ancestor .kf-field) so
+     this beats .kf-field textarea's border/resize/min-height on specificity (0,2,0) vs. (0,1,1) —
+     .kf-richtext-source alone loses that fight since a bare class selector is only (0,1,0), which is
+     exactly what left a second, wrong-looking 2px border showing around the textarea inside the
+     already-bordered .kf-richtext-source-wrap. */
+  .kf-richtext-source-wrap .kf-richtext-source {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    outline: none;
+    padding: 8px 10px;
+    color: var(--kf-text);
+    background: transparent;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+    min-height: 0;
+    /* wrap="off" (set in editor.js) keeps every logical line to exactly one visual row so it stays
+       aligned with the gutter's one-number-per-line — long lines scroll horizontally instead. */
+    white-space: pre;
+    overflow: auto;
+    resize: none;
   }
 
   .kf-richtext-editor.hidden {

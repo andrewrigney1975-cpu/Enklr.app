@@ -63,26 +63,61 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
   // this is purely a visual-consistency nicety, not a correctness requirement.
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch(e){ /* ignore */ }
 
-  /* "View Source" — a plain <textarea> holding the raw Markdown, created and inserted right after
-     containerEl rather than requiring every one of this factory's ~11 static HTML mount sites to add
-     their own markup (matches this file's own "two-line integration" design goal). Toggled via the
-     toolbar button appended below; getMarkdown()/setMarkdown() both know about sourceMode so every
-     existing caller (Save handlers in 11 different modals) keeps working unmodified whether the user
-     is currently looking at the WYSIWYG view or the source view. */
+  /* "View Source" — a line-numbered raw-Markdown editor (a gutter <div> + a <textarea>, wrapped
+     together in sourceWrapEl), created and inserted right after containerEl rather than requiring
+     every one of this factory's ~11 static HTML mount sites to add their own markup (matches this
+     file's own "two-line integration" design goal). Toggled via the toolbar button appended below;
+     getMarkdown()/setMarkdown() both know about sourceMode so every existing caller (Save handlers in
+     11 different modals) keeps working unmodified whether the user is currently looking at the
+     WYSIWYG view or the source view.
+
+     The gutter is a second element kept in lockstep with the textarea, not a browser feature — plain
+     <textarea>s have no line-number support. Wrapping is disabled (wrap="off" + CSS white-space:pre)
+     so every logical line is exactly one visual row; without that, a long wrapped line would occupy
+     multiple visual rows while the gutter still only printed one number for it, throwing the two out
+     of alignment. Scroll position is synced from the textarea (the only one the user actually
+     scrolls) onto the gutter on every 'scroll' event — the gutter's own overflow stays hidden (no
+     scrollbar of its own) but assigning its scrollTop programmatically still moves its content. */
+  var sourceWrapEl = document.createElement('div');
+  sourceWrapEl.className = 'kf-richtext-source-wrap hidden';
+  var sourceGutterEl = document.createElement('div');
+  sourceGutterEl.className = 'kf-richtext-source-gutter';
   var sourceTextarea = document.createElement('textarea');
-  sourceTextarea.className = 'kf-richtext-source hidden';
+  sourceTextarea.className = 'kf-richtext-source';
   sourceTextarea.maxLength = maxLength;
-  containerEl.parentNode.insertBefore(sourceTextarea, containerEl.nextSibling);
+  sourceTextarea.setAttribute('wrap', 'off');
+  sourceTextarea.setAttribute('spellcheck', 'false');
+  sourceWrapEl.appendChild(sourceGutterEl);
+  sourceWrapEl.appendChild(sourceTextarea);
+  containerEl.parentNode.insertBefore(sourceWrapEl, containerEl.nextSibling);
   var sourceMode = false;
+
+  function updateSourceGutter(){
+    var lineCount = sourceTextarea.value.split('\n').length;
+    var lines = new Array(lineCount);
+    for(var i = 0; i < lineCount; i++) lines[i] = i + 1;
+    sourceGutterEl.textContent = lines.join('\n');
+  }
+
+  function syncSourceGutterScroll(){
+    sourceGutterEl.scrollTop = sourceTextarea.scrollTop;
+  }
 
   function enterSourceMode(){
     if(sourceMode) return;
     sourceTextarea.value = htmlToMarkdown(containerEl);
+    // Match whatever height the WYSIWYG view is currently rendered at (it grows with content between
+    // its own min/max-height) so switching views doesn't visibly jump — measured before hiding
+    // containerEl, since offsetHeight is 0 for a display:none element.
+    sourceWrapEl.style.height = containerEl.offsetHeight + 'px';
+    updateSourceGutter();
     sourceMode = true;
     containerEl.classList.add('hidden');
-    sourceTextarea.classList.remove('hidden');
+    sourceWrapEl.classList.remove('hidden');
     closeHashtagDropdown();
     sourceTextarea.focus();
+    sourceTextarea.scrollTop = 0;
+    syncSourceGutterScroll();
     updateToolbarState();
   }
 
@@ -91,7 +126,7 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
     containerEl.innerHTML = markdownToHtml(sourceTextarea.value);
     lastGoodHtml = containerEl.innerHTML;
     sourceMode = false;
-    sourceTextarea.classList.add('hidden');
+    sourceWrapEl.classList.add('hidden');
     containerEl.classList.remove('hidden');
     updateToolbarState();
   }
@@ -100,12 +135,15 @@ export function createRichTextEditor(containerEl, toolbarEl, opts){
     if(sourceMode) exitSourceMode(); else enterSourceMode();
   }
 
+  sourceTextarea.addEventListener('input', updateSourceGutter);
+  sourceTextarea.addEventListener('scroll', syncSourceGutterScroll);
+
   function setMarkdown(markdown){
     // A freshly-loaded value (e.g. opening the modal on a different task) always lands in the
     // WYSIWYG view, regardless of whatever mode was showing before — same defensive-default spirit
     // as the rest of this app's storage handling.
     sourceMode = false;
-    sourceTextarea.classList.add('hidden');
+    sourceWrapEl.classList.add('hidden');
     containerEl.classList.remove('hidden');
     containerEl.innerHTML = markdownToHtml(markdown || '');
     lastGoodHtml = containerEl.innerHTML;
