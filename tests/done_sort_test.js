@@ -58,8 +58,10 @@ function cardTitlesInColumn(doc, columnName){
       doneTitles[3] === 'No date, key 5' && doneTitles[4] === 'No date, key 9',
       doneTitles.join(' | '));
 
-  // ── 3. Non-done columns are NOT auto-sorted (manual order preserved) ─────
-  // (Only one task in To Do here, so let's add a second to verify ordering is untouched)
+  // ── 3. "To Do" (matches the Backlog/To Do auto-sort by name) is sorted by start date
+  //       ascending, undated tasks last — NOT manual drag/append order. The new card gets a real
+  //       start date (today, via the task modal's own default prefill), so it sorts ahead of
+  //       "Still in progress", which was seeded with startDate: null.
   const addBtn = doc.querySelector('.kf-add-task-btn');
   addBtn.click();
   await wait(10);
@@ -67,7 +69,7 @@ function cardTitlesInColumn(doc, columnName){
   doc.getElementById('taskSaveBtn').click();
   await wait(20);
   const todoTitles = cardTitlesInColumn(doc, 'To Do');
-  log('To Do column keeps manual append order (not date-sorted)', todoTitles.join('|') === 'Still in progress|Second todo task', todoTitles.join(' | '));
+  log('To Do column is auto-sorted by start date (dated task before undated one, not append order)', todoTitles.join('|') === 'Second todo task|Still in progress', todoTitles.join(' | '));
 
   // ── 4. Editing a Done task updates its dateLastModified and re-sorts it to the end ──
   const card = Array.from(doc.querySelectorAll('.kf-card')).find(c => c.textContent.indexOf('Finished first') !== -1);

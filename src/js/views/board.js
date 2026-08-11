@@ -19,6 +19,7 @@ import { renderPriorityFilterChips, renderTeamFilterChips, renderAssigneeFilterC
 import { fitBoardForTaskModal, restoreBoardAfterTaskModal, refitBoardForOpenTaskModal } from './board-layout.js';
 import { updateAiAssistantBubbleVisibility } from './ai-assistant.js';
 import { roundedOrthogonalPathD } from './dependency-map.js';
+import { isBacklogOrTodoColumnName, compareTasksForBacklogSort } from '../features/backlog-sort.js';
 
 // Re-exported for the many modals that already do `import { escapeHTML } from '../views/board.js'`
 // — the actual implementation now lives in utils.js (the shared, quote-escaping version) so it
@@ -562,6 +563,23 @@ export function renderBoard(){
   renderBoardCongratsBanner(project);
 }
 
+/* For any column whose name matches "Backlog" or "To Do" (partial, case-insensitive — see
+   isBacklogOrTodoColumnName), tasks are always displayed sorted by start date ascending, then
+   priority (Critical..Trivial), then a weighted dependency score (fewest/cheapest-to-resolve
+   dependencies first — see taskDependencyScore) — rather than their manual drag order. Same
+   "purely a display-time transform" contract as the Done-column sort just below: col.order itself
+   is left untouched, so nothing is lost if the column is later renamed out of matching. */
+function getBacklogOrTodoDisplayOrder(project, col){
+  var tasks = [];
+  col.order.forEach(function(taskId){
+    var t = project.tasks[taskId];
+    if(!t || t.archived) return;
+    tasks.push(t);
+  });
+  tasks.sort(function(a, b){ return compareTasksForBacklogSort(project, a, b); });
+  return tasks.map(function(t){ return t.id; });
+}
+
 /* For columns marked "done", tasks are always displayed sorted by
    dateLastModified (oldest → newest) rather than their manual drag
    order — completing a task is what determines its place in a Done
@@ -573,6 +591,7 @@ export function renderBoard(){
    manual drag order) is left untouched, so nothing is lost if the
    column is later un-marked as "done". */
 export function getColumnDisplayOrder(project, col){
+  if(!col.done && isBacklogOrTodoColumnName(col.name)) return getBacklogOrTodoDisplayOrder(project, col);
   if(!col.done) return col.order;
 
   var dated = [];
