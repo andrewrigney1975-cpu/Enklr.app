@@ -151,6 +151,44 @@ page.
   `isServerLoggedIn()` — org-wide, not per-project, so it doesn't key off any project setting the
   way most other nav items do (see `applyHeaderButtonVisibility` in `views/board.js`).
 
+## Standalone tool variant (`enklr.app/tools/whiteboard`, added 2026-08-12)
+
+A genuinely separate page, **not** this feature — no login, no `WhiteboardSession`/backend of any
+kind, no SSE/broadcast to other participants. Exists for the "just want a quick local sketchpad, no
+account needed" case, sitting alongside (not replacing) the collaborative in-app version documented
+above.
+
+- `src/tools/whiteboard/index.html` + `src/tools/whiteboard/app.js`, built by a **third**,
+  independent build script — `build-whiteboard-tool.js` — into a single self-contained
+  `dist/tools/whiteboard/index.html`, same "inline CSS + JS, one portable file" shape as the main
+  app's own `build.js` (see CLAUDE.md §2's repo layout — this is a sibling to `build.js`/
+  `build-help-site.js`, run manually, output committed).
+- **Reuses `features/whiteboard-draw.js`'s pure SVG-construction exports directly** (`renderElementsLayer`,
+  `clientPointToSvgPoint`, `computeConnectorCorner`, `connectorCurvePathD`, `smoothPathD`,
+  `translateElementData`), plus `views/dependency-map.js`'s `roundedOrthogonalPathD`/
+  `DEPMAP_CORNER_RADIUS` for connector routing (already a transitive dependency of the file above) —
+  the same drawing engine, not a reimplementation. What's genuinely rewritten is everything
+  `features/whiteboard.js` (session/API/SSE state) and most of `modals/whiteboard.js` (participants,
+  Start/Join entry view, Save/Exit-session, remote cursors) used to own — replaced with a plain
+  in-memory `_elements` array persisted synchronously to this browser's own
+  `localStorage['enklr_standalone_whiteboard_v1']` on every mutation, so there is no "unsaved
+  changes" state to warn about on close the way the in-app version has.
+- Renders as `.kf-overlay.kf-overlay-full > .kf-modal.kf-modal-full` — the same fullscreen shell
+  PORTALS.md's own end-user Portal home page uses (no backdrop-dismiss, since this page **is** the
+  whole browser tab) — rather than the in-app feature's `.kf-modal-lg` floating-modal shell. No
+  entry/join view, no left rail (nothing to put there with no session/participants) — canvas view is
+  shown immediately; `.kf-wb-body`'s CSS gained a `justify-content: center` rule to center the
+  canvas now that there's no rail beside it (a no-op for the in-app version, whose modal width is
+  already JS-fitted to content).
+- Routed via nginx **before** the SPA catch-all, same pattern as `/help/`: `web/nginx.conf`'s
+  `location /tools/whiteboard`. **PROD's `nginx-active.conf` is a separately hand-maintained,
+  bind-mounted copy** (see `DEPLOYMENT-AWS-DETAILS.md` §7) — this required a manual, matching edit
+  there too, in both app-serving server blocks, not just a `web/nginx.conf` change + image rebuild.
+- No jsdom coverage (same "real pointer/drag semantics jsdom can't exercise" reasoning as the in-app
+  feature above) — verified via a local `docker compose` smoke test (redirect/200/title/no-network-
+  calls) and a live PROD curl pass after deploy; see `RELEASE-NOTES-PRIVATE.md`'s 2026-08-12 entry
+  for the full verification list.
+
 ## Known gaps / deferred (not done in this pass)
 
 - No jsdom black-box test coverage was added — this feature is real-time, canvas/pointer-driven, and
