@@ -7207,10 +7207,11 @@
     display: none;
   }
 
-  /* Standalone Whiteboard tool only (src/tools/whiteboard) — a small inline badge next to the
-     "Whiteboard" title making explicit that nothing drawn here ever leaves the browser, since this
-     page has no session/participants UI of its own to otherwise communicate that. */
-  .kf-wb-standalone-badge {
+  /* Shared across every standalone tool (src/tools/*) — a small inline badge next to the tool's
+     title making explicit that nothing entered here ever leaves the browser, since these pages have
+     no session/participants UI of their own to otherwise communicate that. First built for
+     src/tools/whiteboard, reused as-is by src/tools/notes. */
+  .kf-standalone-badge {
     font-size: 11px;
     font-weight: 500;
     text-transform: uppercase;
@@ -7288,6 +7289,50 @@
   .kf-wb-swatch.kf-wb-swatch-active {
     outline: 2px solid var(--kf-accent, #2684ff);
     outline-offset: 1px;
+  }
+
+  /* Standalone Notes tool (src/tools/notes) — same "genuinely separate fullscreen page, no
+     session/backend" shape as the Whiteboard tool above, this time wrapping the shared
+     rich-text editor (rich-text/editor.js) instead of the whiteboard drawing modules. The editor's
+     own default .kf-richtext-editor max-height (300px, sized for a modal form field) is overridden
+     here to fill the remaining page height instead, since this page IS the editor, not one field
+     among several. */
+  .kf-notes-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 16px 24px 20px;
+    gap: 10px;
+  }
+
+  .kf-notes-title-input {
+    width: 100%;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--kf-text);
+    font-size: 22px;
+    font-weight: 700;
+    padding: 4px 2px 10px;
+    flex-shrink: 0;
+  }
+
+  .kf-notes-title-input:focus {
+    outline: none;
+    border-bottom-color: var(--kf-blue);
+  }
+
+  .kf-notes-title-input::placeholder {
+    color: var(--kf-text-faint);
+    font-weight: 700;
+  }
+
+  .kf-notes-body .kf-richtext-editor,
+  .kf-notes-body .kf-richtext-source-wrap {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
   }
 
   .kf-modal-footer .kf-footer-left {

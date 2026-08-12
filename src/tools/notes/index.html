@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enklr Notes</title>
+<script>
+  /* Same pre-paint theme flash guard as the main app's src/index.html and the standalone Whiteboard
+     tool — reads the SAME kanbanflow_theme localStorage key, so a user who set dark mode in the main
+     app (or the Whiteboard tool) gets a dark-themed Notes tool too, with no flash of the wrong theme. */
+  (function(){
+    try{
+      var saved = localStorage.getItem('kanbanflow_theme');
+      if(saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    }catch(e){ /* localStorage unavailable — fall back to light */ }
+  })();
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='0' y='0' width='24' height='24' fill='%230c66e4'/%3E%3Cpath d='M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z' fill='white'/%3E%3Cpath d='M9 11h6M9 14h6M9 17h4' stroke='%230c66e4' stroke-width='1.3' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- Standalone Notes tool (enklr.app/tools/notes) — a genuinely separate, self-contained page, NOT
+     tied to any task/project. No login, no backend: the note lives only in this browser's own
+     localStorage until explicitly exported. Reuses the in-app rich-text editor factory
+     (rich-text/editor.js + markdown.js) verbatim — same toolbar markup and kf-richtext-* CSS classes
+     the task/risk/document modals already use — plus .kf-modal-full/.kf-overlay-full, the same
+     "fullscreen, no backdrop-dismiss" shape the standalone Whiteboard tool and the Portal home page
+     both use, since this page IS the whole browser tab. See CLAUDE.md for how this differs from any
+     future in-app notes feature. -->
+<div class="kf-overlay kf-overlay-full" id="notesStandaloneOverlay">
+  <div class="kf-modal kf-modal-full" role="dialog" aria-modal="true">
+    <div class="kf-modal-header">
+      <h2>Notes <span class="kf-standalone-badge" title="Nothing typed here is uploaded or shared — it stays only in this browser until you export it.">local only</span></h2>
+      <div class="kf-modal-header-actions">
+        <button type="button" class="kf-btn kf-btn-ghost" id="notesNewBtn" title="New note — clears the title and body"><span class="kf-icon" data-icon="trash" data-size="14"></span>New</button>
+        <div class="kf-export-as-wrap">
+          <button type="button" class="kf-btn kf-btn-ghost" id="notesExportAsBtn" title="Export As..."><span class="kf-icon" data-icon="download" data-size="14"></span>Export As...</button>
+          <div class="kf-export-as-panel hidden" id="notesExportAsPanel">
+            <button type="button" class="kf-export-as-option" data-export-type="markdown">Export as Markdown</button>
+            <button type="button" class="kf-export-as-option" data-export-type="html">Export as HTML</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kf-notes-body">
+      <input type="text" class="kf-notes-title-input" id="notesTitleInput" maxlength="200" placeholder="Untitled note" autocomplete="off">
+      <div class="kf-richtext-toolbar" id="notesToolbar">
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h1" title="Heading 1">H1</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h2" title="Heading 2">H2</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="h3" title="Heading 3">H3</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="ul" title="Bullet list">&bull;</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="ol" title="Numbered list">1.</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="quote" title="Blockquote">&rdquo;</button>
+        <button type="button" class="kf-btn kf-btn-ghost kf-richtext-btn" data-cmd="link" title="Link"><span class="kf-icon" data-icon="link" data-size="14"></span></button>
+      </div>
+      <div class="kf-richtext-editor" id="notesEditor" contenteditable="true" data-placeholder="Start typing..."></div>
+    </div>
+  </div>
+</div>
+
+<div class="kf-toast-wrap" id="toastWrap"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
