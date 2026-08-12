@@ -14,6 +14,10 @@ COPY --from=build /src/dist/index.html /usr/share/nginx/html/index.html
 # build context, not the Node build stage, since it needs no compilation and the Node stage never
 # produces it.
 COPY dist/help /usr/share/nginx/html/help
+# dist/tools/ is likewise a pre-built, committed static output (build-whiteboard-tool.js, run
+# manually — see its own header comment) — copied straight from the outer build context, same
+# "no compilation needed inside the Docker build" reasoning as dist/help/ above.
+COPY dist/tools /usr/share/nginx/html/tools
 COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 # Security review finding M8: deliberately NOT switching to a non-root USER here — this listens on
 # port 80 (privileged, <1024), which a non-root user can't bind without extra capabilities, and

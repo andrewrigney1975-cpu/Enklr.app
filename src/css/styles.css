@@ -7066,6 +7066,11 @@
     flex: 1;
     display: flex;
     min-height: 0;
+    /* Centers the row when it has no left rail (the standalone Whiteboard tool, src/tools/
+       whiteboard, has no participants/session rail to sit next to the canvas) — a no-op for the
+       in-app Collaborative Whiteboard, whose modal width is already JS-fitted to the rail + canvas
+       row's own natural width (sizeWhiteboardModalToCanvas), leaving no extra space to center into. */
+    justify-content: center;
   }
 
   #wbCanvasView.hidden {
@@ -7200,6 +7205,23 @@
 
   .kf-wb-grid-overlay.hidden {
     display: none;
+  }
+
+  /* Standalone Whiteboard tool only (src/tools/whiteboard) — a small inline badge next to the
+     "Whiteboard" title making explicit that nothing drawn here ever leaves the browser, since this
+     page has no session/participants UI of its own to otherwise communicate that. */
+  .kf-wb-standalone-badge {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--kf-text-secondary);
+    background: var(--kf-surface-sunken, #f4f5f7);
+    border: 1px solid var(--kf-border);
+    border-radius: 10px;
+    padding: 2px 8px;
+    margin-left: 10px;
+    vertical-align: middle;
   }
 
   /* Generic 2-row toolbar grouping — originally built for the outline/filled shape tool pairs,
